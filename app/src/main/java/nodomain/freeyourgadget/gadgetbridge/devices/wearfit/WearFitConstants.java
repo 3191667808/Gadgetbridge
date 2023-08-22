@@ -24,28 +24,21 @@ public final class WearFitConstants {
     public static final UUID UUID_CHARACTERISTIC_CONTROL = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
     public static final UUID UUID_CHARACTERISTIC_REPORT = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
 
-    // Services and Characteristics
-    // 00001801-0000-1000-8000-00805f9b34fb
-    // 00002a05-0000-1000-8000-00805f9b34fb
-    // 00001800-0000-1000-8000-00805f9b34fb
-    // 00002a00-0000-1000-8000-00805f9b34fb
-    // 00002a01-0000-1000-8000-00805f9b34fb
-    // 00002a02-0000-1000-8000-00805f9b34fb
-    // 00002a04-0000-1000-8000-00805f9b34fb
-    // 00002aa6-0000-1000-8000-00805f9b34fb
-    // 6e400001-b5a3-f393-e0a9-e50e24dcca9e // Nordic UART Service
-    // 6e400002-b5a3-f393-e0a9-e50e24dcca9e // control (RX)
-    // 6e400003-b5a3-f393-e0a9-e50e24dcca9e // report
-    // 0000fee7-0000-1000-8000-00805f9b34fb
-    // 0000fec9-0000-1000-8000-00805f9b34fb
-    // 0000fea1-0000-1000-8000-00805f9b34fb
-    // 0000fea2-0000-1000-8000-00805f9b34fb
+    // Services and Characteristics - found from original app, unused.
+
+    // public static final UUID BUS_CODE_NOTIFY_UUID = UUID.fromString("6e400013-b5a3-f393-e0a9-e50e24dcca9e");
+    // public static final UUID BUS_CODE_SERVICE_UUID = UUID.fromString("6e400011-b5a3-f393-e0a9-e50e24dcca9e");
+    // public static final UUID BUS_CODE_WRITE_UUID = UUID.fromString("6e400012-b5a3-f393-e0a9-e50e24dcca9e");
+    // public static final UUID PAY_CODE_NOTIFY_UUID = UUID.fromString("00004a03-0000-1000-8000-00805f9b34fb");
+    // public static final UUID PAY_CODE_SERVICE_UUID = UUID.fromString("00003803-0000-1000-8000-00805f9b34fb");
+    // public static final UUID PAY_CODE_WRITE_UUID = UUID.fromString("00004a03-0000-1000-8000-00805f9b34fb");
+    // public static final UUID SICHE_CHARACTERISTIC_UUID = UUID.fromString("00000000-0000-0200-6473-5f696c666973");
+    // public static final UUID SICHE_LOG_SERVICE_UUID = UUID.fromString("00000000-0000-0000-6473-5f696c666973");
 
     // Command structure
     // ab 00 [argument_count] ff [command] 80 [arguments]
     // where [argument_count] is [arguments].length + 3
     // 80 might by different.
-
 
     public static final byte[] DATA_TEMPLATE = {
             (byte) 0xab,

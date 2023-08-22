@@ -66,14 +66,14 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     public static boolean shouldEnableHeadsUpScreen(SharedPreferences sharedPrefs) {
         String liftMode = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_ACTIVATE_DISPLAY_ON_LIFT, getContext().getString(R.string.p_on));
 
-        // Makibes HR3 doesn't support scheduled intervals. Treat it as "on".
+        // HK8 Pro Max doesn't support scheduled intervals. Treat it as "on".
         return !liftMode.equals(getContext().getString(R.string.p_off));
     }
 
     public static boolean shouldEnableLostReminder(SharedPreferences sharedPrefs) {
         String lostReminder = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_DISCONNECT_NOTIFICATION, getContext().getString(R.string.p_on));
 
-        // Makibes HR3 doesn't support scheduled intervals. Treat it as "on".
+        // HK8 Pro Max doesn't support scheduled intervals. Treat it as "on".
         return !lostReminder.equals(getContext().getString(R.string.p_off));
     }
 
@@ -154,13 +154,13 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
         String name = candidate.getDevice().getName();
 
         List<String> deviceNames = new ArrayList<String>(){{
-            add("Y808"); // Chinese version
-            add("MAKIBES HR3"); // English version
+            add("HK8 PRO MAX"); // Ultra clone
+            add("HK8 PRO");     // Earlier version
         }};
 
         if (name != null) {
             if (deviceNames.contains(name)) {
-                return DeviceType.MAKIBESHR3;
+                return DeviceType.WEARFIT_HK8_PRO;
             }
         }
 
@@ -201,7 +201,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public DeviceType getDeviceType() {
-        return DeviceType.MAKIBESHR3;
+        return DeviceType.WEARFIT_HK8_PRO;
     }
 
     @Nullable
@@ -252,7 +252,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public String getManufacturer() {
-        return "Makibes";
+        return "WearFit";
     }
 
     @Override
