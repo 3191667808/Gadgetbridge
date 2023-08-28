@@ -418,7 +418,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         this.setTimeMode(transaction, sharedPreferences);
         this.setDateTime(transaction);
-        this.setQuiteHours(transaction, sharedPreferences);
+        this.setQuietHours(transaction, sharedPreferences);
 
         this.setHeadsUpScreen(transaction, sharedPreferences);
         this.setLostReminder(transaction, sharedPreferences);
@@ -454,7 +454,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         } else if (key.equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO) ||
                 key.equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START) ||
                 key.equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END)) {
-            this.setQuiteHours(transactionBuilder, sharedPreferences);
+            this.setQuietHours(transactionBuilder, sharedPreferences);
         } else if (key.equals(DeviceSettingsPreferenceConst.PREF_FIND_PHONE) ||
                 key.equals(DeviceSettingsPreferenceConst.PREF_FIND_PHONE_DURATION)) {
             // No action, we check the shared preferences when the device tries to ring the phone.
@@ -951,7 +951,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         return this;
     }
 
-    private WearFitDeviceSupport setQuiteHours(TransactionBuilder transactionBuilder,
+    private WearFitDeviceSupport setQuietHours(TransactionBuilder transactionBuilder,
                                                   boolean enable,
                                                   int hourStart, int minuteStart,
                                                   int hourEnd, int minuteEnd) {
@@ -966,14 +966,14 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         return this;
     }
 
-    private WearFitDeviceSupport setQuiteHours(TransactionBuilder transactionBuilder,
+    private WearFitDeviceSupport setQuietHours(TransactionBuilder transactionBuilder,
                                                   SharedPreferences sharedPreferences) {
 
         Calendar start = new GregorianCalendar();
         Calendar end = new GregorianCalendar();
-        boolean enable = WearFitCoordinator.getQuiteHours(sharedPreferences, start, end);
+        boolean enable = WearFitCoordinator.getQuietHours(sharedPreferences, start, end);
 
-        return this.setQuiteHours(transactionBuilder, enable,
+        return this.setQuietHours(transactionBuilder, enable,
                 start.get(Calendar.HOUR_OF_DAY), start.get(Calendar.MINUTE),
                 end.get(Calendar.HOUR_OF_DAY), end.get(Calendar.MINUTE));
     }

@@ -92,9 +92,9 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     /**
      * @param startOut out Only hour/minute are used.
      * @param endOut   out Only hour/minute are used.
-     * @return True if quite hours are enabled.
+     * @return True if quiet hours are enabled.
      */
-    public static boolean getQuiteHours(SharedPreferences sharedPrefs, Calendar startOut, Calendar endOut) {
+    public static boolean getQuietHours(SharedPreferences sharedPrefs, Calendar startOut, Calendar endOut) {
         String doNotDisturb = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO, getContext().getString(R.string.p_off));
 
         if (doNotDisturb.equals(getContext().getString(R.string.p_off))) {
