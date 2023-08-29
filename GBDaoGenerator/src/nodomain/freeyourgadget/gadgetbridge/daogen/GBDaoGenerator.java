@@ -74,6 +74,7 @@ public class GBDaoGenerator {
         Entity userDefinedActivityOverlay = addActivityDescription(schema, tag, user);
 
         addMakibesHR3ActivitySample(schema, user, device);
+        addWearFitActivitySample(schema, user, device);
         addMiBandActivitySample(schema, user, device);
         addHuamiExtendedActivitySample(schema, user, device);
         addHuamiStressSample(schema, user, device);
@@ -325,6 +326,16 @@ public class GBDaoGenerator {
 
     private static Entity addMakibesHR3ActivitySample(Schema schema, Entity user, Entity device) {
         Entity activitySample = addEntity(schema, "MakibesHR3ActivitySample");
+        activitySample.implementsSerializable();
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        return activitySample;
+    }
+
+    private static Entity addWearFitActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "WearFitActivitySample");
         activitySample.implementsSerializable();
         addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
         activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
