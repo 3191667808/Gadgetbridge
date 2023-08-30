@@ -159,8 +159,14 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
         }};
 
         if (name != null) {
-            if (deviceNames.contains(name)) {
-                return DeviceType.WEARFIT_HK8_PRO;
+            switch (name) {
+                case "HK8 PRO MAX":
+                case "HK8 PRO":
+                case "HK8 ULTRA":
+                    return DeviceType.WEARFIT_HK8_PRO;
+                default:
+                    return DeviceType.UNKNOWN;
+
             }
         }
 
@@ -176,7 +182,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getBondingStyle() {
-        return BONDING_STYLE_BOND;
+        return BONDING_STYLE_ASK;
     }
 
     @Override
@@ -191,6 +197,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsWeather() {
+        // Yes, supports weather but still not implemented.
         return false;
     }
 
