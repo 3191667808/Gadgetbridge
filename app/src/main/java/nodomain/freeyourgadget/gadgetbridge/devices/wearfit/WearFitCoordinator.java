@@ -19,9 +19,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.wearfit;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
+import java.util.regex.Pattern;
 
 import android.app.Activity;
 import android.content.Context;
@@ -35,7 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.greenrobot.dao.query.QueryBuilder;
-import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
@@ -150,29 +148,9 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
         }
     }
 
-    @NonNull
     @Override
-    public DeviceType getSupportedType(GBDeviceCandidate candidate) {
-        String name = candidate.getDevice().getName();
-
-        List<String> deviceNames = new ArrayList<String>(){{
-            add("HK8 PRO MAX"); // Ultra clone
-            add("HK8 PRO");     // Earlier version
-        }};
-
-        if (name != null) {
-            switch (name) {
-                case "HK8 PRO MAX":
-                case "HK8 PRO":
-                case "HK8 ULTRA":
-                    return DeviceType.WEARFIT_HK8_PRO;
-                default:
-                    return DeviceType.UNKNOWN;
-
-            }
-        }
-
-        return DeviceType.UNKNOWN;
+    protected Pattern getSupportedDeviceName() {
+                return Pattern.compile("HK8");
     }
 
     @Override
@@ -209,8 +187,8 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceType getDeviceType() {
-        return DeviceType.WEARFIT_HK8_PRO;
+    public boolean supports(final GBDeviceCandidate candidate) {
+        return true;
     }
 
     @Nullable
@@ -250,11 +228,6 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsSmartWakeup(GBDevice device) {
-        return false;
-    }
-
-    @Override
     public boolean supportsHeartRateMeasurement(GBDevice device) {
         return true;
     }
@@ -291,4 +264,10 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     public Class<? extends DeviceSupport> getDeviceSupportClass() {
         return WearFitDeviceSupport.class;
     }
+
+    @Override
+    public int getDeviceNameResource() {
+        return R.string.devicetype_wearfit_hk8_pro_max;
+    }
+
 }
