@@ -878,12 +878,16 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
     private WearFitDeviceSupport sendNotification(TransactionBuilder transaction,
                                                      byte source, String message) {
-        byte[] data = new byte[message.length() + 2];
+
+
+        byte[] msg =message.getBytes();
+        byte[] data = new byte[msg.length + 2];
         data[0] = source;
         data[1] = (byte) 0x02;
 
-        for (int i = 0; i < message.length(); ++i) {
-            data[i + 2] = (byte) message.charAt(i);
+
+        for (int i = 0; i < msg.length; ++i) {
+            data[i + 2] = (byte) msg[i];
         }
 
         this.writeSafe(
