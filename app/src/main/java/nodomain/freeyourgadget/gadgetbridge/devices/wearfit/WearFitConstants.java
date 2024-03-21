@@ -188,15 +188,25 @@ public final class WearFitConstants {
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_CALL = (byte) 0x01;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_STOP_CALL = (byte) 0x02;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_MESSAGE = (byte) 0x03;
-    public static final byte ARG_SEND_NOTIFICATION_SOURCE_QQ = (byte) 0x07;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_MAIL = (byte) 0x04;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_TENCENT = (byte) 0x07;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_WECHAT = (byte) 0x09;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_WHATSAPP = (byte) 0x0a;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_GMAIL = (byte) 0x0b;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_LINE = (byte) 0x0e;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_TWITTER = (byte) 0x0f;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_FACEBOOK = (byte) 0x10;
-    public static final byte ARG_SEND_NOTIFICATION_SOURCE_FACEBOOK2 = (byte) 0x11;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_MESSENGER = (byte) 0x11;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_INSTAGRAM = (byte) 0x12;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_WEIBO = (byte) 0x13;
     public static final byte ARG_SEND_NOTIFICATION_SOURCE_KAKOTALK = (byte) 0x14;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_VIBER = (byte) 0x16;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_VKONTAKTE = (byte) 0x17;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_TELEGRAM = (byte) 0x18;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_DINGTALK = (byte) 0x1B;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_WHATSAPP_BUSINESS = (byte) 0x20;
+    public static final byte ARG_SEND_NOTIFICATION_SOURCE_WEARFIT = (byte) 0x22;
+
     // ARG_SET_NOTIFICATION_SOURCE_*
     // 02 (This is 00 and 01 during connection. Doesn't seem to do anything.)
     // ASCII
