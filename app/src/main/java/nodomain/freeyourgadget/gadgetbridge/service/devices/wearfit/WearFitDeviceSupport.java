@@ -51,6 +51,7 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -936,23 +937,24 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
      */
     private WearFitDeviceSupport setPersonalInformation(TransactionBuilder transactionBuilder,
                                                            int stepLength, int age, int height, int weight, int stepGoal) {
+
+        byte distanceUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS;
+        byte tempUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_CELSIUS;
+        String units = GBApplication.getPrefs().getString(SettingsActivity.PREF_MEASUREMENT_SYSTEM, GBApplication.getContext().getString(R.string.p_unit_metric));
+        if (units.equals(GBApplication.getContext().getString(R.string.p_unit_imperial))) {
+            distanceUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_MILES;
+            tempUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_FAHRENHEIT;
+        }
+
         byte[] data = this.craftData(WearFitConstants.CMD_SET_PERSONAL_INFORMATION,
                 new byte[]{
                         (byte) stepLength,
                         (byte) age,
                         (byte) height,
                         (byte) weight,
-                        WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS,
+                        distanceUnit,
                         (byte) stepGoal,
-                        (byte) 0x5a,
-                        (byte) 0x82,
-                        (byte) 0x3c,
-                        (byte) 0x5a,
-                        (byte) 0x28,
-                        (byte) 0xb4,
-                        (byte) 0x5d,
-                        (byte) 0x64,
-
+                        (byte) tempUnit,
                 });
 
         transactionBuilder.write(this.mControlCharacteristic, data);
