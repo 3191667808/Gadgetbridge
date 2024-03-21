@@ -54,6 +54,8 @@ public final class WearFitConstants {
     public static final int DATA_COMMAND_INDEX = 4;
     public static final int DATA_ARGUMENTS_INDEX = 6;
 
+    public static final int WEATHER_SIZE = 7;
+
     // blood oxygen percentage
     public static final byte[] RPRT_BLOOD_OXYGEN = new byte[]{ (byte) 0x31, (byte) 0x12 };
 
@@ -290,7 +292,7 @@ public final class WearFitConstants {
     public static final byte CMD_SET_TIMEMODE = (byte) 0x7c;
 
 
-    // 14 arguments. Watch might reply with RPRT_BATTERY.
+    // 14 arguments. weekly forecast
     public static final byte CMD_SET_WEATHER = (byte) 0x7e;
 
 
@@ -309,6 +311,7 @@ public final class WearFitConstants {
     // looks like enable/disable.
     public static final byte CMD_85 = (byte) 0x85;
 
+    public static final byte CMD_SET_WEATHER_MIN_MAX = (byte)0x88;
 
     // 00
     // year hi
