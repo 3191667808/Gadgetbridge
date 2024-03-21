@@ -1066,4 +1066,80 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         return this;
     }
+
+    @Override
+    public void onSendWeather(WeatherSpec weatherSpec) {
+
+        TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
+        sendWeather(transactionBuilder, weatherSpec);
+        try {
+            this.performConnected(transactionBuilder.getTransaction());
+        } catch (Exception ex) {
+            LoggerFactory.getLogger(this.getClass()).error("send weather reset failed");
+        }
+    }
+
+    private WearFitDeviceSupport sendWeather(TransactionBuilder transaction, WeatherSpec weatherSpec) {
+
+        byte[] bytes = new byte[14];
+
+        int dayCount = Math.min(weatherSpec.forecasts.size(), 6);
+
+        int temperature = weatherSpec.currentTemp - 273;
+        int code = openWeatherToWEatherCode(weatherSpec.currentConditionCode).ordinal();
+        String weatherType;
+        if (temperature > 0) {
+            weatherType = code + "0";
+        } else {
+            weatherType = code + "1";
+        }
+
+        bytes[0 + 2 * 0] = (byte) (Integer.parseInt(weatherType, 16));
+        bytes[1 + 2 * 0] = (byte) Math.abs(temperature);
+
+
+        for (int i = 0; i < dayCount; i++) {
+            WeatherSpec.Daily day  = weatherSpec.forecasts.get(i);
+
+            temperature = day.maxTemp - 273;
+            code = openWeatherToWEatherCode(weatherSpec.currentConditionCode).ordinal();
+            if (temperature > 0) {
+                weatherType = code + "0";
+            } else {
+                weatherType = code + "1";
+            }
+
+            bytes[2+2 * i] = (byte) (Integer.parseInt(weatherType, 16));
+            bytes[3+2 * i] = (byte) Math.abs(temperature);
+
+        }
+
+        byte[] data = this.craftData(WearFitConstants.CMD_SET_WEATHER,bytes);
+
+        transaction.write(this.mControlCharacteristic, data);
+
+        return this;
+    }
+
+    private WearFitConstants.WeatherCode openWeatherToWEatherCode(int weatherCode) {
+        WearFitConstants.WeatherCode wearFitWeatherCode = WearFitConstants.WeatherCode.CLOUDY;
+        if (weatherCode >= 200 && weatherCode < 600) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.RAIN;
+        } else if (weatherCode >= 600 && weatherCode < 700) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.SNOW;
+        } else if (weatherCode == 721) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.HAZE;
+        } else if (weatherCode == 731) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.DUST;
+        } else if (weatherCode >= 700 && weatherCode < 800 && weatherCode != 731 && weatherCode != 721) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.OVERCAST;
+        } else if (weatherCode == 800) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.SUNNY;
+        } else if (weatherCode >= 801 && weatherCode <= 804) {
+            wearFitWeatherCode = WearFitConstants.WeatherCode.CLOUDY;
+        }
+
+        return wearFitWeatherCode;
+
+    }
 }
