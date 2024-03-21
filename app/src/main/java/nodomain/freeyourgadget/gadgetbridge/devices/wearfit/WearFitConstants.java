@@ -285,7 +285,7 @@ public final class WearFitConstants {
 
 
     // 14 arguments. Watch might reply with RPRT_BATTERY.
-    public static final byte CMD_7e = (byte) 0x7e;
+    public static final byte CMD_SET_WEATHER = (byte) 0x7e;
 
 
     // 01
@@ -328,4 +328,15 @@ public final class WearFitConstants {
     // If this is sent after {@link CMD_FACTORY_RESET}, it's a shutdown, not a reboot.
     // Rebooting resets the watch face and wallpaper.
     public static final byte CMD_REBOOT = (byte) 0xff;
+
+    public enum WeatherCode {
+        CLOUDY,
+        SUNNY,
+        SNOW,
+        RAIN,
+        OVERCAST,
+        DUST,
+        WIND,
+        HAZE
+    }
 }

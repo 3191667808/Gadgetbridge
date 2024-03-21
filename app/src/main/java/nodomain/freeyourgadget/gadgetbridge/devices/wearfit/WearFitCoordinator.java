@@ -177,8 +177,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsWeather() {
-        // Yes, supports weather but still not implemented.
-        return false;
+        return true;
     }
 
     @Override
