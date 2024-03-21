@@ -1087,12 +1087,13 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
     public void onSendWeather(WeatherSpec weatherSpec) {
 
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
+        sendWeatherCity(transactionBuilder, weatherSpec);
         sendWeather(transactionBuilder, weatherSpec);
         sendWeatherMinMax(transactionBuilder, weatherSpec);
         try {
             this.performConnected(transactionBuilder.getTransaction());
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("send weather reset failed");
+            LoggerFactory.getLogger(this.getClass()).error("send weather failed");
         }
     }
 
@@ -1156,6 +1157,32 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         return this;
     }
+
+    private WearFitDeviceSupport sendWeatherCity(TransactionBuilder transaction, WeatherSpec weatherSpec) {
+        byte[] cityBytes = weatherSpec.location.getBytes();
+
+        byte[] command_header_ea = {
+                (byte) 0xea, // only one command in such format, hardcode for now
+                (byte) 0x00,
+                (byte) 0, // argument_count
+                (byte) 0xff,
+                (byte) WearFitConstants.CMD_SET_WEATHER, // command
+                (byte) 0x01,
+                (byte) cityBytes.length
+//           ,arguments
+        };
+
+        byte[] data = new byte[cityBytes.length+command_header_ea.length];
+        System.arraycopy(command_header_ea, 0, data, 0, command_header_ea.length);
+        data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX] = (byte) (cityBytes.length + 4);
+        System.arraycopy(cityBytes, 0, data, 7, cityBytes.length);
+
+        transaction.write(this.mControlCharacteristic, data);
+
+        return this;
+
+    }
+
 
     private WearFitConstants.WeatherCode openWeatherToWEatherCode(int weatherCode) {
         WearFitConstants.WeatherCode wearFitWeatherCode = WearFitConstants.WeatherCode.CLOUDY;
