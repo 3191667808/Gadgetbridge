@@ -1088,6 +1088,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
         sendWeather(transactionBuilder, weatherSpec);
+        sendWeatherMinMax(transactionBuilder, weatherSpec);
         try {
             this.performConnected(transactionBuilder.getTransaction());
         } catch (Exception ex) {
@@ -1097,40 +1098,59 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
     private WearFitDeviceSupport sendWeather(TransactionBuilder transaction, WeatherSpec weatherSpec) {
 
-        byte[] bytes = new byte[14];
+        byte[] bytes = new byte[WearFitConstants.WEATHER_SIZE*2];
 
-        int dayCount = Math.min(weatherSpec.forecasts.size(), 6);
+        int dayCount = Math.min(weatherSpec.forecasts.size(), WearFitConstants.WEATHER_SIZE);
 
-        int temperature = weatherSpec.currentTemp - 273;
-        int code = openWeatherToWEatherCode(weatherSpec.currentConditionCode).ordinal();
-        String weatherType;
-        if (temperature > 0) {
-            weatherType = code + "0";
-        } else {
-            weatherType = code + "1";
-        }
-
-        bytes[0 + 2 * 0] = (byte) (Integer.parseInt(weatherType, 16));
-        bytes[1 + 2 * 0] = (byte) Math.abs(temperature);
 
 
         for (int i = 0; i < dayCount; i++) {
             WeatherSpec.Daily day  = weatherSpec.forecasts.get(i);
 
-            temperature = day.maxTemp - 273;
-            code = openWeatherToWEatherCode(weatherSpec.currentConditionCode).ordinal();
-            if (temperature > 0) {
-                weatherType = code + "0";
-            } else {
-                weatherType = code + "1";
+            int temperature = (day.minTemp + day.maxTemp)/2 - 273;
+            int code = (byte)openWeatherToWEatherCode(day.conditionCode).ordinal();
+            byte weatherCode = (byte)(code << 4);
+            if (temperature < 0) {
+                weatherCode+=1;
             }
 
-            bytes[2+2 * i] = (byte) (Integer.parseInt(weatherType, 16));
-            bytes[3+2 * i] = (byte) Math.abs(temperature);
+            bytes[0+2 * i] = weatherCode;
+            bytes[1+2 * i] = (byte) Math.abs(temperature);
 
         }
 
         byte[] data = this.craftData(WearFitConstants.CMD_SET_WEATHER,bytes);
+
+        transaction.write(this.mControlCharacteristic, data);
+
+        return this;
+    }
+
+    private WearFitDeviceSupport sendWeatherMinMax(TransactionBuilder transaction, WeatherSpec weatherSpec) {
+        byte[] bytes = new byte[WearFitConstants.WEATHER_SIZE*2];
+        int dayCount = Math.min(weatherSpec.forecasts.size(), WearFitConstants.WEATHER_SIZE);
+
+        for (int i = 0; i < dayCount; i++) {
+            WeatherSpec.Daily day  = weatherSpec.forecasts.get(i);
+
+            byte minTemp = (byte)(Math.abs(day.minTemp -273) & 0xF7);
+            byte maxTemp = (byte)(Math.abs(day.maxTemp -273) & 0xF7);
+
+            if (day.minTemp -273 < 0 ) {
+                minTemp += (byte)(1<<7);
+            }
+
+            if (day.maxTemp -273 < 0 ) {
+                maxTemp += (byte)(1<<7);
+            }
+
+
+            bytes[0+2 * i] = maxTemp;
+            bytes[1+2 * i] = minTemp;
+
+        }
+
+        byte[] data = this.craftData(WearFitConstants.CMD_SET_WEATHER_MIN_MAX,bytes);
 
         transaction.write(this.mControlCharacteristic, data);
 
