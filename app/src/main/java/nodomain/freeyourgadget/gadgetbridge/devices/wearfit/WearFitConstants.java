@@ -234,6 +234,8 @@ public final class WearFitConstants {
 
     public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_MILES = (byte) 0x00;
     public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS = (byte) 0x01;
+    public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_CELSIUS = (byte) 0x00;
+    public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_FAHRENHEIT = (byte) 0x01;
     // step length (in/cm)
     // step length (in/cm)
     // age (years)
@@ -241,14 +243,8 @@ public final class WearFitConstants {
     // weight (lb/kg)
     // ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_*
     // target step count (kilo)
-    // 5a
-    // 82
-    // 3c
-    // 5a
-    // 28
-    // b4
-    // 5d
-    // 64
+    // temperature units
+
     public static final byte CMD_SET_PERSONAL_INFORMATION = (byte) 0x74;
 
 
