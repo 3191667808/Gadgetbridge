@@ -197,14 +197,16 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         switch (notificationSpec.type) {
             case FACEBOOK:
-            case FACEBOOK_MESSENGER:
                 sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_FACEBOOK;
+                break;
+            case FACEBOOK_MESSENGER:
+                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_MESSENGER;
                 break;
             case LINE:
                 sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_LINE;
                 break;
             case TELEGRAM:
-                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_MESSAGE;
+                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_TELEGRAM;
                 break;
             case TWITTER:
                 sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_TWITTER;
@@ -217,6 +219,18 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
                 break;
             case KAKAO_TALK:
                 sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_KAKOTALK;
+                break;
+            case GMAIL:
+                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_GMAIL;
+                break;
+            case GENERIC_EMAIL:
+                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_MAIL;
+                break;
+            case INSTAGRAM:
+                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_INSTAGRAM;
+                break;
+            case VIBER:
+                sender = WearFitConstants.ARG_SEND_NOTIFICATION_SOURCE_VIBER;
                 break;
 
             default:
