@@ -313,6 +313,8 @@ public final class WearFitConstants {
 
     public static final byte CMD_SET_WEATHER_MIN_MAX = (byte)0x88;
 
+    public static final byte CMD_SET_WEATHER_UV_PRESSURE = (byte)0x8a;
+
     // 00
     // year hi
     // year lo
@@ -339,11 +341,11 @@ public final class WearFitConstants {
     public static final byte CMD_REBOOT = (byte) 0xff;
 
     public enum WeatherCode {
-        CLOUDY,
+        PARTLY_CLOUDY,
         SUNNY,
         SNOW,
         RAIN,
-        OVERCAST,
+        CLOUDY,
         DUST,
         WIND,
         HAZE

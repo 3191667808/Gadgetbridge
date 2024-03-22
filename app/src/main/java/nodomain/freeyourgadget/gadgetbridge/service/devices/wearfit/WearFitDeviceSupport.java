@@ -1088,13 +1088,83 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
         sendWeatherCity(transactionBuilder, weatherSpec);
+
         sendWeather(transactionBuilder, weatherSpec);
         sendWeatherMinMax(transactionBuilder, weatherSpec);
+        sendWeatherHourly(transactionBuilder, weatherSpec);
+        sendWeatherCurrentPressureUV(transactionBuilder, weatherSpec);
+        //sendWeatherHourlyPressure(transactionBuilder, weatherSpec); //not necessary for hk8
+
         try {
             this.performConnected(transactionBuilder.getTransaction());
         } catch (Exception ex) {
             LoggerFactory.getLogger(this.getClass()).error("send weather failed");
         }
+    }
+
+    private WearFitDeviceSupport sendWeatherHourlyPressure(TransactionBuilder transaction, WeatherSpec weatherSpec) {
+        byte[] data = GB.hexStringToByteArray("ab0038ffe4800c170101b403bf03bf03bf03bf03be03be03be03be03be03be03be03be03bd03be03bd03be03bf03c003c103c203c303c403c403c4");
+        transaction.write(this.mControlCharacteristic, data);
+        return this;
+    }
+
+    private WearFitDeviceSupport sendWeatherCurrentPressureUV(TransactionBuilder transaction, WeatherSpec weatherSpec) {
+        //byte[] data = GB.hexStringToByteArray("ab0007ff8a800103c300");
+        byte[] bytes = new byte[4];
+        int uvIndex = Math.round(weatherSpec.uvIndex);
+        bytes[0] = (byte)uvIndex;
+        int pressure = Math.round(weatherSpec.pressure);
+        bytes[1] = (byte)(pressure/256);
+        bytes[2] = (byte)(pressure%256);
+        bytes[3] = 0;
+        byte[] data = this.craftData(WearFitConstants.CMD_SET_WEATHER_UV_PRESSURE,bytes);
+        transaction.write(this.mControlCharacteristic, data);
+        return this;
+    }
+
+    private WearFitDeviceSupport sendWeatherHourly(TransactionBuilder transaction, WeatherSpec weatherSpec) {
+        // works //byte[] data = GB.hexStringToByteArray("ea004dff7e020c0c0105010c33010104013130010103013a2e01010301402b01010301442c01010401492e010104015131011105015437011105014c38011105013c37011106012f3a011107012b3c01");
+
+        int currentHour = new GregorianCalendar().get(Calendar.HOUR_OF_DAY);
+
+        byte[] command_header_ea = {
+                (byte) 0xea, // only one command in such format, hardcode for now
+                (byte) 0x00,
+                (byte) 0, // argument_count
+                (byte) 0xff,
+                (byte) WearFitConstants.CMD_SET_WEATHER, // command
+                (byte) 0x02,
+                (byte)0x01, // number of entries
+                (byte) currentHour
+//           ,arguments
+        };
+
+        byte[] currentHourData = new byte[6];
+
+        byte[] data = new byte[command_header_ea.length +currentHourData.length ];
+        int temperature = weatherSpec.currentTemp - 273;
+        int code = (byte)openWeatherToWEatherCode(weatherSpec.currentConditionCode).ordinal();
+        byte weatherCode = (byte)(code << 4);
+        if (temperature < 0) {
+            weatherCode+=1;
+        }
+
+        currentHourData[0] =(byte)weatherCode;
+        currentHourData[1] =(byte)temperature;
+        currentHourData[2] = (byte)(weatherSpec.windDirection/256);
+        currentHourData[3] = (byte)(weatherSpec.windDirection%256);
+        currentHourData[4] = (byte)(weatherSpec.currentHumidity);
+        currentHourData[5] = (byte)(Math.round(weatherSpec.uvIndex));
+
+         System.arraycopy(command_header_ea, 0, data, 0, command_header_ea.length);
+        data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX] = (byte) (currentHourData.length + 5);
+        System.arraycopy(currentHourData, 0, data, 8, currentHourData.length);
+
+        this.writeSafe(
+                this.mControlCharacteristic,
+                transaction,
+                data);
+        return this;
     }
 
     private WearFitDeviceSupport sendWeather(TransactionBuilder transaction, WeatherSpec weatherSpec) {
@@ -1185,7 +1255,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
 
     private WearFitConstants.WeatherCode openWeatherToWEatherCode(int weatherCode) {
-        WearFitConstants.WeatherCode wearFitWeatherCode = WearFitConstants.WeatherCode.CLOUDY;
+        WearFitConstants.WeatherCode wearFitWeatherCode = WearFitConstants.WeatherCode.PARTLY_CLOUDY;
         if (weatherCode >= 200 && weatherCode < 600) {
             wearFitWeatherCode = WearFitConstants.WeatherCode.RAIN;
         } else if (weatherCode >= 600 && weatherCode < 700) {
@@ -1195,11 +1265,11 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         } else if (weatherCode == 731) {
             wearFitWeatherCode = WearFitConstants.WeatherCode.DUST;
         } else if (weatherCode >= 700 && weatherCode < 800 && weatherCode != 731 && weatherCode != 721) {
-            wearFitWeatherCode = WearFitConstants.WeatherCode.OVERCAST;
+            wearFitWeatherCode = WearFitConstants.WeatherCode.CLOUDY;
         } else if (weatherCode == 800) {
             wearFitWeatherCode = WearFitConstants.WeatherCode.SUNNY;
         } else if (weatherCode >= 801 && weatherCode <= 804) {
-            wearFitWeatherCode = WearFitConstants.WeatherCode.CLOUDY;
+            wearFitWeatherCode = WearFitConstants.WeatherCode.PARTLY_CLOUDY;
         }
 
         return wearFitWeatherCode;
