@@ -1084,6 +1084,18 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
     }
 
     @Override
+    public void onFetchRecordedData(int dataTypes) {
+        TransactionBuilder transactionBuilder = this.createTransactionBuilder("onfetchfitness");
+        this.requestFitness(transactionBuilder);
+
+        try {
+            this.performConnected(transactionBuilder.getTransaction());
+        } catch (Exception ex) {
+            LoggerFactory.getLogger(this.getClass()).error("fetch recorded data failed");
+        }
+    }
+
+    @Override
     public void onSendWeather(WeatherSpec weatherSpec) {
 
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
