@@ -1096,7 +1096,8 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
     }
 
     @Override
-    public void onSendWeather(WeatherSpec weatherSpec) {
+    public void onSendWeather(ArrayList<WeatherSpec> weatherSpecs) {
+        final WeatherSpec weatherSpec = weatherSpecs.get(0);
 
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
         sendWeatherCity(transactionBuilder, weatherSpec);
