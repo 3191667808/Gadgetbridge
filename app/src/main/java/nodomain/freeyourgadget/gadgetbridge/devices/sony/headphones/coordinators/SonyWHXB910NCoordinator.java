@@ -47,9 +47,9 @@ public class SonyWHXB910NCoordinator extends SonyHeadphonesCoordinator {
                 SonyHeadphonesCapabilities.VoiceNotifications,
                 SonyHeadphonesCapabilities.EqualizerWithCustomBands,
                 SonyHeadphonesCapabilities.PowerOffFromPhone,
-                SonyHeadphonesCapabilities.AutomaticPowerOffByTime
+                SonyHeadphonesCapabilities.AutomaticPowerOffByTime,
+                SonyHeadphonesCapabilities.AudioUpsampling
 
-//                SonyHeadphonesCapabilities.AudioUpsampling, // idk if it works
 //                SonyHeadphonesCapabilities.AmbientSoundControlButtonMode, // Doesn't work
 //                SonyHeadphonesCapabilities.WindNoiseReduction, // Changing mode doesn't work when this is enabled
 //                SonyHeadphonesCapabilities.Volume, // Doesn't work
