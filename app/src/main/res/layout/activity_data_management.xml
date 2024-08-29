@@ -208,6 +208,29 @@
                 grid:layout_gravity="center" />
 
             <TextView
+                android:id="@+id/exportHealthConnectTitleLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/activity_db_management_exporthealthconnect_label"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:textColor="@color/accent" />
+
+            <TextView
+                android:id="@+id/exportHealthConnectEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+
+<!--            <Button-->
+<!--                android:id="@+id/testExportHealthConnectButton"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:text="@string/activity_DB_test_export_button"-->
+<!--                grid:layout_gravity="center" />-->
+
+            <TextView
                 android:id="@+id/mergeOldActivityDataTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

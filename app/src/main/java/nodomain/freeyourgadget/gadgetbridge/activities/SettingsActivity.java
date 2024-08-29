@@ -20,12 +20,15 @@
 package nodomain.freeyourgadget.gadgetbridge.activities;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.database.Cursor;
+import android.health.connect.datatypes.Metadata;
+import android.health.connect.datatypes.StepsRecord;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
@@ -43,6 +46,7 @@ import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
+import androidx.health.connect.client.HealthConnectClient;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -55,6 +59,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -311,6 +319,41 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                 pref.setOnPreferenceChangeListener((preference, autoExportEnabled) -> {
                     int autoExportInterval = GBApplication.getPrefs().getInt(GBPrefs.AUTO_EXPORT_INTERVAL, 0);
                     PeriodicExporter.scheduleAlarm(requireContext().getApplicationContext(), autoExportInterval, (boolean) autoExportEnabled);
+                    return true;
+                });
+            }
+
+            pref = findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
+            LOG.warn("working !!!");
+            if (pref != null) {
+                pref.setOnPreferenceChangeListener((preference, exportHealthConnectEnabled) -> {
+                    LOG.warn("Pref change ");
+
+                    int availabilityStatus = HealthConnectClient.getSdkStatus(requireContext().getApplicationContext(), "test");
+                    // early return as there is no viable integration
+                    if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE) {
+                        LOG.warn("SDK_UNAVAILABLE returning " + (String) exportHealthConnectEnabled);
+                        return false;
+                    }
+                    if ((boolean) exportHealthConnectEnabled) {
+                        LOG.warn("Enabled ");
+                        HealthConnectClient healthConnectClient = HealthConnectClient.getOrCreate(requireContext().getApplicationContext());
+                        // Issue operations with healthConnectClient
+
+                        // TODO: get this working properly
+                        // Create the test StepsRecord
+/*                        @SuppressLint({"NewApi", "LocalSuppress"}) StepsRecord testRecord = new StepsRecord(
+                                Instant.now(),
+                                ZoneOffset.UTC,
+                                Instant.now().plusSeconds(3600),
+                                ZoneOffset.UTC,
+                                (long) 1000,
+                                new Metadata()
+                        );*/
+
+//                        healthConnectClient.insertRecords(new ArrayList<StepsRecord>(testRecord));
+                    }
+
                     return true;
                 });
             }

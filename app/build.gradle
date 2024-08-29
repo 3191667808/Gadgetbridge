@@ -282,6 +282,10 @@ dependencies {
 
     // Needed for Armenian transliteration
     implementation 'org.ahocorasick:ahocorasick:0.6.3'
+
+    // Android Connect
+    implementation 'com.google.guava:guava:32.1.2-android' // This is needed because CameraActivity.java line 41 doesn't have a ListenableFuture package
+    implementation 'androidx.health.connect:connect-client:1.1.0-alpha07'
 }
 
 preBuild.dependsOn(":GBDaoGenerator:genSources")
