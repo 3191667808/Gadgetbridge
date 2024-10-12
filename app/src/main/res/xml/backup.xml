@@ -1,15 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Only applies to Android 12+, versions lower are disabled through
-    android:allowBackup="false"
-    android:fullBackupContent="false"
- -->
-<data-extraction-rules>
-    <cloud-backup disableIfNoEncryptionCapabilities="true">
-        <include domain="root" />
-        <include domain="file" />
-        <include domain="database" />
-        <include domain="sharedpref" />
-        <include domain="external" />
-    </cloud-backup>
-</data-extraction-rules>
+<full-backup-content>
+    <include domain="file" path="." requireFlags="clientSideEncryption" />
+    <include domain="database" path="." requireFlags="clientSideEncryption" />
+    <include domain="sharedpref" path="." requireFlags="clientSideEncryption" />
+    <include domain="external" path="." requireFlags="clientSideEncryption" />
+</full-backup-content>
