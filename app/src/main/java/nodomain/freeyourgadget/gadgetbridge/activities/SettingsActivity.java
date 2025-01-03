@@ -27,13 +27,12 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.database.Cursor;
-import android.health.connect.datatypes.Metadata;
-import android.health.connect.datatypes.StepsRecord;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.text.InputType;
@@ -45,8 +44,12 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.health.connect.client.HealthConnectClient;
+import androidx.health.connect.client.records.StepsRecord;
+import androidx.health.connect.client.records.metadata.Metadata;
+import androidx.health.connect.client.response.InsertRecordsResponse;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -55,19 +58,21 @@ import androidx.preference.PreferenceFragmentCompat;
 import com.google.android.material.color.DynamicColors;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import kotlin.coroutines.Continuation;
+import kotlin.coroutines.CoroutineContext;
+import kotlinx.coroutines.Dispatchers;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -323,13 +328,12 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                 });
             }
 
+
             pref = findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
             LOG.warn("working !!!");
             if (pref != null) {
                 pref.setOnPreferenceChangeListener((preference, exportHealthConnectEnabled) -> {
-                    LOG.warn("Pref change ");
-
-                    int availabilityStatus = HealthConnectClient.getSdkStatus(requireContext().getApplicationContext(), "test");
+                    int availabilityStatus = HealthConnectClient.getSdkStatus(requireContext().getApplicationContext());
                     // early return as there is no viable integration
                     if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE) {
                         LOG.warn("SDK_UNAVAILABLE returning " + (String) exportHealthConnectEnabled);
@@ -338,22 +342,29 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                     if ((boolean) exportHealthConnectEnabled) {
                         LOG.warn("Enabled ");
                         HealthConnectClient healthConnectClient = HealthConnectClient.getOrCreate(requireContext().getApplicationContext());
-                        // Issue operations with healthConnectClient
-
-                        // TODO: get this working properly
-                        // Create the test StepsRecord
-/*                        @SuppressLint({"NewApi", "LocalSuppress"}) StepsRecord testRecord = new StepsRecord(
-                                Instant.now(),
-                                ZoneOffset.UTC,
-                                Instant.now().plusSeconds(3600),
-                                ZoneOffset.UTC,
-                                (long) 1000,
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            StepsRecord testRecord = new StepsRecord(
+                                LocalDateTime.of(2025, 1,2,18,0).toInstant(ZoneOffset.MIN),
+                                ZoneOffset.MIN,
+                                LocalDateTime.of(2025,1,2,18,5).toInstant(ZoneOffset.MIN),
+                                ZoneOffset.MIN,
+                                120,
                                 new Metadata()
-                        );*/
+                            );
+                            Continuation<InsertRecordsResponse> test =  new Continuation<InsertRecordsResponse>() {
+                                @NotNull
+                                @Override
+                                public CoroutineContext getContext() {
+                                    return (CoroutineContext) Dispatchers.getDefault();
+                                }
 
-//                        healthConnectClient.insertRecords(new ArrayList<StepsRecord>(testRecord));
+                                public void resumeWith(@NonNull Object e) {
+
+                                }
+                            };
+                            healthConnectClient.insertRecords(List.of(testRecord), test);
+                        }
                     }
-
                     return true;
                 });
             }

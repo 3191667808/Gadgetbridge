@@ -285,7 +285,7 @@ dependencies {
 
     // Android Connect
     implementation 'com.google.guava:guava:32.1.2-android' // This is needed because CameraActivity.java line 41 doesn't have a ListenableFuture package
-    implementation 'androidx.health.connect:connect-client:1.1.0-alpha07'
+    implementation 'androidx.health.connect:connect-client:1.1.0-alpha08'
 }
 
 preBuild.dependsOn(":GBDaoGenerator:genSources")
