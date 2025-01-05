@@ -44,9 +44,14 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContract;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.health.connect.client.HealthConnectClient;
+import androidx.health.connect.client.PermissionController;
+import androidx.health.connect.client.permission.HealthPermission;
+import androidx.health.connect.client.records.HeartRateRecord;
 import androidx.health.connect.client.records.StepsRecord;
 import androidx.health.connect.client.records.metadata.Metadata;
 import androidx.health.connect.client.response.InsertRecordsResponse;
@@ -65,13 +70,17 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
 
 import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
+import kotlin.jvm.JvmClassMappingKt;
+import kotlin.reflect.KClass;
 import kotlinx.coroutines.Dispatchers;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -110,6 +119,21 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
         private EditText fitnessAppEditText = null;
         private int fitnessAppSelectionListSpinnerFirstRun = 0;
 
+        @SuppressLint("RestrictedApi")
+        public void permissionCallback(Set<String> granted) {
+            Preference pref = findPreference("pref_category_activity_personal");
+            pref = findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
+            if(granted.isEmpty()) {
+                // All permissions denied
+                // At the point when the callback function runs, the PreferenceChangeListener has already returned
+                pref.performClick();
+                GB.toast(getActivity(), "All Health Connect Permissions denied", Toast.LENGTH_LONG, GB.ERROR);
+            } else {
+                // TODO: If user deletes Health Connect access, enable button again
+                pref.setEnabled(false);
+            }
+        }
+
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
             setPreferencesFromResource(R.xml.preferences, rootKey);
@@ -119,6 +143,24 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             setInputTypeFor("location_longitude", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
             setInputTypeFor("auto_export_interval", InputType.TYPE_CLASS_NUMBER);
             setInputTypeFor("auto_fetch_interval_limit", InputType.TYPE_CLASS_NUMBER);
+
+
+            // Health Connect
+            Class<StepsRecord> stepsRecordJavaClass = StepsRecord.class;
+            Class<HeartRateRecord> heartrateRecordJavaClass = HeartRateRecord.class;
+            KClass<StepsRecord> stepsRecordKClass = JvmClassMappingKt.getKotlinClass(stepsRecordJavaClass);
+            KClass<HeartRateRecord> heartrateRecordKClass = JvmClassMappingKt.getKotlinClass(heartrateRecordJavaClass);
+            Set<String> requiredHealthConnectPermissions = Set.of(
+                    HealthPermission.getReadPermission(stepsRecordKClass),
+                    HealthPermission.getWritePermission(stepsRecordKClass),
+                    HealthPermission.getReadPermission(heartrateRecordKClass),
+                    HealthPermission.getWritePermission(heartrateRecordKClass)
+            );
+            ActivityResultContract<Set<String>, Set<String>> requestPermissionResultContract = PermissionController.createRequestPermissionResultContract();
+            ActivityResultLauncher<Set<String>> healthConnectLauncher = registerForActivityResult(
+                    requestPermissionResultContract,
+                    this::permissionCallback
+            );
 
             Prefs prefs = GBApplication.getPrefs();
             Preference pref = findPreference("pref_category_activity_personal");
@@ -330,41 +372,68 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
 
 
             pref = findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
-            LOG.warn("working !!!");
             if (pref != null) {
                 pref.setOnPreferenceChangeListener((preference, exportHealthConnectEnabled) -> {
-                    int availabilityStatus = HealthConnectClient.getSdkStatus(requireContext().getApplicationContext());
-                    // early return as there is no viable integration
-                    if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE) {
-                        LOG.warn("SDK_UNAVAILABLE returning " + (String) exportHealthConnectEnabled);
-                        return false;
-                    }
                     if ((boolean) exportHealthConnectEnabled) {
-                        LOG.warn("Enabled ");
+                        // First check if we can even use Health Connect
+                        int availabilityStatus = HealthConnectClient.getSdkStatus(requireContext().getApplicationContext());
+                        if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE) {
+                            GB.toast(getActivity(), "Health Connect not supported on this Android Version", Toast.LENGTH_LONG, GB.ERROR);
+                            LOG.warn("SDK_UNAVAILABLE returning " + (String) exportHealthConnectEnabled);
+                            return false;
+                        }
+                        // Initialize Health Connect Client
                         HealthConnectClient healthConnectClient = HealthConnectClient.getOrCreate(requireContext().getApplicationContext());
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            StepsRecord testRecord = new StepsRecord(
-                                LocalDateTime.of(2025, 1,2,18,0).toInstant(ZoneOffset.MIN),
-                                ZoneOffset.MIN,
-                                LocalDateTime.of(2025,1,2,18,5).toInstant(ZoneOffset.MIN),
-                                ZoneOffset.MIN,
+                        // Then check for Permissions
+                        // (I don't know what Kotlin Continuation are used for, but they are needed
+                        Continuation<Set<String>> continuationString =  new Continuation<Set<String>>() {
+                            @NotNull
+                            @Override
+                            public CoroutineContext getContext() {
+                                return (CoroutineContext) Dispatchers.getDefault();
+                            }
+
+                            public void resumeWith(@NonNull Object e) {
+
+                            }
+                        };
+                        Set<String> grantedPermissions = (Set<String>) healthConnectClient.getPermissionController().getGrantedPermissions(continuationString);
+                        assert grantedPermissions != null;
+                        if(!grantedPermissions.containsAll(requiredHealthConnectPermissions)) {
+                            // If we weren't enabled at some point already, show Permission screen
+                            healthConnectLauncher.launch(requiredHealthConnectPermissions);
+                        }
+                        ZoneOffset offset = ZonedDateTime.now(TimeZone.getDefault().toZoneId()).getOffset();
+                        StepsRecord testRecord = new StepsRecord(
+                                LocalDateTime.of(2025, 1,2,18,0).toInstant(offset),
+                                offset,
+                                LocalDateTime.of(2025,1,2,18,5).toInstant(offset),
+                                offset,
                                 120,
                                 new Metadata()
-                            );
-                            Continuation<InsertRecordsResponse> test =  new Continuation<InsertRecordsResponse>() {
-                                @NotNull
-                                @Override
-                                public CoroutineContext getContext() {
-                                    return (CoroutineContext) Dispatchers.getDefault();
-                                }
+                        );
+                        Continuation<InsertRecordsResponse> continuationRecord =  new Continuation<InsertRecordsResponse>() {
+                            @NotNull
+                            @Override
+                            public CoroutineContext getContext() {
+                                return (CoroutineContext) Dispatchers.getDefault();
+                            }
 
-                                public void resumeWith(@NonNull Object e) {
+                            public void resumeWith(@NonNull Object e) {
 
-                                }
-                            };
-                            healthConnectClient.insertRecords(List.of(testRecord), test);
-                        }
+                            }
+                        };
+                        Object response = healthConnectClient.insertRecords(List.of(testRecord), continuationRecord);
                     }
+                    return true;
+                });
+            }
+
+            pref = findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SETTINGS);
+            if (pref != null) {
+                pref.setOnPreferenceClickListener(preference -> {
+                    Intent healthConnectManageDataIntent = HealthConnectClient.getHealthConnectManageDataIntent(requireContext());
+                    startActivity(healthConnectManageDataIntent);
                     return true;
                 });
             }

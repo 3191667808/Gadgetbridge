@@ -100,7 +100,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Needed for Health Connect See this for more: https://developer.android.com/health-and-fitness/guides/health-connect/plan/data-types#alpha10 -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_STEPS"/>
     <uses-permission android:name="android.permission.health.WRITE_STEPS"/>
 <!--    <uses-sdk tools:overrideLibrary="androidx.health.connect.client" /> &lt;!&ndash; Override the library's minSdkVersion &ndash;&gt;-->
 

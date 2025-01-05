@@ -51,6 +51,7 @@ public class GBPrefs extends Prefs {
     public static final String AUTO_EXPORT_ENABLED = "auto_export_enabled";
     public static final String AUTO_EXPORT_LOCATION = "auto_export_location";
     public static final String EXPORT_HEALTH_CONNECT_ENABLED = "export_health_connect_enabled";
+    public static final String HEALTH_CONNECT_MANUAL_SETTINGS = "health_connect_manual_settings";
     public static final String PING_TONE = "ping_tone";
     public static final String AUTO_EXPORT_INTERVAL = "auto_export_interval";
     private static final boolean AUTO_START_DEFAULT = true;

@@ -617,7 +617,8 @@
     <string name="pref_sleep_mode_smart_enable_summary">Enable the sleep mode automatically when wearing the band during sleep</string>
     <!-- Export Health Connect preferences -->
     <string name="pref_header_export_health_connect">Export Health Connect</string>
-    <string name="pref_title_export_health_connect_enabled">Export Health Connect enabled</string>
+    <string name="pref_title_export_health_connect_enabled">Enable Health Connect Export</string>
+    <string name="pref_title_export_health_manual_settings">Manage Health Connect Data</string>
 <!--    <string name="pref_title_auto_export_location">Export location</string>-->
 <!--    <string name="pref_title_auto_export_interval">Export interval</string>-->
 <!--    <string name="pref_summary_auto_export_interval">Export every %d hour</string>-->
