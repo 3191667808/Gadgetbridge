@@ -349,11 +349,21 @@
             app:iconSpaceReserved="true" />
 
         <Preference
-            android:defaultValue="false"
             android:icon="@drawable/ic_settings"
             android:key="health_connect_manual_settings"
             android:title="@string/pref_title_export_health_manual_settings"
             app:iconSpaceReserved="true" />
+
+        <Preference
+            android:icon="@drawable/ic_sync"
+            android:key="health_connect_manual_sync"
+            android:title="@string/pref_title_export_health_manual_sync"
+            app:iconSpaceReserved="true" />
+
+        <Preference
+            android:icon="@drawable/ic_report"
+            android:key="health_connect_disable_notice"
+            android:summary="@string/pref_title_export_health_disable_notice" />
 
 
     </PreferenceScreen>
