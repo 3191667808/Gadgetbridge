@@ -621,9 +621,6 @@
     <string name="pref_title_export_health_manual_settings">Manage Health Connect Data</string>
     <string name="pref_title_export_health_manual_sync">Trigger a Health Connect Data Sync</string>
     <string name="pref_title_export_health_disable_notice">To disable Health Connect Export, remove all Permissions of Gadgetbridge from the Health Connect App</string>
-<!--    <string name="pref_title_auto_export_location">Export location</string>-->
-<!--    <string name="pref_title_auto_export_interval">Export interval</string>-->
-<!--    <string name="pref_summary_auto_export_interval">Export every %d hour</string>-->
     <!-- Auto export preferences -->
     <string name="pref_header_auto_export">Auto export</string>
     <string name="pref_title_auto_export_enabled">Auto export enabled</string>
@@ -1357,7 +1354,6 @@
     <string name="activity_db_management_autoexport_scheduled_yes">AutoExport has (originally) been scheduled for %1$s</string>
     <string name="activity_db_management_autoexport_scheduled_no">AutoExport has not been not scheduled.</string>
     <string name="activity_db_management_autoexport_label">AutoExport</string>
-    <string name="activity_db_management_exporthealthconnect_label">Export to Health Connect</string>
     <string name="activity_db_management_autoexport_location">Location could not be understood. Likely an issue of newer Android permission system. Most likely, autoexport is not working now.</string>
     <string name="activity_DB_ExportButton">Export Data</string>
     <string name="activity_DB_import_button">Import Data</string>
