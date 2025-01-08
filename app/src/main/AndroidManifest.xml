@@ -105,7 +105,6 @@
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
     <uses-permission android:name="android.permission.health.WRITE_STEPS"/>
     <uses-sdk tools:overrideLibrary="androidx.health.connect.client"/>
-<!--    <uses-sdk tools:overrideLibrary="androidx.health.connect.client" /> &lt;!&ndash; Override the library's minSdkVersion &ndash;&gt;-->
 
     <uses-feature
         android:name="android.hardware.bluetooth"

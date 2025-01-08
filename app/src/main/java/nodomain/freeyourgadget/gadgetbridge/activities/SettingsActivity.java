@@ -329,7 +329,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             pref = findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
             if (pref != null) {
                 // (I don't know what Kotlin Continuation are used for, but they are needed
-                Continuation<Set<String>> continuationString =  new Continuation<Set<String>>() {
+                Continuation<Set<String>> continuationString = new Continuation<Set<String>>() {
                     @NotNull
                     @Override
                     public CoroutineContext getContext() {
@@ -348,7 +348,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                     if ((boolean) exportHealthConnectEnabled) {
                         if(!grantedPermissions.containsAll(healthConnectUtils.requiredHealthConnectPermissions)) {
                             // If we weren't enabled at some point already, show Permission screen
-                            healthConnectUtils.healthConnectLauncherInit().launch(healthConnectUtils.requiredHealthConnectPermissions);
+                            healthConnectUtils.activityResultLauncher.launch(healthConnectUtils.requiredHealthConnectPermissions);
                         }
                     }
                     return true;

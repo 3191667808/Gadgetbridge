@@ -52,22 +52,26 @@ import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 public class HealthConnectUtils {
     private static final Logger LOG = LoggerFactory.getLogger(HealthConnectUtils.class);
     private final PreferenceFragmentCompat preferenceFragmentCompat;
-    Class<StepsRecord> stepsRecordJavaClass = StepsRecord.class;
-    Class<HeartRateRecord> heartrateRecordJavaClass = HeartRateRecord.class;
-    KClass<StepsRecord> stepsRecordKClass = JvmClassMappingKt.getKotlinClass(stepsRecordJavaClass);
-    KClass<HeartRateRecord> heartrateRecordKClass = JvmClassMappingKt.getKotlinClass(heartrateRecordJavaClass);
-    public Set<String> requiredHealthConnectPermissions = Set.of(
+    public final ActivityResultLauncher<Set<String>> activityResultLauncher;
+    private final Class<StepsRecord> stepsRecordJavaClass = StepsRecord.class;
+    private final Class<HeartRateRecord> heartrateRecordJavaClass = HeartRateRecord.class;
+    private final KClass<StepsRecord> stepsRecordKClass = JvmClassMappingKt.getKotlinClass(stepsRecordJavaClass);
+    private final KClass<HeartRateRecord> heartrateRecordKClass = JvmClassMappingKt.getKotlinClass(heartrateRecordJavaClass);
+    public final Set<String> requiredHealthConnectPermissions = Set.of(
             HealthPermission.getReadPermission(stepsRecordKClass),
             HealthPermission.getWritePermission(stepsRecordKClass),
             HealthPermission.getReadPermission(heartrateRecordKClass),
             HealthPermission.getWritePermission(heartrateRecordKClass)
     );
 
-
     public ActivityResultContract<Set<String>, Set<String>> requestPermissionResultContract = PermissionController.createRequestPermissionResultContract();
 
     public HealthConnectUtils(PreferenceFragmentCompat fragmentCompat) {
         preferenceFragmentCompat = fragmentCompat;
+        activityResultLauncher = preferenceFragmentCompat.registerForActivityResult(
+                requestPermissionResultContract,
+                this::permissionCallback
+        );
     }
 
     @SuppressLint("RestrictedApi")
@@ -87,13 +91,6 @@ public class HealthConnectUtils {
             preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SYNC).setVisible(true);
             preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_DISABLE_NOTICE).setVisible(true);
         }
-    }
-
-    public ActivityResultLauncher<Set<String>> healthConnectLauncherInit() {
-        return preferenceFragmentCompat.registerForActivityResult(
-            requestPermissionResultContract,
-            this::permissionCallback
-        );
     }
 
     public HealthConnectClient healthConnectInit(Context context) {
