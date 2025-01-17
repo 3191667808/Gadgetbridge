@@ -41,6 +41,7 @@ import kotlin.reflect.KClass;
 import kotlinx.coroutines.Dispatchers;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -109,6 +110,10 @@ public class HealthConnectUtils {
         Calendar day = Calendar.getInstance();
         int endTs = (int) (day.getTimeInMillis() / 1000) + 24 * 60 * 60 - 1;
         List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
+        if(devices.isEmpty()) {
+            GB.toast(context, "No devices connected", Toast.LENGTH_LONG, GB.ERROR);
+            return;
+        }
         List<StepsRecord> stepsRecordList = new ArrayList<>();
         List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
         List<? extends ActivitySample> deviceSamples = Collections.emptyList();
@@ -116,7 +121,11 @@ public class HealthConnectUtils {
         for(GBDevice device: devices) {
             try (DBHandler db = GBApplication.acquireDB()) {
                 // Get first entries to check for timestamp (helps with the DB Query performance)
-                SampleProvider<? extends ActivitySample> provider = device.getDeviceCoordinator().getSampleProvider(device, db.getDaoSession());
+                DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
+                if(!deviceCoordinator.supportsActivityTracking()) {
+                    continue;
+                }
+                SampleProvider<? extends ActivitySample> provider = deviceCoordinator.getSampleProvider(device, db.getDaoSession());
                 ActivitySample firstSample = provider.getFirstActivitySample();
                 assert firstSample != null;
                 Instant firstSampleTimestamp = Instant.ofEpochSecond(firstSample.getTimestamp());
