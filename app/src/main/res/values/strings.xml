@@ -615,12 +615,6 @@
     <string name="pref_sleep_mode_sleep_screen_summary">Show the Sleep Screen when waking the screen during sleep mode, to reduce distractions</string>
     <string name="pref_sleep_mode_smart_enable_title">Smart Enable</string>
     <string name="pref_sleep_mode_smart_enable_summary">Enable the sleep mode automatically when wearing the band during sleep</string>
-    <!-- Export Health Connect preferences -->
-    <string name="pref_header_export_health_connect">Export Health Connect</string>
-    <string name="pref_title_export_health_connect_enabled">Enable Health Connect Export</string>
-    <string name="pref_title_export_health_manual_settings">Manage Health Connect Data</string>
-    <string name="pref_title_export_health_manual_sync">Trigger a Health Connect Data Sync</string>
-    <string name="pref_title_export_health_disable_notice">To disable Health Connect Export, remove all Permissions of Gadgetbridge from the Health Connect App</string>
     <!-- Auto export preferences -->
     <string name="pref_header_auto_export">Auto export</string>
     <string name="pref_title_auto_export_enabled">Auto export enabled</string>
@@ -3731,6 +3725,13 @@
     <string name="chart_cycling_point_label_distance">Today: %1$.1f km\nTotal: %2$.1f km</string>
     <string name="chart_cycling_point_label_speed">%.1f km/h</string>
     <string name="toast_setting_requires_reconnect">This setting will take effect after a reconnect</string>
+
+    <!-- Export Health Connect preferences -->
+    <string name="healthconnect_settings">Health Connect</string>
+    <string name="pref_title_export_health_connect_enabled">Enable Health Connect Export</string>
+    <string name="pref_title_export_health_manual_settings">Manage Health Connect Data</string>
+    <string name="pref_title_export_health_manual_sync">Trigger a Health Connect Data Sync</string>
+    <string name="pref_title_export_health_disable_notice">To disable Health Connect Export, remove all Permissions of Gadgetbridge from the Health Connect App</string>
 
     <!-- Camera strings -->
     <string name="open_camera">Open Camera</string>

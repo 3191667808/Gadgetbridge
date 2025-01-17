@@ -7,7 +7,6 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContract;
 import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.PermissionController;
 import androidx.health.connect.client.permission.HealthPermission;
@@ -77,7 +76,7 @@ public class HealthConnectUtils {
     @SuppressLint("RestrictedApi")
     public void permissionCallback(Set<String> granted) {
         Context context = preferenceFragmentCompat.getContext();
-        Preference pref = preferenceFragmentCompat.findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
+        Preference pref = preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_ENABLED);
         assert pref != null;
         if(granted.isEmpty()) {
             // All permissions denied

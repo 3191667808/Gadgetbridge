@@ -42,9 +42,7 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
-import androidx.health.connect.client.HealthConnectClient;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -53,7 +51,6 @@ import androidx.preference.PreferenceFragmentCompat;
 import com.google.android.material.color.DynamicColors;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,14 +60,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import kotlin.coroutines.Continuation;
-import kotlin.coroutines.CoroutineContext;
-import kotlinx.coroutines.Dispatchers;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.ChartsPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.discovery.DiscoveryPairingPreferenceActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.preferences.HealthConnectPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.maps.MapsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.PeriodicExporter;
@@ -81,7 +76,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
-import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils;
 
 public class SettingsActivity extends AbstractSettingsActivityV2 {
     public static final String PREF_MEASUREMENT_SYSTEM = "measurement_system";
@@ -104,8 +98,6 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
         private static final int EXPORT_LOCATION_FILE_REQUEST_CODE = 4711;
         private EditText fitnessAppEditText = null;
         private int fitnessAppSelectionListSpinnerFirstRun = 0;
-
-        private final HealthConnectUtils healthConnectUtils = new HealthConnectUtils(this);
 
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
@@ -325,68 +317,6 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                 });
             }
 
-
-            pref = findPreference(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED);
-            if (pref != null) {
-                // (I don't know what Kotlin Continuation are used for, but they are needed
-                Continuation<Set<String>> continuationString = new Continuation<Set<String>>() {
-                    @NotNull
-                    @Override
-                    public CoroutineContext getContext() {
-                        return (CoroutineContext) Dispatchers.getDefault();
-                    }
-
-                    public void resumeWith(@NonNull Object e) {
-
-                    }
-                };
-                HealthConnectClient healthConnectClient = healthConnectUtils.healthConnectInit(getContext());
-                Set<String> grantedPermissions = (Set<String>) healthConnectClient.getPermissionController().getGrantedPermissions(continuationString);
-                assert grantedPermissions != null;
-
-                pref.setOnPreferenceChangeListener((preference, exportHealthConnectEnabled) -> {
-                    if ((boolean) exportHealthConnectEnabled) {
-                        if(!grantedPermissions.containsAll(healthConnectUtils.requiredHealthConnectPermissions)) {
-                            // If we weren't enabled at some point already, show Permission screen
-                            healthConnectUtils.activityResultLauncher.launch(healthConnectUtils.requiredHealthConnectPermissions);
-                        }
-                    }
-                    return true;
-                });
-
-                if(grantedPermissions.containsAll(healthConnectUtils.requiredHealthConnectPermissions)) {
-                    pref.setEnabled(false);
-                } else {
-                    pref.setEnabled(true);
-                    SharedPreferences.Editor editor = GBApplication.getPrefs().getPreferences().edit();
-                    editor.putBoolean(GBPrefs.EXPORT_HEALTH_CONNECT_ENABLED, false);
-                    editor.apply();
-                    findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SYNC).setVisible(false);
-                    findPreference(GBPrefs.HEALTH_CONNECT_DISABLE_NOTICE).setVisible(false);
-                }
-            }
-
-            pref = findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SETTINGS);
-            if (pref != null) {
-                pref.setOnPreferenceClickListener(preference -> {
-                    Intent healthConnectManageDataIntent = HealthConnectClient.getHealthConnectManageDataIntent(requireContext());
-                    startActivity(healthConnectManageDataIntent);
-                    return true;
-                });
-            }
-
-            pref = findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SYNC);
-            if (pref != null) {
-                pref.setOnPreferenceClickListener(preference -> {
-                    HealthConnectClient healthConnectClient = healthConnectUtils.healthConnectInit(getContext());
-                    if(healthConnectClient == null) {
-                        return false;
-                    }
-                    healthConnectUtils.healthConnectDataSync(getContext(), healthConnectClient);
-                    return true;
-                });
-            }
-
             pref = findPreference("auto_fetch_interval_limit");
             if (pref != null) {
                 pref.setOnPreferenceChangeListener((preference, autoFetchInterval) -> {
@@ -458,6 +388,15 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             if (pref != null) {
                 pref.setOnPreferenceClickListener(preference -> {
                     Intent enableIntent = new Intent(requireContext(), SleepAsAndroidPreferencesActivity.class);
+                    startActivity(enableIntent);
+                    return true;
+                });
+            }
+
+            pref = findPreference("pref_category_healthconnect");
+            if (pref != null) {
+                pref.setOnPreferenceClickListener(preference -> {
+                    Intent enableIntent = new Intent(requireContext(), HealthConnectPreferencesActivity.class);
                     startActivity(enableIntent);
                     return true;
                 });

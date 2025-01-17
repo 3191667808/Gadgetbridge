@@ -50,7 +50,7 @@ public class GBPrefs extends Prefs {
     private static final String AUTO_START = "general_autostartonboot";
     public static final String AUTO_EXPORT_ENABLED = "auto_export_enabled";
     public static final String AUTO_EXPORT_LOCATION = "auto_export_location";
-    public static final String EXPORT_HEALTH_CONNECT_ENABLED = "export_health_connect_enabled";
+    public static final String HEALTH_CONNECT_ENABLED = "health_connect_enabled";
     public static final String HEALTH_CONNECT_MANUAL_SETTINGS = "health_connect_manual_settings";
     public static final String HEALTH_CONNECT_MANUAL_SYNC = "health_connect_manual_sync";
     public static final String HEALTH_CONNECT_DISABLE_NOTICE = "health_connect_disable_notice";
