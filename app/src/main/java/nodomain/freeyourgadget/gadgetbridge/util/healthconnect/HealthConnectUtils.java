@@ -30,6 +30,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
@@ -48,6 +49,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
+import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class HealthConnectUtils {
     private static final Logger LOG = LoggerFactory.getLogger(HealthConnectUtils.class);
@@ -109,25 +111,35 @@ public class HealthConnectUtils {
         // Data insertion
         Calendar day = Calendar.getInstance();
         int endTs = (int) (day.getTimeInMillis() / 1000) + 24 * 60 * 60 - 1;
+        List<StepsRecord> stepsRecordList = new ArrayList<>();
+        List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
+        List<? extends ActivitySample> deviceSamples = Collections.emptyList();
+        ZoneOffset offset = ZonedDateTime.now(TimeZone.getDefault().toZoneId()).getOffset();
+        Prefs prefs = GBApplication.getPrefs();
+        Set<String> selectedDevices = prefs.getStringSet("health_connect_devices_multiselect", new HashSet<>());
+        if(selectedDevices == null || selectedDevices.isEmpty()) {
+            GB.toast(context, "No devices selected", Toast.LENGTH_LONG, GB.ERROR);
+            return;
+        }
         List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
         if(devices.isEmpty()) {
             GB.toast(context, "No devices connected", Toast.LENGTH_LONG, GB.ERROR);
             return;
         }
-        List<StepsRecord> stepsRecordList = new ArrayList<>();
-        List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
-        List<? extends ActivitySample> deviceSamples = Collections.emptyList();
-        ZoneOffset offset = ZonedDateTime.now(TimeZone.getDefault().toZoneId()).getOffset();
         for(GBDevice device: devices) {
+            DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
+            // If device is not selected or does not support Activity Tracking, skip
+            if(!selectedDevices.contains(device.getAddress()) || !deviceCoordinator.supportsActivityTracking()) {
+                continue;
+            }
             try (DBHandler db = GBApplication.acquireDB()) {
                 // Get first entries to check for timestamp (helps with the DB Query performance)
-                DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
-                if(!deviceCoordinator.supportsActivityTracking()) {
-                    continue;
-                }
                 SampleProvider<? extends ActivitySample> provider = deviceCoordinator.getSampleProvider(device, db.getDaoSession());
                 ActivitySample firstSample = provider.getFirstActivitySample();
-                assert firstSample != null;
+                if (firstSample == null) {
+                    GB.toast(context, "No Health Connect Data found for Device " + device.getName(), Toast.LENGTH_LONG, GB.INFO);
+                    continue;
+                }
                 Instant firstSampleTimestamp = Instant.ofEpochSecond(firstSample.getTimestamp());
                 Instant oneYearAgo = LocalDateTime.now().minusYears(1).toInstant(offset);
                 Instant startTs;
@@ -204,6 +216,7 @@ public class HealthConnectUtils {
         };
         healthConnectClient.insertRecords(stepsRecordList, continuationRecord);
         healthConnectClient.insertRecords(heartRateRecordList, continuationRecord);
+        GB.toast(context, "Health Connect Data Synced", Toast.LENGTH_LONG, GB.INFO);
     }
 
     protected List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {

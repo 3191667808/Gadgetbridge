@@ -3728,10 +3728,12 @@
 
     <!-- Export Health Connect preferences -->
     <string name="healthconnect_settings">Health Connect</string>
-    <string name="pref_title_export_health_connect_enabled">Enable Health Connect Export</string>
-    <string name="pref_title_export_health_manual_settings">Manage Health Connect Data</string>
-    <string name="pref_title_export_health_manual_sync">Trigger a Health Connect Data Sync</string>
-    <string name="pref_title_export_health_disable_notice">To disable Health Connect Export, remove all Permissions of Gadgetbridge from the Health Connect App</string>
+    <string name="pref_health_connect_enabled">Enable Health Connect Export</string>
+    <string name="pref_health_connect_manual_settings">Manage Health Connect Data</string>
+    <string name="pref_health_connect_manual_sync">Trigger a Health Connect Data Sync</string>
+    <string name="pref_health_connect_disable_notice">To disable Health Connect Export, remove all Permissions of Gadgetbridge from the Health Connect App</string>
+    <string name="pref_health_connect_device_selection">Select devices</string>
+    <string name="pref_health_connect_device_selection_summary">Select which devices to include the data from for sharing with Health Connect</string>
 
     <!-- Camera strings -->
     <string name="open_camera">Open Camera</string>

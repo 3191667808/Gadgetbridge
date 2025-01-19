@@ -22,6 +22,7 @@ import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.health.connect.client.HealthConnectClient;
+import androidx.preference.MultiSelectListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
@@ -29,6 +30,8 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import kotlin.coroutines.Continuation;
@@ -38,6 +41,8 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractPreferenceFragment;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractSettingsActivityV2;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils;
 
@@ -122,6 +127,23 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                     healthConnectUtils.healthConnectDataSync(getContext(), healthConnectClient);
                     return true;
                 });
+            }
+
+            final MultiSelectListPreference selectedDevicesPref = findPreference("health_connect_devices_multiselect");
+            if (selectedDevicesPref != null) {
+                List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
+                List<String> deviceMACs = new ArrayList<>();
+                List<String> deviceNames = new ArrayList<>();
+                for (GBDevice dev : devices) {
+                    DeviceCoordinator deviceCoordinator = dev.getDeviceCoordinator();
+                    if(!deviceCoordinator.supportsActivityTracking()) {
+                        continue;
+                    }
+                    deviceMACs.add(dev.getAddress());
+                    deviceNames.add(dev.getAliasOrName());
+                }
+                selectedDevicesPref.setEntryValues(deviceMACs.toArray(new String[0]));
+                selectedDevicesPref.setEntries(deviceNames.toArray(new String[0]));
             }
         }
     }
