@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 José Rebelo
+/*  Copyright (C) 2023-2025 José Rebelo, Martin Schitter
 
     This file is part of Gadgetbridge.
 
@@ -16,27 +16,31 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl;
 
-import android.widget.Toast;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Date;
+import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import android.widget.Toast;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
+import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.export.ActivityTrackExporter;
 import nodomain.freeyourgadget.gadgetbridge.export.GPXExporter;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack;
@@ -88,40 +92,43 @@ public class WorkoutGpsParser extends XiaomiActivityParser {
 
         final ActivityTrack activityTrack = new ActivityTrack();
 
-        // GPS V1 contains no speed data, therefore second while loop to avoid too many ifs within the loop
-        if (version == 1) {
-            while (buf.position() < buf.limit()) {
-                final int ts = buf.getInt();
-                final float longitude = buf.getFloat();
-                final float latitude = buf.getFloat();
-
-                final ActivityPoint ap = new ActivityPoint(new Date(ts * 1000L));
-                ap.setLocation(new GPSCoordinate(longitude, latitude, 0));
-                activityTrack.addTrackPoint(ap);
-                LOG.trace("ActivityPoint V1: ts={} lon={} lat={}", ts, longitude, latitude);
-            }
-        } else { 
-            while (buf.position() < buf.limit()) {
-                final int ts = buf.getInt();
-                final float longitude = buf.getFloat();
-                final float latitude = buf.getFloat();
-                final float hdop = buf.getFloat() / 4.8f;
-                final float speed = (buf.getShort() >> 2) / 10.0f;
-
-                final ActivityPoint ap = new ActivityPoint(new Date(ts * 1000L));
-                final GPSCoordinate gpsc = new GPSCoordinate(longitude, latitude);
-                gpsc.setHdop(hdop);
-                ap.setLocation(gpsc);
-
-                activityTrack.addTrackPoint(ap);
-                LOG.trace("ActivityPoint: ts={} lon={} lat={} hdop={} speed={}", ts, longitude, latitude, hdop, speed);
-            }
-        }
-
-       try (DBHandler dbHandler = GBApplication.acquireDB()) {
+        try (DBHandler dbHandler = GBApplication.acquireDB()) {
             final DaoSession session = dbHandler.getDaoSession();
+            final GBDevice gbDevice = support.getDevice();
             final Device device = DBHelper.getDevice(support.getDevice(), session);
             final User user = DBHelper.getUser(session);
+            final DeviceCoordinator coordinator = gbDevice.getDeviceCoordinator();
+            final SampleProvider<XiaomiActivitySample> sampleProvider = (SampleProvider<XiaomiActivitySample>) coordinator.getSampleProvider(gbDevice, session);
+
+            while (buf.position() < buf.limit()) {
+                final int ts = buf.getInt();
+                final float longitude = buf.getFloat();
+                final float latitude = buf.getFloat();
+                final ActivityPoint ap = new ActivityPoint(new Date(ts * 1000L));
+                final GPSCoordinate gpsc = new GPSCoordinate(longitude, latitude);
+                ap.setLocation(gpsc);
+
+                final List<XiaomiActivitySample> samples = sampleProvider.getAllActivitySamplesHighRes(ts, ts);
+                if ( ! samples.isEmpty() ){
+                    final XiaomiActivitySample sample = samples.get(0);
+                    final int hr = sample.getHeartRate();
+                    ap.setHeartRate(hr);
+                    LOG.trace("Add HeartRate to GPX trackpoint: hr={}", hr);
+                    // TODO: add cadence data
+                }
+                if (version == 1) {
+                    activityTrack.addTrackPoint(ap);
+                    LOG.trace("ActivityPoint v1: ts={} lon={} lat={}", ts, longitude, latitude);
+                } else { // version 2
+                    final float hdop = buf.getFloat() / 4.8f;
+                    final float speed = (buf.getShort() >> 2) / 36.0f; // [m/s]
+                    gpsc.setHdop(hdop);
+                    ap.setSpeed(speed);
+                    activityTrack.addTrackPoint(ap);
+                    LOG.trace("ActivityPoint v2: ts={} lon={} lat={} hdop={} speed={}",
+                        ts, longitude, latitude, hdop, speed);
+                }
+            }
 
             // Find the matching summary
             final BaseActivitySummary summary = findOrCreateBaseActivitySummary(session, device, user, fileId);

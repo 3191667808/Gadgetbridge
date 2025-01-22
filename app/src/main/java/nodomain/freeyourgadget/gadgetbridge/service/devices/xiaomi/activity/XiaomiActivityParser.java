@@ -38,6 +38,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.SleepStagesParser;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.WorkoutGpsParser;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.WorkoutSummaryParser;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.WorkoutDetailsParser;
 
 public abstract class XiaomiActivityParser {
     private static final Logger LOG = LoggerFactory.getLogger(XiaomiActivityParser.class);
@@ -124,7 +125,11 @@ public abstract class XiaomiActivityParser {
             case SUMMARY:
                 return new WorkoutSummaryParser();
             case GPS_TRACK:
+                LOG.debug("create GPS parser");
                 return new WorkoutGpsParser();
+            case DETAILS:
+                LOG.warn("create workout details parser");
+                return new WorkoutDetailsParser();
         }
 
         return null;
