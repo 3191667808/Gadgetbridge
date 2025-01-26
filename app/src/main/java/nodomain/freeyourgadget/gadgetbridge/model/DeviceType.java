@@ -41,6 +41,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.binary_sensor.coordinator.Bi
 import nodomain.freeyourgadget.gadgetbridge.devices.bm2.Bm2Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.bm6.Bm6Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.braun.BraunBPW4500DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.cardo.Ls24xDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.ecbs100.CasioECBS100DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.gb6900.CasioGB6900DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.gbd200.CasioGBD200DeviceCoordinator;
