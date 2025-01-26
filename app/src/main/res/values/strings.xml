@@ -2291,6 +2291,7 @@
     <string name="devicetype_hama_fit6900" translatable="false">Hama Fit6900</string>
     <string name="devicetype_xplora_xmove" translatable="false">Xplora XMOVE</string>
     <string name="devicetype_generic_thermal_printer">Thermal Printer</string>
+    <string name="devicetype_ls2_4x">LS2-4X</string>
     <string name="devicetype_garmin_hrm_pro_plus" translatable="false">Garmin HRM-Pro Plus</string>
     <string name="devicetype_generic_headphones">Headphones</string>
     <string name="devicetype_generic_heart_rate_sensor">Heart Rate Sensor</string>
