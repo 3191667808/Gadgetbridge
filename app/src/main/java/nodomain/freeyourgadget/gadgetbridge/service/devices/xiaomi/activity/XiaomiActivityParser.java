@@ -125,10 +125,8 @@ public abstract class XiaomiActivityParser {
             case SUMMARY:
                 return new WorkoutSummaryParser();
             case GPS_TRACK:
-                LOG.debug("create GPS parser");
                 return new WorkoutGpsParser();
             case DETAILS:
-                LOG.warn("create workout details parser");
                 return new WorkoutDetailsParser();
         }
 

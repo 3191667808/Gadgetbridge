@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.HexFormat;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
@@ -51,92 +53,112 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
     @Override
     public boolean parse(final XiaomiSupport support, final XiaomiActivityFileId fileId, final byte[] bytes) {
         final int version = fileId.getVersion();
-        final int headerSize;
+        final int segmentHeaderSize;
         final int recordSize;
-        final int nrPosition; // nr. of records header entry
-        final int tsPosition; // start time stamp header entry
-        switch (version) {
+        final int tsPosition;
+        final byte[] expectedSignature;
+
+        HexFormat hexFormat = HexFormat.of();
+        
+        LOG.debug("Parse workout details: {}", fileId.getFilename());
+
+        switch (version){
             case 2:
-                headerSize = 18;
+                expectedSignature = hexFormat.parseHex("c0");
+                segmentHeaderSize = 9;
                 recordSize = 2;
-                nrPosition = 9;
-                tsPosition = 13;
+                tsPosition = 4; // Position of timestamp in segment header
                 break;
             case 3:
-                headerSize = 28;
+                expectedSignature = hexFormat.parseHex("ccccc0");
+                segmentHeaderSize = 17;
                 recordSize = 6;
-                nrPosition = 15;
-                tsPosition = 19;
+                tsPosition = 8;
                 break;
             case 5:
-                headerSize = 30;
+                expectedSignature = hexFormat.parseHex("ecccc00cc0");
+                segmentHeaderSize = 17;
                 recordSize = 8;
-                nrPosition = 17;
-                tsPosition = 21;
+                tsPosition = 8;
                 break;
             default:
                 LOG.warn("Unable to parse workout details version {}", fileId.getVersion());
                 return false;
         }
 
+        // check signature compatibility
+        final byte[] signature = Arrays.copyOfRange(bytes, 8, 8 + expectedSignature.length);
+        if (Arrays.compare(expectedSignature, signature) != 0){
+            LOG.warn("Unsupported signature: {} version: {}", hexFormat.formatHex(signature), version);
+            return false;
+        }
+
+        // position of field with number of records in segment header
+        final int nrPosition = tsPosition - 4;
+
         final ByteBuffer buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         buf.limit(buf.limit() - 4); // discard crc at the end
+
+        // FileId (8 bytes)
         buf.get(new byte[7]); // skip fileId bytes
         final byte fileIdPadding = buf.get();
         if (fileIdPadding != 0) {
             LOG.warn("Expected 0 padding after fileId, got {} - parsing might fail", fileIdPadding);
         }
 
-        final int nr = buf.getInt(nrPosition);
-        LOG.debug("Number of records in Workout details: {}", nr);
-        int ts = buf.getInt(tsPosition);
-        LOG.debug("Workout details start timestamp: {}", ts);
-
-        final byte[] header = new byte[headerSize - 8];
-        buf.get(header);
-        LOG.debug("Workout details Header: {}", GB.hexdump(header));
-
-        if ((buf.limit() - buf.position()) % recordSize != 0) {
-            LOG.warn("Remaining data in the buffer is not a multiple of {}", recordSize);
-        }
+        // skip Record Signature
+        buf.get(new byte[expectedSignature.length]);
 
         final List<XiaomiActivitySample> samples = new ArrayList<>();
 
+        // loop over segments
         while (buf.position() < buf.limit()) {
 
-            final XiaomiActivitySample sample = new XiaomiActivitySample();
-            sample.setTimestamp(ts);
+            final byte[] segmentHeaderArray = new byte[segmentHeaderSize];
+            buf.get(segmentHeaderArray);
+            final ByteBuffer segmentHeader = ByteBuffer.wrap(segmentHeaderArray).order(ByteOrder.LITTLE_ENDIAN);
+            int nr = segmentHeader.getInt(nrPosition);
+            int ts = segmentHeader.getInt(tsPosition);
 
-            switch (version) {
-                case 2:
-                    sample.setHeartRate((int) buf.get() & 0xff);
-                    buf.get(); // calories
-                    break;
-                case 3:
-                    buf.get(); // calories ( / 16)
-                    sample.setHeartRate((int) buf.get() & 0xff);
-                    buf.getInt(); // speed ( / (2*16 * 10))
-                    break;
-                case 5:
-                    buf.get(); // steps
-                    sample.setHeartRate((int) buf.get() & 0xff);
-                    buf.get(); // events
-                    buf.get(); // calories
-                    buf.get(); // spo2 (the offset of isn't constant, but often around 11)
-                    buf.get(); // cadence
-                    buf.getShort(); // pace
-                    break;
+            final int segmentEnd = buf.position() + nr * recordSize;
+
+            LOG.debug("Parse segment of {} entries", nr);
+
+            // loop over records
+            while (buf.position() < segmentEnd) {
+
+                final XiaomiActivitySample sample = new XiaomiActivitySample();
+                sample.setTimestamp(ts);
+
+                switch (version) {
+                    case 2:
+                        sample.setHeartRate((int) buf.get() & 0xff);
+                        buf.get(); // calories
+                        break;
+                    case 3:
+                        buf.get(); // calories ( / 16)
+                        sample.setHeartRate((int) buf.get() & 0xff);
+                        buf.getInt(); // speed ( / (2*16 * 10))
+                        break;
+                    case 5:
+                        buf.get(); // steps
+                        sample.setHeartRate((int) buf.get() & 0xff);
+                        buf.get(); // events
+                        buf.get(); // calories
+                        buf.get(); // spo2 (the offset of isn't constant, but often around 11)
+                        buf.get(); // cadence
+                        buf.getShort(); // pace
+                        break;
+                }
+
+                samples.add(sample);
+
+                LOG.trace("XiaomiActivitySample: ts={} hr={}",
+                        sample.getTimestamp(),
+                        sample.getHeartRate()
+                );
+                ts++;
             }
-
-            samples.add(sample);
-
-            LOG.trace("XiaomiActivitySample: ts={} hr={} spo2={} cal={}",
-                    sample.getTimestamp(),
-                    sample.getHeartRate(),
-                    sample.getSpo2(),
-                    sample.getActiveCalories()
-            );
-            ts++;
         }
 
        try (DBHandler dbHandler = GBApplication.acquireDB()) {
@@ -147,16 +169,17 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
             final Device device = DBHelper.getDevice(support.getDevice(), session);
             final User user = DBHelper.getUser(session);
 
-           for (final XiaomiActivitySample sample : samples) {
+            LOG.debug("Write {} workout detail samples to db", samples.size());
+            for (final XiaomiActivitySample sample : samples) {
                sample.setDevice(device);
                sample.setUser(user);
                sample.setProvider(sampleProvider);
-           }
-           sampleProvider.addGBActivitySamples(samples.toArray(new XiaomiActivitySample[0]));
+            }
+            sampleProvider.addGBActivitySamples(samples.toArray(new XiaomiActivitySample[0]));
 
            return true;
         } catch (final Exception e) {
-            GB.toast(support.getContext(), "Error saving workout details", Toast.LENGTH_LONG, GB.ERROR, e);
+            LOG.error("Error saving workout details: {}", e);
             return false;
         }
     }
