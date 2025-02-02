@@ -21,6 +21,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -36,9 +37,12 @@ import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.GPXActivityPoint;
+import nodomain.freeyourgadget.gadgetbridge.entities.GPXActivityPointDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.export.ActivityTrackExporter;
+import nodomain.freeyourgadget.gadgetbridge.export.GPXActivityPointExporter;
 import nodomain.freeyourgadget.gadgetbridge.export.GPXExporter;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
@@ -84,107 +88,51 @@ public class WorkoutGpsParser extends XiaomiActivityParser {
         final byte[] header = new byte[headerSize];
         buf.get(header);
 
-        LOG.debug("Workout gps Header: {}", GB.hexdump(header));
+        LOG.debug("Workout gps header signature: {}", GB.hexdump(header));
 
         if ((buf.limit() - buf.position()) % sampleSize != 0) {
             LOG.warn("Remaining data in the buffer is not a multiple of {}", sampleSize);
         }
 
-        final ActivityTrack activityTrack = new ActivityTrack();
+        final List<GPXActivityPoint> points = new ArrayList<>();
 
         try (DBHandler dbHandler = GBApplication.acquireDB()) {
             final DaoSession session = dbHandler.getDaoSession();
-            final GBDevice gbDevice = support.getDevice();
             final Device device = DBHelper.getDevice(support.getDevice(), session);
             final User user = DBHelper.getUser(session);
-            final DeviceCoordinator coordinator = gbDevice.getDeviceCoordinator();
-            final SampleProvider<XiaomiActivitySample> sampleProvider = (SampleProvider<XiaomiActivitySample>) coordinator.getSampleProvider(gbDevice, session);
 
             while (buf.position() < buf.limit()) {
                 final int ts = buf.getInt();
-                final float longitude = buf.getFloat();
-                final float latitude = buf.getFloat();
-                final ActivityPoint ap = new ActivityPoint(new Date(ts * 1000L));
-                final GPSCoordinate gpsc = new GPSCoordinate(longitude, latitude);
-                ap.setLocation(gpsc);
 
-                final List<XiaomiActivitySample> samples = sampleProvider.getAllActivitySamplesHighRes(ts, ts);
-                if ( ! samples.isEmpty() ){
-                    final XiaomiActivitySample sample = samples.get(0);
-                    final int hr = sample.getHeartRate();
-                    ap.setHeartRate(hr);
-                    LOG.trace("Add HeartRate to GPX trackpoint: hr={}", hr);
-                    // TODO: add cadence data
+                final GPXActivityPoint point = findOrCreateGpxActivityPoint(session, device, user, fileId, ts);
+
+                point.setLongitude(buf.getFloat());
+                point.setLatitude(buf.getFloat());
+                if (version == 2) {
+                    point.setHdop(buf.getFloat() / 4.8f);
+                    point.setSpeed((buf.getShort() >> 2) / 36.0f); // [m/s]
                 }
-                if (version == 1) {
-                    activityTrack.addTrackPoint(ap);
-                    LOG.trace("ActivityPoint v1: ts={} lon={} lat={}", ts, longitude, latitude);
-                } else { // version 2
-                    final float hdop = buf.getFloat() / 4.8f;
-                    final float speed = (buf.getShort() >> 2) / 36.0f; // [m/s]
-                    gpsc.setHdop(hdop);
-                    ap.setSpeed(speed);
-                    activityTrack.addTrackPoint(ap);
-                    LOG.trace("ActivityPoint v2: ts={} lon={} lat={} hdop={} speed={}",
-                        ts, longitude, latitude, hdop, speed);
-                }
+                points.add(point);
+                LOG.trace("ActivityPoint v{}: ts={} lon={} lat={} hdop={} speed={}",
+                        version,
+                        point.getTimestamp(),
+                        point.getLongitude(),
+                        point.getLatitude(),
+                        point.getHdop(),
+                        point.getSpeed()
+                    );
             }
+            session.getGPXActivityPointDao().insertOrReplaceInTx(points);
 
-            // Find the matching summary
+            final GPXActivityPointExporter gpxe = new GPXActivityPointExporter(device, user, fileId);
             final BaseActivitySummary summary = findOrCreateBaseActivitySummary(session, device, user, fileId);
+            gpxe.exportGPX(summary);
 
-            // Set the info on the activity track
-            activityTrack.setUser(user);
-            activityTrack.setDevice(device);
-            activityTrack.setName(ActivityKind.fromCode(summary.getActivityKind()).getLabel(support.getContext()));
-
-            // Save the raw bytes
-            final String rawBytesPath = saveRawBytes(fileId, bytes);
-
-            // Save the gpx file
-            final GPXExporter exporter = new GPXExporter();
-
-            final String gpxFileName = FileUtils.makeValidFileName("gadgetbridge-" + DateTimeUtils.formatIso8601(fileId.getTimestamp()) + ".gpx");
-            final File gpxTargetFile = new File(FileUtils.getExternalFilesDir(), gpxFileName);
-
-            boolean exportGpxSuccess = true;
-            try {
-                exporter.performExport(activityTrack, gpxTargetFile);
-            } catch (final ActivityTrackExporter.GPXTrackEmptyException ex) {
-                exportGpxSuccess = false;
-                GB.toast(support.getContext(), "This activity does not contain GPX tracks.", Toast.LENGTH_LONG, GB.ERROR, ex);
-            }
-
-            if (exportGpxSuccess) {
-                summary.setGpxTrack(gpxTargetFile.getAbsolutePath());
-            }
-            if (rawBytesPath != null) {
-                summary.setRawDetailsPath(rawBytesPath);
-            }
-            session.getBaseActivitySummaryDao().insertOrReplace(summary);
         } catch (final Exception e) {
+            LOG.error("Error saving workout gps: {}", e);
             GB.toast(support.getContext(), "Error saving workout gps", Toast.LENGTH_LONG, GB.ERROR, e);
             return false;
         }
-
         return true;
-    }
-
-    private String saveRawBytes(final XiaomiActivityFileId fileId, final byte[] bytes) {
-        try {
-            final File targetFolder = new File(FileUtils.getExternalFilesDir(), "rawDetails");
-            //noinspection ResultOfMethodCallIgnored
-            targetFolder.mkdirs();
-            final File targetFile = new File(targetFolder, fileId.getFilename());
-            FileOutputStream outputStream = new FileOutputStream(targetFile);
-            outputStream.write(fileId.toBytes());
-            outputStream.write(bytes);
-            outputStream.close();
-            return targetFile.getAbsolutePath();
-        } catch (final IOException e) {
-            LOG.error("Failed to save raw bytes", e);
-        }
-
-        return null;
     }
 }

@@ -36,6 +36,8 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.GPXActivityPoint;
+import nodomain.freeyourgadget.gadgetbridge.entities.GPXActivityPointDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -62,12 +64,20 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
         
         LOG.debug("Parse workout details: {}", fileId.getFilename());
 
+        boolean hasGPXSupport = true;
+
         switch (version){
             case 2:
                 expectedSignature = hexFormat.parseHex("c0");
                 segmentHeaderSize = 9;
                 recordSize = 2;
                 tsPosition = 4; // Position of timestamp in segment header
+
+                // in this group only 'outdoor swimming' has GPX support
+                // and this one is broken
+                hasGPXSupport = false;
+                LOG.debug("This type of activity doesn't support detailed measurements in GPX exports");
+
                 break;
             case 3:
                 expectedSignature = hexFormat.parseHex("ccccc0");
@@ -110,64 +120,77 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
         buf.get(new byte[expectedSignature.length]);
 
         final List<XiaomiActivitySample> samples = new ArrayList<>();
+        final List<GPXActivityPoint> gpxPoints = new ArrayList<>();
 
-        // loop over segments
-        while (buf.position() < buf.limit()) {
-
-            final byte[] segmentHeaderArray = new byte[segmentHeaderSize];
-            buf.get(segmentHeaderArray);
-            final ByteBuffer segmentHeader = ByteBuffer.wrap(segmentHeaderArray).order(ByteOrder.LITTLE_ENDIAN);
-            int nr = segmentHeader.getInt(nrPosition);
-            int ts = segmentHeader.getInt(tsPosition);
-
-            final int segmentEnd = buf.position() + nr * recordSize;
-
-            LOG.debug("Parse segment of {} entries", nr);
-
-            // loop over records
-            while (buf.position() < segmentEnd) {
-
-                final XiaomiActivitySample sample = new XiaomiActivitySample();
-                sample.setTimestamp(ts);
-
-                switch (version) {
-                    case 2:
-                        sample.setHeartRate((int) buf.get() & 0xff);
-                        buf.get(); // calories
-                        break;
-                    case 3:
-                        buf.get(); // calories ( / 16)
-                        sample.setHeartRate((int) buf.get() & 0xff);
-                        buf.getInt(); // speed ( / (2*16 * 10))
-                        break;
-                    case 5:
-                        buf.get(); // steps
-                        sample.setHeartRate((int) buf.get() & 0xff);
-                        buf.get(); // events
-                        buf.get(); // calories
-                        buf.get(); // spo2 (the offset of isn't constant, but often around 11)
-                        buf.get(); // cadence
-                        buf.getShort(); // pace
-                        break;
-                }
-
-                samples.add(sample);
-
-                LOG.trace("XiaomiActivitySample: ts={} hr={}",
-                        sample.getTimestamp(),
-                        sample.getHeartRate()
-                );
-                ts++;
-            }
-        }
-
-       try (DBHandler dbHandler = GBApplication.acquireDB()) {
+        try (DBHandler dbHandler = GBApplication.acquireDB()) {
             final DaoSession session = dbHandler.getDaoSession();
             final GBDevice gbDevice = support.getDevice();
             final DeviceCoordinator coordinator = gbDevice.getDeviceCoordinator();
             final SampleProvider<XiaomiActivitySample> sampleProvider = (SampleProvider<XiaomiActivitySample>)  coordinator.getSampleProvider(gbDevice, session);
             final Device device = DBHelper.getDevice(support.getDevice(), session);
             final User user = DBHelper.getUser(session);
+
+            // loop over segments
+            while (buf.position() < buf.limit()) {
+
+                final byte[] segmentHeaderArray = new byte[segmentHeaderSize];
+                buf.get(segmentHeaderArray);
+                final ByteBuffer segmentHeader = ByteBuffer.wrap(segmentHeaderArray).order(ByteOrder.LITTLE_ENDIAN);
+                int nr = segmentHeader.getInt(nrPosition);
+                int ts = segmentHeader.getInt(tsPosition);
+
+                final int segmentEnd = buf.position() + nr * recordSize;
+
+                LOG.debug("Parse segment of {} entries", nr);
+
+                // loop over records
+                while (buf.position() < segmentEnd) {
+
+                    final XiaomiActivitySample sample = new XiaomiActivitySample();
+                    sample.setTimestamp(ts);
+
+                    GPXActivityPoint gpx;
+                    if (hasGPXSupport){
+                        gpx = findOrCreateGpxActivityPoint(session, device, user, fileId, ts);
+                        gpx.setTimestamp(ts);
+                    } else {
+                        // create dummy entity
+                        gpx = new GPXActivityPoint();
+                    }
+
+                    int hr = 0;
+
+                    switch (version) {
+                        case 2:
+                            hr = (int) buf.get() & 0xff;
+                            buf.get(); // calories
+                            break;
+                        case 3:
+                            buf.get(); // calories ( / 16)
+                            hr = (int) buf.get() & 0xff;
+                            buf.getInt(); // speed ( / (2*16 * 10))
+                            break;
+                        case 5:
+                            buf.get(); // steps
+                            hr = (int) buf.get() & 0xff;
+                            buf.get(); // events
+                            buf.get(); // calories
+                            buf.get(); // spo2 (the offset of isn't constant, but often around 11)
+                            gpx.setCadence((int) buf.get() & 0xff); // cadence
+                            buf.getShort(); // pace
+                            break;
+                    }
+                    // all versions provide HR
+                    sample.setHeartRate(hr);
+                    samples.add(sample);
+
+                    gpx.setHeartRate(hr);
+                    gpx.setSegmentNumber(1);
+                    gpxPoints.add(gpx);
+
+                    ts++;
+                }
+            }
 
             LOG.debug("Write {} workout detail samples to db", samples.size());
             for (final XiaomiActivitySample sample : samples) {
@@ -176,6 +199,13 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
                sample.setProvider(sampleProvider);
             }
             sampleProvider.addGBActivitySamples(samples.toArray(new XiaomiActivitySample[0]));
+
+            if (hasGPXSupport) {
+                session.getGPXActivityPointDao().insertOrReplaceInTx(gpxPoints);
+                
+                // rewrite GPX file if GPS data arrived earlier
+                GPXRewrite(session, device, user, fileId);
+            }
 
            return true;
         } catch (final Exception e) {

@@ -214,6 +214,16 @@ public class FileUtils {
         throw new IOException("no writable external directory found");
     }
 
+    public static File getExternalMediaDir() throws IOException {
+        List<File> dirs = getWritableExternalMediaDirs();
+        for (File dir : dirs) {
+            if (canWriteTo(dir)) {
+                return dir;
+            }
+        }
+        throw new IOException("no writable external media directory found");
+    }
+
     /**
      * Returns a File object representing the "child" argument, but relative
      * to the Android "external files directory" (e.g. /sdcard).
@@ -305,6 +315,46 @@ public class FileUtils {
         }
         return result;
     }
+
+    @NonNull
+    private static List<File> getWritableExternalMediaDirs() throws IOException {
+        Context context = GBApplication.getContext();
+        File[] dirs;
+        try {
+            dirs = context.getExternalMediaDirs();
+        } catch (NullPointerException | UnsupportedOperationException ex) {
+            GB.log("Can't get media dirs", GB.ERROR, ex);
+            dirs = null;
+        }
+        if (dirs == null) {
+            throw new IOException("Unable to access external media files dirs: null");
+        }
+        List<File> result = new ArrayList<>(dirs.length);
+        if (dirs.length == 0) {
+            throw new IOException("Unable to access external media files dirs: 0");
+        }
+        for (int i = 0; i < dirs.length; i++) {
+            File dir = dirs[i];
+            if (dir == null) {
+                continue;
+            }
+            if (!dir.exists() && !dir.mkdirs()) {
+                GB.log("Unable to create directories: " + dir.getAbsolutePath(), GB.INFO, null);
+                continue;
+            }
+
+            if (!GBEnvironment.env().isLocalTest()) { // don't do this with robolectric
+                final String storageState = Environment.getExternalStorageState(dir);
+                if (!Environment.MEDIA_MOUNTED.equals(storageState)) {
+                    GB.log("ignoring '" +  storageState + "' external storage dir: " + dir, GB.INFO, null);
+                    continue;
+                }
+            }
+            result.add(dir); // add last
+        }
+        return result;
+    }
+
 
     /**
      * Reads the contents of the given InputStream into a byte array, but does not

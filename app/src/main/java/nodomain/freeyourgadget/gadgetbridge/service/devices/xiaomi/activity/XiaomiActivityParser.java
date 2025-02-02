@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 José Rebelo
+/*  Copyright (C) 2023-2025 José Rebelo, Martin Schitter
 
     This file is part of Gadgetbridge.
 
@@ -28,7 +28,10 @@ import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.GPXActivityPoint;
+import nodomain.freeyourgadget.gadgetbridge.entities.GPXActivityPointDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
+import nodomain.freeyourgadget.gadgetbridge.export.GPXActivityPointExporter;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.ManualSamplesParser;
@@ -50,10 +53,12 @@ public abstract class XiaomiActivityParser {
                                                                   final User user,
                                                                   final XiaomiActivityFileId fileId) {
         final BaseActivitySummaryDao summaryDao = session.getBaseActivitySummaryDao();
-        final QueryBuilder<BaseActivitySummary> qb = summaryDao.queryBuilder();
-        qb.where(BaseActivitySummaryDao.Properties.StartTime.eq(fileId.getTimestamp()));
-        qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(device.getId()));
-        qb.where(BaseActivitySummaryDao.Properties.UserId.eq(user.getId()));
+        final QueryBuilder<BaseActivitySummary> qb = summaryDao.queryBuilder()
+            .where(
+                BaseActivitySummaryDao.Properties.StartTime.eq(fileId.getTimestamp()),
+                BaseActivitySummaryDao.Properties.DeviceId.eq(device.getId()),
+                BaseActivitySummaryDao.Properties.UserId.eq(user.getId())
+            );
         final List<BaseActivitySummary> summaries = qb.build().list();
         if (summaries.isEmpty()) {
             final BaseActivitySummary summary = new BaseActivitySummary();
@@ -71,6 +76,52 @@ public abstract class XiaomiActivityParser {
             LOG.warn("Found multiple summaries for {}", fileId);
         }
         return summaries.get(0);
+    }
+
+    protected GPXActivityPoint findOrCreateGpxActivityPoint(final DaoSession session,
+                                                            final Device device,
+                                                            final User user,
+                                                            final XiaomiActivityFileId fileId,
+                                                            final int timestamp){
+        final GPXActivityPointDao gpxDao = session.getGPXActivityPointDao();
+        final QueryBuilder<GPXActivityPoint> qb = gpxDao.queryBuilder()
+            .where(
+                GPXActivityPointDao.Properties.Timestamp.eq(timestamp),
+                GPXActivityPointDao.Properties.FileTimestamp.eq(fileId.getTimestamp().getTime()),
+                GPXActivityPointDao.Properties.DeviceId.eq(device.getId()),
+                GPXActivityPointDao.Properties.UserId.eq(user.getId())
+            );
+        final List<GPXActivityPoint> points = qb.build().list();
+        if (points.isEmpty()){
+            final GPXActivityPoint point = new GPXActivityPoint();
+            point.setFileTimestamp(fileId.getTimestamp().getTime());
+            point.setTimestamp(timestamp);
+            point.setUserId(user.getId());
+            point.setDeviceId(device.getId());
+            return point;
+        }
+        if (points.size() > 1) {
+            LOG.warn("Found multiple GPXActivityPoints for ts={} {}", timestamp, fileId);
+        }
+        return points.get(0);
+    }
+
+    /**
+     * Rewrite GPX export if new details or summary information arrived
+     * later than the GPS data.
+     */
+    protected void GPXRewrite(final DaoSession session, final Device device, final User user, final XiaomiActivityFileId fileId) {
+
+        final BaseActivitySummary summary = findOrCreateBaseActivitySummary(session, device, user, fileId);
+
+        // check for already parsed gps data
+        GPXActivityPointExporter gpxe = new GPXActivityPointExporter(device, user, fileId);
+        if (! gpxe.hasGPXdata()) {
+            LOG.debug("GPS parsing is still pending.");
+            return;
+        }
+        LOG.debug("Rewrite GPX export. {}", fileId);
+        gpxe.exportGPX(summary);
     }
 
     @Nullable

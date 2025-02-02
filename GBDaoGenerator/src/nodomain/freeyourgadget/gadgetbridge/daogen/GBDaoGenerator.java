@@ -53,6 +53,7 @@ public class GBDaoGenerator {
     private static final String SAMPLE_WEIGHT_KG = "weightKg";
     private static final String TIMESTAMP_FROM = "timestampFrom";
     private static final String TIMESTAMP_TO = "timestampTo";
+    private static final String TIMESTAMP = "timestamp";
 
 
     public static void main(String[] args) throws Exception {
@@ -85,6 +86,7 @@ public class GBDaoGenerator {
         addXiaomiActivitySample(schema, user, device);
         addXiaomiSleepTimeSamples(schema, user, device);
         addHeartPulseSamples(schema, user, device);
+        addGPXActivityPoint(schema, user, device);
         addXiaomiSleepStageSamples(schema, user, device);
         addXiaomiManualSamples(schema, user, device);
         addXiaomiDailySummarySamples(schema, user, device);
@@ -626,6 +628,26 @@ public class GBDaoGenerator {
 
     private static void addHeartRateProperties(Entity activitySample) {
         activitySample.addIntProperty(SAMPLE_HEART_RATE).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+    }
+
+    private static Entity addGPXActivityPoint(Schema schema, Entity user, Entity device) {
+        Entity gpxActivityPoint = addEntity(schema, "GPXActivityPoint");
+        gpxActivityPoint.setTableName("GPX_ACTIVITY_POINT");
+        gpxActivityPoint.addIdProperty();
+        gpxActivityPoint.addLongProperty("fileTimestamp").notNull();
+        gpxActivityPoint.addLongProperty("deviceId").notNull();
+        gpxActivityPoint.addLongProperty("userId").notNull();
+        gpxActivityPoint.addIntProperty("segmentNumber");
+        gpxActivityPoint.addIntProperty(TIMESTAMP).notNull();
+        gpxActivityPoint.addFloatProperty("latitude");
+        gpxActivityPoint.addFloatProperty("longitude");
+        gpxActivityPoint.addFloatProperty("elevation");
+        gpxActivityPoint.addFloatProperty("hdop");
+        gpxActivityPoint.addIntProperty(SAMPLE_HEART_RATE);
+        gpxActivityPoint.addFloatProperty("speed");
+        gpxActivityPoint.addIntProperty("cadence");
+        gpxActivityPoint.addFloatProperty("atemp");
+        return gpxActivityPoint;
     }
 
     private static Entity addPebbleHealthActivitySample(Schema schema, Entity user, Entity device) {

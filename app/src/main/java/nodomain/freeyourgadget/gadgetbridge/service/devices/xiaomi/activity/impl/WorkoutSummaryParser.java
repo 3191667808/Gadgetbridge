@@ -142,6 +142,10 @@ public class WorkoutSummaryParser extends XiaomiActivityParser implements Activi
             existingSummary.setSummaryData(null);  // remove json before saving to database
 
             session.getBaseActivitySummaryDao().insertOrReplace(existingSummary);
+
+            // rewrite GPX file if GPS data arrived earlier
+            GPXRewrite(session, device, user, fileId);
+
         } catch (final Exception e) {
             GB.toast(support.getContext(), "Error saving activity summary", Toast.LENGTH_LONG, GB.ERROR, e);
             return false;
