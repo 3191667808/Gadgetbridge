@@ -74,6 +74,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInf
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCallControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventDisplayMessage;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventDoNotDisturb;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFmFrequency;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventSleepStateDetection;
@@ -115,6 +116,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.WorldClock;
 import nodomain.freeyourgadget.gadgetbridge.model.NavigationInfoSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.receivers.GBCallControlReceiver;
 import nodomain.freeyourgadget.gadgetbridge.service.receivers.GBMusicControlReceiver;
+import nodomain.freeyourgadget.gadgetbridge.util.DoNotDisturbMode;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.PendingIntentUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.SilentMode;
@@ -245,8 +247,14 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
             handleGBDeviceEvent((GBDeviceMusicData) deviceEvent);
         } else if (deviceEvent instanceof GBDeviceMusicUpdate) {
             handleGBDeviceEvent((GBDeviceMusicUpdate) deviceEvent);
+        } else if (deviceEvent instanceof GBDeviceEventDoNotDisturb) {
+            handleGBDeviceEvent((GBDeviceEventDoNotDisturb) deviceEvent);
         }
+    }
 
+    private void handleGBDeviceEvent(GBDeviceEventDoNotDisturb deviceEvent) {
+        LOG.info("Got GBDeviceEventDoNotDisturb: enabled = {}", deviceEvent.isEnabled());
+        DoNotDisturbMode.setPhoneMode(getDevice().getAddress(), deviceEvent.isEnabled());
     }
 
     private void handleGBDeviceEvent(GBDeviceEventSilentMode deviceEvent) {
