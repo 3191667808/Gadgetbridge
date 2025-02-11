@@ -35,6 +35,8 @@ public class CmfFwHelper {
     private static final Logger LOG = LoggerFactory.getLogger(CmfFwHelper.class);
 
     private static final byte[] HEADER_WATCHFACE = new byte[]{0x01, 0x00, 0x00, 0x02};
+
+    private static final byte[] HEADER_WATCHFACE_2 = new byte[]{0x01, 0x00, 0x00, 0x00};
     private static final byte[] HEADER_FIRMWARE = new byte[]{'A', 'O', 'T', 'A'};
     private static final byte[] HEADER_AGPS = new byte[]{0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x31, 0x30, 0x30, 0x30, 0x30};
 
@@ -128,7 +130,7 @@ public class CmfFwHelper {
     }
 
     private boolean parseAsWatchface() {
-        if (!ArrayUtils.equals(fw, HEADER_WATCHFACE, 4)) {
+        if (!ArrayUtils.equals(fw, HEADER_WATCHFACE, 4) && !ArrayUtils.equals(fw, HEADER_WATCHFACE_2, 4)) {
             LOG.warn("File header not a watchface");
             return false;
         }
