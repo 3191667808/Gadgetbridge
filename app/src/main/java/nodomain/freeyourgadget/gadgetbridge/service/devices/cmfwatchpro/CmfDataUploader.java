@@ -52,10 +52,11 @@ public class CmfDataUploader implements CmfCharacteristic.Handler {
                     return;
                 }
 
-                final ByteBuffer buf = ByteBuffer.allocate(9).order(ByteOrder.BIG_ENDIAN);
-                buf.put((byte) (0xa5));
+                final ByteBuffer buf = ByteBuffer.allocate(13).order(ByteOrder.LITTLE_ENDIAN);
+                buf.put((byte)0x02);
+                buf.putInt(0);
+                buf.putInt(100);
                 buf.putInt(fwHelper.getBytes().length);
-                buf.putInt(new Random().nextInt()); // FIXME watchface ID?
 
                 mSupport.sendData(
                         "transfer watchface init 2 request",
