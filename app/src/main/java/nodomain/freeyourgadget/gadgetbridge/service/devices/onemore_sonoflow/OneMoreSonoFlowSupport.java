@@ -1,24 +1,22 @@
-package nodomain.freeyourgadget.gadgetbridge.service.devices._1more_sonoflow;
-
-import android.util.Log;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.onemore_sonoflow;
 
 import nodomain.freeyourgadget.gadgetbridge.service.AbstractHeadphoneDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceIoThread;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
-public class _1MoreSonoFlowSupport extends AbstractHeadphoneDeviceSupport {
+public class OneMoreSonoFlowSupport extends AbstractHeadphoneDeviceSupport {
     @Override
     protected GBDeviceProtocol createDeviceProtocol() {
-        return new _1MoreSonoFlowProtocol(getDevice());
+        return new OneMoreSonoFlowProtocol(getDevice());
     }
 
     @Override
     protected GBDeviceIoThread createDeviceIOThread() {
-        return new _1MoreSonoFlowIOThread(
+        return new OneMoreSonoFlowIOThread(
                 getDevice(),
                 getContext(),
-                (_1MoreSonoFlowProtocol) getDeviceProtocol(),
-                _1MoreSonoFlowSupport.this,
+                (OneMoreSonoFlowProtocol) getDeviceProtocol(),
+                OneMoreSonoFlowSupport.this,
                 getBluetoothAdapter()
         );
     }
@@ -30,8 +28,6 @@ public class _1MoreSonoFlowSupport extends AbstractHeadphoneDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
-        Log.d("pacjodebug", "got setting: " + config);
-
         // TODO: handle
 //        if (config.equals(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE)) {
 //

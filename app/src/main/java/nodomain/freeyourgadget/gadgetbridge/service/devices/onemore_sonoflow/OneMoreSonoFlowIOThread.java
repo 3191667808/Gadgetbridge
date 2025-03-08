@@ -1,4 +1,4 @@
-package nodomain.freeyourgadget.gadgetbridge.service.devices._1more_sonoflow;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.onemore_sonoflow;
 
 import static nodomain.freeyourgadget.gadgetbridge.util.GB.hexdump;
 
@@ -16,21 +16,21 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btclassic.BtClassicIoThread;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.AbstractSerialDeviceSupport;
 
-public class _1MoreSonoFlowIOThread extends BtClassicIoThread  {
-    private static final Logger LOG = LoggerFactory.getLogger(_1MoreSonoFlowIOThread.class);
+public class OneMoreSonoFlowIOThread extends BtClassicIoThread  {
+    private static final Logger LOG = LoggerFactory.getLogger(OneMoreSonoFlowIOThread.class);
 
-    private final _1MoreSonoFlowProtocol _1MoreSonoFlowProtocol;
+    private final OneMoreSonoFlowProtocol oneMoreSonoFlowProtocol;
 
-    public _1MoreSonoFlowIOThread(
+    public OneMoreSonoFlowIOThread(
             GBDevice gbDevice,
             Context context,
-            _1MoreSonoFlowProtocol deviceProtocol,
+            OneMoreSonoFlowProtocol deviceProtocol,
             AbstractSerialDeviceSupport deviceSupport,
             BluetoothAdapter btAdapter
     ) {
         super(gbDevice, context, deviceProtocol, deviceSupport, btAdapter);
 
-        _1MoreSonoFlowProtocol = deviceProtocol;
+        oneMoreSonoFlowProtocol = deviceProtocol;
     }
 
     @Override

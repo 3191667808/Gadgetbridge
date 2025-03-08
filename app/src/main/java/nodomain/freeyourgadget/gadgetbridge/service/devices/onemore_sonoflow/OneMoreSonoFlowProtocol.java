@@ -1,4 +1,4 @@
-package nodomain.freeyourgadget.gadgetbridge.service.devices._1more_sonoflow;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.onemore_sonoflow;
 
 import android.content.SharedPreferences;
 
@@ -8,8 +8,8 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
-public class _1MoreSonoFlowProtocol extends GBDeviceProtocol  {
-    protected _1MoreSonoFlowProtocol(GBDevice device) {
+public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
+    protected OneMoreSonoFlowProtocol(GBDevice device) {
         super(device);
     }
 

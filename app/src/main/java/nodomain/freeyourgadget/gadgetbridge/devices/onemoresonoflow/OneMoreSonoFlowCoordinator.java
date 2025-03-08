@@ -1,4 +1,4 @@
-package nodomain.freeyourgadget.gadgetbridge.devices._1moresonoflow;
+package nodomain.freeyourgadget.gadgetbridge.devices.onemoresonoflow;
 
 import androidx.annotation.NonNull;
 
@@ -14,9 +14,9 @@ import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.devices._1more_sonoflow._1MoreSonoFlowSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.onemore_sonoflow.OneMoreSonoFlowSupport;
 
-public class _1MoreSonoFlowCoordinator extends AbstractDeviceCoordinator {
+public class OneMoreSonoFlowCoordinator extends AbstractDeviceCoordinator {
 
     @Override
     protected void deleteDevice(@NonNull GBDevice gbDevice, @NonNull Device device, @NonNull DaoSession session) throws GBException {
@@ -36,12 +36,12 @@ public class _1MoreSonoFlowCoordinator extends AbstractDeviceCoordinator {
     @NonNull
     @Override
     public Class<? extends DeviceSupport> getDeviceSupportClass() {
-        return _1MoreSonoFlowSupport.class;
+        return OneMoreSonoFlowSupport.class;
     }
 
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_1more_sonoflow;
+        return R.string.devicetype_onemore_sonoflow;
     }
 
     @Override
