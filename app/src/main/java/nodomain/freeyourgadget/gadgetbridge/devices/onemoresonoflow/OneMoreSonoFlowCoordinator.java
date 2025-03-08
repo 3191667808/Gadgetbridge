@@ -66,6 +66,10 @@ public class OneMoreSonoFlowCoordinator extends AbstractDeviceCoordinator {
             DeviceSpecificSettingsScreen.SOUND,
             R.xml.devicesettings_noise_control_selector
         );
+        settings.addSubScreen(
+                DeviceSpecificSettingsScreen.SOUND,
+                R.xml.devicesettings_ldac_toggle
+        );
 
         settings.addRootScreen(DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS);
         settings.addSubScreen(

@@ -19,7 +19,9 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
     public byte[] encodeSendConfiguration(String config) {
         SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
 
-        if (config.equals(DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR)){
+        // TODO: second to last two bytes change between packets, but hardcoding seems to work for now
+
+        if (config.equals(DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR)) {
             byte packetValue;
             switch (prefs.getString(config, "0")) {
                 case "0":
@@ -38,8 +40,11 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
                     throw new IllegalStateException();      // TODO: can it be like this?
             }
 
-            // TODO: second to last two bytes change between packets, but hardcoding seems to work for now
             return new byte[] { 0x11, 0x01, 0x00, 0x5e, 0x00, 0x01, 0x00, 0x13, 0x5c, packetValue };
+        } else if (config.equals(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_LDAC_MODE)) {
+            byte packetValue = (byte) ((prefs.getBoolean(config, false)) ? 0x02 : 0x00);
+
+            return new byte[] { 0x11, 0x01, 0x00, 0x6b, 0x00, 0x01, 0x00, 0x2d, 0x57, packetValue };
         }
 
         return super.encodeSendConfiguration(config);
