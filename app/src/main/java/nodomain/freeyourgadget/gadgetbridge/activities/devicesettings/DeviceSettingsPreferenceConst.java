@@ -107,6 +107,7 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_DEVICE_INTENTS = "device_intents";
 
     public static final String PREF_ACTIVE_NOISE_CANCELLING_TOGGLE = "active_noise_cancelling_toggle";
+    public static final String PREF_NOISE_CONTROL_SELECTOR = "noise_control_selector";
     public static final String PREF_WEAR_SENSOR_TOGGLE = "wear_sensor_toggle";
     public static final String PREF_BANDW_PSERIES_VPT_ENABLED = "bandw_pseries_vpt_enabled";
     public static final String PREF_BANDW_PSERIES_VPT_LEVEL = "bandw_pseries_vpt_level";

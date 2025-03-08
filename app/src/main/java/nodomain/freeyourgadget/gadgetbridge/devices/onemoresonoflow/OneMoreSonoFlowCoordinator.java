@@ -63,12 +63,15 @@ public class OneMoreSonoFlowCoordinator extends AbstractDeviceCoordinator {
 
         settings.addRootScreen(DeviceSpecificSettingsScreen.SOUND);
         settings.addSubScreen(
-                DeviceSpecificSettingsScreen.SOUND,
-                R.xml.devicesettings_active_noise_cancelling_toggle);
+            DeviceSpecificSettingsScreen.SOUND,
+            R.xml.devicesettings_noise_control_selector
+        );
+
         settings.addRootScreen(DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS);
         settings.addSubScreen(
-                DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS,
-                R.xml.devicesettings_headphones);
+            DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS,
+            R.xml.devicesettings_headphones
+        );
 
         return settings;
     }

@@ -3380,6 +3380,18 @@
         <item>3</item>
     </string-array>
 
+    <string-array name="noise_control_modes">
+        <item>@string/off</item>
+        <item>@string/prefs_active_noise_cancelling</item>
+        <item>@string/prefs_active_noise_cancelling_transparency</item>
+    </string-array>
+
+    <string-array name="noise_control_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
     <string-array name="redmi_buds_5_pro_ambient_sound_control_names">
         <item>@string/sony_ambient_sound_off</item>
         <item>@string/sony_ambient_sound_noise_cancelling</item>
