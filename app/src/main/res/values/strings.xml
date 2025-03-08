@@ -3738,5 +3738,6 @@
     <string name="ultrahuman_airplane_mode_too_full">ring is fully charged - airplane mode NOT activated</string>
     <string name="ultrahuman_airplane_mode_unknown">unknown error - airplane mode NOT activated</string>
     <string name="ultrahuman_airplane_mode_question">Activate airplane mode?</string>
+    <string name="ultrahuman_airplane_mode_title">airplane mode</string>
     <string name="ultrahuman_unhandled_error_response">received unhandled response code 0x%x for operation 0x%x</string>
 </resources>
