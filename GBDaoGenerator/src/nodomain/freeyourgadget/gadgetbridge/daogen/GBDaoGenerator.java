@@ -54,7 +54,7 @@ public class GBDaoGenerator {
 
 
     public static void main(String[] args) throws Exception {
-        final Schema schema = new Schema(97, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(98, MAIN_PACKAGE + ".entities");
 
         Entity userAttributes = addUserAttributes(schema);
         Entity user = addUserInfo(schema, userAttributes);
@@ -156,6 +156,9 @@ public class GBDaoGenerator {
         addColmiTemperatureSample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
+
+        addUltrahumanActivitySample(schema, user, device);
+        addUltrahumanDeviceStateSample(schema, user, device);
 
         Entity huaweiWorkoutSummary = addHuaweiWorkoutSummarySample(schema, user, device);
         addHuaweiWorkoutDataSample(schema, huaweiWorkoutSummary);
@@ -1611,6 +1614,31 @@ public class GBDaoGenerator {
         workoutSectionsSample.addIntProperty("divingBreakTime").notNull();
 
         return workoutSectionsSample;
+    }
+
+    private static Entity addUltrahumanActivitySample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "UltrahumanActivitySample");
+
+        addCommonActivitySampleProperties("AbstractUltrahumanActivitySample", sample, user, device);
+        sample.addIntProperty(SAMPLE_RAW_KIND).notNull();
+        sample.addIntProperty(SAMPLE_HEART_RATE).notNull();
+        sample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull();
+        sample.addIntProperty(SAMPLE_STEPS).notNull();
+
+        return sample;
+    }
+
+    private static Entity addUltrahumanDeviceStateSample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "UltrahumanDeviceStateSample");
+
+        addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
+        sample.addByteArrayProperty(SAMPLE_RAW_KIND).notNull();
+
+        sample.addIntProperty("batteryLevel");
+        sample.addIntProperty("deviceState");
+        sample.addIntProperty("deviceTemperature");
+
+        return sample;
     }
 
     private static Entity addHuaweiDictData(Schema schema, Entity user, Entity device) {
