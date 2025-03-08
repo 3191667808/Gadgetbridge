@@ -2967,6 +2967,7 @@
     <string name="qhybrid_summary_on_device_confirmation">On-device pairing confirmations can get annoying. Disabling them might lose you functionality.</string>
     <string name="devicetype_vesc">VESC</string>
     <string name="devicetype_bose_qc35">Bose QC35</string>
+    <string name="devicetype_1more_sonoflow">1MORE SonoFlow</string>
     <string name="devicetype_sony_wena3">Sony Wena 3</string>
     <string name="withings_steel_hr">Withings Steel HR</string>
     <string name="pref_button_action_disabled">Disabled</string>
