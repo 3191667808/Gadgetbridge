@@ -118,7 +118,12 @@ public class GPXActivityPointExporter {
             final GPXExporter exporter = new GPXExporter();
 
             final String gpxFileName = FileUtils.makeValidFileName("gadgetbridge-" + DateTimeUtils.formatIso8601(new Date(this.fileTimestamp)) + ".gpx");
-            final File gpxTargetFile = new File(FileUtils.getExternalMediaDir(), gpxFileName);
+            final File gpxDir = new File(FileUtils.getExternalMediaDir(), "gpx-tracks");
+            if (!gpxDir.exists() && !gpxDir.mkdirs()) {
+                LOG.error("Unable to create directory: ", gpxDir.getAbsolutePath());
+                return;
+            }
+            final File gpxTargetFile = new File(gpxDir, gpxFileName);
 
             boolean exportGpxSuccess = true;
             try {

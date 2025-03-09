@@ -201,8 +201,6 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
             sampleProvider.addGBActivitySamples(samples.toArray(new XiaomiActivitySample[0]));
 
             if (hasGPXSupport) {
-                session.getGPXActivityPointDao().insertOrReplaceInTx(gpxPoints);
-                
                 // rewrite GPX file if GPS data arrived earlier
                 GPXRewrite(session, device, user, fileId);
             }

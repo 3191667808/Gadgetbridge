@@ -57,7 +57,7 @@ public class GBDaoGenerator {
 
 
     public static void main(String[] args) throws Exception {
-        final Schema schema = new Schema(99, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(100, MAIN_PACKAGE + ".entities");
 
         Entity userAttributes = addUserAttributes(schema);
         Entity user = addUserInfo(schema, userAttributes);
@@ -634,11 +634,11 @@ public class GBDaoGenerator {
         Entity gpxActivityPoint = addEntity(schema, "GPXActivityPoint");
         gpxActivityPoint.setTableName("GPX_ACTIVITY_POINT");
         gpxActivityPoint.addIdProperty();
-        gpxActivityPoint.addLongProperty("fileTimestamp").notNull();
-        gpxActivityPoint.addLongProperty("deviceId").notNull();
-        gpxActivityPoint.addLongProperty("userId").notNull();
+        Property fileTimestamp = gpxActivityPoint.addLongProperty("fileTimestamp").notNull().getProperty();
+        Property deviceId = gpxActivityPoint.addLongProperty("deviceId").notNull().getProperty();
+        Property userId = gpxActivityPoint.addLongProperty("userId").notNull().getProperty();
         gpxActivityPoint.addIntProperty("segmentNumber");
-        gpxActivityPoint.addIntProperty(TIMESTAMP).notNull();
+        Property timestamp = gpxActivityPoint.addIntProperty(TIMESTAMP).notNull().getProperty();
         gpxActivityPoint.addFloatProperty("latitude");
         gpxActivityPoint.addFloatProperty("longitude");
         gpxActivityPoint.addFloatProperty("elevation");
@@ -647,6 +647,21 @@ public class GBDaoGenerator {
         gpxActivityPoint.addFloatProperty("speed");
         gpxActivityPoint.addIntProperty("cadence");
         gpxActivityPoint.addFloatProperty("atemp");
+
+        final Index index = new Index();
+        index.addProperty(fileTimestamp);
+        index.addProperty(deviceId);
+        index.addProperty(userId);
+        gpxActivityPoint.addIndex(index);
+
+        final Index indexUnique = new Index();
+        indexUnique.addProperty(fileTimestamp);
+        indexUnique.addProperty(deviceId);
+        indexUnique.addProperty(userId);
+        indexUnique.addProperty(timestamp);
+        indexUnique.makeUnique();
+        gpxActivityPoint.addIndex(indexUnique);
+
         return gpxActivityPoint;
     }
 
