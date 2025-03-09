@@ -33,6 +33,7 @@ public class UltrahumanConstants {
     public static final byte OPERATION_GET_RECORDINGS = 0x04;
     public static final byte OPERATION_GET_FIRST_RECORDING_NR = 0x07;
     public static final byte OPERATION_GET_LAST_RECORDING_NR = 0x08;
+    public static final byte OPERATION_PING = 0x59;
     public static final byte OPERATION_ACTIVATE_AIRPLANE_MODE = 0x70;
-
+    public static final byte OPERATION_RESET = (byte) 0x98;
 }
