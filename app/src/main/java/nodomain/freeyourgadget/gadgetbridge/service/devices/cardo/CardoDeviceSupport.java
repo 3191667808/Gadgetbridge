@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.devices.cardo.Ls24xDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.AbstractBLEHeadphoneDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.SetDeviceStateAction;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.messages.ConfigMessage;
@@ -36,7 +36,7 @@ import static nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.request
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.requests.fmradio.FmRadioTuneRequest.SEEK_DOWN;
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.requests.fmradio.FmRadioTuneRequest.SEEK_UP;
 
-public class CardoDeviceSupport extends AbstractBTLEDeviceSupport {
+public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
     public static final String EXTRA_CONTROL_ID = "CONTROL_ID";
     public static final String EXTRA_VALUE = "EXTRA_VALUE";
     public static final String EXTRA_TOGGLE_STATE = "EXTRA_TOGGLE_STATE";
