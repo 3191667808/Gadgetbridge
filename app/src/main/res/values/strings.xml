@@ -3241,6 +3241,9 @@
     <string name="purple">Purple</string>
     <string name="white">White</string>
 
+    <string name="dual_device_mode_title">Dual device mode</string>
+    <string name="dual_device_mode_summary">Enabling device support will allow for connecting headphones to two devices simultaneously</string>
+
     <string name="prefs_wena3_title_screen">Display Settings</string>
     <string name="prefs_wena3_title_activity">Activity Settings</string>
     <string name="prefs_wena3_item_background_sync">Background Activity Data Sync</string>

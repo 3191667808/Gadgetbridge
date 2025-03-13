@@ -1,7 +1,8 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.onemore_sonoflow;
 
+import static nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils.startsWith;
+
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.util.Log;
 
 import java.nio.ByteBuffer;
@@ -27,6 +28,7 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
         SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
 
         // TODO: second to last two bytes change between packets, but hardcoding seems to work for now
+        // TODO: what is GBDeviceEventUpdatePreferences ?
 
         if (config.equals(DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR)) {
             byte packetValue;
@@ -52,6 +54,10 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
             byte packetValue = (byte) ((prefs.getBoolean(config, false)) ? 0x02 : 0x00);
 
             return new byte[] { 0x11, 0x01, 0x00, 0x6b, 0x00, 0x01, 0x00, 0x2d, 0x57, packetValue };
+        } else if (config.equals(DeviceSettingsPreferenceConst.PREF_DUAL_DEVICE_SUPPORT)) {
+            byte packetValue = (byte) ((prefs.getBoolean(config, false)) ? 0x01 : 0x00);
+
+            return new byte[] { 0x11, 0x01, 0x00, 0x76, 0x00, 0x01, 0x00, 0x0d, 0x6a, packetValue };
         }
 
         return super.encodeSendConfiguration(config);
@@ -59,14 +65,14 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
 
     @Override
     public GBDeviceEvent[] decodeResponse(byte[] responseData) {
-        return super.decodeResponse(responseData);
         List<GBDeviceEvent> events = new ArrayList<>();
         ByteBuffer buffer = ByteBuffer.wrap(responseData);
         buffer.order(ByteOrder.BIG_ENDIAN);
 
-        byte[] noiseControlHeader = { 0x01, 0x01, 0x00, 0x5f };
-        byte[] ldacHeader = { 0x01, 0x01, 0x00, 0x6c };
-        byte[] batteryInfoHeader = { 0x01, 0x01, 0x00, 0x4e };
+        if (!startsWith(buffer.array(), OneMorePacket.RESPONSE_PREAMBLE)) {
+            // TODO: log
+        } else {
+            byte command = buffer.array()[3];
 
         if (buffer.array().length >= 9 && startsWith(buffer.array(), noiseControlHeader)) {
             decodeNoiseControlMode(buffer.array()[9]);
@@ -77,34 +83,6 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
         }
 
         return events.toArray(new GBDeviceEvent[0]);
-    }
-
-    public static boolean startsWith(byte[] array, byte[] prefix) {
-        if (prefix == null) {
-            return true;
-        }
-        if (array == null) {
-            return false;
-        }
-        if (prefix.length == 0) {
-            return true;
-        }
-        if (array.length < prefix.length) {
-            return false;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return Arrays.equals(array, 0, prefix.length, prefix, 0, prefix.length);
-        } else {
-            // check byte-by-byte manually
-            for (int i = 0; i < prefix.length; i++) {
-                if (array[i] != prefix[i]) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
     }
 
     /**
@@ -140,6 +118,16 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
         boolean enabled = value == 0x02;
 
         editor.putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_LDAC_MODE, enabled);
+        editor.apply();
+    }
+
+    private void decodeDualDeviceMode(byte value) {
+        SharedPreferences prefs = getDevicePrefs().getPreferences();
+        SharedPreferences.Editor editor = prefs.edit();
+
+        boolean enabled = value == 0x01;
+
+        editor.putBoolean(DeviceSettingsPreferenceConst.PREF_DUAL_DEVICE_SUPPORT, enabled);
         editor.apply();
     }
 

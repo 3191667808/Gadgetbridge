@@ -37,14 +37,11 @@ public class OneMoreSonoFlowIOThread extends BtClassicIoThread  {
     protected void initialize() {
         super.initialize();
 
-        // battery
-        write(new byte[] { 0x11, 0x01, 0x00, 0x4e, 0x00, 0x00, 0x00, 0x1c, 0x42 });
-
-        // noise control
-        write(new byte[] { 0x11, 0x01, 0x00, 0x5f, 0x00, 0x00, 0x00, 0x0c, 0x43 });
-
-        // ldac
-        write(new byte[] { 0x11, 0x01, 0x00, 0x6c, 0x00, 0x00, 0x00, 0x0d, 0x71 });
+        // get some device information
+        write(OneMorePacket.createBatteryRequestPacket());
+        write(OneMorePacket.createNoiseControlModeRequestPacket());
+        write(OneMorePacket.createLdacModeRequestPacket());
+        write(OneMorePacket.createDualDeviceModeRequestPacket());
 
         setUpdateState(GBDevice.State.INITIALIZED);
     }
