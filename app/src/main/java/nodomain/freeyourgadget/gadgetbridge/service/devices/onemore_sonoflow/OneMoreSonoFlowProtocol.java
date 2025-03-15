@@ -19,6 +19,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
@@ -92,7 +93,7 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
                 LOG.debug("Handling battery info packet");
 
                 events.add(decodeBatteryInfo(buffer.get(13)));
-                decodeFirmwareInformation(buffer.get(10), buffer.get(11), buffer.get(12));
+                events.add(decodeFirmwareInformation(buffer.get(10), buffer.get(11), buffer.get(12)));
 
                 buffer.position(buffer.position() + 19);
             } else {
@@ -146,10 +147,11 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
     }
 
     @SuppressLint("DefaultLocale")
-    private void decodeFirmwareInformation(byte major, byte minor, byte patch) {
-        String fw = String.format("%d.%d.%d", major, minor, patch);
+    private GBDeviceEventVersionInfo decodeFirmwareInformation(byte major, byte minor, byte patch) {
+        GBDeviceEventVersionInfo event = new GBDeviceEventVersionInfo();
+        event.fwVersion = String.format("%d.%d.%d", major, minor, patch);;
 
-        LOG.debug("Got fw: {}", fw);
+        return event;
     }
 
     private GBDeviceEventBatteryInfo decodeBatteryInfo(byte value) {
