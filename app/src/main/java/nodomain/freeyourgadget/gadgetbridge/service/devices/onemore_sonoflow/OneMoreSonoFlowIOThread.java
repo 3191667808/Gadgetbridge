@@ -38,17 +38,17 @@ public class OneMoreSonoFlowIOThread extends BtClassicIoThread  {
         super.initialize();
 
         // get some device information
-        write(OneMorePacket.createBatteryRequestPacket());
-        write(OneMorePacket.createNoiseControlModeRequestPacket());
-        write(OneMorePacket.createLdacModeRequestPacket());
-        write(OneMorePacket.createDualDeviceModeRequestPacket());
+        write(OneMorePacket.createGetDeviceInfoPacket());
+        write(OneMorePacket.createGetNoiseControlModePacket());
+        write(OneMorePacket.createGetLdacModePacket());
+        write(OneMorePacket.createGetDualDeviceModePacket());
 
         setUpdateState(GBDevice.State.INITIALIZED);
     }
 
     @Override
     protected byte[] parseIncoming(InputStream stream) throws IOException {
-        byte[] buffer = new byte[1048576];
+        byte[] buffer = new byte[1048576];      // big value
         int bytes = stream.read(buffer);
         LOG.debug("read " + bytes + " bytes. " + hexdump(buffer, 0, bytes));
 

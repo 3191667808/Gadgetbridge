@@ -46,14 +46,14 @@ public class OneMoreSonoFlowCoordinator extends AbstractDeviceCoordinator {
 
     @Override
     public BatteryConfig[] getBatteryConfig(final GBDevice device) {
-        return new BatteryConfig[]{
-                new BatteryConfig(
-                        0,
-                        GBDevice.BATTERY_ICON_DEFAULT,
-                        GBDevice.BATTERY_LABEL_DEFAULT,
-                        20,
-                        100
-                )
+        return new BatteryConfig[] {
+            new BatteryConfig(
+                0,
+                GBDevice.BATTERY_ICON_DEFAULT,
+                GBDevice.BATTERY_LABEL_DEFAULT,
+                20,
+                100
+            )
         };
     }
 

@@ -2,6 +2,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.onemore_sonoflow;
 
 import static nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils.startsWith;
 
+import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
 import android.util.Log;
 
@@ -15,6 +16,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
@@ -27,37 +29,15 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
     public byte[] encodeSendConfiguration(String config) {
         SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
 
-        // TODO: second to last two bytes change between packets, but hardcoding seems to work for now
-        // TODO: what is GBDeviceEventUpdatePreferences ?
+        switch (config) {
+            case DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR:
+                return OneMorePacket.createSetNoiseControlModePacket(prefs.getString(config, "0"));
 
-        if (config.equals(DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR)) {
-            byte packetValue;
-            switch (prefs.getString(config, "0")) {
-                case "0":
-                    // Off
-                    packetValue = 0x00;
-                    break;
-                case "1":
-                    // ANC
-                    packetValue = 0x01;
-                    break;
-                case "2":
-                    // Pass-through
-                    packetValue = 0x03;
-                    break;
-                default:
-                    throw new IllegalStateException();      // TODO: can it be like this?
-            }
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_LDAC_MODE:
+                return OneMorePacket.createSetLdacModePacket(prefs.getBoolean(config, false));
 
-            return new byte[] { 0x11, 0x01, 0x00, 0x5e, 0x00, 0x01, 0x00, 0x13, 0x5c, packetValue };
-        } else if (config.equals(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_LDAC_MODE)) {
-            byte packetValue = (byte) ((prefs.getBoolean(config, false)) ? 0x02 : 0x00);
-
-            return new byte[] { 0x11, 0x01, 0x00, 0x6b, 0x00, 0x01, 0x00, 0x2d, 0x57, packetValue };
-        } else if (config.equals(DeviceSettingsPreferenceConst.PREF_DUAL_DEVICE_SUPPORT)) {
-            byte packetValue = (byte) ((prefs.getBoolean(config, false)) ? 0x01 : 0x00);
-
-            return new byte[] { 0x11, 0x01, 0x00, 0x76, 0x00, 0x01, 0x00, 0x0d, 0x6a, packetValue };
+            case DeviceSettingsPreferenceConst.PREF_DUAL_DEVICE_SUPPORT:
+                return OneMorePacket.createSetDualDeviceModePacket(prefs.getBoolean(config, false));
         }
 
         return super.encodeSendConfiguration(config);
@@ -69,17 +49,37 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
         ByteBuffer buffer = ByteBuffer.wrap(responseData);
         buffer.order(ByteOrder.BIG_ENDIAN);
 
-        if (!startsWith(buffer.array(), OneMorePacket.RESPONSE_PREAMBLE)) {
-            // TODO: log
-        } else {
-            byte command = buffer.array()[3];
+        while (buffer.position() < buffer.limit()) {
+            if (!startsWith(buffer.array(), OneMorePacket.RESPONSE_PREAMBLE)) {
+                // skip a byte and try again
+                buffer.position(buffer.position() + 1);
+                continue;
+            }
 
-        if (buffer.array().length >= 9 && startsWith(buffer.array(), noiseControlHeader)) {
-            decodeNoiseControlMode(buffer.array()[9]);
-        } else if (buffer.array().length >= 9 && startsWith(buffer.array(), ldacHeader)) {
-            decodeLdacMode(buffer.array()[9]);
-        } else if (buffer.array().length >= 13 && startsWith(buffer.array(), batteryInfoHeader)) {
-            events.add(decodeBatteryInfo(buffer.array()[13]));
+            // skip too short packets (shortest recorded packet has 10 bytes)
+            if (buffer.remaining() < 10) {
+                break;
+            }
+
+            byte command = buffer.get(buffer.position() + 3);
+            if (buffer.remaining() >= 6 && command == OneMorePacket.GET_NOISE_CONTROL_COMMAND) {
+                events.add(decodeNoiseControlMode(buffer.get(9)));
+                buffer.position(buffer.position() + 10);
+            } else if (buffer.remaining() >= 6 && command == OneMorePacket.GET_LDAC_COMMAND) {
+                events.add(decodeLdacMode(buffer.get(9)));
+                buffer.position(buffer.position() + 10);
+            } else if (buffer.remaining() >= 6 && command == OneMorePacket.GET_DUAL_DEVICE_COMMAND) {
+                events.add(decodeDualDeviceMode(buffer.get(9)));
+                buffer.position(buffer.position() + 10);
+            } else if (buffer.remaining() >= 10 && command == OneMorePacket.GET_DEVICE_INFO_COMMAND) {
+                events.add(decodeBatteryInfo(buffer.get(13)));
+                decodeFirmwareInformation(buffer.get(10), buffer.get(11), buffer.get(12));
+
+                buffer.position(buffer.position() + 19);
+            } else {
+                // skip a byte and try again
+                buffer.position(buffer.position() + 1);
+            }
         }
 
         return events.toArray(new GBDeviceEvent[0]);
@@ -89,10 +89,8 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
      * TODO: rewrite docs
      * Gets triggered when the button on the device is pressed or transparency toggled with the right palm.
      */
-    private void decodeNoiseControlMode(byte value) {
-        SharedPreferences prefs = getDevicePrefs().getPreferences();
-        SharedPreferences.Editor editor = prefs.edit();
-
+    private GBDeviceEventUpdatePreferences decodeNoiseControlMode(byte value) {
+        GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
         String mode = "0";
 
         switch (value) {
@@ -107,34 +105,38 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
                 break;
         }
 
-        editor.putString(DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR, mode);
-        editor.apply();
+        event.withPreference(DeviceSettingsPreferenceConst.PREF_NOISE_CONTROL_SELECTOR, mode);
+
+        return event;
     }
 
-    private void decodeLdacMode(byte value) {
-        SharedPreferences prefs = getDevicePrefs().getPreferences();
-        SharedPreferences.Editor editor = prefs.edit();
-
+    private GBDeviceEventUpdatePreferences decodeLdacMode(byte value) {
+        GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
         boolean enabled = value == 0x02;
 
-        editor.putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_LDAC_MODE, enabled);
-        editor.apply();
+        event.withPreference(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_LDAC_MODE, enabled);
+
+        return event;
     }
 
-    private void decodeDualDeviceMode(byte value) {
-        SharedPreferences prefs = getDevicePrefs().getPreferences();
-        SharedPreferences.Editor editor = prefs.edit();
-
+    private GBDeviceEventUpdatePreferences decodeDualDeviceMode(byte value) {
+        GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
         boolean enabled = value == 0x01;
 
-        editor.putBoolean(DeviceSettingsPreferenceConst.PREF_DUAL_DEVICE_SUPPORT, enabled);
-        editor.apply();
+        event.withPreference(DeviceSettingsPreferenceConst.PREF_DUAL_DEVICE_SUPPORT, enabled);
+
+        return event;
+    }
+
+    @SuppressLint("DefaultLocale")
+    private void decodeFirmwareInformation(byte major, byte minor, byte patch) {
+        String fw = String.format("%d.%d.%d", major, minor, patch);
     }
 
     private GBDeviceEventBatteryInfo decodeBatteryInfo(byte value) {
-        GBDeviceEventBatteryInfo info = new GBDeviceEventBatteryInfo();
-        info.level = value;
+        GBDeviceEventBatteryInfo event = new GBDeviceEventBatteryInfo();
+        event.level = value;
 
-        return info;
+        return event;
     }
 }
