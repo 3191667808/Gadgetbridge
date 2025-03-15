@@ -4,7 +4,9 @@ import static nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils.startsWith;
 
 import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
-import android.util.Log;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -21,6 +23,8 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
 public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
+    private static final Logger LOG = LoggerFactory.getLogger(OneMoreSonoFlowProtocol.class);
+
     protected OneMoreSonoFlowProtocol(GBDevice device) {
         super(device);
     }
@@ -45,38 +49,55 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
 
     @Override
     public GBDeviceEvent[] decodeResponse(byte[] responseData) {
+        LOG.debug("decodeResponse: got: {}", Arrays.toString(responseData));
+
         List<GBDeviceEvent> events = new ArrayList<>();
         ByteBuffer buffer = ByteBuffer.wrap(responseData);
         buffer.order(ByteOrder.BIG_ENDIAN);
 
         while (buffer.position() < buffer.limit()) {
             if (!startsWith(buffer.array(), OneMorePacket.RESPONSE_PREAMBLE)) {
+                LOG.warn("Unknown preamble, skipping byte");
+
                 // skip a byte and try again
                 buffer.position(buffer.position() + 1);
                 continue;
             }
 
+            LOG.debug("Preamble found, processing packet");
+
             // skip too short packets (shortest recorded packet has 10 bytes)
             if (buffer.remaining() < 10) {
+                LOG.warn("Incomplete packet (less than 10 bytes remaining), ignoring");
                 break;
             }
 
             byte command = buffer.get(buffer.position() + 3);
             if (buffer.remaining() >= 6 && command == OneMorePacket.GET_NOISE_CONTROL_COMMAND) {
+                LOG.debug("Handling noise control packet");
+
                 events.add(decodeNoiseControlMode(buffer.get(9)));
                 buffer.position(buffer.position() + 10);
             } else if (buffer.remaining() >= 6 && command == OneMorePacket.GET_LDAC_COMMAND) {
+                LOG.debug("Handling LDAC packet");
+
                 events.add(decodeLdacMode(buffer.get(9)));
                 buffer.position(buffer.position() + 10);
             } else if (buffer.remaining() >= 6 && command == OneMorePacket.GET_DUAL_DEVICE_COMMAND) {
+                LOG.debug("Handling dual device packet");
+
                 events.add(decodeDualDeviceMode(buffer.get(9)));
                 buffer.position(buffer.position() + 10);
             } else if (buffer.remaining() >= 10 && command == OneMorePacket.GET_DEVICE_INFO_COMMAND) {
+                LOG.debug("Handling battery info packet");
+
                 events.add(decodeBatteryInfo(buffer.get(13)));
                 decodeFirmwareInformation(buffer.get(10), buffer.get(11), buffer.get(12));
 
                 buffer.position(buffer.position() + 19);
             } else {
+                LOG.debug("Unknown packet command: 0x{} with buffer: {}, starting at: {}, ignoring packet", Integer.toHexString(command), Arrays.toString(buffer.array()), buffer.position());
+
                 // skip a byte and try again
                 buffer.position(buffer.position() + 1);
             }
@@ -85,10 +106,6 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
         return events.toArray(new GBDeviceEvent[0]);
     }
 
-    /**
-     * TODO: rewrite docs
-     * Gets triggered when the button on the device is pressed or transparency toggled with the right palm.
-     */
     private GBDeviceEventUpdatePreferences decodeNoiseControlMode(byte value) {
         GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
         String mode = "0";
@@ -131,6 +148,8 @@ public class OneMoreSonoFlowProtocol extends GBDeviceProtocol  {
     @SuppressLint("DefaultLocale")
     private void decodeFirmwareInformation(byte major, byte minor, byte patch) {
         String fw = String.format("%d.%d.%d", major, minor, patch);
+
+        LOG.debug("Got fw: {}", fw);
     }
 
     private GBDeviceEventBatteryInfo decodeBatteryInfo(byte value) {

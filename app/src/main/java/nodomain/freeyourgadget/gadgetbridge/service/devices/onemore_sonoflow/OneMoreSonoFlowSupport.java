@@ -13,26 +13,16 @@ public class OneMoreSonoFlowSupport extends AbstractHeadphoneDeviceSupport {
     @Override
     protected GBDeviceIoThread createDeviceIOThread() {
         return new OneMoreSonoFlowIOThread(
-                getDevice(),
-                getContext(),
-                (OneMoreSonoFlowProtocol) getDeviceProtocol(),
-                OneMoreSonoFlowSupport.this,
-                getBluetoothAdapter()
+            getDevice(),
+            getContext(),
+            (OneMoreSonoFlowProtocol) getDeviceProtocol(),
+            OneMoreSonoFlowSupport.this,
+            getBluetoothAdapter()
         );
     }
 
     @Override
     public boolean useAutoConnect() {
         return false;
-    }
-
-    @Override
-    public void onSendConfiguration(String config) {
-        // TODO: handle
-//        if (config.equals(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE)) {
-//
-//        }
-
-        super.onSendConfiguration(config);
     }
 }
