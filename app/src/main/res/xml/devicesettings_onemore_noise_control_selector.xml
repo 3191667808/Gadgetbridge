@@ -2,8 +2,8 @@
 <androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
     <ListPreference
         android:defaultValue="0"
-        android:entries="@array/noise_control_modes"
-        android:entryValues="@array/noise_control_values"
+        android:entries="@array/onemore_noise_control_modes"
+        android:entryValues="@array/onemore_noise_control_values"
         android:icon="@drawable/ic_surround"
         android:key="noise_control_selector"
         android:summary="%s"
