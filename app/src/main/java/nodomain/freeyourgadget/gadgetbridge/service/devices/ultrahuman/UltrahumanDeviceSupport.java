@@ -34,6 +34,7 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
@@ -66,6 +67,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class UltrahumanDeviceSupport extends AbstractBTLEDeviceSupport {
@@ -142,8 +144,10 @@ public class UltrahumanDeviceSupport extends AbstractBTLEDeviceSupport {
 
         builder.write(getCharacteristic(UltrahumanConstants.UUID_CHARACTERISTIC_COMMAND), new byte[]{UltrahumanConstants.OPERATION_PING});
 
-        // time has to be set every few days otherwise the device resets to epoc = 0 and records data in year 1970
-        builder.add(new UltrahumanSetTimeAction(getCharacteristic(UltrahumanConstants.UUID_CHARACTERISTIC_COMMAND)));
+        boolean timeSync = getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_TIME_SYNC, true);
+        if (timeSync) {
+            builder.add(new UltrahumanSetTimeAction(getCharacteristic(UltrahumanConstants.UUID_CHARACTERISTIC_COMMAND)));
+        }
 
         builder.add(new SetDeviceStateAction(getDevice(), GBDevice.State.INITIALIZED, getContext()));
 
@@ -304,9 +308,9 @@ public class UltrahumanDeviceSupport extends AbstractBTLEDeviceSupport {
 
     private boolean decodeRecordings(byte[] raw) {
         if (raw[1] != 0) {
-            if((raw[1] & 0xFF) == 0xEE) {
+            if ((raw[1] & 0xFF) == 0xEE) {
                 LOG.warn("no historic data recorded");
-            }else{
+            } else {
                 String message = getContext().getString(R.string.ultrahuman_unhandled_error_response, raw[1], raw[0]);
                 GB.toast(getContext(), message, Toast.LENGTH_LONG, GB.ERROR);
             }

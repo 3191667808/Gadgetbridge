@@ -154,6 +154,13 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public int[] getSupportedDeviceSpecificSettings(GBDevice device) {
+        return new int[]{
+                R.xml.devicesettings_time_sync
+        };
+    }
+
+    @Override
     public TimeSampleProvider<? extends TemperatureSample> getTemperatureSampleProvider(GBDevice device, DaoSession session) {
         // reuse Colmi code, also a smart ring
         return new ColmiTemperatureSampleProvider(device, session);
