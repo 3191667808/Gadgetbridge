@@ -58,6 +58,11 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
             final String control = (String) intent.getSerializableExtra(EXTRA_CONTROL_ID);
             final Object value = intent.getSerializableExtra(EXTRA_VALUE);
 
+            if (control == null) {
+                LOG.warn("Received control was null");
+                return;
+            }
+
             if (value == null) {
                 LOG.warn("Received control {} but value was null", control);
                 return;
@@ -79,18 +84,23 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
                     cardoBLEProfile.tune(((Number) value).intValue() == 1 ? SCAN_DOWN : SEEK_DOWN);
                     break;
                 default:
-                    LOG.debug("UNHANDLED control: {}", control);
+                    LOG.debug("No special handling for control: {}", control);
             }
 
             if (oldValue != null) {
+                LOG.debug("Should update control {}: {} -> {}", control, oldValue, value);
+
                 final CardoMap<ByteUtils.CardoField, Object> updatedValues = new CardoMap<>();
                 updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName(control), value);
-                updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName("a2dp2Volume"), value);
 
-                LOG.debug("Should set control {} to value {}", control, value);
-//                        entry.setValue(intent.getSerializableExtra(EXTRA_VALUE)); //TODO work in pairs?!?!
+                //these volumes are stored twice (possibly left/right ear?) but should set to the same value otherwise update does not apply
+                if (control.equals("ag1Volume"))
+                    updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName("ag2Volume"), value);
+                if (control.equals("a2dp1Volume"))
+                    updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName("a2dp2Volume"), value);
+
                 List<ConfigMessage.InfoType> filteredList = Arrays.stream(ConfigMessage.InfoType.values()).filter(infoType -> infoType.containsFieldWithName(control)).collect(Collectors.toList());
-                LOG.debug("Messaggi da aggiornare: {}", filteredList);
+                LOG.debug("Messages to send: {}", filteredList);
                 filteredList.forEach(infoType -> updateField(infoType, ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus(), updatedValues));
             }
 

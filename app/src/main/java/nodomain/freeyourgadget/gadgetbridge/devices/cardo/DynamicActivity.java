@@ -107,17 +107,17 @@ public class DynamicActivity extends AppCompatActivity {
         CardView cardView = new CardView(this);
         if (fmRadioModel.getControls().isEmpty())
             return cardView;
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
+        final LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
 
-        int margin = (int) getResources().getDisplayMetrics().density * 16;  // Assuming you want 16dp margins on all sides
+        int margin = (int) getResources().getDisplayMetrics().density * 16;
         layoutParams.setMargins(margin, margin, margin, margin);
 
         cardView.setLayoutParams(layoutParams);
-        cardView.setCardElevation(8f); // Optional, to give the card some elevation/shadow
-        cardView.setRadius(16f); // Optional, to make the corners rounded
+        cardView.setCardElevation(8f);
+        cardView.setRadius(16f);
 
-        ConstraintLayout constraintLayout = new ConstraintLayout(this);
+        final ConstraintLayout constraintLayout = new ConstraintLayout(this);
         constraintLayout.setLayoutParams(new ConstraintLayout.LayoutParams(
                 ConstraintLayout.LayoutParams.MATCH_PARENT, ConstraintLayout.LayoutParams.WRAP_CONTENT));
 
@@ -131,6 +131,8 @@ public class DynamicActivity extends AppCompatActivity {
 
         View toggleFm = createViewFromControl(fmRadioModel.getControl("fmState"));
         View tuningBar = createViewFromControl(fmRadioModel.getControl("Tuner"));
+        View volumeBar = createViewFromControl(fmRadioModel.getControl("fmVolume"));
+
         constraintLayout.addView(toggleFm);
         constraintLayout.addView(tuningBar);
 
@@ -143,6 +145,8 @@ public class DynamicActivity extends AppCompatActivity {
         MaterialButton seekdown = createMaterialButton(fmRadioModel.getControl("seek_down"));
         seekdown.setEnabled(fmRadioModel.getControl("fmState").getToggleState());
         constraintLayout.addView(seekdown);
+
+        constraintLayout.addView(volumeBar);
 
         int marginInDp = 20;
         int marginInPixels = (int) TypedValue.applyDimension(
@@ -181,7 +185,12 @@ public class DynamicActivity extends AppCompatActivity {
 
         constraintSet.connect(seekup.getId(), ConstraintSet.TOP, tuningBar.getId(), ConstraintSet.BOTTOM, marginInPixels);
         constraintSet.connect(seekup.getId(), ConstraintSet.LEFT, seekdown.getId(), ConstraintSet.RIGHT, marginInPixels);
-        constraintSet.connect(seekup.getId(), ConstraintSet.BOTTOM, constraintLayout.getId(), ConstraintSet.BOTTOM, marginInPixels);
+
+        constraintSet.connect(volumeBar.getId(), ConstraintSet.TOP, seekup.getId(), ConstraintSet.BOTTOM, marginInPixels);
+        constraintSet.connect(volumeBar.getId(), ConstraintSet.LEFT, constraintLayout.getId(), ConstraintSet.LEFT, marginInPixels);
+        constraintSet.connect(volumeBar.getId(), ConstraintSet.RIGHT, constraintLayout.getId(), ConstraintSet.RIGHT, marginInPixels);
+
+        constraintSet.connect(volumeBar.getId(), ConstraintSet.BOTTOM, constraintLayout.getId(), ConstraintSet.BOTTOM, marginInPixels);
 
         constraintSet.applyTo(constraintLayout);
 
@@ -189,6 +198,67 @@ public class DynamicActivity extends AppCompatActivity {
 
         return cardView;
     }
+
+    private CardView createVoicePromptsCard() {
+        final CardView cardView = new CardView(this);
+        final LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        int margin = (int) getResources().getDisplayMetrics().density * 16;
+        layoutParams.setMargins(margin, margin, margin, margin);
+
+        cardView.setLayoutParams(layoutParams);
+        cardView.setCardElevation(8f);
+        cardView.setRadius(16f);
+
+        final ConstraintLayout constraintLayout = new ConstraintLayout(this);
+        constraintLayout.setLayoutParams(new ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_PARENT, ConstraintLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView titleTextView = new TextView(this);
+        titleTextView.setText(getText(R.string.cardo_card_voice_prompts));
+        titleTextView.setId(View.generateViewId());
+        titleTextView.setTextSize(18);
+        titleTextView.setPadding(0, 0, 0, 10);
+
+        constraintLayout.addView(titleTextView);
+
+        View toggle = createViewFromControl(model.getControl("isVoicePromptsEnabled"));
+        constraintLayout.addView(toggle);
+        View volume = createViewFromControl(model.getControl("standByVolume"));
+        constraintLayout.addView(volume);
+
+        int marginInDp = 20;
+        int marginInPixels = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                marginInDp,
+                getResources().getDisplayMetrics()
+        );
+
+        // Set constraints for the views
+        ConstraintSet constraintSet = new ConstraintSet();
+        constraintSet.clone(constraintLayout);
+
+
+        constraintSet.connect(titleTextView.getId(), ConstraintSet.TOP, constraintLayout.getId(), ConstraintSet.TOP, marginInPixels);
+        constraintSet.connect(titleTextView.getId(), ConstraintSet.LEFT, constraintLayout.getId(), ConstraintSet.LEFT, marginInPixels);
+        constraintSet.connect(titleTextView.getId(), ConstraintSet.RIGHT, constraintLayout.getId(), ConstraintSet.RIGHT, marginInPixels);
+
+        constraintSet.connect(toggle.getId(), ConstraintSet.TOP, titleTextView.getId(), ConstraintSet.BOTTOM, marginInPixels / 2);
+        constraintSet.connect(toggle.getId(), ConstraintSet.LEFT, constraintLayout.getId(), ConstraintSet.LEFT, marginInPixels);
+        constraintSet.connect(toggle.getId(), ConstraintSet.RIGHT, constraintLayout.getId(), ConstraintSet.RIGHT, marginInPixels);
+
+        constraintSet.connect(volume.getId(), ConstraintSet.TOP, toggle.getId(), ConstraintSet.BOTTOM, marginInPixels);
+        constraintSet.connect(volume.getId(), ConstraintSet.LEFT, constraintLayout.getId(), ConstraintSet.LEFT, marginInPixels);
+        constraintSet.connect(volume.getId(), ConstraintSet.RIGHT, constraintLayout.getId(), ConstraintSet.RIGHT, marginInPixels);
+
+        constraintSet.applyTo(constraintLayout);
+
+        cardView.addView(constraintLayout);
+        return cardView;
+
+    }
+
 
     private View createViewFromControl(DynamicModel.Control control) {
         if (control.getType() == DynamicModel.Control.Type.LABEL) {
@@ -209,6 +279,7 @@ public class DynamicActivity extends AppCompatActivity {
     }
 
     private LinearLayout createSlider(DynamicModel.Control control) {
+        final boolean isVolumeSlider = control.getSliderMaxValue() < 20; //volume TODO this is ugly
         LinearLayout sliderContainer = new LinearLayout(this);
         sliderContainer.setId(View.generateViewId());
         sliderContainer.setOrientation(LinearLayout.VERTICAL);
@@ -220,7 +291,11 @@ public class DynamicActivity extends AppCompatActivity {
         sliderContainer.setPadding(padding, padding, padding, padding);
 
         MaterialTextView label = new MaterialTextView(this);
-        label.setText(getText(control.getTextResource()) + String.format(": %.2f", control.getSliderCurrentValue() / 100));
+        if (isVolumeSlider) {
+            label.setText(getString(control.getTextResource(), control.getSliderCurrentValue()));
+        } else {
+            label.setText(getString(control.getTextResource(), (control.getSliderCurrentValue() / 100)));
+        }
         sliderContainer.addView(label);
 
         Slider slider = new Slider(this);
@@ -228,11 +303,19 @@ public class DynamicActivity extends AppCompatActivity {
         slider.setValueFrom(control.getSliderMinValue());
         slider.setValueTo(control.getSliderMaxValue());
         slider.setValue(control.getSliderCurrentValue());
-        slider.setStepSize(10);
+        if (isVolumeSlider) {
+            slider.setStepSize(1);
+        } else {
+            slider.setStepSize(10);
+        }
 
         slider.addOnChangeListener((slider1, value, fromUser) -> {
             control.setSliderCurrentValue(value);
-            label.setText(getText(control.getTextResource()) + String.format(": %.2f", value / 100));
+            if (isVolumeSlider) {
+                label.setText(getString(control.getTextResource(), value));
+            } else {
+                label.setText(getString(control.getTextResource(), (value / 100)));
+            }
             Intent intent = new Intent(CardoDeviceSupport.COMMAND_SET_VALUE);
             intent.putExtra(CardoDeviceSupport.EXTRA_CONTROL_ID, control.getControlId());
             intent.putExtra(CardoDeviceSupport.EXTRA_VALUE, value);
@@ -383,6 +466,7 @@ public class DynamicActivity extends AppCompatActivity {
 
         containerLayout.removeAllViews();
         containerLayout.addView(createFMcard());
+        containerLayout.addView(createVoicePromptsCard());
 
 //        for (final DynamicModel.Control control : model.getControls()) {
 //            View view = createViewFromControl(control);
@@ -405,10 +489,19 @@ public class DynamicActivity extends AppCompatActivity {
 //            model.addControl(new DynamicModel.Control(DynamicModel.Control.Type.BUTTON, "HUHU", "Click Me", true));
 //            model.addControl(new DynamicModel.Control(CardoLanguage.class, "HOHO", 0));
 
+            model.addControl(new DynamicModel.Control(DynamicModel.Control.Type.TOGGLE, "isVoicePromptsEnabled", R.string.cardo_control_enable_voice_prompts, (boolean) deviceStatus.getValueByName("isVoicePromptsEnabled")));
+            model.addControl(new DynamicModel.Control(
+                    DynamicModel.Control.Type.SLIDER,
+                    "standByVolume",
+                    R.string.cardo_control_volume,
+                    0,
+                    15,
+                    (int) deviceStatus.getValueByName("standByVolume")
+            ));
             fmRadioModel.addControl(new DynamicModel.Control(
                     DynamicModel.Control.Type.SLIDER,
                     "Tuner",
-                    R.string.preferences_fm_frequency,
+                    R.string.cardo_control_fm_frequency,
                     ((CardoFmRegion) deviceStatus.getValueByName("fmRegion")).getMinFreq(),
                     ((CardoFmRegion) deviceStatus.getValueByName("fmRegion")).getMaxFreq(),
                     (int) deviceStatus.getValueByName("currentStation")
@@ -421,6 +514,14 @@ public class DynamicActivity extends AppCompatActivity {
                     deviceStatus.getValueByName("fmState") != CardoFmState.IDLE
             ));
 
+            fmRadioModel.addControl(new DynamicModel.Control(
+                    DynamicModel.Control.Type.SLIDER,
+                    "fmVolume",
+                    R.string.cardo_control_volume,
+                    0,
+                    15,
+                    (int) deviceStatus.getValueByName("fmVolume")
+            ));
 
         }
     }
