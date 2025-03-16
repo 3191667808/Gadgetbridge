@@ -5500,4 +5500,11 @@
     <string name="gpx_include_navigation">Include turn-by-turn navigation</string>
     <string name="gpx_include_navigation_straight">Include \'Continue straight\' instructions</string>
     <string name="gpx_roundabout_exit">Exit %1$d</string>
+
+    <!-- Strings related to Cardo Devices Control Activity -->
+    <string name="title_activity_cardo_control">Cardo Control</string>
+    <string name="cardo_card_fm_radio">FM Radio</string>
+    <string name="cardo_control_enable_radio">Enable Radio</string>
+    <string name="cardo_control_fm_seek_scan_up">Seek/Scan UP</string>
+    <string name="cardo_control_fm_seek_scan_down">Seek/Scan DOWN</string>
 </resources>
