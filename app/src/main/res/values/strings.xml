@@ -4618,6 +4618,14 @@
     <string name="activity_print_label_print_size">Print size (px): %1$d x %2$d</string>
     <string name="service_notification_collector_service_title">Gadgetbridge Notification Monitor</string>
     <string name="service_notification_collector_service_text">Monitoring notifications in background</string>
+
+    <!-- Strings related to Cardo Devices Control Activity -->
+    <string name="title_activity_cardo_control">Cardo Control</string>
+    <string name="cardo_card_fm_radio">FM Radio</string>
+    <string name="cardo_control_enable_radio">Enable Radio</string>
+    <string name="cardo_control_fm_seek_scan_up">Seek/Scan UP</string>
+    <string name="cardo_control_fm_seek_scan_down">Seek/Scan DOWN</string>
+
     <string name="devicetype_imiki_frame_2" translatable="false">IMIKI Frame 2</string>
     <string name="devicetype_oukitel_bt103" translatable="false">Oukitel BT103</string>
     <string name="devicetype_y6" translatable="false">Y6</string>

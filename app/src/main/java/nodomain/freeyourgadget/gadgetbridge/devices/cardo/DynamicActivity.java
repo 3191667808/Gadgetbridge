@@ -31,6 +31,7 @@ import com.google.android.material.textview.MaterialTextView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.CardoDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.enums.CardoFmRegion;
@@ -121,7 +122,7 @@ public class DynamicActivity extends AppCompatActivity {
                 ConstraintLayout.LayoutParams.MATCH_PARENT, ConstraintLayout.LayoutParams.WRAP_CONTENT));
 
         TextView titleTextView = new TextView(this);
-        titleTextView.setText("FM Radio");
+        titleTextView.setText(getText(R.string.cardo_card_fm_radio));
         titleTextView.setId(View.generateViewId()); // Important for ConstraintLayout
         titleTextView.setTextSize(18);
         titleTextView.setPadding(0, 0, 0, 10);
@@ -133,12 +134,12 @@ public class DynamicActivity extends AppCompatActivity {
         constraintLayout.addView(toggleFm);
         constraintLayout.addView(tuningBar);
 
-        fmRadioModel.addControl(new DynamicModel.Control(DynamicModel.Control.Type.BUTTON, "seek_up", "SEEK/SCAN UP"));
+        fmRadioModel.addControl(new DynamicModel.Control(DynamicModel.Control.Type.BUTTON, "seek_up", R.string.cardo_control_fm_seek_scan_up));
         MaterialButton seekup = createMaterialButton(fmRadioModel.getControl("seek_up"));
         seekup.setEnabled(fmRadioModel.getControl("fmState").getToggleState());
         constraintLayout.addView(seekup);
 
-        fmRadioModel.addControl(new DynamicModel.Control(DynamicModel.Control.Type.BUTTON, "seek_down", "SEEK/SCAN DOWN"));
+        fmRadioModel.addControl(new DynamicModel.Control(DynamicModel.Control.Type.BUTTON, "seek_down", R.string.cardo_control_fm_seek_scan_down));
         MaterialButton seekdown = createMaterialButton(fmRadioModel.getControl("seek_down"));
         seekdown.setEnabled(fmRadioModel.getControl("fmState").getToggleState());
         constraintLayout.addView(seekdown);
@@ -192,7 +193,7 @@ public class DynamicActivity extends AppCompatActivity {
     private View createViewFromControl(DynamicModel.Control control) {
         if (control.getType() == DynamicModel.Control.Type.LABEL) {
             MaterialTextView textView = new MaterialTextView(this);
-            textView.setText(control.getText());
+            textView.setText(getText(control.getTextResource()));
             textView.setId(View.generateViewId());
             containerLayout.addView(textView);
         } else if (control.getType() == DynamicModel.Control.Type.BUTTON) {
@@ -219,7 +220,7 @@ public class DynamicActivity extends AppCompatActivity {
         sliderContainer.setPadding(padding, padding, padding, padding);
 
         MaterialTextView label = new MaterialTextView(this);
-        label.setText(String.format("%s: %.2f", control.getText(), control.getSliderCurrentValue() / 100));
+        label.setText(getText(control.getTextResource()) + String.format(": %.2f", control.getSliderCurrentValue() / 100));
         sliderContainer.addView(label);
 
         Slider slider = new Slider(this);
@@ -231,7 +232,7 @@ public class DynamicActivity extends AppCompatActivity {
 
         slider.addOnChangeListener((slider1, value, fromUser) -> {
             control.setSliderCurrentValue(value);
-            label.setText(String.format("%s: %.2f", control.getText(), value / 100));
+            label.setText(getText(control.getTextResource()) + String.format(": %.2f", value / 100));
             Intent intent = new Intent(CardoDeviceSupport.COMMAND_SET_VALUE);
             intent.putExtra(CardoDeviceSupport.EXTRA_CONTROL_ID, control.getControlId());
             intent.putExtra(CardoDeviceSupport.EXTRA_VALUE, value);
@@ -250,7 +251,7 @@ public class DynamicActivity extends AppCompatActivity {
         String[] options = control.getDropdownOptions();
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this,
-                android.R.layout.simple_spinner_item,  // Usiamo questo per il momento
+                android.R.layout.simple_spinner_item,
                 options
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -325,7 +326,7 @@ public class DynamicActivity extends AppCompatActivity {
         switchContainer.setPadding(padding, padding, padding, padding);
 
         MaterialTextView label = new MaterialTextView(this);
-        label.setText(control.getText());
+        label.setText(getText(control.getTextResource()));
         label.setLayoutParams(new LinearLayout.LayoutParams(
                 0,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -352,7 +353,7 @@ public class DynamicActivity extends AppCompatActivity {
 
     private MaterialButton createMaterialButton(DynamicModel.Control control) {
         MaterialButton button = new MaterialButton(this);
-        button.setText(control.getText());
+        button.setText(getText(control.getTextResource()));
         button.setId(View.generateViewId());
 
         button.setOnClickListener(v -> {
@@ -407,7 +408,7 @@ public class DynamicActivity extends AppCompatActivity {
             fmRadioModel.addControl(new DynamicModel.Control(
                     DynamicModel.Control.Type.SLIDER,
                     "Tuner",
-                    "Frequency",
+                    R.string.preferences_fm_frequency,
                     ((CardoFmRegion) deviceStatus.getValueByName("fmRegion")).getMinFreq(),
                     ((CardoFmRegion) deviceStatus.getValueByName("fmRegion")).getMaxFreq(),
                     (int) deviceStatus.getValueByName("currentStation")
@@ -416,7 +417,7 @@ public class DynamicActivity extends AppCompatActivity {
             fmRadioModel.addControl(new DynamicModel.Control(
                     DynamicModel.Control.Type.TOGGLE,
                     "fmState",  // control ID
-                    "Enable Radio",  // label text
+                    R.string.cardo_control_enable_radio,  // label text
                     deviceStatus.getValueByName("fmState") != CardoFmState.IDLE
             ));
 

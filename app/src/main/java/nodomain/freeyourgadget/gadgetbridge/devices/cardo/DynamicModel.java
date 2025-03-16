@@ -57,7 +57,7 @@ public class DynamicModel {
     public static class Control {
         private final Type type;
         private final String controlId;
-        private String text;
+        private int textResource;
         //dropdowns
         private Class<? extends Enum<?>> enumType;
         private int selectedOptionIndex;
@@ -70,10 +70,10 @@ public class DynamicModel {
         //toggle
         private boolean toggleState;
 
-        public Control(Type type, String controlId, String text) {
+        public Control(Type type, String controlId, int textResource) {
             this.type = type;
             this.controlId = controlId;
-            this.text = text;
+            this.textResource = textResource;
         }
 
         public <E extends Enum<E>> Control(Class<? extends Enum<?>> enumType, String controlId, int selectedOptionIndex) {
@@ -83,19 +83,19 @@ public class DynamicModel {
             this.selectedOptionIndex = selectedOptionIndex;
         }
 
-        public Control(Type type, String controlId, String text, float minValue, float maxValue, float currentValue) {
+        public Control(Type type, String controlId, int textResource, float minValue, float maxValue, float currentValue) {
             this.type = type;
             this.controlId = controlId;
-            this.text = text;
+            this.textResource = textResource;
             this.sliderMinValue = minValue;
             this.sliderMaxValue = maxValue;
             this.sliderCurrentValue = currentValue;
         }
 
-        public Control(Type type, String controlId, String text, boolean initialState) {
+        public Control(Type type, String controlId, int textResource, boolean initialState) {
             this.type = type;
             this.controlId = controlId;
-            this.text = text;
+            this.textResource = textResource;
             this.toggleState = initialState;
         }
 
@@ -103,7 +103,7 @@ public class DynamicModel {
             String typeName = savedInstanceState.getString(prefix + "_control_type_" + index);
             Type type = Type.valueOf(typeName);
             String controlId = savedInstanceState.getString(prefix + "_control_id_" + index);
-            String text = savedInstanceState.getString(prefix + "_control_text_" + index);
+            int textResource = savedInstanceState.getInt(prefix + "_control_text_resource_" + index);
             boolean enabled = savedInstanceState.getBoolean(prefix + "_control_enabled_" + index);
 
             if (type == Type.DROPDOWN) {
@@ -123,29 +123,29 @@ public class DynamicModel {
                 float min = savedInstanceState.getFloat(prefix + "_slider_min_" + index);
                 float max = savedInstanceState.getFloat(prefix + "_slider_max_" + index);
                 float current = savedInstanceState.getFloat(prefix + "_slider_current_" + index);
-                return new Control(type, controlId, text, min, max, current);
+                return new Control(type, controlId, textResource, min, max, current);
             }
 
             if (type == Type.TOGGLE) {
                 boolean toggleState = savedInstanceState.getBoolean(prefix + "_toggle_state_" + index);
-                Control control = new Control(type, controlId, text);
+                Control control = new Control(type, controlId, textResource);
                 control.setToggleState(toggleState);
                 return control;
             }
 
-            return new Control(type, controlId, text);
+            return new Control(type, controlId, textResource);
+        }
+
+        public int getTextResource() {
+            return textResource;
+        }
+
+        public void setTextResource(int textResource) {
+            this.textResource = textResource;
         }
 
         public Type getType() {
             return type;
-        }
-
-        public String getText() {
-            return text;
-        }
-
-        public void setText(String text) {
-            this.text = text;
         }
 
         public String getControlId() {
@@ -202,7 +202,7 @@ public class DynamicModel {
         public void saveToBundle(Bundle outState, String prefix, int index) {
             outState.putString(prefix + "_control_type_" + index, type.name());
             outState.putString(prefix + "_control_id_" + index, controlId);
-            outState.putString(prefix + "_control_text_" + index, text);
+            outState.putInt(prefix + "_control_text_resource_" + index, textResource);
 
             if (type == Type.DROPDOWN) {
                 outState.putString(prefix + "_dropdown_enum_type_" + index, enumType.getName());
