@@ -5505,6 +5505,10 @@
     <string name="title_activity_cardo_control">Cardo Control</string>
     <string name="cardo_card_fm_radio">FM Radio</string>
     <string name="cardo_control_enable_radio">Enable Radio</string>
+    <string name="cardo_control_fm_frequency">Frequency: %.2f</string>
     <string name="cardo_control_fm_seek_scan_up">Seek/Scan UP</string>
     <string name="cardo_control_fm_seek_scan_down">Seek/Scan DOWN</string>
+    <string name="cardo_control_volume">Volume: %.0f</string>
+    <string name="cardo_card_voice_prompts">Voice Prompts</string>
+    <string name="cardo_control_enable_voice_prompts">Enable Voice Prompts</string>
 </resources>
