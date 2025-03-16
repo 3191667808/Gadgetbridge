@@ -44,6 +44,7 @@ public class ByteUtils {
         }
 
 
+        //meant for developing/debugging: this part of the codes checks that the full message can be reconstructed by its fields
         if (true) {
             final byte[] reconstructed = ByteUtils.constructFieldStructure(result, fields, bytes.length);
             if (!Arrays.equals(bytes, reconstructed)) {

@@ -1145,7 +1145,7 @@ public enum DeviceType {
     GENERIC_HEART_RATE(GenericHeartRateCoordinator.class),
     ULTRAHUMAN_RING_AIR(UltrahumanDeviceCoordinator.class),
     ATC_BLE_OEPL(ATCBLEOEPLCoordinator.class),
-    LS24X(Ls24xDeviceCoordinator.class),
+    CARDO_LS24X(Ls24xDeviceCoordinator.class),
     COOSPO_H6(CoospoH6Coordinator.class),
     COOSPO_HW9(CoospoHW9Coordinator.class),
     COOSPO_HW807(CoospoHW807Coordinator.class),

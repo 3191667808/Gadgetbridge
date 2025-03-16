@@ -364,7 +364,7 @@
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
             android:name=".devices.cardo.DynamicActivity"
-            android:label="Cardo Control"
+            android:label="@string/title_activity_cardo_control"
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
             android:name=".activities.install.FwAppInstallerActivity"
