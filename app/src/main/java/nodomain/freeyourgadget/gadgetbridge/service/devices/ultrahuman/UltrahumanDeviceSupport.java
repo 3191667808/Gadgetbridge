@@ -39,20 +39,20 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiHeartRateSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiHrvValueSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiSpo2SampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiStressSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiTemperatureSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.ultrahuman.UltrahumanConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.ultrahuman.samples.UltrahumanActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.ultrahuman.samples.UltrahumanDeviceStateSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHeartRateSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvValueSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiSpo2Sample;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiStressSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.UltrahumanActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.UltrahumanDeviceStateSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -67,7 +67,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
-import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class UltrahumanDeviceSupport extends AbstractBTLEDeviceSupport {
@@ -378,38 +377,33 @@ public class UltrahumanDeviceSupport extends AbstractBTLEDeviceSupport {
         LOG.debug("record[{}]: timeA={}, heartRate={}, HRV={}, spo2={}, recordType={}, timestampTemp={}, tempMax={}, tempMin={}," + "timeC={}, rawIntensity={}, steps={}, stress={}", index, timestampPPG, heartRate, HRV, spo2, recordType, timestampTemp, temperatureMax, temperatureMin, timestampActivity, rawIntensity, steps, stress);
 
         if (heartRate != 0) {
-            // reuse Colmi, also a smart ring
-            ColmiHeartRateSampleProvider provider = new ColmiHeartRateSampleProvider(device, session);
-            ColmiHeartRateSample sample = new ColmiHeartRateSample(timestampPPG * 1000L, deviceId, userId, heartRate);
+            GenericHeartRateSampleProvider provider = new GenericHeartRateSampleProvider(device, session);
+            GenericHeartRateSample sample = new GenericHeartRateSample(timestampPPG * 1000L, deviceId, userId, heartRate);
             provider.addSample(sample);
         }
 
         if (HRV != 0) {
-            // reuse Colmi, also a smart ring
-            ColmiHrvValueSampleProvider provider = new ColmiHrvValueSampleProvider(device, session);
-            ColmiHrvValueSample sample = new ColmiHrvValueSample(timestampPPG * 1000L, deviceId, userId, HRV);
+            GenericHrvValueSampleProvider provider = new GenericHrvValueSampleProvider(device, session);
+            GenericHrvValueSample sample = new GenericHrvValueSample(timestampPPG * 1000L, deviceId, userId, HRV);
             provider.addSample(sample);
         }
 
         if (spo2 != 0) {
-            // reuse Colmi, also a smart ring
-            ColmiSpo2SampleProvider provider = new ColmiSpo2SampleProvider(device, session);
-            ColmiSpo2Sample sample = new ColmiSpo2Sample(timestampPPG * 1000L, deviceId, userId, spo2);
+            GenericSpo2SampleProvider provider = new GenericSpo2SampleProvider(device, session);
+            GenericSpo2Sample sample = new GenericSpo2Sample(timestampPPG * 1000L, deviceId, userId, spo2);
             provider.addSample(sample);
         }
 
         if (temperatureMax != 0.0f || temperatureMin != 0.0f) {
-            // reuse Colmi, also a smart ring
             float temperature = (temperatureMax + temperatureMin) / 2f;
-            ColmiTemperatureSampleProvider provider = new ColmiTemperatureSampleProvider(device, session);
-            ColmiTemperatureSample sample = new ColmiTemperatureSample(timestampTemp * 1000L, deviceId, userId, temperature, 0);
+            GenericTemperatureSampleProvider provider = new GenericTemperatureSampleProvider(device, session);
+            GenericTemperatureSample sample = new GenericTemperatureSample(timestampTemp * 1000L, deviceId, userId, temperature, 0);
             provider.addSample(sample);
         }
 
         if (stress != 0) {
-            // reuse Colmi, also a smart ring
-            ColmiStressSampleProvider provider = new ColmiStressSampleProvider(device, session);
-            ColmiStressSample sample = new ColmiStressSample(timestampActivity * 1000L, deviceId, userId, stress);
+            GenericStressSampleProvider provider = new GenericStressSampleProvider(device, session);
+            GenericStressSample sample = new GenericStressSample(timestampActivity * 1000L, deviceId, userId, stress);
             provider.addSample(sample);
         }
 

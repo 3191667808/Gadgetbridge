@@ -34,21 +34,21 @@ import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCardAction;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiHeartRateSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiHrvValueSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiSpo2SampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiStressSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.colmi.samples.ColmiTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.ultrahuman.samples.UltrahumanActivitySampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHeartRateSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvValueSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiSpo2SampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiStressSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiTemperatureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.UltrahumanActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.UltrahumanDeviceStateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -77,11 +77,11 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
         final Long deviceId = device.getId();
 
         final Map<AbstractDao<?, ?>, Property> daoMap = new HashMap<AbstractDao<?, ?>, Property>() {{
-            put(session.getColmiHeartRateSampleDao(), ColmiHeartRateSampleDao.Properties.DeviceId);
-            put(session.getColmiHrvValueSampleDao(), ColmiHrvValueSampleDao.Properties.DeviceId);
-            put(session.getColmiSpo2SampleDao(), ColmiSpo2SampleDao.Properties.DeviceId);
-            put(session.getColmiStressSampleDao(), ColmiStressSampleDao.Properties.DeviceId);
-            put(session.getColmiTemperatureSampleDao(), ColmiTemperatureSampleDao.Properties.DeviceId);
+            put(session.getGenericHeartRateSampleDao(), GenericHeartRateSampleDao.Properties.DeviceId);
+            put(session.getGenericHrvValueSampleDao(), GenericHrvValueSampleDao.Properties.DeviceId);
+            put(session.getGenericSpo2SampleDao(), GenericSpo2SampleDao.Properties.DeviceId);
+            put(session.getGenericStressSampleDao(), GenericStressSampleDao.Properties.DeviceId);
+            put(session.getGenericTemperatureSampleDao(), GenericTemperatureSampleDao.Properties.DeviceId);
             put(session.getUltrahumanActivitySampleDao(), UltrahumanActivitySampleDao.Properties.DeviceId);
             put(session.getUltrahumanDeviceStateSampleDao(), UltrahumanDeviceStateSampleDao.Properties.DeviceId);
         }};
@@ -121,14 +121,12 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public TimeSampleProvider<? extends HrvValueSample> getHrvValueSampleProvider(GBDevice device, DaoSession session) {
-        // reuse Colmi code, also a smart ring
-        return new ColmiHrvValueSampleProvider(device, session);
+        return new GenericHrvValueSampleProvider(device, session);
     }
 
     @Override
     public TimeSampleProvider<? extends HeartRateSample> getHeartRateMaxSampleProvider(GBDevice device, DaoSession session) {
-        // reuse Colmi code, also a smart ring
-        return new ColmiHeartRateSampleProvider(device, session);
+        return new GenericHeartRateSampleProvider(device, session);
     }
 
     @Override
@@ -138,14 +136,12 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public TimeSampleProvider<? extends Spo2Sample> getSpo2SampleProvider(GBDevice device, DaoSession session) {
-        // reuse Colmi code, also a smart ring
-        return new ColmiSpo2SampleProvider(device, session);
+        return new GenericSpo2SampleProvider(device, session);
     }
 
     @Override
     public TimeSampleProvider<? extends StressSample> getStressSampleProvider(GBDevice device, DaoSession session) {
-        // reuse Colmi code, also a smart ring
-        return new ColmiStressSampleProvider(device, session);
+        return new GenericStressSampleProvider(device, session);
     }
 
     @Override
@@ -162,8 +158,7 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public TimeSampleProvider<? extends TemperatureSample> getTemperatureSampleProvider(GBDevice device, DaoSession session) {
-        // reuse Colmi code, also a smart ring
-        return new ColmiTemperatureSampleProvider(device, session);
+        return new GenericTemperatureSampleProvider(device, session);
     }
 
     @Override
@@ -193,7 +188,7 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsHrvMeasurement() {
-        // TODO - needs getHrvSummarySampleProvider in addition the implemented getHrvValueSampleProvider
+        // TODO - needs getHrvSummarySampleProvider in addition to the implemented getHrvValueSampleProvider
         return false;
     }
 
