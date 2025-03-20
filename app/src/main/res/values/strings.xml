@@ -3725,4 +3725,5 @@
     <string name="earfun_tap_action_noise_control_normal_ambient">Noise Control (Normal, Ambient Sound)</string>
     <string name="earfun_tap_action_noise_control_wind_ambient">Noise Control (Wind Noise, Ambient Sound)</string>
     <string name="earfun_tap_action_redial">Redial</string>
+    <string name="devicetype_sr08_ring">SR08 Ring</string>
 </resources>
