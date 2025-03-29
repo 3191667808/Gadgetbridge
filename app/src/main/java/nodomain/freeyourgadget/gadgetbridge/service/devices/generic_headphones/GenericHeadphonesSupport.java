@@ -2,13 +2,12 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.generic_headphones;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.IntentFilter;
 
 import androidx.core.content.ContextCompat;
 
-import nodomain.freeyourgadget.gadgetbridge.GBApplication;
-import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothConnectReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothDisconnectReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
@@ -20,6 +19,18 @@ public class GenericHeadphonesSupport extends AbstractDeviceSupport implements H
     private HeadphoneHelper headphoneHelper;
     private BluetoothDisconnectReceiver mBlueToothDisconnectReceiver = null;
 
+    private final BluetoothProfile.ServiceListener profileListener = new BluetoothProfile.ServiceListener() {
+        @Override
+        public void onServiceConnected(int profile, BluetoothProfile proxy) {
+            gbDevice.setState(GBDevice.State.INITIALIZED);
+            gbDevice.sendDeviceUpdateIntent(getContext());
+        }
+
+        @Override
+        public void onServiceDisconnected(int profile) {
+
+        }
+    };
 
     @Override
     public void onSetCallState(CallSpec callSpec) {
@@ -45,8 +56,10 @@ public class GenericHeadphonesSupport extends AbstractDeviceSupport implements H
 
     @Override
     public void dispose() {
-        if (headphoneHelper != null)
+        if (headphoneHelper != null) {
             headphoneHelper.dispose();
+            headphoneHelper = null;
+        }
         if (mBlueToothDisconnectReceiver != null) {
             getContext().unregisterReceiver(mBlueToothDisconnectReceiver);
             mBlueToothDisconnectReceiver = null;
@@ -56,11 +69,16 @@ public class GenericHeadphonesSupport extends AbstractDeviceSupport implements H
 
     @Override
     public boolean connect() {
+        if (isConnected()) {
+            return false;
+        }
+        gbDevice.setState(GBDevice.State.CONNECTING);
+        gbDevice.sendDeviceUpdateIntent(getContext(), GBDevice.DeviceUpdateSubject.CONNECTION_STATE);
+
+        getBluetoothAdapter().getProfileProxy(getContext(), profileListener, BluetoothProfile.HEADSET);
+
         mBlueToothDisconnectReceiver = new BluetoothDisconnectReceiver();
         ContextCompat.registerReceiver(getContext(), mBlueToothDisconnectReceiver, new IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECTED), ContextCompat.RECEIVER_EXPORTED);
-
-        getDevice().setState(GBDevice.State.INITIALIZED);
-        getDevice().sendDeviceUpdateIntent(getContext());
         return true;
     }
 

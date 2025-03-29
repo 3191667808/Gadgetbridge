@@ -37,16 +37,14 @@ public class GenericHeadphonesCoordinator extends AbstractDeviceCoordinator {
         BluetoothDevice device = candidate.getDevice();
         BluetoothClass deviceClass = device.getBluetoothClass();
         int deviceType = deviceClass.getDeviceClass();
-        if (deviceType == BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET ||
+        return deviceType == BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET ||
                 deviceType == BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES ||
                 deviceType == BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER ||
                 deviceType == BluetoothClass.Device.AUDIO_VIDEO_VIDEO_DISPLAY_AND_LOUDSPEAKER ||
                 deviceType == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO ||
-                deviceType == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE) {
-            return true;
-        }
-        return false;
+                deviceType == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE;
     }
+
     @Override
     public String getManufacturer() {
         return "generic";
@@ -60,7 +58,8 @@ public class GenericHeadphonesCoordinator extends AbstractDeviceCoordinator {
 
     @Override
     public int getDeviceNameResource() {
-        return 0;
+        return R.string.devicetype_unknown;
+
     }
 
     @Override
