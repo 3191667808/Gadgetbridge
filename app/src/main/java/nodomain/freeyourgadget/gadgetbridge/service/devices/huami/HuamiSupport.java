@@ -3176,7 +3176,8 @@ public abstract class HuamiSupport extends AbstractBTLEDeviceSupport implements 
             TransactionBuilder builder;
             builder = performInitialized("Sending air quality index");
             int length = 8;
-            String aqiString = "(n/a)";
+            int aqi = weatherSpec.airQuality != null ? weatherSpec.airQuality.aqi : -1;
+            String aqiString = Weather.getAqiLevelString(aqi);
             if (supportsConditionString) {
                 length += aqiString.getBytes().length + 1;
             }
@@ -3185,7 +3186,7 @@ public abstract class HuamiSupport extends AbstractBTLEDeviceSupport implements 
             buf.put((byte) 4);
             buf.putInt(weatherSpec.timestamp);
             buf.put((byte) (tz_offset_hours * 4));
-            buf.putShort((short) -1);
+            buf.putShort((short) aqi);
             if (supportsConditionString) {
                 buf.put(aqiString.getBytes());
                 buf.put((byte) 0);
