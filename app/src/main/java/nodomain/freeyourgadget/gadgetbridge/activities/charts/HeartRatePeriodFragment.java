@@ -33,6 +33,8 @@ import java.util.Locale;
 
 import org.apache.commons.lang3.time.DateUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -49,6 +51,8 @@ import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class HeartRatePeriodFragment extends AbstractChartFragment<HeartRatePeriodFragment.HeartRatePeriodData> {
+
+    protected static final Logger LOG = LoggerFactory.getLogger(HeartRatePeriodFragment.class);
 
     static int SEC_PER_DAY = 24 * 60 * 60;
     static int DATA_INVALID = -1;
@@ -135,12 +139,50 @@ public class HeartRatePeriodFragment extends AbstractChartFragment<HeartRatePeri
         DESCRIPTION_COLOR = LEGEND_TEXT_COLOR = GBApplication.getTextColor(getContext());
         if (prefs.getBoolean("chart_heartrate_color", false)) {
             HEARTRATE_COLOR = ContextCompat.getColor(getContext(), R.color.chart_heartrate_alternative);
-        }else{
+        } else {
             HEARTRATE_COLOR = ContextCompat.getColor(getContext(), R.color.chart_heartrate);
         }
         HEARTRATE_MIN_COLOR = ContextCompat.getColor(getContext(), R.color.chart_heartrate_minimum);
         HEARTRATE_MAX_COLOR = ContextCompat.getColor(getContext(), R.color.chart_heartrate_maximum);
         HEARTRATE_RESTING_COLOR = ContextCompat.getColor(getContext(), R.color.chart_heartrate_resting);
+    }
+
+    public static class EWMA {
+        private final double windowSeconds;
+        double ema;
+        double avg;
+        long lastTimestamp;
+        int count;
+        boolean first = true;
+
+        public EWMA(double windowSeconds) {
+            this.windowSeconds = windowSeconds;
+            this.count = 0;
+        }
+
+        public void add(long timestamp, double value) {
+            if(first) {
+                ema = value;
+                avg = value;
+                lastTimestamp = timestamp;
+                first = false;
+                return;
+            }
+            long deltaTime = timestamp - lastTimestamp;
+            double alpha = 1 - Math.exp(-deltaTime / windowSeconds);
+            ema = value * alpha + ema * (1 - alpha);
+            avg += ema;
+            lastTimestamp = timestamp;
+            count++;
+        }
+
+        double getAverage() {
+            return avg/count;
+        }
+
+        int getCount() {
+            return count;
+        }
     }
 
     private HeartRateData fetchHeartRateDataForDay(ChartsHost chartsHost, DBHandler db, GBDevice device, int startTs) {
@@ -159,14 +201,19 @@ public class HeartRatePeriodFragment extends AbstractChartFragment<HeartRatePeri
         }
         HeartRateUtils heartRateUtilsInstance = HeartRateUtils.getInstance();
         final Accumulator accumulator = new Accumulator();
+        final EWMA ewma = new EWMA(3600);
         for (int i = 0; i < samples.size(); i++) {
             final ActivitySample sample = samples.get(i);
             if (heartRateUtilsInstance.isValidHeartRateValue(sample.getHeartRate())) {
                 accumulator.add(sample.getHeartRate());
+                ewma.add(sample.getTimestamp(), sample.getHeartRate());
             }
         }
 
-        final int average = accumulator.getCount() > 0 ? (int) Math.round(accumulator.getAverage()) : DATA_INVALID;
+        LOG.info("AVG2: {}", (int) ewma.getAverage());
+        LOG.info("AVG: {}", (int) Math.round(accumulator.getAverage()));
+
+        final int average = ewma.getCount() > 0 ? (int) Math.round(ewma.getAverage()) : DATA_INVALID;
         final int minimum = accumulator.getCount() > 0 ? (int) Math.round(accumulator.getMin()) : DATA_INVALID;
         final int maximum = accumulator.getCount() > 0 ? (int) Math.round(accumulator.getMax()) : DATA_INVALID;
 
@@ -423,7 +470,7 @@ public class HeartRatePeriodFragment extends AbstractChartFragment<HeartRatePeri
         ValueFormatter formatter = new ValueFormatter() {
             @Override
             public String getFormattedValue(float value) {
-                int ts = startTs + SEC_PER_DAY * (int)value;
+                int ts = startTs + SEC_PER_DAY * (int) value;
                 return formatDay.format(new Date(ts * 1000L));
             }
         };
