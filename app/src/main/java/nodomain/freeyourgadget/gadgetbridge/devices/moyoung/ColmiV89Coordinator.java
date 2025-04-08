@@ -31,7 +31,7 @@ public class ColmiV89Coordinator extends AbstractMoyoungDeviceCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("V89");
+        return Pattern.compile("V89\\.?");
     }
 
     @Override
