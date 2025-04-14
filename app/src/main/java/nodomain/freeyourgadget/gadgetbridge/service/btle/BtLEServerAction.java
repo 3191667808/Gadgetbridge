@@ -17,10 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.btle;
 
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattServer;
-import android.bluetooth.BluetoothGattService;
 
 import java.util.Date;
 

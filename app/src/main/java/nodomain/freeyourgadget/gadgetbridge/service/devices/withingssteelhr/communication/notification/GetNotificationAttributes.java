@@ -17,11 +17,9 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
 public class GetNotificationAttributes {
     private byte commandID;

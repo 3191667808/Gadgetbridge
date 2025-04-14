@@ -35,7 +35,6 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandDateConverter;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandService;

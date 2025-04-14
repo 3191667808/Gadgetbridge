@@ -21,7 +21,6 @@ import androidx.annotation.NonNull;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
-import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 
 /**
  * Pseudo Coordinator for the  Lemfo SG2, a sub type of the HPLUS devices

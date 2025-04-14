@@ -23,7 +23,6 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiFirmwareInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiFirmwareType;
-import nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils;
 
 public class AmazfitXFirmwareInfo extends HuamiFirmwareInfo {
 

@@ -18,8 +18,6 @@ package nodomain.freeyourgadget.gadgetbridge.devices.sony.wena3;
 
 import androidx.annotation.NonNull;
 
-import java.util.List;
-
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractTimeSampleProvider;

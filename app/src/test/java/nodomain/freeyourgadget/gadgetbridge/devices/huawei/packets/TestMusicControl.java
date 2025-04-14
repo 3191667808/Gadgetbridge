@@ -19,7 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets;
 import static nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.MusicControl.Control.Response.Button;
 
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.lang.reflect.Field;

@@ -6,8 +6,6 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 
-import nodomain.freeyourgadget.gadgetbridge.util.GB;
-
 public class NotificationAttributeTest {
 
     @Test

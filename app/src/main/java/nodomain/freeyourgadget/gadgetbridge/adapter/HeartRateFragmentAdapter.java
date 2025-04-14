@@ -6,8 +6,6 @@ import androidx.fragment.app.FragmentManager;
 
 
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBFragment;
-import nodomain.freeyourgadget.gadgetbridge.activities.charts.DaySleepChartFragment;
-import nodomain.freeyourgadget.gadgetbridge.activities.charts.WeekSleepChartFragment;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.HeartRatePeriodFragment;
 
 public class HeartRateFragmentAdapter extends NestedFragmentAdapter {

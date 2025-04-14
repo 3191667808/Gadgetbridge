@@ -36,7 +36,6 @@ import javax.crypto.spec.SecretKeySpec;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.fossil.FossilWatchAdapter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.fossil_hr.FossilHRWatchAdapter;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.file.FileHandle;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fossil.FossilRequest;
 import nodomain.freeyourgadget.gadgetbridge.util.CRC32C;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;

@@ -31,10 +31,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.GenericItem;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiFirmwareType.AGPS_UIHH;
-import static nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiFirmwareType.WATCHFACE;
 
 public abstract class AbstractMiBandFWInstallHandler implements InstallHandler {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractMiBandFWInstallHandler.class);

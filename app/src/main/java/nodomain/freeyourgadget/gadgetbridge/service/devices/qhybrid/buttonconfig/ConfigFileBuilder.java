@@ -19,7 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.buttonconfi
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.zip.CRC32;
 
 public class ConfigFileBuilder {

@@ -35,7 +35,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphon
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btclassic.BtClassicIoThread;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Message;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class SonyHeadphonesIoThread extends BtClassicIoThread {

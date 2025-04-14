@@ -17,7 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests;
 
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.util.Log;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

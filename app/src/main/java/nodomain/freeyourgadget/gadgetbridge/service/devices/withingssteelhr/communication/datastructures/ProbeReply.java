@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.AuthenticationHandler;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class ProbeReply extends WithingsStructure {

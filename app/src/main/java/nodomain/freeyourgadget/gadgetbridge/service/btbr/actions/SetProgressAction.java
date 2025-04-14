@@ -17,7 +17,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.btbr.actions;
 
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;

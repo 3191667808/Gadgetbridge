@@ -18,9 +18,7 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btclassic.BtClassicIoThread;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.liberty.SoundcoreLibertyProtocol;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.AbstractSerialDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
 public class SoundcoreQ30IOThread extends BtClassicIoThread {
     private static final Logger LOG = LoggerFactory.getLogger(SoundcoreQ30IOThread.class);

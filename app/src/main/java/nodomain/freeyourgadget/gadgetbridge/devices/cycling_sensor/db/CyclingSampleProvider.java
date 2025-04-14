@@ -1,11 +1,9 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.cycling_sensor.db;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
-import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractTimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.CyclingSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.CyclingSampleDao;

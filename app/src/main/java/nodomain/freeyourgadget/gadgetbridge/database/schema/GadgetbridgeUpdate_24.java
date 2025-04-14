@@ -18,9 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.database.schema;
 
 import android.database.sqlite.SQLiteDatabase;
 
-import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
-import nodomain.freeyourgadget.gadgetbridge.entities.AlarmDao;
 
 public class GadgetbridgeUpdate_24 implements DBUpdateScript {
     @Override

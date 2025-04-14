@@ -42,7 +42,6 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.MessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.params.BatteryType;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 
 public abstract class AbstractSonyProtocolImpl {
     private final GBDevice device;

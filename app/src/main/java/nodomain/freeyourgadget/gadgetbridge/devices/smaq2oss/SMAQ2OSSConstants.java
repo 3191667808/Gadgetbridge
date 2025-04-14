@@ -18,8 +18,6 @@ package nodomain.freeyourgadget.gadgetbridge.devices.smaq2oss;
 
 import java.util.UUID;
 
-import static nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport.BASE_UUID;
-
 
 public class SMAQ2OSSConstants {
 

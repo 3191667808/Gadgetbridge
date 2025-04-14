@@ -20,9 +20,7 @@ import android.database.sqlite.SQLiteDatabase;
 
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutDataSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutDataSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySampleDao;
 
 public class GadgetbridgeUpdate_96 implements DBUpdateScript {
     @Override

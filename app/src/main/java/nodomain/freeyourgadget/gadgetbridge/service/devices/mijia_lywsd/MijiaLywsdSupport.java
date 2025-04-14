@@ -18,7 +18,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.mijia_lywsd;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.widget.Toast;
 

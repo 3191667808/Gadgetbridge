@@ -17,7 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification;
 
 import java.nio.ByteBuffer;
-import java.util.Locale;
 import java.util.Random;
 
 public class NotificationSource {

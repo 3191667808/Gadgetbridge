@@ -17,13 +17,9 @@
 /*  Based on code from BlueWatcher, https://github.com/masterjc/bluewatcher */
 package nodomain.freeyourgadget.gadgetbridge.devices.casio.gwb5600;
 
-import androidx.annotation.NonNull;
-
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 
 public class CasioGMWB5000DeviceCoordinator extends CasioGWB5600DeviceCoordinator {
     @Override

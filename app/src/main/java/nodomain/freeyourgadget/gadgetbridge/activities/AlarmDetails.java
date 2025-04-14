@@ -36,7 +36,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 
 public class AlarmDetails extends AbstractGBActivity {
 

@@ -17,7 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.lefun.requests;
 
 import java.util.Calendar;
-import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.LefunConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.commands.BaseCommand;

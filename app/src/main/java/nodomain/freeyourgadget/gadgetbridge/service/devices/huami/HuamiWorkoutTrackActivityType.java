@@ -16,8 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.huami;
 
-import java.util.Locale;
-
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 
 /**

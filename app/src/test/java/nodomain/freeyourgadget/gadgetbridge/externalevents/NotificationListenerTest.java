@@ -10,7 +10,6 @@ import nodomain.freeyourgadget.gadgetbridge.activities.NotificationFilterActivit
 import nodomain.freeyourgadget.gadgetbridge.entities.NotificationFilter;
 import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
 
-import static nodomain.freeyourgadget.gadgetbridge.util.GB.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 

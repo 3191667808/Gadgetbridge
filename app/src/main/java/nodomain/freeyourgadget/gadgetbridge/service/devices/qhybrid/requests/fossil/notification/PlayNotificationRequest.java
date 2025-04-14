@@ -20,7 +20,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fo
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.zip.CRC32;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.fossil.FossilWatchAdapter;

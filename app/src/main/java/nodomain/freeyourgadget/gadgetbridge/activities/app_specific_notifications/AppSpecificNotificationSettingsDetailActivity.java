@@ -21,11 +21,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -36,7 +32,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.AppSpecificNotificationSetting;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.AbstractNotificationPattern;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 
 public class AppSpecificNotificationSettingsDetailActivity extends AbstractGBActivity {
     private AppSpecificNotificationSettingsRepository repository = null;

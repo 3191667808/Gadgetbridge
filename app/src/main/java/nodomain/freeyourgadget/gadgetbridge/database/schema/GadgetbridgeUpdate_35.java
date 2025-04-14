@@ -20,7 +20,6 @@ import android.database.sqlite.SQLiteDatabase;
 
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
-import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.BatteryLevelDao;
 
 public class GadgetbridgeUpdate_35 implements DBUpdateScript {

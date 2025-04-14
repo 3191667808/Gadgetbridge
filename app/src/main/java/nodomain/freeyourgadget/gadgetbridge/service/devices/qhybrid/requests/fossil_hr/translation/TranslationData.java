@@ -16,8 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fossil_hr.translation;
 
-import nodomain.freeyourgadget.gadgetbridge.service.btle.Transaction;
-
 public class TranslationData {
     private String locale;
     private TranslationItem[] translations;

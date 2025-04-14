@@ -19,7 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.Icon;
 
 import nodomain.freeyourgadget.gadgetbridge.util.BitmapUtil;
 

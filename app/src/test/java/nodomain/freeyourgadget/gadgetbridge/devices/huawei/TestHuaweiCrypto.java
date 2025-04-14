@@ -19,8 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huawei;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Arrays;
-
 public class TestHuaweiCrypto {
 
     private void printByteArrayAsHex(String name, byte[] array) {

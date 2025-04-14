@@ -19,13 +19,11 @@
 package nodomain.freeyourgadget.gadgetbridge.service.btle;
 
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.os.Build;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 
 import java.util.Arrays;
 

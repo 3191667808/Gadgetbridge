@@ -22,7 +22,6 @@ import android.net.Uri;
 import java.io.IOException;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.huami.miband5.MiBand5FWHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.AbstractMiBandFWHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.AbstractMiBandFWInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;

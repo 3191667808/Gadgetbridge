@@ -16,8 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.qc35;
 
-import android.app.Activity;
-
 import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;

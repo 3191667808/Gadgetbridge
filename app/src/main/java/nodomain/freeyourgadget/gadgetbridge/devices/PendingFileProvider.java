@@ -21,7 +21,6 @@ import androidx.annotation.Nullable;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.QueryBuilder;
@@ -30,7 +29,6 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.PendingFile;
 import nodomain.freeyourgadget.gadgetbridge.entities.PendingFileDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public final class PendingFileProvider {

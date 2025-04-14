@@ -19,7 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.act
 import java.util.Locale;
 
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiWorkoutScreenActivityType;
 
 public enum WithingsActivityType {
 

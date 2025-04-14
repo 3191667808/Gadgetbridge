@@ -16,10 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fossil;
 
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
-
 public class RequestMtuRequest extends FossilRequest {
     private int mtu;
     private boolean finished = false;

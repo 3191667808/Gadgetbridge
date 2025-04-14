@@ -24,7 +24,6 @@ import android.content.Intent;
 import android.content.MutableContextWrapper;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;

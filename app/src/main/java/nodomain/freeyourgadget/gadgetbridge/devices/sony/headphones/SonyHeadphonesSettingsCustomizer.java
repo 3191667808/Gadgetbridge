@@ -41,7 +41,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Parcel;
 
-import androidx.annotation.NonNull;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.MultiSelectListPreference;

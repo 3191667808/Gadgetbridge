@@ -21,7 +21,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
 
-import java.util.Collections;
 import java.util.List;
 
 import androidx.annotation.DrawableRes;

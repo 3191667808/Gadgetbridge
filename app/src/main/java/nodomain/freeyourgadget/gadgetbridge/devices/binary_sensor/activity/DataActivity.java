@@ -28,7 +28,6 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.binary_sensor.BinarySensorSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.binary_sensor.protocol.constants.SensorState;
 
 public class DataActivity extends AbstractGBActivity {
     TextView stateView, countView;

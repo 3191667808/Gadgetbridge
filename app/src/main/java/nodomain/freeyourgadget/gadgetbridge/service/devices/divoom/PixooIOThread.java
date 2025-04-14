@@ -21,7 +21,6 @@ import static nodomain.freeyourgadget.gadgetbridge.util.GB.hexdump;
 
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
-import android.net.Uri;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +31,6 @@ import java.util.Arrays;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btclassic.BtClassicIoThread;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.nothing.NothingProtocol;
 
 public class PixooIOThread extends BtClassicIoThread {
     private static final Logger LOG = LoggerFactory.getLogger(PixooIOThread.class);

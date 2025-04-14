@@ -21,8 +21,6 @@ import androidx.annotation.NonNull;
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractTimeSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvValueSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvValueSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiTemperatureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;

@@ -5,12 +5,8 @@ import static org.junit.Assert.*;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 
 import java.util.List;
-
-import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
-import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class DataStructureFactoryTest {
 

@@ -24,7 +24,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.qhybrid.NotificationHRConfig
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.fossil.FossilWatchAdapter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.file.FileHandle;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fossil.file.FilePutRequest;
-import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class NotificationFilterPutHRRequest extends FilePutRequest {
     public NotificationFilterPutHRRequest(NotificationHRConfiguration[] configs, FossilWatchAdapter adapter) {

@@ -17,16 +17,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.liveview;
 
-import android.net.Uri;
-
-import java.util.ArrayList;
-import java.util.UUID;
-
-import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
-import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
-import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
-import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
-import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.AbstractSerialDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceIoThread;

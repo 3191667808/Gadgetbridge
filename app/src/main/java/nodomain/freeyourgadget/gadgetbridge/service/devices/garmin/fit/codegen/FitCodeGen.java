@@ -2,7 +2,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.codegen;
 
 import android.os.Build;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 

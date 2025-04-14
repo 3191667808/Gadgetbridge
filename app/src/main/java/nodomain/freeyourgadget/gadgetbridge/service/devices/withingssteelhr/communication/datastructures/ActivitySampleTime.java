@@ -19,8 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import java.nio.ByteBuffer;
 import java.util.Date;
 
-import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
-
 public class ActivitySampleTime extends WithingsStructure {
 
     private Date date;

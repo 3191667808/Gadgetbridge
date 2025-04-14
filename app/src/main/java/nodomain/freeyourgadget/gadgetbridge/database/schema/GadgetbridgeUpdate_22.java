@@ -21,7 +21,6 @@ import android.database.sqlite.SQLiteDatabase;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
 import nodomain.freeyourgadget.gadgetbridge.entities.AlarmDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.No1F1ActivitySampleDao;
 
 public class GadgetbridgeUpdate_22 implements DBUpdateScript {
     @Override

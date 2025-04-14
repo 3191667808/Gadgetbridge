@@ -44,9 +44,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Locale;
 
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;

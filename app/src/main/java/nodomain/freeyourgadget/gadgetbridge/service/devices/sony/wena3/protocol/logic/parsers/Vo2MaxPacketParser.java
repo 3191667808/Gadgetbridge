@@ -30,7 +30,6 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.wena3.SonyWena3Vo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.Wena3Vo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.wena3.protocol.packets.activity.Vo2MaxSample;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.wena3.protocol.util.TimeUtil;
 

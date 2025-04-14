@@ -18,8 +18,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 
 import java.nio.ByteBuffer;
 
-import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
-
 public class ActivitySampleWalk extends WithingsStructure {
 
     private short level;

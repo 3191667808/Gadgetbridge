@@ -17,7 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 public class Locale extends WithingsStructure {
 

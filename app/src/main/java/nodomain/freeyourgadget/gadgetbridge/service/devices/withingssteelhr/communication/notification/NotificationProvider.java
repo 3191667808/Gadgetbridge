@@ -26,7 +26,6 @@ import java.util.Map;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class NotificationProvider {
 

@@ -32,8 +32,6 @@ import androidx.core.app.NotificationCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Random;
-
 import ch.qos.logback.classic.LoggerContext;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.PendingIntentUtils;

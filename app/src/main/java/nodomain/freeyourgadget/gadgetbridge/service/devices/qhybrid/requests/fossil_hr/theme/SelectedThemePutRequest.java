@@ -18,7 +18,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fo
 
 import android.widget.Toast;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 

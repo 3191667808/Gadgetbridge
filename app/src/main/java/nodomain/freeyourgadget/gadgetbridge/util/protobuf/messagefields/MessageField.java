@@ -18,7 +18,6 @@ package nodomain.freeyourgadget.gadgetbridge.util.protobuf.messagefields;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 
 public abstract class MessageField {
     public static enum FieldType{

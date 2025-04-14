@@ -1,7 +1,5 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.banglejs;
 
-import static org.junit.Assert.*;
-
 import org.junit.Ignore;
 import org.junit.Test;
 

@@ -39,7 +39,6 @@ import nodomain.freeyourgadget.gadgetbridge.export.ActivityTrackExporter;
 import nodomain.freeyourgadget.gadgetbridge.export.GPXExporter;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
-import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;

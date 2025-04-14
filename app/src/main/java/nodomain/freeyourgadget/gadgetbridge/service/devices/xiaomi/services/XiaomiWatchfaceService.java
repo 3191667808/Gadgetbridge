@@ -31,10 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiFWHelper;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
 import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
-import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
-import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.SetProgressAction;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiSupport;
-import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class XiaomiWatchfaceService extends AbstractXiaomiService implements XiaomiDataUploadService.Callback {
     private static final Logger LOG = LoggerFactory.getLogger(XiaomiWatchfaceService.class);

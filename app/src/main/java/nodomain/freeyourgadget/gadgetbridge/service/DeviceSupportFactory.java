@@ -27,7 +27,6 @@ package nodomain.freeyourgadget.gadgetbridge.service;
 
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
-import android.util.Log;
 import android.widget.Toast;
 
 import org.slf4j.Logger;
@@ -36,15 +35,12 @@ import org.slf4j.LoggerFactory;
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothConnectReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.pebble.PebbleSupport;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.EnumSet;
 
 public class DeviceSupportFactory {

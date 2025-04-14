@@ -17,7 +17,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.lefun;
 
-import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
 

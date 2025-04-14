@@ -16,8 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.casio;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 public final class CasioConstants {

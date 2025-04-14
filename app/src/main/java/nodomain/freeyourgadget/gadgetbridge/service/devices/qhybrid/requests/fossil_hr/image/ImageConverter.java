@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import nodomain.freeyourgadget.gadgetbridge.devices.qhybrid.FossilFileReader;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.encoder.RLEEncoder;
 
 public class ImageConverter {

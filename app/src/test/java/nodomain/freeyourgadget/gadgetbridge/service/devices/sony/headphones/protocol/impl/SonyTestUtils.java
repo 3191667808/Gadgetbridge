@@ -16,7 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -26,10 +25,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
-import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.QuickAccess;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.MessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;

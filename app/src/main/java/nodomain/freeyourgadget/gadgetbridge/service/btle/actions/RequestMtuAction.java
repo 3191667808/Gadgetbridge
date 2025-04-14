@@ -17,10 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.btle.actions;
 
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 

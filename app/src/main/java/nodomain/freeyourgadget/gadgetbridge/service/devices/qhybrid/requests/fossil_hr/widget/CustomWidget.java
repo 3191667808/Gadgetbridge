@@ -17,9 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.fossil_hr.widget;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
 
 public class CustomWidget extends Widget {
     private ArrayList<CustomWidgetElement> elements = new ArrayList<>();

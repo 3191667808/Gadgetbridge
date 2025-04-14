@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiHttpService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.GarminPrefs;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.GarminSupport;
-import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public class OauthHandler {
     private static final Logger LOG = LoggerFactory.getLogger(OauthHandler.class);

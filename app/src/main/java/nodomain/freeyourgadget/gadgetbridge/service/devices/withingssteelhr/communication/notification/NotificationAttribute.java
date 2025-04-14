@@ -20,9 +20,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
-import nodomain.freeyourgadget.gadgetbridge.util.GB;
-import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
-
 public class NotificationAttribute {
     private byte attributeID;
     private short attributeLength;
