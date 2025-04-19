@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBException;
+import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBFragment;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
@@ -168,6 +169,19 @@ public interface DeviceCoordinator {
      * @return - The constructed GBDevice.
      */
     GBDevice createDevice(GBDeviceCandidate candidate, DeviceType type);
+
+    /**
+     * Provide a device specific chart {@link AbstractGBFragment} to offer more customized
+     * information than for example the default {@link nodomain.freeyourgadget.gadgetbridge.activities.charts.LiveActivityFragment}.
+     *
+     * @param device
+     * @param fragmentName see constant Strings defined in {@link nodomain.freeyourgadget.gadgetbridge.activities.charts.ActivityChartsActivity}
+     * @param allowSwipe
+     * @param mode
+     * @return custom {@link AbstractGBFragment}, or null if default should be used
+     */
+    @Nullable
+    AbstractGBFragment createDeviceChartsFragment(@NonNull GBDevice device, @NonNull String fragmentName, boolean allowSwipe, @Nullable String mode);
 
     /**
      * Creates a GBDevice from a database device. This is used to deserialize the device from the

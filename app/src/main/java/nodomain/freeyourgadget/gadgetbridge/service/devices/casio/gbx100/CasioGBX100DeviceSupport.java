@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.ActivityChartsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -128,7 +129,8 @@ public class CasioGBX100DeviceSupport extends Casio2C2DSupport implements Shared
             SharedPreferences preferences = GBApplication.getDeviceSpecificSharedPrefs(this.getDevice().getAddress());
             SharedPreferences.Editor editor = preferences.edit();
 
-            editor.putString(DeviceSettingsPreferenceConst.PREFS_DEVICE_CHARTS_TABS, "activity,activitylist,stepsweek");
+            String fragments = ActivityChartsActivity.ACTIVITY + "," + ActivityChartsActivity.ACTIVITYLIST + "," + ActivityChartsActivity.STEPSWEEK;
+            editor.putString(DeviceSettingsPreferenceConst.PREFS_DEVICE_CHARTS_TABS, fragments);
             editor.apply();
         }
 

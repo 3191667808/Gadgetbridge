@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 Daniel Dakhno, José Rebelo, Martin.JM
+/*  Copyright (C) 2023-2025 Daniel Dakhno, José Rebelo, Martin.JM, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.charts;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -24,7 +25,6 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentStatePagerAdapter;
 
@@ -46,6 +46,25 @@ import nodomain.freeyourgadget.gadgetbridge.util.LimitedQueue;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class ActivityChartsActivity extends AbstractChartsActivity {
+    public static final String ACTIVITY = "activity";
+    public static final String ACTIVITYLIST = "activitylist";
+    public static final String BODYENERGY = "bodyenergy";
+    public static final String CALORIES = "calories";
+    public static final String CYCLING = "cycling";
+    public static final String HEARTRATE = "heartrate";
+    public static final String HRVSTATUS = "hrvstatus";
+    public static final String LIVESTATS = "livestats";
+    public static final String PAI = "pai";
+    public static final String RESPIRATORYRATE = "respiratoryrate";
+    public static final String SLEEP = "sleep";
+    public static final String SPEEDZONES = "speedzones";
+    public static final String SPO2 = "spo2";
+    public static final String STEPSWEEK = "stepsweek";
+    public static final String STRESS = "stress";
+    public static final String TEMPERATURE = "temperature";
+    public static final String VO2MAX = "vo2max";
+    public static final String WEIGHT = "weight";
+
     LimitedQueue<Integer, ActivityAmounts> mActivityAmountCache = new LimitedQueue<>(60);
 
     @Override
@@ -88,56 +107,56 @@ public class ActivityChartsActivity extends AbstractChartsActivity {
         }
         final DeviceCoordinator coordinator = device.getDeviceCoordinator();
         if (!coordinator.supportsActivityTabs()) {
-            tabList.remove("activity");
-            tabList.remove("activitylist");
+            tabList.remove(ACTIVITY);
+            tabList.remove(ACTIVITYLIST);
         }
         if (!coordinator.supportsSleepMeasurement()) {
-            tabList.remove("sleep");
+            tabList.remove(SLEEP);
         }
         if (!coordinator.supportsStressMeasurement()) {
-            tabList.remove("stress");
+            tabList.remove(STRESS);
         }
         if (!coordinator.supportsPai()) {
-            tabList.remove("pai");
+            tabList.remove(PAI);
         }
         if (!coordinator.supportsSpo2(device)) {
-            tabList.remove("spo2");
+            tabList.remove(SPO2);
         }
         if (!coordinator.supportsStepCounter()) {
-            tabList.remove("stepsweek");
+            tabList.remove(STEPSWEEK);
         }
         if (!coordinator.supportsSpeedzones()) {
-            tabList.remove("speedzones");
+            tabList.remove(SPEEDZONES);
         }
         if (!coordinator.supportsRealtimeData()) {
-            tabList.remove("livestats");
+            tabList.remove(LIVESTATS);
         }
         if (!coordinator.supportsTemperatureMeasurement(device)) {
-            tabList.remove("temperature");
+            tabList.remove(TEMPERATURE);
         }
         if (!coordinator.supportsCyclingData()) {
-            tabList.remove("cycling");
+            tabList.remove(CYCLING);
         }
         if (!coordinator.supportsWeightMeasurement()) {
-            tabList.remove("weight");
+            tabList.remove(WEIGHT);
         }
         if (!coordinator.supportsHrvMeasurement(device)) {
-            tabList.remove("hrvstatus");
+            tabList.remove(HRVSTATUS);
         }
         if (!coordinator.supportsHeartRateMeasurement(device)) {
-            tabList.remove("heartrate");
+            tabList.remove(HEARTRATE);
         }
         if (!coordinator.supportsBodyEnergy()) {
-            tabList.remove("bodyenergy");
+            tabList.remove(BODYENERGY);
         }
         if (!coordinator.supportsVO2Max()) {
-            tabList.remove("vo2max");
+            tabList.remove(VO2MAX);
         }
         if (!coordinator.supportsActiveCalories()) {
-            tabList.remove("calories");
+            tabList.remove(CALORIES);
         }
         if (!coordinator.supportsRespiratoryRate()) {
-            tabList.remove("respiratoryrate");
+            tabList.remove(RESPIRATORYRATE);
         }
         return tabList;
     }
@@ -158,46 +177,57 @@ public class ActivityChartsActivity extends AbstractChartsActivity {
 
         @NonNull
         @Override
-        public Fragment getItem(int position) {
+        public AbstractGBFragment getItem(int position) {
             final DeviceCoordinator coordinator = getDevice().getDeviceCoordinator();
             // getItem is called to instantiate the fragment for the given page.
-            switch (enabledTabsList.get(position)) {
-                case "activity":
+            final String fragmentName = enabledTabsList.get(position);
+
+            final Intent intent = getIntent();
+            final String mode = intent.getStringExtra(ActivityChartsActivity.EXTRA_MODE);
+            final boolean allowSwipe = (enabledTabsList.size() == 1);
+
+            final AbstractGBFragment fragment = coordinator.createDeviceChartsFragment(getDevice(), fragmentName, allowSwipe, mode);
+            if(fragment != null){
+                return fragment;
+            }
+
+            switch (fragmentName) {
+                case ACTIVITY:
                     return new ActivitySleepChartFragment();
-                case "activitylist":
+                case ACTIVITYLIST:
                     return new ActivityListingChartFragment();
-                case "sleep":
-                    return SleepCollectionFragment.newInstance(enabledTabsList.size() == 1);
-                case "heartrate":
-                    return HeartRateCollectionFragment.newInstance(enabledTabsList.size() == 1);
-                case "hrvstatus":
+                case SLEEP:
+                    return SleepCollectionFragment.newInstance(allowSwipe);
+                case HEARTRATE:
+                    return HeartRateCollectionFragment.newInstance(allowSwipe);
+                case HRVSTATUS:
                     return new HRVStatusFragment();
-                case "bodyenergy":
+                case BODYENERGY:
                     return new BodyEnergyFragment();
-                case "vo2max":
+                case VO2MAX:
                     return new VO2MaxFragment();
-                case "stress":
+                case STRESS:
                     return StressCollectionFragment.newInstance(enabledTabsList.size() == 1);
-                case "pai":
+                case PAI:
                     return new PaiChartFragment();
-                case "stepsweek":
-                    return StepsCollectionFragment.newInstance(enabledTabsList.size() == 1);
-                case "speedzones":
+                case STEPSWEEK:
+                    return StepsCollectionFragment.newInstance(allowSwipe);
+                case SPEEDZONES:
                     return new SpeedZonesFragment();
-                case "livestats":
+                case LIVESTATS:
                     return new LiveActivityFragment();
-                case "spo2":
+                case SPO2:
                     return new Spo2ChartFragment();
-                case "temperature":
-                    return coordinator.supportsContinuousTemperature(getDevice())? new TemperatureDailyFragment(): new TemperatureChartFragment();
-                case "cycling":
+                case TEMPERATURE:
+                    return coordinator.supportsContinuousTemperature(getDevice()) ? new TemperatureDailyFragment() : new TemperatureChartFragment();
+                case CYCLING:
                     return new CyclingChartFragment();
-                case "weight":
+                case WEIGHT:
                     return new WeightChartFragment();
-                case "calories":
-                    return CaloriesCollectionFragment.newInstance(enabledTabsList.size() == 1);
-                case "respiratoryrate":
-                    return RespiratoryRateCollectionFragment.newInstance(enabledTabsList.size() == 1);
+                case CALORIES:
+                    return CaloriesCollectionFragment.newInstance(allowSwipe);
+                case RESPIRATORYRATE:
+                    return RespiratoryRateCollectionFragment.newInstance(allowSwipe);
             }
 
             return new UnknownFragment();
@@ -211,41 +241,41 @@ public class ActivityChartsActivity extends AbstractChartsActivity {
         @Override
         public CharSequence getPageTitle(int position) {
             switch (enabledTabsList.get(position)) {
-                case "activity":
+                case ACTIVITY:
                     return getString(R.string.activity_sleepchart_activity_and_sleep);
-                case "activitylist":
+                case ACTIVITYLIST:
                     return getString(R.string.charts_activity_list);
-                case "sleep":
+                case SLEEP:
                     return getString(R.string.sleepchart_your_sleep);
-                case "heartrate":
+                case HEARTRATE:
                     return getString(R.string.menuitem_hr);
-                case "hrvstatus":
+                case HRVSTATUS:
                     return getString(R.string.pref_header_hrv_status);
-                case "bodyenergy":
+                case BODYENERGY:
                     return getString(R.string.body_energy);
-                case "vo2max":
+                case VO2MAX:
                     return getString(R.string.menuitem_vo2_max);
-                case "stress":
+                case STRESS:
                     return getString(R.string.menuitem_stress);
-                case "pai":
+                case PAI:
                     return getString(getDevice().getDeviceCoordinator().getPaiName());
-                case "stepsweek":
+                case STEPSWEEK:
                     return getString(R.string.steps);
-                case "speedzones":
+                case SPEEDZONES:
                     return getString(R.string.stats_title);
-                case "livestats":
+                case LIVESTATS:
                     return getString(R.string.liveactivity_live_activity);
-                case "spo2":
+                case SPO2:
                     return getString(R.string.pref_header_spo2);
-                case "temperature":
+                case TEMPERATURE:
                     return getString(R.string.menuitem_temperature);
-                case "cycling":
+                case CYCLING:
                     return getString(R.string.title_cycling);
-                case "weight":
+                case WEIGHT:
                     return getString(R.string.menuitem_weight);
-                case "calories":
+                case CALORIES:
                     return getString(R.string.calories);
-                case "respiratoryrate":
+                case RESPIRATORYRATE:
                     return getString(R.string.respiratoryrate);
             }
 
