@@ -693,7 +693,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
             JSONObject o = new JSONObject();
             o.put("t", "accelsender");
             o.put("enable", enable);
-            o.put("interval", 1000);
+            o.put("interval", 10000);
             uartTxJSON("enableAccelSender", o);
         } catch (JSONException e) {
             LOG.info("JSONException: " + e.getLocalizedMessage());
