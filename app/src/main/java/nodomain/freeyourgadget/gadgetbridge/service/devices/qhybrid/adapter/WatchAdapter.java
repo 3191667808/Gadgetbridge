@@ -90,6 +90,8 @@ public abstract class WatchAdapter {
             case "WA.0.0":
             case "VA.0.0":
                 return "Fossil Gen. 6 Hybrid";
+            case "FL.2.0":/*CARMINE*/
+                return "Misftif Flash";/*CARMINE*/
         }
         return "unknown Q";
     }
