@@ -68,6 +68,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.mis
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.DownloadFileRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.EraseFileRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.FileRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.FileRequestNoResp;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetCountdownSettingsRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetCurrentStepCountRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetPointGoalRequest;
@@ -82,6 +83,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.mis
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.ReleaseHandsControlRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.RequestHandControlRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SaveCalibrationRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetClockState;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetCurrentStepCountRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetPointGoalRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetStepGoalRequest;
@@ -111,14 +113,15 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
 
     @Override
     public void initialize() {
-		requestQueue.add(new AnimationRequest());
-		requestQueue.add(new ActivationRequest());//CARMINE		
-		requestQueue.add(new BatteryLevelRequest()); //CARMINE
-	    requestQueue.add(prepareSetTimeRequest());
+
+        queueWrite(new FileRequestNoResp());
+        queueWrite(new AnimationRequest());
+		queueWrite(new ActivationRequest());//CARMINE
+        queueWrite(prepareSetTimeRequest());
+        queueWrite(new  SetClockState()); //CARMINE
+        requestQueue.add(new BatteryLevelRequest()); //CARMINE
         queueWrite(new ActivityPointGetRequest());//CARMINE
         queueWrite(new GetPointGoalRequest());//CARMINE
-
-
         getDeviceSupport().getDevice().setState(GBDevice.State.INITIALIZED);
         getDeviceSupport().getDevice().sendDeviceUpdateIntent(getContext());
     }
