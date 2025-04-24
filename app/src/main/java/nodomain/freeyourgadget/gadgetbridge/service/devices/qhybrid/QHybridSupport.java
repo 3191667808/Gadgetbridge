@@ -121,6 +121,7 @@ public class QHybridSupport extends QHybridBaseSupport {
 
     public static final String ITEM_STEP_COUNT = "STEP_COUNT: ";
     public static final String ITEM_ACTIVITY_POINT = "ACTIVITY_POINT: ";
+	public static final String ITEM_ACTIVITY_GOAL = "ACTIVITY_GOAL: ";//CARMINE
     public static final String ITEM_EXTENDED_VIBRATION_SUPPORT = "EXTENDED_VIBRATION: ";
     public static final String ITEM_HAS_ACTIVITY_HAND = "HAS_ACTIVITY_HAND: ";
     public static final String ITEM_LAST_HEARTBEAT = "LAST_HEARTBEAT: ";
@@ -739,6 +740,11 @@ public class QHybridSupport extends QHybridBaseSupport {
                 // queueWrite(new DownloadFileRequest((short) (request.fileHandle - 1)));
             }
         }
+    }
+
+    @Override
+    public void handleGBDeviceEvent(GBDeviceEventBatteryInfo deviceEvent){
+        super.handleGBDeviceEvent(deviceEvent);
     }
 
     @Override
