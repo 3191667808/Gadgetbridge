@@ -20,6 +20,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSuppo
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.fossil.FossilWatchAdapter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.fossil_hr.FossilHRWatchAdapter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.misfit.MisfitWatchAdapter;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.misfit.MisfitFlashWatchAdapter;
 
 public final class WatchAdapterFactory {
     public final WatchAdapter createWatchAdapter(String firmwareVersion, QHybridSupport deviceSupport){
@@ -28,6 +29,8 @@ public final class WatchAdapterFactory {
         if(firmwareVersion.startsWith("IV0")) return new FossilHRWatchAdapter(deviceSupport);
         if(firmwareVersion.startsWith("VA")) return new FossilHRWatchAdapter(deviceSupport);
         if(firmwareVersion.startsWith("WA")) return new FossilHRWatchAdapter(deviceSupport);
+        if(firmwareVersion.startsWith("FL")) return new MisfitFlashWatchAdapter(deviceSupport); /*CARMINE*/
+
 
         char major = firmwareVersion.charAt(6);
         switch (major){
