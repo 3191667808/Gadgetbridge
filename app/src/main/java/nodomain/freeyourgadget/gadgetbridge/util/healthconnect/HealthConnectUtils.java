@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -145,14 +144,8 @@ public class HealthConnectUtils {
                     latch.countDown();
                     continue;
                 }
-                Instant oneYearAgo = LocalDateTime.now().minusYears(1).toInstant(offset);
-                if (startTs.isBefore(oneYearAgo)) {
-                    startTs = oneYearAgo;
-                }
-                Instant modifiedStartTs = startTs;
-                // Get all entries since first entry (but max 1 year, longer causes App crashes)
                 executor.execute(() -> {
-                    final List<? extends ActivitySample> deviceSamples = getActivitySamples(db, device, (int) modifiedStartTs.getEpochSecond(), endTs);
+                    final List<? extends ActivitySample> deviceSamples = getActivitySamples(db, device, (int) startTs.getEpochSecond(), endTs);
 
                     new Handler(Looper.getMainLooper()).post(() -> {
                         latch.countDown();
