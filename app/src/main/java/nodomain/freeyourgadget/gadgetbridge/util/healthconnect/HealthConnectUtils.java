@@ -2,6 +2,8 @@ package nodomain.freeyourgadget.gadgetbridge.util.healthconnect;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -29,11 +31,13 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
@@ -108,15 +112,15 @@ public class HealthConnectUtils {
 
     @SuppressLint("NewApi")
     public void healthConnectDataSync(Context context, HealthConnectClient healthConnectClient) {
-        // Data insertion
+        GB.toast(context, "Starting Health Connect Data Sync ...", Toast.LENGTH_LONG, GB.INFO);
+        // Initialize all variables
         Calendar day = Calendar.getInstance();
         int endTs = (int) (day.getTimeInMillis() / 1000) + 24 * 60 * 60 - 1;
-        List<StepsRecord> stepsRecordList = new ArrayList<>();
-        List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
-        List<? extends ActivitySample> deviceSamples = Collections.emptyList();
         ZoneOffset offset = ZonedDateTime.now(TimeZone.getDefault().toZoneId()).getOffset();
         Prefs prefs = GBApplication.getPrefs();
         Set<String> selectedDevices = prefs.getStringSet("health_connect_devices_multiselect", new HashSet<>());
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
         if(selectedDevices == null || selectedDevices.isEmpty()) {
             GB.toast(context, "No devices selected", Toast.LENGTH_LONG, GB.ERROR);
             return;
@@ -126,81 +130,114 @@ public class HealthConnectUtils {
             GB.toast(context, "No devices connected", Toast.LENGTH_LONG, GB.ERROR);
             return;
         }
+        CountDownLatch latch = new CountDownLatch(devices.size());
         for(GBDevice device: devices) {
             DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
             // If device is not selected or does not support Activity Tracking, skip
             if(!selectedDevices.contains(device.getAddress()) || !deviceCoordinator.supportsActivityTracking()) {
+                latch.countDown();
                 continue;
             }
             try (DBHandler db = GBApplication.acquireDB()) {
-                // Get first entries to check for timestamp (helps with the DB Query performance)
-                SampleProvider<? extends ActivitySample> provider = deviceCoordinator.getSampleProvider(device, db.getDaoSession());
-                ActivitySample firstSample = provider.getFirstActivitySample();
-                if (firstSample == null) {
+                Instant startTs = getFirstSampleTimestamp(deviceCoordinator, device, db);
+                if (startTs == null) {
                     GB.toast(context, "No Health Connect Data found for Device " + device.getName(), Toast.LENGTH_LONG, GB.INFO);
+                    latch.countDown();
                     continue;
                 }
-                Instant firstSampleTimestamp = Instant.ofEpochSecond(firstSample.getTimestamp());
                 Instant oneYearAgo = LocalDateTime.now().minusYears(1).toInstant(offset);
-                Instant startTs;
-                if (firstSampleTimestamp.isBefore(oneYearAgo)) {
+                if (startTs.isBefore(oneYearAgo)) {
                     startTs = oneYearAgo;
-                } else {
-                    startTs = firstSampleTimestamp;
                 }
+                Instant modifiedStartTs = startTs;
                 // Get all entries since first entry (but max 1 year, longer causes App crashes)
-                deviceSamples = getActivitySamples(db, device, (int) startTs.getEpochSecond(), endTs);
+                executor.execute(() -> {
+                    final List<? extends ActivitySample> deviceSamples = getActivitySamples(db, device, (int) modifiedStartTs.getEpochSecond(), endTs);
+
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        latch.countDown();
+                        sampleEntryCleanupInsert(context, device, offset, deviceSamples, healthConnectClient);
+                    });
+                });
             } catch (Exception e) {
                 LOG.error("Error during DBAccess for Health Connect", e);
             }
-            // Device Metadata
-            Metadata metadata = new Metadata(
-                    "",
-                    new DataOrigin(context.getPackageName()),
-                    Instant.now(),
-                    "",
-                    0,
-                    new Device(device.getType().name(), device.getModel(), Device.TYPE_UNKNOWN),
-                    Metadata.RECORDING_METHOD_UNKNOWN
+        }
+        new Thread(() -> {
+            try {
+                latch.await();
+                GB.toast(context, "Finished Health Connect Data Sync", Toast.LENGTH_LONG, GB.INFO);
+            } catch (InterruptedException e) {
+                LOG.error("Error during while waiting for Health Connect Sync to finish", e);
+            } finally {
+                executor.shutdown();
+            }
+        }).start();
+    }
+
+    protected List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {
+        SampleProvider<? extends ActivitySample> provider = device.getDeviceCoordinator().getSampleProvider(device, db.getDaoSession());
+        return provider.getAllActivitySamples(tsFrom, tsTo);
+    }
+    protected Instant getFirstSampleTimestamp(DeviceCoordinator deviceCoordinator, GBDevice device, DBHandler db) {
+        SampleProvider<? extends ActivitySample> provider = deviceCoordinator.getSampleProvider(device, db.getDaoSession());
+        ActivitySample firstSample = provider.getFirstActivitySample();
+        if (firstSample == null) {
+            return null;
+        }
+        return Instant.ofEpochSecond(firstSample.getTimestamp());
+    }
+
+    protected void sampleEntryCleanupInsert(Context context, GBDevice device, ZoneOffset offset, List<? extends ActivitySample> deviceSamples, HealthConnectClient healthConnectClient) {
+        List<StepsRecord> stepsRecordList = new ArrayList<>();
+        List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
+        // Device Metadata
+        Metadata metadata = new Metadata(
+                "",
+                new DataOrigin(context.getPackageName()),
+                Instant.now(),
+                "",
+                0,
+                new Device(device.getType().name(), device.getModel(), Device.TYPE_UNKNOWN),
+                Metadata.RECORDING_METHOD_UNKNOWN
+        );
+
+        // Clean entries to have at least either 1 Step or HR over 0
+        List<ActivitySample> cleanedStepSamples = new ArrayList<>();
+        List<ActivitySample> cleanedHeartrateSamples = new ArrayList<>();
+        for (ActivitySample sample : deviceSamples) {
+            if (sample.getSteps() > 0) {
+                cleanedStepSamples.add(sample);
+            }
+            if (sample.getHeartRate() > 0) {
+                cleanedHeartrateSamples.add(sample);
+            }
+        }
+
+        for (ActivitySample sample : cleanedStepSamples) {
+            StepsRecord stepsRecord = new StepsRecord(
+                    Instant.ofEpochSecond(sample.getTimestamp()),
+                    offset,
+                    // Add 59 min cause we measure in 60min intervals
+                    Instant.ofEpochSecond(sample.getTimestamp() + 60 * 59),
+                    offset,
+                    sample.getSteps(),
+                    metadata
             );
+            stepsRecordList.add(stepsRecord);
+        }
 
-            // Clean entries to have at least either 1 Step or HR over 0
-            List<ActivitySample> cleanedStepSamples = new ArrayList<>();
-            List<ActivitySample> cleanedHeartrateSamples = new ArrayList<>();
-            for (ActivitySample sample : deviceSamples) {
-                if (sample.getSteps() > 0) {
-                    cleanedStepSamples.add(sample);
-                }
-                if(sample.getHeartRate() > 0) {
-                    cleanedHeartrateSamples.add(sample);
-                }
-            }
-
-            for (ActivitySample sample : cleanedStepSamples) {
-                StepsRecord stepsRecord = new StepsRecord(
-                        Instant.ofEpochSecond(sample.getTimestamp()),
-                        offset,
-                        // Add 59 min cause we measure in 60min intervals
-                        Instant.ofEpochSecond(sample.getTimestamp() + 60 * 59),
-                        offset,
-                        sample.getSteps(),
-                        metadata
-                );
-                stepsRecordList.add(stepsRecord);
-            }
-
-            for (ActivitySample sample : cleanedHeartrateSamples) {
-                HeartRateRecord.Sample heartRateRecordSample = new HeartRateRecord.Sample(Instant.ofEpochSecond(sample.getTimestamp()),sample.getHeartRate());
-                HeartRateRecord heartRateRecord = new HeartRateRecord(
-                        Instant.ofEpochSecond(sample.getTimestamp()),
-                        offset,
-                        Instant.ofEpochSecond(sample.getTimestamp()),
-                        offset,
-                        List.of(heartRateRecordSample),
-                        metadata
-                );
-                heartRateRecordList.add(heartRateRecord);
-            }
+        for (ActivitySample sample : cleanedHeartrateSamples) {
+            HeartRateRecord.Sample heartRateRecordSample = new HeartRateRecord.Sample(Instant.ofEpochSecond(sample.getTimestamp()),sample.getHeartRate());
+            HeartRateRecord heartRateRecord = new HeartRateRecord(
+                    Instant.ofEpochSecond(sample.getTimestamp()),
+                    offset,
+                    Instant.ofEpochSecond(sample.getTimestamp()),
+                    offset,
+                    List.of(heartRateRecordSample),
+                    metadata
+            );
+            heartRateRecordList.add(heartRateRecord);
         }
 
         Continuation<InsertRecordsResponse> continuationRecord =  new Continuation<InsertRecordsResponse>() {
@@ -216,11 +253,5 @@ public class HealthConnectUtils {
         };
         healthConnectClient.insertRecords(stepsRecordList, continuationRecord);
         healthConnectClient.insertRecords(heartRateRecordList, continuationRecord);
-        GB.toast(context, "Health Connect Data Synced", Toast.LENGTH_LONG, GB.INFO);
-    }
-
-    protected List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {
-        SampleProvider<? extends ActivitySample> provider = device.getDeviceCoordinator().getSampleProvider(device, db.getDaoSession());
-        return provider.getAllActivitySamples(tsFrom, tsTo);
     }
 }
