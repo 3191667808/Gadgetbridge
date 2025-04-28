@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CountDownLatch;
@@ -207,12 +208,19 @@ public class HealthConnectUtils {
             }
         }
 
-        for (ActivitySample sample : cleanedStepSamples) {
+        ListIterator<ActivitySample> stepIterator = cleanedStepSamples.listIterator();
+        while(stepIterator.hasNext()) {
+            ActivitySample sample = stepIterator.next();
+            ActivitySample nextSample = stepIterator.hasNext() ? cleanedStepSamples.get(stepIterator.nextIndex()) : null;
+            if(nextSample == null) {
+                break;
+            }
+            Instant startTs = Instant.ofEpochSecond(sample.getTimestamp());
+            Instant endTs = Instant.ofEpochSecond(nextSample.getTimestamp());
             StepsRecord stepsRecord = new StepsRecord(
-                    Instant.ofEpochSecond(sample.getTimestamp()),
+                    startTs,
                     offset,
-                    // Add 59 min cause we measure in 60min intervals
-                    Instant.ofEpochSecond(sample.getTimestamp() + 60 * 59),
+                    endTs,
                     offset,
                     sample.getSteps(),
                     metadata
