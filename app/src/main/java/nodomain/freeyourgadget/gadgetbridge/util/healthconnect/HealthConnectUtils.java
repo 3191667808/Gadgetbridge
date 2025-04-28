@@ -216,7 +216,8 @@ public class HealthConnectUtils {
                 break;
             }
             Instant startTs = Instant.ofEpochSecond(sample.getTimestamp());
-            Instant endTs = Instant.ofEpochSecond(nextSample.getTimestamp());
+            // Calculate the end timestamp as the next sample's timestamp minus 1 sec to avoid overlap
+            Instant endTs = Instant.ofEpochSecond(nextSample.getTimestamp() - 1);
             StepsRecord stepsRecord = new StepsRecord(
                     startTs,
                     offset,
