@@ -187,13 +187,13 @@ public class HealthConnectUtils {
         List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
         // Device Metadata
         Metadata metadata = new Metadata(
+                Metadata.RECORDING_METHOD_UNKNOWN,
                 "",
                 new DataOrigin(context.getPackageName()),
                 Instant.now(),
                 "",
                 0,
-                new Device(device.getType().name(), device.getModel(), Device.TYPE_UNKNOWN),
-                Metadata.RECORDING_METHOD_UNKNOWN
+                new Device( Device.TYPE_UNKNOWN, device.getType().name(), device.getModel())
         );
 
         // Clean entries to have at least either 1 Step or HR over 0
