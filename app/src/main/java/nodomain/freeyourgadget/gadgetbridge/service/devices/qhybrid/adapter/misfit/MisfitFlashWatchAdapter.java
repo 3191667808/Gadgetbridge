@@ -116,7 +116,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
 
         queueWrite(new FileRequestNoResp());
         queueWrite(new AnimationRequest());
-		queueWrite(new ActivationRequest());//CARMINE
+        queueWrite(new ActivationRequest());//CARMINE
         queueWrite(prepareSetTimeRequest());
         queueWrite(new  SetClockState()); //CARMINE
         requestQueue.add(new BatteryLevelRequest()); //CARMINE
