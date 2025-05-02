@@ -149,17 +149,17 @@ public class MisfitWatchAdapter extends WatchAdapter {
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, final byte[] value) {
         GBDevice gbDevice = getDeviceSupport().getDevice();
         switch (characteristic.getUuid().toString()) {
-            case "3dda0004-957f-7d4a-34a6-74696673696d":
-            case "3dda0003-957f-7d4a-34a6-74696673696d": {
+            case UPLOAD_CHARACTERISTIC_UUID:
+            case WRITE_CHARACTERISTIC_UUID: {
                 return handleFileDownloadCharacteristic(characteristic, value);
             }
             case "3dda0007-957f-7d4a-34a6-74696673696d": {
                 return handleFileUploadCharacteristic(characteristic, value);
             }
-            case "3dda0002-957f-7d4a-34a6-74696673696d": {
+            case X2_CHARACTERISTIC_UUID: {
                 return handleBasicCharacteristic(characteristic, value);
             }
-            case "3dda0006-957f-7d4a-34a6-74696673696d": {
+            case BUTTON_CHARACTERISTIC_UUID: {
                 return handleButtonCharacteristic(characteristic, value);
             }
             case "00002a19-0000-1000-8000-00805f9b34fb": {
