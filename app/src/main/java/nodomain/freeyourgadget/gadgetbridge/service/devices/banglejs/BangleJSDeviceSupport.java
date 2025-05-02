@@ -50,6 +50,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.speech.tts.TextToSpeech;
 import android.util.Base64;
 import android.widget.Toast;
 
@@ -202,6 +203,8 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
     private static final String BANGLE_ACTION_UART_TX = "com.banglejs.uart.tx";
 
     private SleepAsAndroidSender sleepAsAndroidSender;
+
+    private TextToSpeech textToSpeech;
 
     public BangleJSDeviceSupport() {
         super(LOG);
@@ -383,6 +386,15 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
 
         requestBangleGPSPowerStatus();
 
+        textToSpeech = new TextToSpeech(getContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if(status != TextToSpeech.ERROR) {
+                    textToSpeech.setLanguage(Locale.getDefault());
+                }
+            }
+        });
+
         return builder;
     }
 
@@ -549,6 +561,10 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
         switch (packetType) {
             case "info":
                 GB.toast(getContext(), "Bangle.js: " + json.getString("msg"), Toast.LENGTH_LONG, GB.INFO);
+                break;
+            case "tts":
+                String msg = json.getString("msg");
+                textToSpeech.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "gdUtteranceId1");
                 break;
             case "warn":
                 GB.toast(getContext(), "Bangle.js: " + json.getString("msg"), Toast.LENGTH_LONG, GB.WARN);
