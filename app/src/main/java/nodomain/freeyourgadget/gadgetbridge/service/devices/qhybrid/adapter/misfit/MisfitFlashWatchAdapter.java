@@ -1,4 +1,4 @@
-/*  Copyright (C) 2019-2024 Andreas Shimokawa, Carsten Pfeiffer, Daniel Dakhno
+/*  Copyright (C) 2019-2025 Andreas Shimokawa, Carsten Pfeiffer, Daniel Dakhno, Carmine Esposito
 
     This file is part of Gadgetbridge.
 
@@ -120,6 +120,8 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         queueWrite(prepareSetTimeRequest());
         queueWrite(new  SetClockState()); //CARMINE
         requestQueue.add(new BatteryLevelRequest()); //CARMINE
+        int fitnessGoal = GBApplication.getPrefs().getInt(ActivityUser.PREF_USER_STEPS_GOAL, ActivityUser.defaultUserStepsGoal);
+        requestQueue.add(new SetPointGoalRequest(fitnessGoal));//CARMINE
         queueWrite(new ActivityPointGetRequest());//CARMINE
         queueWrite(new GetPointGoalRequest());//CARMINE
         getDeviceSupport().getDevice().setState(GBDevice.State.INITIALIZED);
@@ -161,29 +163,14 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         GBDevice gbDevice = getDeviceSupport().getDevice();
         switch (characteristic.getUuid().toString()) {
-            case "3dda0004-957f-7d4a-34a6-74696673696d":
-            case "3dda0003-957f-7d4a-34a6-74696673696d": {
+            case UPLOAD_CHARACTERISTIC_UUID:
+            case WRITE_CHARACTERISTIC_UUID: {
                 return handleFileDownloadCharacteristic(characteristic);
             }
-            case "3dda0007-957f-7d4a-34a6-74696673696d": {
-                return handleFileUploadCharacteristic(characteristic);
-            }
-            case "3dda0002-957f-7d4a-34a6-74696673696d": {
+            case X2_CHARACTERISTIC_UUID: {
                 return handleBasicCharacteristic(characteristic);
             }
-            case "3dda0006-957f-7d4a-34a6-74696673696d": {
-                return handleButtonCharacteristic(characteristic);
-            }
-            case "00002a19-0000-1000-8000-00805f9b34fb": {
-                short level = characteristic.getValue()[0];
-                gbDevice.setBatteryLevel(level);
 
-                GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
-                batteryInfo.level = gbDevice.getBatteryLevel();
-                batteryInfo.state = BatteryState.BATTERY_NORMAL;
-                getDeviceSupport().handleGBDeviceEvent(batteryInfo);
-                break;
-            }
             default: {
                 log("unknown shit on " + characteristic.getUuid().toString() + ":  " + arrayToString(characteristic.getValue()));
                 try {
@@ -209,7 +196,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
                 OTAEnterRequest.class,
                 GoalTrackingGetRequest.class,
                 ActivityPointGetRequest.class,
-				GetPointGoalRequest.class,
+                GetPointGoalRequest.class,
                 GetCountdownSettingsRequest.class
         };
         for (Class<? extends Request> c : classes) {
@@ -248,10 +235,10 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         } else if (request instanceof GetVibrationStrengthRequest) {
             int strength = ((GetVibrationStrengthRequest) request).strength;
             gbDevice.addDeviceInfo(new GenericItem(ITEM_VIBRATION_STRENGTH, String.valueOf(strength)));
-		} else if (request instanceof BatteryLevelRequest) {
+        } else if (request instanceof BatteryLevelRequest) {
             
-			short blevel= ((BatteryLevelRequest) request).level;
-			gbDevice.setBatteryLevel(blevel);
+            short blevel= ((BatteryLevelRequest) request).level;
+            gbDevice.setBatteryLevel(blevel);
         } else if (request instanceof GetCurrentStepCountRequest) {
           int steps = ((GetCurrentStepCountRequest) request).steps;
             logger.debug("get current steps: " + steps);
@@ -274,9 +261,8 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         } else if (request instanceof ActivityPointGetRequest) {
         gbDevice.addDeviceInfo(new GenericItem(ITEM_ACTIVITY_POINT, String.valueOf(((ActivityPointGetRequest) request).activityPoint)));
         } else if (request instanceof GetPointGoalRequest) {
-	   gbDevice.addDeviceInfo(new GenericItem(ITEM_ACTIVITY_GOAL, String.valueOf(((GetPointGoalRequest) request).pointGoal)));
+        gbDevice.addDeviceInfo(new GenericItem(ITEM_ACTIVITY_GOAL, String.valueOf(((GetPointGoalRequest) request).pointGoal)));
                    
-			
         }
         try {
             queueWrite(requestQueue.remove());
@@ -346,6 +332,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         return true;
     }
 
+/*
     private boolean handleButtonCharacteristic(BluetoothGattCharacteristic characteristic) {
         byte[] value = characteristic.getValue();
         if (value.length != 11) {
@@ -376,7 +363,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
             getContext().sendBroadcast(i);
         }
         return true;
-    }
+    }*/
 
     private void log(String message){
         logger.debug(message);
@@ -457,7 +444,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
             case "HW.0.0":
                 return true;
             case "HL.0.0":
-			case "FL.2.0": //CARMINE
+            case "FL.2.0": //CARMINE
                 return false;
             case "DN.1.0":
                 return true;
@@ -472,7 +459,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
             case "HW.0.0":
                 return true;
             case "HL.0.0":
-			case "FL.2.0": //CARMINE
+            case "FL.2.0": //CARMINE
                 return false;
             case "DN.1.0":
                 return false;
@@ -483,7 +470,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     @Override
     public void onFetchActivityData() {
         requestQueue.add(new BatteryLevelRequest());
-		requestQueue.add(prepareSetTimeRequest());//CARMINE
+        requestQueue.add(prepareSetTimeRequest());//CARMINE
         queueWrite(new ActivityPointGetRequest());//CARMINE
         queueWrite(new GetPointGoalRequest());//CARMINE
         getDeviceSupport().getDevice().unsetBusyTask();
@@ -500,12 +487,12 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
 
     @Override
     public void onSendConfiguration(String config) {
-				switch (config) {
+                switch (config) {
                 case ActivityUser.PREF_USER_STEPS_GOAL:
                      int fitnessGoal = GBApplication.getPrefs().getInt(ActivityUser.PREF_USER_STEPS_GOAL, ActivityUser.defaultUserStepsGoal);
-					 requestQueue.add(new SetPointGoalRequest(fitnessGoal));//CARMINE
+                     requestQueue.add(new SetPointGoalRequest(fitnessGoal));//CARMINE
                     break;
-				}
+                }
     }
 
     @Override
