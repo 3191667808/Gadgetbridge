@@ -389,12 +389,6 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
 
         requestBangleGPSPowerStatus();
 
-        gbTextToSpeech = new GBTextToSpeech(getContext(), null,
-                prefs.getBoolean(PREF_SPEAK_NOTIFICATIONS_FOCUS_EXCLUSIVE, false) ?
-                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE :
-                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
-        );
-
         return builder;
     }
 
@@ -564,6 +558,15 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
                 break;
             case "tts":
                 String msg = json.getString("msg");
+
+                Prefs prefs = GBApplication.getPrefs();
+                if (gbTextToSpeech == null) {
+                    gbTextToSpeech = new GBTextToSpeech(getContext(), null,
+                            prefs.getBoolean(PREF_SPEAK_NOTIFICATIONS_FOCUS_EXCLUSIVE, false) ?
+                                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE :
+                                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+                    );
+                }
                 gbTextToSpeech.speakNotification(msg);
                 break;
             case "warn":
