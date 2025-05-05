@@ -28,6 +28,7 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.Dev
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_INTENTS;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_INTERNET_ACCESS;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_NOTIFICATION_WAKE_ON_OPEN;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_SPEAK_NOTIFICATIONS_FOCUS_EXCLUSIVE;
 import static nodomain.freeyourgadget.gadgetbridge.database.DBHelper.getUser;
 import static nodomain.freeyourgadget.gadgetbridge.devices.banglejs.BangleJSConstants.PREF_BANGLEJS_ACTIVITY_FULL_SYNC_START;
 import static nodomain.freeyourgadget.gadgetbridge.devices.banglejs.BangleJSConstants.PREF_BANGLEJS_ACTIVITY_FULL_SYNC_STATUS;
@@ -46,11 +47,11 @@ import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.speech.tts.TextToSpeech;
 import android.util.Base64;
 import android.widget.Toast;
 
@@ -155,6 +156,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.Musi
 import nodomain.freeyourgadget.gadgetbridge.util.EmojiConverter;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.GBTextToSpeech;
 import nodomain.freeyourgadget.gadgetbridge.util.LimitedQueue;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
@@ -204,7 +206,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
 
     private SleepAsAndroidSender sleepAsAndroidSender;
 
-    private TextToSpeech textToSpeech;
+    private GBTextToSpeech gbTextToSpeech;
 
     public BangleJSDeviceSupport() {
         super(LOG);
@@ -221,6 +223,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
         stopLocationUpdate();
         stopRequestQueue();
         handler.removeCallbacksAndMessages(null);
+        gbTextToSpeech.shutdown();
     }
 
     private void stopGlobalUartReceiver(){
@@ -386,14 +389,11 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
 
         requestBangleGPSPowerStatus();
 
-        textToSpeech = new TextToSpeech(getContext(), new TextToSpeech.OnInitListener() {
-            @Override
-            public void onInit(int status) {
-                if(status != TextToSpeech.ERROR) {
-                    textToSpeech.setLanguage(Locale.getDefault());
-                }
-            }
-        });
+        gbTextToSpeech = new GBTextToSpeech(getContext(), null,
+                prefs.getBoolean(PREF_SPEAK_NOTIFICATIONS_FOCUS_EXCLUSIVE, false) ?
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE :
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+        );
 
         return builder;
     }
@@ -564,7 +564,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
                 break;
             case "tts":
                 String msg = json.getString("msg");
-                textToSpeech.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "gdUtteranceId1");
+                gbTextToSpeech.speakNotification(msg);
                 break;
             case "warn":
                 GB.toast(getContext(), "Bangle.js: " + json.getString("msg"), Toast.LENGTH_LONG, GB.WARN);

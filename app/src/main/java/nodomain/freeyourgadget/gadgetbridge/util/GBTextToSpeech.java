@@ -40,7 +40,9 @@ public class GBTextToSpeech {
                     LOG.error("TTS returned error: No voice available.");
                 } else {
                     this.isConnected = true;
-                    textToSpeech.setOnUtteranceProgressListener(callback);
+                    if (callback != null) {
+                        textToSpeech.setOnUtteranceProgressListener(callback);
+                    }
                 }
             } else {
                 LOG.error("TTS returned error: Initialization failed.");
