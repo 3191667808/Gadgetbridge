@@ -292,6 +292,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.liberty3_pro.Sound
 import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.liberty4_nc.SoundcoreLiberty4NCCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.motion300.SoundcoreMotion300Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.q30.SoundcoreQ30Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.sr08ring.SR08RingCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.supercars.SuperCarsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.test.TestDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.tlw64.TLW64Coordinator;
@@ -648,8 +649,9 @@ public enum DeviceType {
     BLE_GATT_CLIENT(BleGattClientCoordinator.class),
     MARSTEK_B2500(MarstekB2500DeviceCoordinator.class),
     GENERIC_HEADPHONES(GenericHeadphonesCoordinator.class),
-    TEST(TestDeviceCoordinator.class),
     ULTRAHUMAN_RING_AIR(UltrahumanDeviceCoordinator.class);
+    SR08_RING(SR08RingCoordinator.class),
+    TEST(TestDeviceCoordinator.class);
 
     private DeviceCoordinator coordinator;
 
