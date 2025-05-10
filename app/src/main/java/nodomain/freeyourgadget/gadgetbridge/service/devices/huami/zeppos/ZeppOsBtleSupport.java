@@ -187,6 +187,7 @@ public class ZeppOsBtleSupport extends AbstractBTLEDeviceSupport implements Zepp
 
     @Override
     public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
         zeppOsSupport.onSendConfiguration(config);
     }
 

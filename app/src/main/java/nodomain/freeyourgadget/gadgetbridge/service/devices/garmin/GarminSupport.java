@@ -588,6 +588,7 @@ public class GarminSupport extends AbstractBTLEDeviceSupport implements ICommuni
 
     @Override
     public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
         if (config.startsWith("protobuf:")) {
             try {
                 final GdiSmartProto.Smart smart = GdiSmartProto.Smart.parseFrom(GB.hexStringToByteArray(config.replaceFirst("protobuf:", "")));

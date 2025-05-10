@@ -520,6 +520,7 @@ public class ColmiR0xDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         final Prefs prefs = getDevicePrefs();
         switch (config) {
             case SettingsActivity.PREF_MEASUREMENT_SYSTEM:

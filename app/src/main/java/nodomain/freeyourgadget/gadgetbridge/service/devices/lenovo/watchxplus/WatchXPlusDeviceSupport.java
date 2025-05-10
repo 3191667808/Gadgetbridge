@@ -853,6 +853,7 @@ public class WatchXPlusDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         TransactionBuilder builder;
         SharedPreferences sharedPreferences = GBApplication.getDeviceSpecificSharedPrefs(this.getDevice().getAddress());
         LOG.info(" onSendConfiguration: " + config);

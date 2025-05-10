@@ -152,6 +152,7 @@ public class MarstekB2500DeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
         Prefs devicePrefs = new Prefs(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()));
         switch (config) {
             case PREF_BATTERY_DISCHARGE_INTERVALS_SET:

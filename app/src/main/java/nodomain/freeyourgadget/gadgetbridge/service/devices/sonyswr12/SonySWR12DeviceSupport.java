@@ -205,6 +205,7 @@ public class SonySWR12DeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         try {
             switch (config) {
                 case DeviceSettingsPreferenceConst.PREF_SONYSWR12_STAMINA: {

@@ -90,6 +90,7 @@ public class HuaweiLESupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         supportProvider.onSendConfiguration(config);
     }
 

@@ -105,6 +105,7 @@ public class UM25Support extends UM25BaseSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         readPreferences();
     }
 

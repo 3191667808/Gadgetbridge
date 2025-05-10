@@ -314,6 +314,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
      */
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         switch (config) {
             case DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_ACTIVATION_ANGLE:
                 // This setting is only sent to the right arm.

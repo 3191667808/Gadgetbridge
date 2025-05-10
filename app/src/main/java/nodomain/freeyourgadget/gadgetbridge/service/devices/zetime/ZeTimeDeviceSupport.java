@@ -147,6 +147,7 @@ public class ZeTimeDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         try {
             TransactionBuilder builder = performInitialized("sendConfiguration");
             switch (config) {

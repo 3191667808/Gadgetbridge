@@ -741,6 +741,7 @@ public abstract class Casio2C2DSupport extends CasioSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         DevicePreference pref = devicePreferenceByName.get(config);
         if (pref == null) {
             LOG.warn("received configuration change for unsupported setting " + config);

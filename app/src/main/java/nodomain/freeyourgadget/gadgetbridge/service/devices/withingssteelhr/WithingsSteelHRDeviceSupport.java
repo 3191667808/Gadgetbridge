@@ -389,6 +389,7 @@ public class WithingsSteelHRDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         try {
             switch (config) {
                 case HuamiConst.PREF_WORKOUT_ACTIVITY_TYPES_SORTABLE:

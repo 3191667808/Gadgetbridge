@@ -110,6 +110,7 @@ public final class HamaFit6900DeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
         switch (config) {
             case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
             case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:

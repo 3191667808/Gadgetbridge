@@ -379,6 +379,7 @@ public class Watch9DeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         TransactionBuilder builder;
         try {
             builder = performInitialized("sendConfig: " + config);

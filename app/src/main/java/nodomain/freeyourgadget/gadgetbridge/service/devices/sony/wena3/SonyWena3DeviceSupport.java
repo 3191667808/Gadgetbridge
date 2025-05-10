@@ -995,6 +995,7 @@ public class SonyWena3DeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         try {
             TransactionBuilder builder = performInitialized("sendConfig");
             switch (config) {

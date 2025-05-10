@@ -468,6 +468,7 @@ public class FitProDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
 
         LOG.debug("FitPro on send config: " + config);
         try {

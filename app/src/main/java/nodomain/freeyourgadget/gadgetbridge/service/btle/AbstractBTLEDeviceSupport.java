@@ -103,6 +103,7 @@ public abstract class AbstractBTLEDeviceSupport extends AbstractDeviceSupport im
         return bleApi;
     }
 
+    @CallSuper
     @Override
     public void onSendConfiguration(String config) {
         super.onSendConfiguration(config);

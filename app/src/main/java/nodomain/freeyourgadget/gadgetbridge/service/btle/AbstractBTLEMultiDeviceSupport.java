@@ -25,6 +25,8 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 
+import androidx.annotation.CallSuper;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,6 +164,7 @@ public abstract class AbstractBTLEMultiDeviceSupport extends AbstractDeviceSuppo
         }
     }
 
+    @CallSuper
     @Override
     public void onSendConfiguration(String config) {
         for (BleIntentApi bleApi : bleApis) {

@@ -283,6 +283,7 @@ public class LefunDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         switch (config) {
             case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT: {

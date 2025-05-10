@@ -735,6 +735,7 @@ public class CmfWatchProSupport extends AbstractBTLEDeviceSupport implements Cmf
 
     @Override
     public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
         preferences.onSendConfiguration(config);
     }
 

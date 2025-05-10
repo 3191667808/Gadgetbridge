@@ -187,6 +187,7 @@ public class SoFlowSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         TransactionBuilder builder;
         try {
             builder = performInitialized("Sending configuration for option: " + config);

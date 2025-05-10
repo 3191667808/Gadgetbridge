@@ -483,6 +483,7 @@ public class QHybridSupport extends QHybridBaseSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         if (watchAdapter != null) {
             watchAdapter.onSendConfiguration(config);
         }

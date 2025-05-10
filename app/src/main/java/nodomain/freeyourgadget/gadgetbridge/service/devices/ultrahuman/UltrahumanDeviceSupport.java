@@ -405,6 +405,7 @@ public class UltrahumanDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         if (DeviceSettingsPreferenceConst.PREF_TIME_SYNC.equals(config)) {
             onSetTime();
         } else if (DeviceSettingsPreferenceConst.PREF_POWER_SAVING.equals(config)) {

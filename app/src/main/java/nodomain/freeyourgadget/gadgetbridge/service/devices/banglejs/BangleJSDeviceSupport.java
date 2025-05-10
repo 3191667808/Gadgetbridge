@@ -1210,6 +1210,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
 
     @Override
     public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
         switch (config) {
             case PREF_BANGLEJS_ACTIVITY_FULL_SYNC_START:
                 fetchActivityData(0);

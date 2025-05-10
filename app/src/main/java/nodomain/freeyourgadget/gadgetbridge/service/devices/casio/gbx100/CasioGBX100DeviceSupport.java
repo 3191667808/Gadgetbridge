@@ -606,6 +606,7 @@ public class CasioGBX100DeviceSupport extends Casio2C2DSupport implements Shared
 
     @Override
     public void onSendConfiguration(String config) {
+        super.onSendConfiguration(config);
         LOG.info("onSendConfiguration" + config);
         onSharedPreferenceChanged(null, config);
     }
