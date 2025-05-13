@@ -315,7 +315,7 @@ public class SleepPeriodFragment extends SleepFragment<SleepPeriodFragment.MyCha
             // Sleep score
             if (supportsSleepScore()) {
                 List<? extends SleepScoreSample> sleepScoreSamples = getSleepScoreSamples(db, device, day);
-                if (!sleepScoreSamples.isEmpty() && sleepScoreSamples.get(0).getSleepScore() > 0) {
+                if (!sleepScoreSamples.isEmpty() && sleepScoreSamples.get(sleepScoreSamples.size() -1).getSleepScore() > 0) {
                     sleepScoreEntities.add(new Entry(counter, sleepScoreSamples.get(0).getSleepScore()));
                 } else {
                     if (!sleepScoreEntities.isEmpty()) {
