@@ -28,6 +28,7 @@
 package nodomain.freeyourgadget.gadgetbridge.model;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches.AmazfitActive2NfcCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.KT80Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoEncoBuds2Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.polar.PolarH10DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
@@ -665,6 +666,7 @@ public enum DeviceType {
     COLMI_V89(ColmiV89Coordinator.class),
     MISIRUN_C17(MisirunC17Coordinator.class),
     C20(C20Coordinator.class),
+    KT80(KT80Coordinator.class),
     KSIX_VENTURE(KsixVentureCoordinator.class),
     FIREBOLTT_TALK(FireBolttTalkCoordinator.class),
     VIRAN_C29(ViranC29Coordinator.class),
