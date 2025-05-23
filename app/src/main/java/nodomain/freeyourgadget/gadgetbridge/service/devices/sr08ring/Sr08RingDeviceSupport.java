@@ -12,6 +12,12 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
@@ -29,6 +35,12 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.SetDeviceStateA
 public class Sr08RingDeviceSupport extends AbstractBTLEDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(Sr08RingDeviceSupport.class);
     private final Handler backgroundTasksHandler = new Handler(Looper.getMainLooper());
+
+    enum State {
+        IDLE,
+        ACTIVITY_REPORT,
+        SPORT_REPORT
+    }
 
     public Sr08RingDeviceSupport() {
         super(LOG);
@@ -76,8 +88,11 @@ public class Sr08RingDeviceSupport extends AbstractBTLEDeviceSupport {
         setAppId();
         setHourFormat();
         setHeartRateMeasurement();
+        setLanguage();
 
         getBatteryState();
+
+        triggerActivityReport();
     }
 
     private void setHeartRateMeasurement() {
@@ -95,6 +110,58 @@ public class Sr08RingDeviceSupport extends AbstractBTLEDeviceSupport {
     private void setTime() {
         final Instant now = Instant.now();
         send("setTime", SR08RingConstants.CMD_SET_TIME, BLETypeConversions.fromUint32((int) now.getEpochSecond()));
+    }
+
+    private  void setBloodOxygenEnabled(boolean enabled) {
+        send("setBloodOxygenEnabled", SR08RingConstants.CMD_SET_SPO2_ENABLED, new byte[]{(byte) (enabled ? 1 : 0)});
+    }
+
+    /*
+    private void setCameraTrigger(boolean enabled) {
+        send("s", (byte) 7, new byte[]{(byte) (enabled ? 1 : 0)});
+    }
+
+    private void getCurSportData(){
+        send("s", (byte) 3, new byte[]{});
+    }
+     */
+
+    private void setLiveHeartRateEnabled(boolean enabled, int b, int c) {
+        if (enabled) {
+            ByteBuffer data = ByteBuffer.wrap(BLETypeConversions.fromUint32(b));
+            data.put((byte) c);
+            send("setLiveHeartRateEnabled", SR08RingConstants.SET_LIVE_HEART_RATE_ENABLED, data.array());
+        } else {
+            send("setLiveHeartRateDisabled", SR08RingConstants.SET_LIVE_HEART_RATE_DISABLED, new byte[]{0, 0, 0, 0, (byte) c});
+        }
+    }
+
+    private void setLanguage() {
+        Locale locale = Locale.getDefault();
+        String language = locale.getLanguage();
+        String country = locale.getCountry();
+        if (language.endsWith("zh")) {
+            if ("中国".equalsIgnoreCase(locale.getDisplayCountry())) {
+                country = "CN";
+            } else {
+                country = "TW";
+            }
+        }
+        String str = language + "-" + country;
+        byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+        send("setLanguage", SR08RingConstants.CMD_SET_LANG, Arrays.copyOf(bytes, 19));
+    }
+
+    private void triggerActivityReport() {
+        send("triggerActivityReport", SR08RingConstants.CMD_TRIGGER_ACTIVITY_REPORT, new byte[]{});
+    }
+
+    private void triggerHearRateReport() {
+        send("triggerHearRateReport", SR08RingConstants.CMD_TRIGGER_HEART_RATE_REPORT, new byte[]{});
+    }
+
+    private void triggerSportReport() {
+        send("triggerSportReport", SR08RingConstants.CMD_TRIGGER_SPORT_REPORT, new byte[]{});
     }
 
     private void setAppId() {
@@ -119,6 +186,16 @@ public class Sr08RingDeviceSupport extends AbstractBTLEDeviceSupport {
         }
     }
 
+    private Map<Instant, Byte> parseReportBlock(byte[] data){
+        Map<Instant, Byte> entries = new HashMap<>();
+        Instant timestamp = Instant.ofEpochSecond(BLETypeConversions.toUint32(data, 1));
+        for (int i = 5; i < 20; i++) {
+            entries.put(timestamp, data[i]);
+            timestamp = timestamp.plus(1, ChronoUnit.MINUTES);
+        }
+        return entries;
+    }
+
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
 
@@ -126,9 +203,22 @@ public class Sr08RingDeviceSupport extends AbstractBTLEDeviceSupport {
         byte[] characteristicValue = characteristic.getValue();
 
         if (characteristicUUID.equals(SR08RingConstants.CHARACTERISTIC_READ)) {
+            if (characteristicValue.length != 20) {
+                LOG.error("unexpected length {}!", characteristicValue.length);
+                return false;
+            }
             switch (characteristicValue[0]) {
                 case SR08RingConstants.CMD_GET_BATTERY:
                     evaluateBatteryData(characteristicValue);
+                    break;
+                case SR08RingConstants.CMD_SET_TIME:
+                    LOG.info("time set");
+                    break;
+                case SR08RingConstants.CMD_SET_HOUR_FORMAT:
+                    LOG.info("time format set");
+                    break;
+                case SR08RingConstants.CMD_SET_LANG:
+                    LOG.info("language set");
                     break;
                 case 0x14:
                     Instant time = Instant.ofEpochSecond(BLETypeConversions.toUint32(characteristicValue, 1));
@@ -138,9 +228,24 @@ public class Sr08RingDeviceSupport extends AbstractBTLEDeviceSupport {
                 case 0x24:
                     LOG.info("spo2: {}", characteristicValue[4]);
                     break;
+                case SR08RingConstants.CMD_TRIGGER_ACTIVITY_REPORT:
+                    Map<Instant, Byte> stepEntries = parseReportBlock(characteristicValue);
+                    LOG.info("steps {}", stepEntries);
+                    break;
+                case 0x11:
+                    Map<Instant, Byte> sleepEntries = parseReportBlock(characteristicValue);
+                    LOG.info("sleep {}", sleepEntries);
+                    break;
+                case 0x16:
+                    Map<Instant, Byte> pulseEntries = parseReportBlock(characteristicValue);
+                    LOG.info("pulse {}", pulseEntries);
+                    break;
                 default:
                     LOG.warn("unknown type {}", characteristicValue[0]);
+                    /*32 12 0xf6 3 19*/
             }
+        } else {
+            LOG.warn("other characteristic {}", characteristicUUID);
         }
         return false;
     }
