@@ -295,7 +295,7 @@ public class ZeppOsFwHelper {
 
             Bitmap icon = null;
             final byte[] iconBytes = getFileFromZip(zipFile, "assets/" + appIconPath);
-            if (iconBytes != null) {
+            if ((iconBytes != null) && (appIconPath.length() != 0)) {
                 if (BitmapUtil.isPng(iconBytes)) {
                     icon = BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.length);
                 } else {
