@@ -28,7 +28,11 @@ package nodomain.freeyourgadget.gadgetbridge.util;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.companion.AssociationInfo;
+import android.companion.CompanionDeviceManager;
 import android.content.Context;
+import android.net.MacAddress;
+import android.os.Build;
 import android.widget.Toast;
 
 import org.slf4j.Logger;
@@ -187,6 +191,33 @@ public class DeviceHelper {
      * @return
      */
     public boolean removeBond(GBDevice device) throws GBException {
+        // remove ASSOCIATION for companion device
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            CompanionDeviceManager manager = (CompanionDeviceManager) GBApplication.getContext().getSystemService(Context.COMPANION_DEVICE_SERVICE);
+            if (manager != null) {
+                String target = device.getAddress();
+                for (AssociationInfo association : manager.getMyAssociations()) {
+                    MacAddress mac = association.getDeviceMacAddress();
+                    if (mac != null && target.equalsIgnoreCase(mac.toString())) {
+                        manager.disassociate(association.getId());
+                        return true;
+                    }
+                }
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CompanionDeviceManager manager = (CompanionDeviceManager) GBApplication.getContext().getSystemService(Context.COMPANION_DEVICE_SERVICE);
+            if (manager != null) {
+                String target = device.getAddress();
+                for (String mac : manager.getAssociations()) {
+                    if (mac != null && target.equalsIgnoreCase(mac.toString())) {
+                        manager.disassociate(mac);
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // remove BOND for NON-companion device
         BluetoothAdapter defaultAdapter = BluetoothAdapter.getDefaultAdapter();
         if (defaultAdapter != null) {
             BluetoothDevice remoteDevice = defaultAdapter.getRemoteDevice(device.getAddress());

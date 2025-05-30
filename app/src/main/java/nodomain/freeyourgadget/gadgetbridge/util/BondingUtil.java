@@ -23,6 +23,7 @@ import static nodomain.freeyourgadget.gadgetbridge.util.GB.toast;
 import android.app.Activity;
 import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
+import android.companion.AssociationInfo;
 import android.companion.AssociationRequest;
 import android.companion.BluetoothDeviceFilter;
 import android.companion.CompanionDeviceManager;
@@ -31,6 +32,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.net.MacAddress;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -48,7 +50,6 @@ import java.util.Locale;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 
@@ -306,15 +307,28 @@ public class BondingUtil {
                 .build();
 
         CompanionDeviceManager manager = (CompanionDeviceManager) bondingInterface.getContext().getSystemService(Context.COMPANION_DEVICE_SERVICE);
-        LOG.debug(String.format("Searching for %s associations", macAddress));
-        for (String association : manager.getAssociations()) {
-            LOG.debug(String.format("Already associated with: %s", association));
-            if (association.equals(macAddress)) {
-                LOG.info("The device has already been bonded through CompanionDeviceManager, using regular");
-                // If it's already "associated", we should immediately pair
-                // because the callback is never called (AFAIK?)
-                BondingUtil.bluetoothBond(bondingInterface, device);
-                return;
+        LOG.debug("Searching for {} association", macAddress);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            for (AssociationInfo association : manager.getMyAssociations()) {
+                MacAddress mac = association.getDeviceMacAddress();
+                LOG.debug("Already associated with: {}", mac);
+                if (mac != null && macAddress.equalsIgnoreCase(mac.toString())) {
+                    LOG.info("Device {} has already been associated for us through CompanionDeviceManager", mac);
+                    bondingInterface.onBondingComplete(true);
+                    return;
+                }
+            }
+        } else {
+            for (String association : manager.getAssociations()) {
+                LOG.debug(String.format("Already associated with: %s", association));
+                if (association.equals(macAddress)) {
+                    LOG.info("The device has already been bonded through CompanionDeviceManager, using regular");
+                    // If it's already "associated", we should immediately pair
+                    // because the callback is never called (AFAIK?)
+                    BondingUtil.bluetoothBond(bondingInterface, device);
+                    return;
+                }
             }
         }
 
