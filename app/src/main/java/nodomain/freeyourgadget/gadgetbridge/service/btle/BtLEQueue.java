@@ -76,6 +76,7 @@ public final class BtLEQueue {
     private volatile boolean mAbortTransaction;
     private volatile boolean mAbortServerTransaction;
     private volatile boolean mPauseTransaction = false;
+    private volatile int mConnectionState = BluetoothProfile.STATE_DISCONNECTED;
 
     private final Context mContext;
     private CountDownLatch mWaitForActionResultLatch;
@@ -236,12 +237,12 @@ public final class BtLEQueue {
     }
 
     private boolean isConnected() {
-        if (mGbDevice.isConnected()) {
-            return true;
+        final int state = mConnectionState;
+        final boolean connected = (state != BluetoothProfile.STATE_DISCONNECTED);
+        if (!connected) {
+            LOG.debug("isConnected: {} {}", connected, BleNamesResolver.getStateString(state));
         }
-
-        LOG.debug("isConnected(): current state = {}", mGbDevice.getState());
-        return false;
+        return connected;
     }
 
     /**
@@ -325,6 +326,7 @@ public final class BtLEQueue {
                 gattServer.clearServices();
                 gattServer.close();
             }
+            mConnectionState = BluetoothProfile.STATE_DISCONNECTED;
         }
     }
 
@@ -344,6 +346,7 @@ public final class BtLEQueue {
             serverLatch.countDown();
         }
 
+        mConnectionState = BluetoothProfile.STATE_DISCONNECTED;
         setDeviceConnectionState(State.NOT_CONNECTED);
 
         // either we've been disconnected because the device is out of range
@@ -562,6 +565,10 @@ public final class BtLEQueue {
 
             if (!checkCorrectGattInstance(gatt, "connection state event")) {
                 return;
+            }
+
+            if (newState != BluetoothProfile.STATE_DISCONNECTED) {
+                mConnectionState = newState;
             }
 
             if (status != BluetoothGatt.GATT_SUCCESS) {
