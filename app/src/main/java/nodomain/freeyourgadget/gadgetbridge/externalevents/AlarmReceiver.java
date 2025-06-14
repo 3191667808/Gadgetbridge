@@ -62,7 +62,7 @@ public class AlarmReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         LOG.info("will resend sunrise and sunset events");
 
-        final GregorianCalendar dateTimeTomorrow = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+        final GregorianCalendar dateTimeTomorrow = new GregorianCalendar(TimeZone.getDefault());
         dateTimeTomorrow.set(Calendar.HOUR, 0);
         dateTimeTomorrow.set(Calendar.MINUTE, 0);
         dateTimeTomorrow.set(Calendar.SECOND, 0);
