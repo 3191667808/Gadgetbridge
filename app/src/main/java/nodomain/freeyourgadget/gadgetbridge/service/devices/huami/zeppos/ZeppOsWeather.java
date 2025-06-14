@@ -265,7 +265,7 @@ public class ZeppOsWeather {
 
         private Range getSunriseSunset(final Date sunRise, final Date sunSet) {
             final SimpleDateFormat sunRiseSetSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
-            sunRiseSetSdf.setTimeZone(TimeZone.getDefault());
+            sunRiseSetSdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
             final String from = sunRiseSetSdf.format(sunRise);
             final String to = sunRiseSetSdf.format(sunSet);
@@ -314,7 +314,7 @@ public class ZeppOsWeather {
             moonPhaseValue.add(String.valueOf(lunarDay));
 
             final SimpleDateFormat moonRiseSetSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
-            moonRiseSetSdf.setTimeZone(TimeZone.getDefault());
+            moonRiseSetSdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
             final String from = moonRiseSetSdf.format(new Date(rise * 1000L));
             final String to = moonRiseSetSdf.format(new Date(set * 1000L));
