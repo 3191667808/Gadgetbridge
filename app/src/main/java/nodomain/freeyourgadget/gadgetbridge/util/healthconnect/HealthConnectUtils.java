@@ -87,10 +87,9 @@ public class HealthConnectUtils {
             HealthPermission.getWritePermission(heartrateRecordKClass)
     );
 
-    public ActivityResultContract<Set<String>, Set<String>> requestPermissionResultContract = PermissionController.createRequestPermissionResultContract();
-
     public HealthConnectUtils(PreferenceFragmentCompat fragmentCompat) {
         preferenceFragmentCompat = fragmentCompat;
+        ActivityResultContract<Set<String>, Set<String>> requestPermissionResultContract = PermissionController.createRequestPermissionResultContract();
         activityResultLauncher = preferenceFragmentCompat.registerForActivityResult(
                 requestPermissionResultContract,
                 this::permissionCallback
@@ -98,7 +97,7 @@ public class HealthConnectUtils {
     }
 
     @SuppressLint("RestrictedApi")
-    public void permissionCallback(Set<String> granted) {
+    private void permissionCallback(Set<String> granted) {
         Context context = preferenceFragmentCompat.getContext();
         Preference pref = preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_ENABLED);
         if(pref == null) {
@@ -119,7 +118,7 @@ public class HealthConnectUtils {
         }
     }
 
-    public HealthConnectClient healthConnectInit(Context context) {
+    public static HealthConnectClient healthConnectInit(Context context) {
         // First check if we can even use Health Connect
         int availabilityStatus = HealthConnectClient.getSdkStatus(context);
         if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE) {
@@ -136,7 +135,7 @@ public class HealthConnectUtils {
     }
 
     @SuppressLint("NewApi")
-    public void healthConnectDataSync(Context context, HealthConnectClient healthConnectClient) {
+    public static void healthConnectDataSync(Context context, HealthConnectClient healthConnectClient) {
         GB.toast(context, "Starting Health Connect Data Sync ...", Toast.LENGTH_LONG, GB.INFO);
         // Initialize all variables
         Calendar day = Calendar.getInstance();
@@ -195,11 +194,11 @@ public class HealthConnectUtils {
         }
     }
 
-    protected List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {
+    private static List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {
         SampleProvider<? extends ActivitySample> provider = device.getDeviceCoordinator().getSampleProvider(device, db.getDaoSession());
         return provider.getAllActivitySamples(tsFrom, tsTo);
     }
-    protected Instant getFirstSampleTimestamp(DeviceCoordinator deviceCoordinator, GBDevice device, DBHandler db) {
+    private static Instant getFirstSampleTimestamp(DeviceCoordinator deviceCoordinator, GBDevice device, DBHandler db) {
         SampleProvider<? extends ActivitySample> provider = deviceCoordinator.getSampleProvider(device, db.getDaoSession());
         ActivitySample firstSample = provider.getFirstActivitySample();
         if (firstSample == null) {
@@ -208,7 +207,7 @@ public class HealthConnectUtils {
         return Instant.ofEpochSecond(firstSample.getTimestamp());
     }
 
-    protected void sampleEntryCleanupInsert(Context context, GBDevice device, ZoneOffset offset, List<? extends ActivitySample> deviceSamples, HealthConnectClient healthConnectClient) {
+    private static void sampleEntryCleanupInsert(Context context, GBDevice device, ZoneOffset offset, List<? extends ActivitySample> deviceSamples, HealthConnectClient healthConnectClient) {
         List<StepsRecord> stepsRecordList = new ArrayList<>();
         List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
         // Device Metadata

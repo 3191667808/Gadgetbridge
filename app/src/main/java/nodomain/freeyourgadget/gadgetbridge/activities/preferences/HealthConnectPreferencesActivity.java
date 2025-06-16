@@ -82,7 +82,7 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
 
                     }
                 };
-                HealthConnectClient healthConnectClient = healthConnectUtils.healthConnectInit(getContext());
+                HealthConnectClient healthConnectClient = HealthConnectUtils.healthConnectInit(getContext());
                 Set<String> grantedPermissions = (Set<String>) healthConnectClient.getPermissionController().getGrantedPermissions(continuationString);
                 assert grantedPermissions != null;
 
@@ -120,11 +120,11 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
             final Preference healthConnectManualSync = findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SYNC);
             if (healthConnectManualSync != null) {
                 healthConnectManualSync.setOnPreferenceClickListener(preference -> {
-                    HealthConnectClient healthConnectClient = healthConnectUtils.healthConnectInit(getContext());
+                    HealthConnectClient healthConnectClient = HealthConnectUtils.healthConnectInit(getContext());
                     if (healthConnectClient == null) {
                         return false;
                     }
-                    healthConnectUtils.healthConnectDataSync(getContext(), healthConnectClient);
+                    HealthConnectUtils.healthConnectDataSync(getContext(), healthConnectClient);
                     return true;
                 });
             }
