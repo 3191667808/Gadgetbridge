@@ -100,7 +100,10 @@ public class HealthConnectUtils {
     public void permissionCallback(Set<String> granted) {
         Context context = preferenceFragmentCompat.getContext();
         Preference pref = preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_ENABLED);
-        assert pref != null;
+        if(pref == null) {
+            LOG.error("Health Connect Preference is null, cannot proceed with permission callback");
+            return;
+        }
         if(granted.isEmpty()) {
             // All permissions denied
             // At the point when the callback function runs, the PreferenceChangeListener has already returned
