@@ -138,54 +138,55 @@ public class HealthConnectUtils {
         ZoneOffset offset = ZonedDateTime.now(TimeZone.getDefault().toZoneId()).getOffset();
         Prefs prefs = GBApplication.getPrefs();
         Set<String> selectedDevices = prefs.getStringSet("health_connect_devices_multiselect", new HashSet<>());
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
 
-        if(selectedDevices == null || selectedDevices.isEmpty()) {
-            GB.toast(context, "No devices selected", Toast.LENGTH_LONG, GB.ERROR);
-            return;
-        }
-        List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
-        if(devices.isEmpty()) {
-            GB.toast(context, "No devices connected", Toast.LENGTH_LONG, GB.ERROR);
-            return;
-        }
-        CountDownLatch latch = new CountDownLatch(devices.size());
-        for(GBDevice device: devices) {
-            DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
-            // If device is not selected or does not support Activity Tracking, skip
-            if(!selectedDevices.contains(device.getAddress()) || !deviceCoordinator.supportsActivityTracking()) {
-                latch.countDown();
-                continue;
+            if (selectedDevices == null || selectedDevices.isEmpty()) {
+                GB.toast(context, "No devices selected", Toast.LENGTH_LONG, GB.ERROR);
+                return;
             }
-            try (DBHandler db = GBApplication.acquireDB()) {
-                Instant startTs = getFirstSampleTimestamp(deviceCoordinator, device, db);
-                if (startTs == null) {
-                    GB.toast(context, "No Health Connect Data found for Device " + device.getName(), Toast.LENGTH_LONG, GB.INFO);
+            List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
+            if (devices.isEmpty()) {
+                GB.toast(context, "No devices connected", Toast.LENGTH_LONG, GB.ERROR);
+                return;
+            }
+            CountDownLatch latch = new CountDownLatch(devices.size());
+            for (GBDevice device : devices) {
+                DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
+                // If device is not selected or does not support Activity Tracking, skip
+                if (!selectedDevices.contains(device.getAddress()) || !deviceCoordinator.supportsActivityTracking()) {
                     latch.countDown();
                     continue;
                 }
-                executor.execute(() -> {
-                    final List<? extends ActivitySample> deviceSamples = getActivitySamples(db, device, (int) startTs.getEpochSecond(), endTs);
-
-                    new Handler(Looper.getMainLooper()).post(() -> {
+                try (DBHandler db = GBApplication.acquireDB()) {
+                    Instant startTs = getFirstSampleTimestamp(deviceCoordinator, device, db);
+                    if (startTs == null) {
+                        GB.toast(context, "No Health Connect Data found for Device " + device.getName(), Toast.LENGTH_LONG, GB.INFO);
                         latch.countDown();
-                        sampleEntryCleanupInsert(context, device, offset, deviceSamples, healthConnectClient);
+                        continue;
+                    }
+                    executor.execute(() -> {
+                        final List<? extends ActivitySample> deviceSamples = getActivitySamples(db, device, (int) startTs.getEpochSecond(), endTs);
+
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            latch.countDown();
+                            sampleEntryCleanupInsert(context, device, offset, deviceSamples, healthConnectClient);
+                        });
                     });
-                });
-            } catch (Exception e) {
-                LOG.error("Error during DBAccess for Health Connect", e);
+                } catch (Exception e) {
+                    LOG.error("Error during DBAccess for Health Connect", e);
+                }
             }
+            new Thread(() -> {
+                try {
+                    latch.await();
+                    GB.toast(context, "Finished Health Connect Data Sync", Toast.LENGTH_LONG, GB.INFO);
+                } catch (InterruptedException e) {
+                    LOG.error("Error during while waiting for Health Connect Sync to finish", e);
+                } finally {
+                    executor.shutdown();
+                }
+            }).start();
         }
-        new Thread(() -> {
-            try {
-                latch.await();
-                GB.toast(context, "Finished Health Connect Data Sync", Toast.LENGTH_LONG, GB.INFO);
-            } catch (InterruptedException e) {
-                LOG.error("Error during while waiting for Health Connect Sync to finish", e);
-            } finally {
-                executor.shutdown();
-            }
-        }).start();
     }
 
     protected List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {
