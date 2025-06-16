@@ -83,8 +83,17 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                     }
                 };
                 HealthConnectClient healthConnectClient = HealthConnectUtils.healthConnectInit(getContext());
+                if (healthConnectClient == null) {
+                    healthConnectEnabledPref.setEnabled(false);
+                    LOG.warn("Health Connect Client could not be initialized, disabling Health Connect preferences");
+                    return;
+                }
                 Set<String> grantedPermissions = (Set<String>) healthConnectClient.getPermissionController().getGrantedPermissions(continuationString);
-                assert grantedPermissions != null;
+                if (grantedPermissions == null) {
+                    LOG.warn("Health Connect Client returned null for granted permissions, disabling Health Connect preferences");
+                    healthConnectEnabledPref.setEnabled(false);
+                    return;
+                }
 
                 healthConnectEnabledPref.setOnPreferenceChangeListener((preference, exportHealthConnectEnabled) -> {
                     if ((boolean) exportHealthConnectEnabled) {
