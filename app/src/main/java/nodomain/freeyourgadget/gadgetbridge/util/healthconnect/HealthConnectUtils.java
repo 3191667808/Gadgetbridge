@@ -61,6 +61,7 @@ import kotlin.jvm.JvmClassMappingKt;
 import kotlin.reflect.KClass;
 import kotlinx.coroutines.Dispatchers;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
@@ -123,6 +124,11 @@ public class HealthConnectUtils {
         int availabilityStatus = HealthConnectClient.getSdkStatus(context);
         if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE) {
             GB.toast(context, "Health Connect not supported on this Android Version", Toast.LENGTH_LONG, GB.ERROR);
+            GB.toast(context, R.string.health_connect_unsupported, Toast.LENGTH_LONG, GB.ERROR);
+            return null;
+        }
+        if (availabilityStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED) {
+            GB.toast(context, R.string.health_connect_update_required, Toast.LENGTH_LONG, GB.ERROR);
             return null;
         }
         // Initialize Health Connect Client

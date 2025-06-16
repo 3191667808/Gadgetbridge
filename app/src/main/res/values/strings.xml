@@ -4110,4 +4110,7 @@
     <string name="pref_atc_ble_oepl_ble_adv_interval_title">BLE Advertising Interval</string>
     <string name="pref_atc_ble_oepl_oepl_protocol_enable_title">Enable OEPL protocol</string>
     <string name="pref_atc_ble_oepl_oepl_protocol_enable_summary">Disable this if only using BLE to save power</string>
+    <string name="health_connect_unsupported">Health Connect not supported on this Android Version</string>
+    <string name="health_connect_update_required">Health Connect Provider Update Required</string>
+
 </resources>
