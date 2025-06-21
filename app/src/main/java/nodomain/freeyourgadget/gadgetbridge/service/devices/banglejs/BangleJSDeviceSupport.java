@@ -368,8 +368,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
             sleepAsAndroidSender = new SleepAsAndroidSender(gbDevice);
         }
 
-        gbDevice.setState(GBDevice.State.INITIALIZING);
-        gbDevice.sendDeviceUpdateIntent(getContext(), GBDevice.DeviceUpdateSubject.DEVICE_STATE);
+        builder.setUpdateState(gbDevice, GBDevice.State.INITIALIZING, getContext());
 
         rxCharacteristic = getCharacteristic(BangleJSConstants.UUID_CHARACTERISTIC_NORDIC_UART_RX);
         txCharacteristic = getCharacteristic(BangleJSConstants.UUID_CHARACTERISTIC_NORDIC_UART_TX);
@@ -396,8 +395,7 @@ public class BangleJSDeviceSupport extends AbstractBTLEDeviceSupport {
         //sendSettings(builder);
 
         // get version
-        gbDevice.setState(GBDevice.State.INITIALIZED);
-        gbDevice.sendDeviceUpdateIntent(getContext(), GBDevice.DeviceUpdateSubject.DEVICE_STATE);
+        builder.setUpdateState(gbDevice, GBDevice.State.INITIALIZED, getContext());
         if (getDevice().getFirmwareVersion() == null) {
             getDevice().setFirmwareVersion("N/A");
             getDevice().setFirmwareVersion2("N/A");
