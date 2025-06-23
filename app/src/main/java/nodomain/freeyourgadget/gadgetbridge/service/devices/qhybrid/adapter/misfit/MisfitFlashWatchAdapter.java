@@ -172,7 +172,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
             }
 
             default: {
-                log("unknown shit on " + characteristic.getUuid().toString() + ":  " + arrayToString(characteristic.getValue()));
+                log("data on unknown Characteristic:" + characteristic.getUuid().toString() + ":  " + arrayToString(characteristic.getValue()));
                 try {
                     File charLog = FileUtils.getExternalFile("qFiles/charLog.txt");
                     try (FileOutputStream fos = new FileOutputStream(charLog, true)) {
