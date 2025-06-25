@@ -124,8 +124,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         requestQueue.add(new SetPointGoalRequest(fitnessGoal));//CARMINE
         queueWrite(new ActivityPointGetRequest());//CARMINE
         queueWrite(new GetPointGoalRequest());//CARMINE
-        getDeviceSupport().getDevice().setState(GBDevice.State.INITIALIZED);
-        getDeviceSupport().getDevice().sendDeviceUpdateIntent(getContext());
+        getDeviceSupport().getDevice().setUpdateState(GBDevice.State.INITIALIZED, getContext());
     }
 
 
@@ -160,23 +159,23 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     }
 
     @Override
-    public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+    public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, final byte[] value) {
         GBDevice gbDevice = getDeviceSupport().getDevice();
         switch (characteristic.getUuid().toString()) {
             case UPLOAD_CHARACTERISTIC_UUID:
             case WRITE_CHARACTERISTIC_UUID: {
-                return handleFileDownloadCharacteristic(characteristic);
+                return handleFileDownloadCharacteristic(characteristic, value);
             }
             case X2_CHARACTERISTIC_UUID: {
-                return handleBasicCharacteristic(characteristic);
+                return handleBasicCharacteristic(characteristic, value);
             }
 
             default: {
-                log("data on unknown Characteristic:" + characteristic.getUuid().toString() + ":  " + arrayToString(characteristic.getValue()));
+                log("data on unknown Characteristic:" + characteristic.getUuid().toString() + ":  " + arrayToString(value));
                 try {
                     File charLog = FileUtils.getExternalFile("qFiles/charLog.txt");
                     try (FileOutputStream fos = new FileOutputStream(charLog, true)) {
-                        fos.write((new Date().toString() + ": " + characteristic.getUuid().toString() + ": " + arrayToString(characteristic.getValue())).getBytes());
+                        fos.write((new Date().toString() + ": " + characteristic.getUuid().toString() + ": " + arrayToString(value)).getBytes());
                     }
                 } catch (IOException e) {
                     GB.log("error", GB.ERROR, e);
@@ -184,7 +183,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
                 break;
             }
         }
-        return getDeviceSupport().onCharacteristicChanged(gatt, characteristic);
+        return getDeviceSupport().onCharacteristicChanged(gatt, characteristic, value);
     }
 
     private void fillResponseList() {
@@ -214,21 +213,20 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         }
     }
 
-    private boolean handleBasicCharacteristic(BluetoothGattCharacteristic characteristic) {
-        byte[] values = characteristic.getValue();
-        Request request = resolveAnswer(characteristic);
+    private boolean handleBasicCharacteristic(BluetoothGattCharacteristic characteristic, byte[] values) {
+        Request request = resolveAnswer(characteristic, values);
         GBDevice gbDevice = getDeviceSupport().getDevice();
 
         if (request == null) {
             StringBuilder valueString = new StringBuilder(String.valueOf(values[0]));
-            for (int i = 1; i < characteristic.getValue().length; i++) {
+            for (int i = 1; i < values.length; i++) {
                 valueString.append(", ").append(values[i]);
             }
             log("unable to resolve " + characteristic.getUuid().toString() + ": " + valueString);
             return true;
         }
         log("response: " + request.getClass().getSimpleName());
-        request.handleResponse(characteristic);
+        request.handleResponse(characteristic, values);
 
         if (request instanceof GetStepGoalRequest) {
             gbDevice.addDeviceInfo(new GenericItem(ITEM_STEP_GOAL, String.valueOf(((GetStepGoalRequest) request).stepGoal)));
@@ -273,16 +271,15 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     }
 
 
-    private Request resolveAnswer(BluetoothGattCharacteristic characteristic) {
-        byte[] values = characteristic.getValue();
+     private Request resolveAnswer(BluetoothGattCharacteristic characteristic, byte[] values) {
         if (values[0] != 3) return null;
         return responseFilters.get(values[1]);
     }
 
-    private boolean handleFileDownloadCharacteristic(BluetoothGattCharacteristic characteristic) {
+    private boolean handleFileDownloadCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value) {
         Request request;
         request = fileRequest;
-        request.handleResponse(characteristic);
+        request.handleResponse(characteristic, value);
         if (request instanceof ListFilesRequest) {
             if (((ListFilesRequest) request).completed) {
                 logger.debug("File count: " + ((ListFilesRequest) request).fileCount + "  size: " + ((ListFilesRequest) request).size);
@@ -303,13 +300,13 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     }
 
 
-    private boolean handleFileUploadCharacteristic(BluetoothGattCharacteristic characteristic) {
+    private boolean handleFileUploadCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value) {
         if (uploadFileRequest == null) {
             logger.debug("no uploadFileRequest to handle response");
             return true;
         }
 
-        uploadFileRequest.handleResponse(characteristic);
+        uploadFileRequest.handleResponse(characteristic, value);
 
         switch (uploadFileRequest.state) {
             case ERROR:
@@ -333,8 +330,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     }
 
 /*
-    private boolean handleButtonCharacteristic(BluetoothGattCharacteristic characteristic) {
-        byte[] value = characteristic.getValue();
+        private boolean handleButtonCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value) {
         if (value.length != 11) {
             logger.debug("wrong button message");
             return true;
@@ -369,10 +365,12 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         logger.debug(message);
     }
 
+    @Override
     public void setActivityHand(double progress) {
         queueWrite(new SetCurrentStepCountRequest(Math.min((int) (1000000 * progress), 999999)));
     }
 
+    @Override
     public void vibrate(PlayNotificationRequest.VibrationType vibration) {
         queueWrite(new PlayNotificationRequest(vibration, -1, -1));
     }
