@@ -114,8 +114,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
 
         queueWrite(new GetCurrentStepCountRequest());
 
-        getDeviceSupport().getDevice().setState(GBDevice.State.INITIALIZED);
-        getDeviceSupport().getDevice().sendDeviceUpdateIntent(getContext());
+        getDeviceSupport().getDevice().setUpdateState(GBDevice.State.INITIALIZED, getContext());
     }
 
 
@@ -150,7 +149,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
     }
 
     @Override
-     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, final byte[] value) {
+    public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, final byte[] value) {
         GBDevice gbDevice = getDeviceSupport().getDevice();
         switch (characteristic.getUuid().toString()) {
             case UPLOAD_CHARACTERISTIC_UUID:
