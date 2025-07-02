@@ -424,7 +424,7 @@ public class GBDevice implements Parcelable {
     }
 
     public String getStateString(final Context context) {
-        return getStateString(context, true);
+        return getStateString(context, false);
     }
 
     /**
