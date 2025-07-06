@@ -3732,9 +3732,10 @@
     <string name="pref_health_connect_manual_settings">Manage Health Connect Data</string>
     <string name="pref_health_connect_manual_sync">Trigger a Health Connect Data Sync</string>
     <string name="pref_health_connect_disable_notice">To disable Health Connect Export, remove all Permissions of Gadgetbridge from the Health Connect App</string>
-    <string name="pref_health_connect_sync_notice">Depending on the amount of data, a Health Connect sync might take several minutes</string>
+    <string name="pref_health_connect_sync_notice">Depending on the amount of data, a Health Connect sync might take several minutes. A popup will appear once it is finished</string>
     <string name="pref_health_connect_device_selection">Select devices</string>
     <string name="pref_health_connect_device_selection_summary">Select which devices to include the data from for sharing with Health Connect</string>
+    <string name="pref_health_connect_manual_sync_title">Manual Sync</string>
 
     <!-- Camera strings -->
     <string name="open_camera">Open Camera</string>
