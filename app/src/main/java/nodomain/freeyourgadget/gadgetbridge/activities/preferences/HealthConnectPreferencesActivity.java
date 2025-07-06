@@ -133,7 +133,7 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                     if (healthConnectClient == null) {
                         return false;
                     }
-                    HealthConnectUtils.healthConnectDataSync(getContext(), healthConnectClient);
+                    healthConnectUtils.healthConnectDataSync(getContext(), healthConnectClient, healthConnectManualSync);
                     return true;
                 });
             }

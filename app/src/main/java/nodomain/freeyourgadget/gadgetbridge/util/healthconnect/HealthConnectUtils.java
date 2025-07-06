@@ -51,9 +51,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
@@ -64,6 +61,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceManager;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -111,9 +109,12 @@ public class HealthConnectUtils {
             GB.toast(context, "All Health Connect Permissions denied", Toast.LENGTH_LONG, GB.ERROR);
         } else {
             pref.setEnabled(false);
+            Preference healthConnectManualSync = preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SYNC);
+
             HealthConnectClient healthConnectClient = healthConnectInit(context);
-            healthConnectDataSync(context, healthConnectClient);
-            preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_MANUAL_SYNC).setVisible(true);
+            healthConnectDataSync(context, healthConnectClient, healthConnectManualSync);
+
+            healthConnectManualSync.setVisible(true);
             preferenceFragmentCompat.findPreference(GBPrefs.HEALTH_CONNECT_DISABLE_NOTICE).setVisible(true);
         }
     }
@@ -134,64 +135,74 @@ public class HealthConnectUtils {
         return HealthConnectClient.getOrCreate(context);
     }
 
-    @SuppressLint("NewApi")
-    public static void healthConnectDataSync(Context context, HealthConnectClient healthConnectClient) {
+    private final Object healthConnectDataSyncMonitor = new Object();
+    public void healthConnectDataSync(final @NonNull Context context, final @NonNull HealthConnectClient healthConnectClient, Preference healthConnectManualSync) {
+        // Disable manual sync button while sync is running
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+        healthConnectManualSync.setEnabled(false);
+
+        new Thread(() -> {
+            try {
+                synchronized (healthConnectDataSyncMonitor) {
+                    healthConnectDataSyncImp(context, healthConnectClient);
+                }
+            } catch (final Exception e) {
+                LOG.error("Error during healthConnectDataSyncImp for Health Connect", e);
+                GB.toast(context, "Health Connect Data Sync: " + e.getLocalizedMessage(), Toast.LENGTH_LONG, GB.ERROR);
+            }
+
+            // Enable manual sync button again
+            mainHandler.post(() -> {
+                    healthConnectManualSync.setEnabled(true);
+            });
+        }, "healthConnectDataSync").start();
+    }
+
+    private void healthConnectDataSyncImp(final @NonNull Context context, final @NonNull HealthConnectClient healthConnectClient) {
         GB.toast(context, "Starting Health Connect Data Sync ...", Toast.LENGTH_LONG, GB.INFO);
         // Initialize all variables
         Calendar day = Calendar.getInstance();
         int endTs = (int) (day.getTimeInMillis() / 1000) + 24 * 60 * 60 - 1;
         ZoneOffset offset = ZonedDateTime.now(TimeZone.getDefault().toZoneId()).getOffset();
         Prefs prefs = GBApplication.getPrefs();
-        Set<String> selectedDevices = prefs.getStringSet("health_connect_devices_multiselect", new HashSet<>());
-        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+        Set<String> selectedDevices = prefs.getStringSet("health_connect_devices_multiselect", new HashSet<>(20));
 
-            if (selectedDevices == null || selectedDevices.isEmpty()) {
-                GB.toast(context, "No devices selected", Toast.LENGTH_LONG, GB.ERROR);
-                return;
+        if (selectedDevices == null || selectedDevices.isEmpty()) {
+            GB.toast(context, "No devices selected", Toast.LENGTH_LONG, GB.ERROR);
+            return;
+        }
+        DeviceManager manager = GBApplication.app().getDeviceManager();
+
+        for (final String targetAddress : selectedDevices) {
+            GBDevice device = manager.getDeviceByAddress(targetAddress);
+            if (device == null){
+                GB.toast(context, "device for address " + targetAddress + " not found", Toast.LENGTH_LONG, GB.ERROR);
+                continue;
             }
-            List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
-            if (devices.isEmpty()) {
-                GB.toast(context, "No devices connected", Toast.LENGTH_LONG, GB.ERROR);
-                return;
+
+            DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
+            if (!deviceCoordinator.supportsActivityTracking()) {
+                GB.toast(context, "device " + device.getAliasOrName() + " doesn't provide activity data", Toast.LENGTH_LONG, GB.WARN);
+                continue;
             }
-            CountDownLatch latch = new CountDownLatch(devices.size());
-            for (GBDevice device : devices) {
-                DeviceCoordinator deviceCoordinator = device.getDeviceCoordinator();
-                // If device is not selected or does not support Activity Tracking, skip
-                if (!selectedDevices.contains(device.getAddress()) || !deviceCoordinator.supportsActivityTracking()) {
-                    latch.countDown();
+
+            final List<? extends ActivitySample> deviceSamples;
+            try (DBHandler db = GBApplication.acquireDB()) {
+                Instant startTs = getFirstSampleTimestamp(deviceCoordinator, device, db);
+                if (startTs == null) {
+                    GB.toast(context, "No Health Connect Data found for Device " + device.getName(), Toast.LENGTH_LONG, GB.INFO);
                     continue;
                 }
-                try (DBHandler db = GBApplication.acquireDB()) {
-                    Instant startTs = getFirstSampleTimestamp(deviceCoordinator, device, db);
-                    if (startTs == null) {
-                        GB.toast(context, "No Health Connect Data found for Device " + device.getName(), Toast.LENGTH_LONG, GB.INFO);
-                        latch.countDown();
-                        continue;
-                    }
-                    executor.execute(() -> {
-                        final List<? extends ActivitySample> deviceSamples = getActivitySamples(db, device, (int) startTs.getEpochSecond(), endTs);
-
-                        new Handler(Looper.getMainLooper()).post(() -> {
-                            latch.countDown();
-                            sampleEntryCleanupInsert(context, device, offset, deviceSamples, healthConnectClient);
-                        });
-                    });
-                } catch (Exception e) {
-                    LOG.error("Error during DBAccess for Health Connect", e);
-                }
+                deviceSamples = getActivitySamples(db, device, (int) startTs.getEpochSecond(), endTs);
+            } catch (Exception e) {
+                LOG.error("Error during DBAccess for Health Connect", e);
+                GB.toast(context, "Health Connect Data Sync: " + e.getLocalizedMessage(), Toast.LENGTH_LONG, GB.ERROR);
+                continue;
             }
-            new Thread(() -> {
-                try {
-                    latch.await();
-                    GB.toast(context, "Finished Health Connect Data Sync", Toast.LENGTH_LONG, GB.INFO);
-                } catch (InterruptedException e) {
-                    LOG.error("Error during while waiting for Health Connect Sync to finish", e);
-                } finally {
-                    executor.shutdown();
-                }
-            }).start();
+            sampleEntryCleanupInsert(context, device, offset, deviceSamples, healthConnectClient);
+
         }
+        GB.toast(context, "Finished Health Connect Data Sync", Toast.LENGTH_LONG, GB.INFO);
     }
 
     private static List<? extends AbstractActivitySample> getActivitySamples(DBHandler db, GBDevice device, int tsFrom, int tsTo) {
@@ -207,42 +218,62 @@ public class HealthConnectUtils {
         return Instant.ofEpochSecond(firstSample.getTimestamp());
     }
 
-    private static void sampleEntryCleanupInsert(Context context, GBDevice device, ZoneOffset offset, List<? extends ActivitySample> deviceSamples, HealthConnectClient healthConnectClient) {
-        List<StepsRecord> stepsRecordList = new ArrayList<>();
-        List<HeartRateRecord> heartRateRecordList = new ArrayList<>();
+    /**
+     * health connect can be quite slow when performing bulk inserts
+     * (3000 per second isn't uncommon)
+     * limit the number of records per {@code insertRecords} call
+     */
+    private final static int CHUNK_SIZE = 200;
+
+    private static void sampleEntryCleanupInsert(Context context, GBDevice device, ZoneOffset offset,
+                                                 List<? extends ActivitySample> deviceSamples,
+                                                 HealthConnectClient healthConnectClient) {
         // Device Metadata
-        Metadata metadata = new Metadata(
+        final Metadata metadata = new Metadata(
                 Metadata.RECORDING_METHOD_UNKNOWN,
                 "",
                 new DataOrigin(context.getPackageName()),
                 Instant.now(),
                 "",
-                0,
-                new Device( Device.TYPE_UNKNOWN, device.getType().name(), device.getModel())
+                0L,
+                new Device(Device.TYPE_UNKNOWN, device.getType().name(), device.getModel())
         );
 
+        final Continuation<InsertRecordsResponse> continuationRecord = new Continuation<>() {
+            @NotNull
+            @Override
+            public CoroutineContext getContext() {
+                return (CoroutineContext) Dispatchers.getIO();
+            }
+
+            public void resumeWith(@NonNull Object o) {
+            }
+        };
+
+        //
+        // steps
+        //
+
         // Clean entries to have at least either 1 Step or HR over 0
-        List<ActivitySample> cleanedStepSamples = new ArrayList<>();
-        List<ActivitySample> cleanedHeartrateSamples = new ArrayList<>();
-        for (ActivitySample sample : deviceSamples) {
+        final List<ActivitySample> cleanedStepSamples = new ArrayList<>(deviceSamples.size());
+        for (final ActivitySample sample : deviceSamples) {
             if (sample.getSteps() > 0) {
                 cleanedStepSamples.add(sample);
             }
-            if (sample.getHeartRate() > 0) {
-                cleanedHeartrateSamples.add(sample);
-            }
         }
 
-        ListIterator<ActivitySample> stepIterator = cleanedStepSamples.listIterator();
-        while(stepIterator.hasNext()) {
+        final List<StepsRecord> stepsRecordList = new ArrayList<>(cleanedStepSamples.size());
+
+        final ListIterator<ActivitySample> stepIterator = cleanedStepSamples.listIterator();
+        while (stepIterator.hasNext()) {
             ActivitySample sample = stepIterator.next();
             ActivitySample nextSample = stepIterator.hasNext() ? cleanedStepSamples.get(stepIterator.nextIndex()) : null;
-            if(nextSample == null) {
+            if (nextSample == null) {
                 break;
             }
             Instant startTs = Instant.ofEpochSecond(sample.getTimestamp());
             // Calculate the end timestamp as the next sample's timestamp minus 1 sec to avoid overlap
-            Instant endTs = Instant.ofEpochSecond(nextSample.getTimestamp() - 1);
+            Instant endTs = Instant.ofEpochSecond(nextSample.getTimestamp() - 1L);
             StepsRecord stepsRecord = new StepsRecord(
                     startTs,
                     offset,
@@ -253,32 +284,58 @@ public class HealthConnectUtils {
             );
             stepsRecordList.add(stepsRecord);
         }
+        cleanedStepSamples.clear();
 
-        for (ActivitySample sample : cleanedHeartrateSamples) {
-            HeartRateRecord.Sample heartRateRecordSample = new HeartRateRecord.Sample(Instant.ofEpochSecond(sample.getTimestamp()),sample.getHeartRate());
+        final int stepsLength = stepsRecordList.size();
+        for (int start = 0; start < stepsLength && 0 <= start; start += CHUNK_SIZE) {
+            final int end = Math.min(start + CHUNK_SIZE, stepsLength);
+            if (end <= start) {
+                break;
+            }
+            List<StepsRecord> steps = stepsRecordList.subList(start, end);
+            LOG.debug("steps {} to {} of {}", start, end, stepsLength);
+            healthConnectClient.insertRecords(steps, continuationRecord);
+        }
+        stepsRecordList.clear();
+
+        //
+        // heart rate
+        //
+
+        // Clean entries to have at least HR over 0
+        final List<ActivitySample> cleanedHeartrateSamples = new ArrayList<>(deviceSamples.size());
+        for (final ActivitySample sample : deviceSamples) {
+            if (sample.getHeartRate() > 0) {
+                cleanedHeartrateSamples.add(sample);
+            }
+        }
+
+        final List<HeartRateRecord> heartRateRecordList = new ArrayList<>(cleanedHeartrateSamples.size());
+        for (final ActivitySample sample : cleanedHeartrateSamples) {
+            HeartRateRecord.Sample heartRateRecordSample = new HeartRateRecord.Sample(Instant.ofEpochSecond(sample.getTimestamp()), sample.getHeartRate());
+            Instant instant = heartRateRecordSample.getTime();
             HeartRateRecord heartRateRecord = new HeartRateRecord(
-                    Instant.ofEpochSecond(sample.getTimestamp()),
+                    instant,
                     offset,
-                    Instant.ofEpochSecond(sample.getTimestamp()),
+                    instant,
                     offset,
                     List.of(heartRateRecordSample),
                     metadata
             );
             heartRateRecordList.add(heartRateRecord);
         }
+        cleanedHeartrateSamples.clear();
 
-        Continuation<InsertRecordsResponse> continuationRecord =  new Continuation<InsertRecordsResponse>() {
-            @NotNull
-            @Override
-            public CoroutineContext getContext() {
-                return (CoroutineContext) Dispatchers.getDefault();
+        final int heartLength = heartRateRecordList.size();
+        for (int start = 0; start < heartLength && 0 <= start; start += CHUNK_SIZE) {
+            final int end = Math.min(start + CHUNK_SIZE, heartLength);
+            if (end <= start) {
+                break;
             }
-
-            public void resumeWith(@NonNull Object e) {
-
-            }
-        };
-        healthConnectClient.insertRecords(stepsRecordList, continuationRecord);
-        healthConnectClient.insertRecords(heartRateRecordList, continuationRecord);
+            List<HeartRateRecord> hearts = heartRateRecordList.subList(start, end);
+            LOG.debug("hearts {} to {} of {}", start, end, heartLength);
+            healthConnectClient.insertRecords(hearts, continuationRecord);
+        }
+        heartRateRecordList.clear();
     }
 }
