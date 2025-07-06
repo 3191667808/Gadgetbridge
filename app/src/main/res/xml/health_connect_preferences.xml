@@ -10,6 +10,11 @@
         app:iconSpaceReserved="true" />
 
     <Preference
+        android:icon="@drawable/ic_info"
+        android:key="health_connect_disable_notice"
+        android:summary="@string/pref_health_connect_disable_notice" />
+
+    <Preference
         android:icon="@drawable/ic_settings"
         android:key="health_connect_manual_settings"
         android:title="@string/pref_health_connect_manual_settings"
@@ -22,9 +27,9 @@
         app:iconSpaceReserved="true" />
 
     <Preference
-        android:icon="@drawable/ic_report"
-        android:key="health_connect_disable_notice"
-        android:summary="@string/pref_health_connect_disable_notice" />
+        android:icon="@drawable/ic_info"
+        android:key="health_connect_sync_notice"
+        android:summary="@string/pref_health_connect_sync_notice" />
 
     <MultiSelectListPreference
         android:dialogTitle="@string/pref_health_connect_device_selection"
