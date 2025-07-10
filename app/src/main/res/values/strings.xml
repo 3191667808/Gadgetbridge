@@ -2599,6 +2599,7 @@
     <string name="pref_crash_notification_title">Notify on crash</string>
     <string name="pref_crash_notification_summary">When the app crashes, display a notification with the error</string>
     <string name="app_crash_notification_title">%1s has crashed</string>
+    <string name="thread_crash_notification_title">%1s\'s %2s has crashed</string>
     <string name="app_crash_share_stacktrace">Share error</string>
     <string name="device_is_currently_bonded">ALREADY BONDED</string>
     <string name="device_unsupported">UNSUPPORTED</string>

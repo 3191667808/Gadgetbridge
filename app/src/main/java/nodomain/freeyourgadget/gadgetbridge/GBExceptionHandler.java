@@ -27,6 +27,7 @@ import android.content.Intent;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import org.slf4j.Logger;
@@ -63,7 +64,7 @@ public class GBExceptionHandler implements Thread.UncaughtExceptionHandler {
 
         if (mNotifyOnCrash) {
             try {
-                showNotification(ex);
+                showNotification(ex, null);
             } catch (Throwable ignored) {
             }
         }
@@ -96,7 +97,7 @@ public class GBExceptionHandler implements Thread.UncaughtExceptionHandler {
         }
     }
 
-    private void showNotification(final Throwable e) {
+    public static void showNotification(@NonNull final Throwable e, @Nullable final String threadName) {
         final Context context = GBApplication.getContext();
 
         final Intent shareIntent = new Intent();
@@ -114,12 +115,23 @@ public class GBExceptionHandler implements Thread.UncaughtExceptionHandler {
 
         final NotificationCompat.Action shareAction = new NotificationCompat.Action.Builder(android.R.drawable.ic_menu_share, context.getString(R.string.share), pendingShareIntent).build();
 
+        final String title;
+        if (threadName == null) {
+            title = context.getString(
+                    R.string.app_crash_notification_title,
+                    context.getString(R.string.app_name)
+            );
+        } else {
+            title = context.getString(
+                    R.string.thread_crash_notification_title,
+                    context.getString(R.string.app_name),
+                    threadName
+            );
+        }
+
         final Notification notification = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_HIGH_PRIORITY_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(context.getString(
-                        R.string.app_crash_notification_title,
-                        context.getString(R.string.app_name)
-                ))
+                .setContentTitle(title)
                 .setContentText(e.getLocalizedMessage())
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .addAction(shareAction)
