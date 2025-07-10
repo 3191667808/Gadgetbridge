@@ -1715,6 +1715,9 @@
     <string name="activity_type_step_aerobics">Step aerobics</string>
     <string name="activity_type_equestrian">Equestrian</string>
     <string name="activity_type_athletics">Athletics</string>
+    <string name="activity_type_free_diving">Free Diving</string>
+    <string name="activity_type_rec_scuba_diving">Recreational SCUBA Diving</string>
+    <string name="activity_type_tech_scuba_diving">Technical SCUBA Diving</string>
     <string name="activity_summaries">Sport Activities</string>
     <string name="activity_summary_detail">Sport Activity Detail</string>
     <string name="activity_summary_edit_name_title">Edit label</string>
