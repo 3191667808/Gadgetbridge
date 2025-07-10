@@ -231,6 +231,11 @@ public class ActivitySummaryEntries {
     public static final String GROUP_RUNNING_FORM = "RunningForm";
     public static final String GROUP_INTERVALS = "workout_intervals";
 
+    // DIVING parameters
+    public static final String MAX_DEPTH = "Maximum diving depth";
+    public static final String WATER_TYPE = "Water type";
+    public static final String GAS = "Gas";
+
     /**
      * Used to signal that this activity has a gps track. This is currently used by ActivitySummaryDetail
      * to display the share and view gpx buttons, even though there's no gpx file.
