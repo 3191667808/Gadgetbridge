@@ -2712,6 +2712,11 @@
     <string name="swim_style_drill">Drill</string>
     <string name="swim_style_mixed">Mixed</string>
     <string name="workout_intervals">Intervals</string>
+    <!-- Diving params -->
+    <string name="diving_maximum_diving_depth">Maximum Diving Depth</string>
+    <string name="diving_water_type">Water Type</string>
+    <string name="diving_gas">Gas</string>
+    
     <string name="devicetype_nut_mini">Nut mini</string>
     <string name="qhybrid_calibration_align_hint">Use the buttons below to align the watch hands to 12:00.</string>
     <string name="lorem_ipsum" translatable="false">Lorem Ipsum</string>

@@ -232,9 +232,9 @@ public class ActivitySummaryEntries {
     public static final String GROUP_INTERVALS = "workout_intervals";
 
     // DIVING parameters
-    public static final String MAX_DEPTH = "Maximum diving depth";
-    public static final String WATER_TYPE = "Water type";
-    public static final String GAS = "Gas";
+    public static final String MAX_DEPTH = "diving_maximum_diving_depth";
+    public static final String WATER_TYPE = "diving_water_type";
+    public static final String GAS = "diving_gas";
 
     /**
      * Used to signal that this activity has a gps track. This is currently used by ActivitySummaryDetail
