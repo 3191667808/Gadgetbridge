@@ -179,6 +179,7 @@ public class GBDaoGenerator {
         addHuaweiWorkoutSwimSegmentsSample(schema, huaweiWorkoutSummary);
         addHuaweiWorkoutSpO2Sample(schema, huaweiWorkoutSummary);
         addHuaweiWorkoutSectionsSample(schema, huaweiWorkoutSummary);
+        addHuaweiAdditionalWorkoutSummarySamples(schema, huaweiWorkoutSummary);
 
         Entity huaweiDictData = addHuaweiDictData(schema, user, device);
         addHuaweiDictDataValues(schema, huaweiDictData);
@@ -1739,6 +1740,20 @@ public class GBDaoGenerator {
         workoutSectionsSample.addIntProperty("divingBreakTime").notNull();
 
         return workoutSectionsSample;
+    }
+
+    private static Entity addHuaweiAdditionalWorkoutSummarySamples(Schema schema, Entity huaweiWorkoutSummary) {
+        Entity additionalWorkoutSummarySample = addEntity(schema, "HuaweiAdditionalWorkoutSummarySample");
+
+        additionalWorkoutSummarySample.setJavaDoc("Contains Additional Huawei Workout Summary samples");
+
+        Property id = additionalWorkoutSummarySample.addLongProperty("workoutId").primaryKey().notNull().getProperty();
+        additionalWorkoutSummarySample.addToOne(huaweiWorkoutSummary, id);
+
+        additionalWorkoutSummarySample.addStringProperty("key").notNull();
+        additionalWorkoutSummarySample.addByteArrayProperty("value").notNull();
+
+        return additionalWorkoutSummarySample;
     }
 
     private static Entity addUltrahumanActivitySample(Schema schema, Entity user, Entity device) {
