@@ -130,8 +130,11 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
         HIKING(14, ActivityKind.HIKING),
         JUMP_ROPING(21, ActivityKind.JUMP_ROPING),
         FREE_DIVING(22, ActivityKind.FREE_DIVING),
+<<<<<<< HEAD
         APNEA_TRAINING(23, ActivityKind.APNEA_TRAINING),
         APNEA_TEST(24, ActivityKind.APNEA_TEST),
+=======
+>>>>>>> 2bf500dde (remove distinction between recreational scuba and tech scuba)
         SCUBA_DIVING(25, ActivityKind.SCUBA_DIVING),
         PING_PONG(128, ActivityKind.PINGPONG),
         BADMINTON(129, ActivityKind.BADMINTON),
