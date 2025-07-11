@@ -313,7 +313,7 @@ public enum ActivityKind {
     STEP_AEROBICS(0x0400010e, R.string.activity_type_step_aerobics),
     EQUESTRIAN(0x0400010f, R.string.activity_type_equestrian),
     ATHLETICS(0x04000110, R.string.activity_type_athletics),
-    FREE_DIVING(0x04000110, R.string.activity_type_free_diving, R.drawable.ic_activity_diving),
+    FREE_DIVING(0x04000111, R.string.activity_type_free_diving, R.drawable.ic_activity_diving),
     SCUBA_DIVING(0x04000112, R.string.activity_type_scuba_diving, R.drawable.ic_activity_diving),
     ;
 
