@@ -314,8 +314,7 @@ public enum ActivityKind {
     EQUESTRIAN(0x0400010f, R.string.activity_type_equestrian),
     ATHLETICS(0x04000110, R.string.activity_type_athletics),
     FREE_DIVING(0x04000110, R.string.activity_type_free_diving, R.drawable.ic_activity_diving),
-    REC_SCUBA_DIVING(0x04000112, R.string.activity_type_rec_scuba_diving, R.drawable.ic_activity_diving),
-    TECH_SCUBA_DIVING(0x04000113, R.string.activity_type_tech_scuba_diving, R.drawable.ic_activity_diving),
+    SCUBA_DIVING(0x04000112, R.string.activity_type_scuba_diving, R.drawable.ic_activity_diving),
     ;
 
     private final int code;
