@@ -232,6 +232,7 @@ public class ActivitySummaryEntries {
     public static final String GROUP_INTERVALS = "workout_intervals";
 
     // DIVING parameters
+<<<<<<< HEAD
     public static final String DIVING_MIN_WATER_TEMPERATURE = "minWaterTemperature";
     public static final String DIVING_MAX_WATER_TEMPERATURE = "maxWaterTemperature";
     public static final String DIVING_MAX_DESCENT_SPEED = "maxDescentSpeed";
@@ -247,6 +248,11 @@ public class ActivitySummaryEntries {
     public static final String DIVING_LONGEST_UNDERWATER_TIME = "longestUnderwaterTime";
     public static final String DIVING_WATER_TYPE = "diving_water_type";
     public static final String DIVING_GAS = "diving_gas";
+=======
+    public static final String MAX_DEPTH = "diving_maximum_diving_depth";
+    public static final String WATER_TYPE = "diving_water_type";
+    public static final String GAS = "diving_gas";
+>>>>>>> 94d771ebd (strings.xml for activity summary entries)
 
     /**
      * Used to signal that this activity has a gps track. This is currently used by ActivitySummaryDetail
