@@ -1604,6 +1604,21 @@ public class GBDaoGenerator {
         workoutSummary.addIntProperty("longestStreak").notNull();
         workoutSummary.addIntProperty("tripped").notNull();
 
+        workoutSummary.addIntProperty("minWaterTemperature").notNull();
+        workoutSummary.addIntProperty("maxWaterTemperature").notNull();
+        workoutSummary.addIntProperty("maxDescentSpeed").notNull();
+        workoutSummary.addIntProperty("maxAscentSpeed").notNull();
+        workoutSummary.addIntProperty("waterType").notNull();
+        workoutSummary.addIntProperty("avgDepth").notNull();
+        workoutSummary.addIntProperty("mTotalDescent").notNull();
+        workoutSummary.addIntProperty("divingCount").notNull();
+        workoutSummary.addIntProperty("breathingTime").notNull();
+        workoutSummary.addIntProperty("numRuns").notNull();
+        workoutSummary.addIntProperty("timeFirstDiaphragmContraction").notNull();
+        workoutSummary.addIntProperty("restTime").notNull();
+        workoutSummary.addIntProperty("totalDivingTime").notNull();
+        workoutSummary.addIntProperty("longestUnderwaterTime").notNull();
+
         return workoutSummary;
     }
 

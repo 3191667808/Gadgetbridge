@@ -208,6 +208,22 @@ public class Workout {
             public int longestStreak = -1;
             public int tripped = -1;
 
+            public int minWaterTemperature = -1;
+            public int maxWaterTemperature = -1;
+            public int maxDescentSpeed = -1;
+            public int maxAscentSpeed = -1;
+            public int waterType = -1;
+            public int avgDepth = -1;
+            public int mTotalDescent = -1;
+            public int divingCount = -1;
+            public int breathingTime = -1;
+            public int numRuns = -1;
+            public int timeFirstDiaphragmContraction = -1;
+            public int restTime = -1;
+            public int totalDivingTime = -1;
+            public int longestUnderwaterTime = -1;
+
+
             public Response(ParamsProvider paramsProvider) {
                 super(paramsProvider);
             }
@@ -309,6 +325,62 @@ public class Workout {
                     this.trainingPoints = container.getShort(0x63);
                 if (container.contains(0x66))
                     this.recoveryHeartRates = container.getBytes(0x66);
+                if (container.contains(0xe7)) { // Key-value pairs
+                    for (HuaweiTLV tlv : container.getObjects(0xe7)) {
+                        int tag = tlv.getInteger(0x68);
+                        int value = tlv.getInteger(0x69);
+
+                        switch (tag) {
+                            case 0x11E1CA9C:
+                                this.minWaterTemperature = value;
+                                break;
+                            case 0x11E1CA9B:
+                                this.maxWaterTemperature = value;
+                                break;
+                            case 0x11E1CA9A:
+                                this.maxDescentSpeed = value;
+                                break;
+                            case 0x11E1CA99:
+                                this.maxAscentSpeed = value;
+                                break;
+                            case 0x11E1CA94:
+                                this.waterType = value;
+                                break;
+                            case 0x11E1CA91:
+                                this.avgDepth = value;
+                                break;
+                            case 0x11E1CA90:
+                                this.mTotalDescent = value;
+                                break;
+                            case 0x11E1CA8F:
+                                this.divingCount = value;
+                                break;
+                            case 0x11E1CA30:
+                                this.breathingTime = value;
+                                break;
+                            case 0x11E1CA31:
+                                this.numRuns = value;
+                                break;
+                            case 0x11E1CA32:
+                                this.timeFirstDiaphragmContraction = value;
+                                break;
+                            case 0x11E1CA6B:
+                                this.restTime = value;
+                                break;
+                            // Both the next seem to correspond to totalDivingTime
+                            //case 0x11E1CA6F:
+                            case 0x11E1CA71:
+                                this.totalDivingTime = value;
+                                break;
+                            case 0x11E1CA92:
+                                this.longestUnderwaterTime = value;
+                                break;
+                            default:
+                                System.out.println("Warning: Unknown tag encountered: " + tag + " with value: " + value);
+                                break;
+                        }
+                    }
+                }
             }
         }
     }
