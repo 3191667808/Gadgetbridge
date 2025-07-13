@@ -1706,6 +1706,11 @@
     <string name="activity_type_other_winter_sports">Other winter sports</string>
     <string name="activity_type_powerboating">Powerboating</string>
     <string name="activity_type_diving">Diving</string>
+    <string name="activity_type_free_diving">Free Diving</string>
+    <string name="activity_type_apnea_training">Apnea Training</string>
+    <string name="activity_type_apnea_test">Apnea Test</string>
+    <string name="activity_type_scuba_diving">SCUBA Diving</string>
+    <string name="activity_type_tech_scuba_diving">Technical SCUBA Diving</string>
     <string name="activity_type_atv">ATV</string>
     <string name="activity_type_paragliding">Paragliding</string>
     <string name="activity_type_deadlift">Deadlift</string>
@@ -2566,6 +2571,20 @@
     <string name="workout_set_repetitions">%1d x</string>
     <string name="workout_set_repetitions_weight_kg">%1$d x %2$.2f kg</string>
     <string name="workout_set_repetitions_weight_lbs">%1$d x %2$.2f lbs</string>
+    <string name="avg_depth">Average depth</string>
+    <string name="max_depth">Max depth</string>
+    <string name="avg_descent_rate">Average descent rate</string>
+    <string name="avg_ascent_rate">Average ascent rate</string>
+    <string name="max_descent_rate">Max descent rate</string>
+    <string name="max_ascent_rate">Max ascent rate</string>
+    <string name="start_cns">Start CNS toxicity</string>
+    <string name="end_cns">End CNS toxicity</string>
+    <string name="start_n2">Start N2 load</string>
+    <string name="end_n2">End N2 load</string>
+    <string name="dive_number">Dive number</string>
+    <string name="bottom_time">Bottom time</string>
+    <string name="diving_water_type">Water Type</string>
+    <string name="diving_gas">Gas</string>
     <!-- activity summary units-->
     <string name="meters">m</string>
     <string name="cm">cm</string>

@@ -230,6 +230,19 @@ public class ActivitySummaryEntries {
     public static final String GROUP_LAPS = "laps";
     public static final String GROUP_RUNNING_FORM = "RunningForm";
     public static final String GROUP_INTERVALS = "workout_intervals";
+    public static final String GROUP_DIVING = "activity_type_diving";
+    public static final String AVG_DEPTH = "avg_depth";
+    public static final String MAX_DEPTH = "max_depth";
+    public static final String AVG_DESCENT_RATE = "avg_descent_rate";
+    public static final String AVG_ASCENT_RATE = "avg_ascent_rate";
+    public static final String MAX_DESCENT_RATE = "max_descent_rate";
+    public static final String MAX_ASCENT_RATE = "max_ascent_rate";
+    public static final String START_CNS = "start_cns";
+    public static final String END_CNS = "end_cns";
+    public static final String START_N2 = "start_n2";
+    public static final String END_N2 = "end_n2";
+    public static final String DIVE_NUMBER = "dive_number";
+    public static final String BOTTOM_TIME = "bottom_time";
 
     /**
      * Used to signal that this activity has a gps track. This is currently used by ActivitySummaryDetail

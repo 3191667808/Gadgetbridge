@@ -313,6 +313,10 @@ public enum ActivityKind {
     STEP_AEROBICS(0x0400010e, R.string.activity_type_step_aerobics),
     EQUESTRIAN(0x0400010f, R.string.activity_type_equestrian),
     ATHLETICS(0x04000110, R.string.activity_type_athletics),
+    FREE_DIVING(0x04000111, R.string.activity_type_free_diving, R.drawable.ic_activity_diving),
+    APNEA_TRAINING(0x04000112, R.string.activity_type_apnea_training),
+    APNEA_TEST(0x04000113, R.string.activity_type_apnea_test),
+    SCUBA_DIVING(0x04000114, R.string.activity_type_scuba_diving, R.drawable.ic_activity_diving),
     ;
 
     private final int code;
@@ -373,6 +377,10 @@ public enum ActivityKind {
     public static boolean isPaceActivity(final ActivityKind activityKind) {
         return activityKind.name().contains("RUN") || activityKind.name().contains("SWIM") ||
                 activityKind.name().contains("TREADMILL") || activityKind.name().contains("WALK");
+    }
+
+    public static boolean isDiving(final ActivityKind activityKind) {
+        return activityKind.name().contains("DIVING") || activityKind.name().contains("APNEA");
     }
 
     public static CycleUnit getCycleUnit(final ActivityKind activityKind) {
@@ -440,6 +448,10 @@ public enum ActivityKind {
             case CRICKET:
             case SOFTBALL:
                 return CycleUnit.SWINGS;
+            case DIVING:
+            case SCUBA_DIVING:
+            case FREE_DIVING:
+                return CycleUnit.NONE;
         }
 
         return CycleUnit.STEPS;
