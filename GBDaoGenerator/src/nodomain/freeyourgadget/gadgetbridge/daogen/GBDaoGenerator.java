@@ -1611,12 +1611,12 @@ public class GBDaoGenerator {
         workoutSummary.addDoubleProperty("waterType").notNull();
         workoutSummary.addDoubleProperty("avgDepth").notNull();
         workoutSummary.addDoubleProperty("maxDepth").notNull();
-        workoutSummary.addDoubleProperty("divingCount").notNull();
+        workoutSummary.addIntProperty("divingCount").notNull();
         workoutSummary.addDoubleProperty("breathingTime").notNull();
-        workoutSummary.addDoubleProperty("numRuns").notNull();
+        workoutSummary.addIntProperty("numRuns").notNull();
         workoutSummary.addDoubleProperty("timeFirstDiaphragmContraction").notNull();
         workoutSummary.addDoubleProperty("restTime").notNull();
-        workoutSummary.addDoubleProperty("totalDivingTime").notNull();
+        workoutSummary.addDoubleProperty("totalUnderwaterTime").notNull();
         workoutSummary.addDoubleProperty("longestUnderwaterTime").notNull();
 
         return workoutSummary;

@@ -454,6 +454,49 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                 summaryData.add(ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE, value, ActivitySummaryEntries.UNIT_ML_KG_MIN);
             }
 
+            // Diving properties
+            if (summary.getMinWaterTemperature() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_MIN_WATER_TEMPERATURE, summary.getMinWaterTemperature(), ActivitySummaryEntries.UNIT_CELSIUS);
+            }
+            if (summary.getMaxWaterTemperature() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_MAX_WATER_TEMPERATURE, summary.getMaxWaterTemperature(), ActivitySummaryEntries.UNIT_CELSIUS);
+            }
+            if (summary.getMaxDescentSpeed() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_MAX_DESCENT_SPEED, summary.getMaxDescentSpeed(), ActivitySummaryEntries.UNIT_METERS_PER_SECOND);
+            }
+            if (summary.getMaxAscentSpeed() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_MAX_ASCENT_SPEED, summary.getMaxAscentSpeed(), ActivitySummaryEntries.UNIT_METERS_PER_SECOND);
+            }
+            if (summary.getWaterType() != -1) {
+                 summaryData.add(ActivitySummaryEntries.DIVING_WATER_TYPE, summary.getWaterType(), ActivitySummaryEntries.UNIT_NONE);
+            }
+            if (summary.getAvgDepth() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_AVG_DEPTH, summary.getAvgDepth(), ActivitySummaryEntries.UNIT_METERS);
+            }
+            if (summary.getMaxDepth() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_MAX_DEPTH, summary.getMaxDepth(), ActivitySummaryEntries.UNIT_METERS);
+            }
+            if (summary.getDivingCount() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_COUNT, summary.getDivingCount(), ActivitySummaryEntries.UNIT_NONE);
+            }
+            if (summary.getBreathingTime() != -1) {
+                summaryData.add(ActivitySummaryEntries.APNEA_TRAIN_BREATHING_TIME, summary.getBreathingTime(), ActivitySummaryEntries.UNIT_SECONDS);
+            }
+            if (summary.getNumRuns() != -1) {
+                summaryData.add(ActivitySummaryEntries.APNEA_TRAIN_NUM_RUNS, summary.getNumRuns(), ActivitySummaryEntries.UNIT_NONE);
+            }
+            if (summary.getTimeFirstDiaphragmContraction() != -1) {
+                summaryData.add(ActivitySummaryEntries.APNEA_TRAIN_TIME_FIRST_DIAPHRAGM_CONTRACTION, summary.getTimeFirstDiaphragmContraction(), ActivitySummaryEntries.UNIT_SECONDS);
+            }
+            if (summary.getRestTime() != -1) {
+                summaryData.add(ActivitySummaryEntries.APNEA_TRAIN_REST_TIME, summary.getRestTime(), ActivitySummaryEntries.UNIT_SECONDS);
+            }
+            if (summary.getTotalUnderwaterTime() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_TOTAL_UNDERWATER_TIME, summary.getTotalDivingTime(), ActivitySummaryEntries.UNIT_SECONDS);
+            }
+            if (summary.getLongestUnderwaterTime() != -1) {
+                summaryData.add(ActivitySummaryEntries.DIVING_LONGEST_UNDERWATER_TIME, summary.getLongestUnderwaterTime(), ActivitySummaryEntries.UNIT_SECONDS);
+            }
 
             Integer summaryMinAltitude = summary.getMinAltitude();
             Integer summaryMaxAltitude = summary.getMaxAltitude();
@@ -815,32 +858,22 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                 summaryData.add(ActivitySummaryEntries.HR_MAX, maxHeartRatePeak, ActivitySummaryEntries.UNIT_BPM);
             }
 
-            if (type == ActivityKind.FREE_DIVING || type == ActivityKind.SCUBA_DIVING) {
-                /* BOTH summaryMaxAltitude AND elevationLoss CORRESPOND TO MAX_DEPTH
-                if(summaryMaxAltitude != null) {
-                    summaryData.add(ActivitySummaryEntries.MAX_DEPTH, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-                */
-
-                if(elevationLoss != null) {
-                    summaryData.add(ActivitySummaryEntries.MAX_DEPTH, elevationLoss / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-
-            } else {
-                if(summaryMinAltitude != null) {
-                    summaryData.add(ActivitySummaryEntries.ALTITUDE_MIN, summaryMinAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-
-                if(summaryMaxAltitude != null) {
-                    summaryData.add(ActivitySummaryEntries.ALTITUDE_MAX, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-                if(elevationGain != null) {
-                    summaryData.add(ActivitySummaryEntries.ELEVATION_GAIN, elevationGain / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-                if(elevationLoss != null) {
-                    summaryData.add(ActivitySummaryEntries.ELEVATION_LOSS, elevationLoss / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
+            if(summaryMinAltitude != null) {
+                summaryData.add(ActivitySummaryEntries.ALTITUDE_MIN, summaryMinAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
             }
+
+            if(summaryMaxAltitude != null) {
+                summaryData.add(ActivitySummaryEntries.ALTITUDE_MAX, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
+            }
+
+            if(elevationGain != null) {
+                summaryData.add(ActivitySummaryEntries.ELEVATION_GAIN, elevationGain / 10.0f, ActivitySummaryEntries.UNIT_METERS);
+            }
+            
+            if(elevationLoss != null) {
+                summaryData.add(ActivitySummaryEntries.ELEVATION_LOSS, elevationLoss / 10.0f, ActivitySummaryEntries.UNIT_METERS);
+            }
+            
 
             final LinkedHashMap<String, ActivitySummaryTableRowEntry> pacesTable = new LinkedHashMap<>();
 

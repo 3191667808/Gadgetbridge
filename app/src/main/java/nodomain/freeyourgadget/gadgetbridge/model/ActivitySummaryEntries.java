@@ -232,9 +232,21 @@ public class ActivitySummaryEntries {
     public static final String GROUP_INTERVALS = "workout_intervals";
 
     // DIVING parameters
-    public static final String MAX_DEPTH = "diving_maximum_diving_depth";
-    public static final String WATER_TYPE = "diving_water_type";
-    public static final String GAS = "diving_gas";
+    public static final String DIVING_MIN_WATER_TEMPERATURE = "minWaterTemperature";
+    public static final String DIVING_MAX_WATER_TEMPERATURE = "maxWaterTemperature";
+    public static final String DIVING_MAX_DESCENT_SPEED = "maxDescentSpeed";
+    public static final String DIVING_MAX_ASCENT_SPEED = "maxAscentSpeed";
+    public static final String DIVING_AVG_DEPTH = "avgDepth";
+    public static final String DIVING_MAX_DEPTH = "maxDepth";
+    public static final String DIVING_COUNT = "divingCount";
+    public static final String APNEA_TRAIN_BREATHING_TIME = "breathingTime";
+    public static final String APNEA_TRAIN_NUM_RUNS = "numRuns";
+    public static final String APNEA_TRAIN_TIME_FIRST_DIAPHRAGM_CONTRACTION = "timeFirstDiaphragmContraction";
+    public static final String APNEA_TRAIN_REST_TIME = "restTime";
+    public static final String DIVING_TOTAL_UNDERWATER_TIME = "totalUnderwaterTime";
+    public static final String DIVING_LONGEST_UNDERWATER_TIME = "longestUnderwaterTime";
+    public static final String DIVING_WATER_TYPE = "diving_water_type";
+    public static final String DIVING_GAS = "diving_gas";
 
     /**
      * Used to signal that this activity has a gps track. This is currently used by ActivitySummaryDetail

@@ -220,7 +220,7 @@ public class Workout {
             public int numRuns = -1;
             public int timeFirstDiaphragmContraction = -1;
             public int restTime = -1;
-            public int totalDivingTime = -1;
+            public int totalUnderwaterTime = -1;
             public int longestUnderwaterTime = -1;
 
 
@@ -347,10 +347,10 @@ public class Workout {
                                 this.waterType = value;
                                 break;
                             case 0x11E1CA91:
-                                this.avgDepth = value;
+                                this.avgDepth = value / 10.0f;
                                 break;
                             case 0x11E1CA90:
-                                this.mTotalDescent = value;
+                                this.maxDepth = value / 10.0f;
                                 break;
                             case 0x11E1CA8F:
                                 this.divingCount = value;
@@ -370,7 +370,7 @@ public class Workout {
                             // Both the next seem to correspond to totalDivingTime
                             //case 0x11E1CA6F:
                             case 0x11E1CA71:
-                                this.totalDivingTime = value;
+                                this.totalUnderwaterTime = value;
                                 break;
                             case 0x11E1CA92:
                                 this.longestUnderwaterTime = value;
