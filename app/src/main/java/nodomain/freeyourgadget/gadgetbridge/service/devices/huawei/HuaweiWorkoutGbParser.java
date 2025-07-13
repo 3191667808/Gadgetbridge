@@ -862,6 +862,10 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                 summaryData.add(ActivitySummaryEntries.ALTITUDE_MAX, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
             }
 
+            if(summaryMinAltitude != null) {
+                summaryData.add(ActivitySummaryEntries.ALTITUDE_MIN, summaryMinAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
+            }
+
             if(elevationGain != null) {
                 summaryData.add(ActivitySummaryEntries.ELEVATION_GAIN, elevationGain / 10.0f, ActivitySummaryEntries.UNIT_METERS);
             }
@@ -1059,5 +1063,4 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
             LOG.error("Exception parsing workout data", e);
         }
     }
-  }
 }
