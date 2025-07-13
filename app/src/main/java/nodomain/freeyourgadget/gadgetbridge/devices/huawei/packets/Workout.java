@@ -214,7 +214,7 @@ public class Workout {
             public int maxAscentSpeed = -1;
             public int waterType = -1;
             public int avgDepth = -1;
-            public int mTotalDescent = -1;
+            public int maxDepth = -1;
             public int divingCount = -1;
             public int breathingTime = -1;
             public int numRuns = -1;
