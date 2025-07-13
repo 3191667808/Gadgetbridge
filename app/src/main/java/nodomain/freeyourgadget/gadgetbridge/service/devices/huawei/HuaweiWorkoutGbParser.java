@@ -868,7 +868,6 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                 }
                 */
 
-<<<<<<< HEAD
             if(summaryMaxAltitude != null) {
                 summaryData.add(ActivitySummaryEntries.ALTITUDE_MAX, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
             }
@@ -881,27 +880,6 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                 summaryData.add(ActivitySummaryEntries.ELEVATION_LOSS, elevationLoss / 10.0f, ActivitySummaryEntries.UNIT_METERS);
             }
             
-=======
-                if(elevationLoss != null) {
-                    summaryData.add(ActivitySummaryEntries.MAX_DEPTH, elevationLoss / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-
-            } else {
-                if(summaryMinAltitude != null) {
-                    summaryData.add(ActivitySummaryEntries.ALTITUDE_MIN, summaryMinAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-
-                if(summaryMaxAltitude != null) {
-                    summaryData.add(ActivitySummaryEntries.ALTITUDE_MAX, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-                if(elevationGain != null) {
-                    summaryData.add(ActivitySummaryEntries.ELEVATION_GAIN, elevationGain / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-                if(elevationLoss != null) {
-                    summaryData.add(ActivitySummaryEntries.ELEVATION_LOSS, elevationLoss / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-            }
->>>>>>> f8faf29dc (- add activitySummaryEntries MAX_DEPTH, WATER_TYPE and GAS)
 
             final LinkedHashMap<String, ActivitySummaryTableRowEntry> pacesTable = new LinkedHashMap<>();
 
