@@ -858,13 +858,6 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                 summaryData.add(ActivitySummaryEntries.HR_MAX, maxHeartRatePeak, ActivitySummaryEntries.UNIT_BPM);
             }
 
-            if (type == ActivityKind.FREE_DIVING || type == ActivityKind.REC_SCUBA_DIVING || type == ActivityKind.TECH_SCUBA_DIVING) {
-                /* BOTH summaryMaxAltitude AND elevationLoss CORRESPOND TO MAX_DEPTH
-                if(summaryMaxAltitude != null) {
-                    summaryData.add(ActivitySummaryEntries.MAX_DEPTH, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
-                }
-                */
-
             if(summaryMaxAltitude != null) {
                 summaryData.add(ActivitySummaryEntries.ALTITUDE_MAX, summaryMaxAltitude / 10.0f, ActivitySummaryEntries.UNIT_METERS);
             }
