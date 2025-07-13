@@ -2723,10 +2723,14 @@
     <string name="diving_water_type">Water Type</string>
     <string name="diving_gas">Gas</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
     
 >>>>>>> 94d771ebd (strings.xml for activity summary entries)
+=======
+
+>>>>>>> 88e003a86 (correct repeated code mistake (sorry x))
     <string name="devicetype_nut_mini">Nut mini</string>
     <string name="qhybrid_calibration_align_hint">Use the buttons below to align the watch hands to 12:00.</string>
     <string name="lorem_ipsum" translatable="false">Lorem Ipsum</string>
