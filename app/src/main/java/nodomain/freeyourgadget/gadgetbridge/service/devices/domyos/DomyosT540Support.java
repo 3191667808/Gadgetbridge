@@ -167,7 +167,7 @@ public class DomyosT540Support extends AbstractBTLESingleDeviceSupport {
     }
 
     void writeChunked(TransactionBuilder builder, byte[] data) {
-        builder.writeChunkedData(getCharacteristic(UUUD_CHARACTERISTICS_WRITE), data, 20)
+        builder.writeChunkedData(getCharacteristic(UUUD_CHARACTERISTICS_WRITE), data, getMTU() - 3)
                 .wait(100);
     }
 
