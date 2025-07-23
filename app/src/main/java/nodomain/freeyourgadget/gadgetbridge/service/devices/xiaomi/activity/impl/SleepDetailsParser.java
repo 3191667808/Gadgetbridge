@@ -67,10 +67,11 @@ public class SleepDetailsParser extends XiaomiActivityParser {
             LOG.warn("Expected 0 padding after fileId, got {} - parsing might fail", fileIdPadding);
         }
 
-        final byte header = buf.get();
         if (fileId.getVersion() > 4) {
             buf.get();
         }
+        // i don't know why but this works for buffer position error
+        final byte header = buf.get();
 
         final int isAwake = buf.get() & 0xff; // 0/1 - more correctly this would be !isSleepFinish
         final int bedTime = buf.getInt();
