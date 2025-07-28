@@ -133,12 +133,12 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
         filter.addAction(COMMAND_DROPDOWN_CHANGED);
         filter.addAction(COMMAND_TOGGLE_CHANGED);
         broadcastManager.registerReceiver(commandReceiver, filter);
-        builder.add(new SetDeviceStateAction(getDevice(), GBDevice.State.INITIALIZING, getContext()));
+        builder.setDeviceState(GBDevice.State.INITIALIZING);
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
         builder.requestMtu(64);
-        builder.notify(getCharacteristic(UUID_READ_CHARACTERISTIC), true);
-        builder.add(new SetDeviceStateAction(getDevice(), GBDevice.State.INITIALIZED, getContext()));
+        builder.notify(UUID_READ_CHARACTERISTIC, true);
+        builder.setDeviceState(GBDevice.State.INITIALIZED);
 
         cardoBLEProfile.initialize(builder);
         cardoBLEProfile.getFirmwareVersion(builder);

@@ -32,7 +32,7 @@ public class CardoBLEProfile<T extends AbstractBTLESingleDeviceSupport> extends 
     public void initialize(final TransactionBuilder builder) {
         CardoRequest req = new CardoRequest(CardoMessage.INIT, new byte[]{0, 0});
 
-        builder.write(getCharacteristic(UUID_WRITE_CHARACTERISTIC), req.getBtMessage());
+        builder.write(UUID_WRITE_CHARACTERISTIC, req.getBtMessage());
     }
 
     public void getFirmwareVersion(final TransactionBuilder builder) {
@@ -42,7 +42,7 @@ public class CardoBLEProfile<T extends AbstractBTLESingleDeviceSupport> extends 
                 (byte) ConfigMessage.InfoType.VOLUMES.getTypeId(),
                 (byte) ConfigMessage.InfoType.CONFIG.getTypeId()});
 
-        builder.write(getCharacteristic(UUID_WRITE_CHARACTERISTIC), req.getBtMessage());
+        builder.write(UUID_WRITE_CHARACTERISTIC, req.getBtMessage());
     }
 
     public void subscribe(final TransactionBuilder builder) {
@@ -50,7 +50,7 @@ public class CardoBLEProfile<T extends AbstractBTLESingleDeviceSupport> extends 
         req.appendPayload(EnumUtils.generateBitVector(SubscribeMessage.Services.class, SubscribeMessage.Services.knownValues()), 1);
         req.appendPayload(EnumUtils.generateBitVector(SubscribeMessage.SpecificServices.class, SubscribeMessage.SpecificServices.knownValues()), 2);
 
-        builder.write(getCharacteristic(UUID_WRITE_CHARACTERISTIC), req.getBtMessage());
+        builder.write(UUID_WRITE_CHARACTERISTIC, req.getBtMessage());
     }
 
     public void toggleFmRadioPower(boolean on) {
@@ -70,12 +70,12 @@ public class CardoBLEProfile<T extends AbstractBTLESingleDeviceSupport> extends 
     }
 
     public void sendOutgoingRequest(String taskName, CardoRequest cardoRequest) {
-        final TransactionBuilder builder = new TransactionBuilder(taskName);
+        final TransactionBuilder builder = cardoDeviceSupport.createTransactionBuilder(taskName);
         LOG.debug("SENDING {}: {}", taskName, GB.hexdump(cardoRequest.getBtMessage()));
 
-        builder.write(getCharacteristic(UUID_WRITE_CHARACTERISTIC), cardoRequest.getBtMessage());
+        builder.write(UUID_WRITE_CHARACTERISTIC, cardoRequest.getBtMessage());
 
-        builder.queue(this.cardoDeviceSupport.getQueue());
+        builder.queue();
 
     }
 
