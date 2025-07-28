@@ -78,12 +78,13 @@ import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
-import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
-public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements SharedPreferences.OnSharedPreferenceChangeListener {
+public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implements SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(WearFitDeviceSupport.class);
 
@@ -431,7 +432,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         SharedPreferences sharedPreferences = GBApplication.getDeviceSpecificSharedPrefs(this.getDevice().getAddress());
 
-        this.setTimeMode(transaction, sharedPreferences);
+        this.setTimeMode(transaction, getDevicePrefs());
         this.setDateTime(transaction);
         this.setQuietHours(transaction, sharedPreferences);
 
@@ -450,6 +451,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         this.fetch(true);
     }
 
+    @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         LOG.debug(key + " changed");
 
@@ -461,7 +463,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onSharedPreferenceChanged");
 
         if (key.equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT)) {
-            this.setTimeMode(transactionBuilder, sharedPreferences);
+            this.setTimeMode(transactionBuilder, new DevicePrefs(sharedPreferences, getDevice()));
         } else if (key.equals(DeviceSettingsPreferenceConst.PREF_ACTIVATE_DISPLAY_ON_LIFT)) {
             this.setHeadsUpScreen(transactionBuilder, sharedPreferences);
         } else if (key.equals(DeviceSettingsPreferenceConst.PREF_DISCONNECT_NOTIFICATION)) {
@@ -594,12 +596,12 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         if (heartRate > 0) {
             sample.setHeartRate(heartRate);
             sample.setTimestamp((int) (System.currentTimeMillis() / 1000));
-            sample.setRawKind(ActivityKind.TYPE_ACTIVITY);
+            sample.setRawKind(ActivityKind.ACTIVITY.getCode());
         } else {
             if (heartRate == WearFitConstants.ARG_HEARTRATE_NO_TARGET) {
-                sample.setRawKind(ActivityKind.TYPE_NOT_WORN);
+                sample.setRawKind(ActivityKind.NOT_WORN.getCode());
             } else if (heartRate == WearFitConstants.ARG_HEARTRATE_NO_READING) {
-                sample.setRawKind(ActivityKind.TYPE_NOT_MEASURED);
+                sample.setRawKind(ActivityKind.NOT_MEASURED.getCode());
             } else {
                 LOG.warn("invalid heart rate reading: " + heartRate);
                 return;
@@ -622,7 +624,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         sample.setHeartRate(heartRate);
         sample.setTimestamp(timeStamp);
 
-        sample.setRawKind(ActivityKind.TYPE_ACTIVITY);
+        sample.setRawKind(ActivityKind.ACTIVITY.getCode());
 
         this.addGBActivitySample(sample);
     }
@@ -641,7 +643,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
             sample.setSteps(steps - dayStepCount);
             sample.setTimestamp(timeStamp);
 
-            sample.setRawKind(ActivityKind.TYPE_ACTIVITY);
+            sample.setRawKind(ActivityKind.ACTIVITY.getCode());
 
             this.addGBActivitySample(sample);
         }
@@ -666,12 +668,11 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
     @Override
     public boolean onCharacteristicChanged(BluetoothGatt gatt,
-                                           BluetoothGattCharacteristic characteristic) {
-        if (super.onCharacteristicChanged(gatt, characteristic)) {
+                                           BluetoothGattCharacteristic characteristic, byte[] data) {
+        if (super.onCharacteristicChanged(gatt, characteristic, data)) {
             return true;
         }
 
-        byte[] data = characteristic.getValue();
         if (data.length < 6)
             return true;
 
@@ -1025,9 +1026,9 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         return this;
     }
 
-    private WearFitDeviceSupport setTimeMode(TransactionBuilder transactionBuilder, SharedPreferences sharedPreferences) {
+    private WearFitDeviceSupport setTimeMode(TransactionBuilder transactionBuilder, DevicePrefs devicePreferences) {
         return this.setTimeMode(transactionBuilder,
-                WearFitCoordinator.getTimeMode(sharedPreferences));
+                WearFitCoordinator.getTimeMode(devicePreferences));
     }
 
     private WearFitDeviceSupport setEnableRealTimeHeartRate(TransactionBuilder transaction, boolean enable) {
@@ -1124,9 +1125,9 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
     private WearFitDeviceSupport sendWeatherCurrentPressureUV(TransactionBuilder transaction, WeatherSpec weatherSpec) {
         //byte[] data = GB.hexStringToByteArray("ab0007ff8a800103c300");
         byte[] bytes = new byte[4];
-        int uvIndex = Math.round(weatherSpec.uvIndex);
+        int uvIndex = Math.round(weatherSpec.getUvIndex());
         bytes[0] = (byte)uvIndex;
-        int pressure = Math.round(weatherSpec.pressure);
+        int pressure = Math.round(weatherSpec.getPressure());
         bytes[1] = (byte)(pressure/256);
         bytes[2] = (byte)(pressure%256);
         bytes[3] = 0;
@@ -1155,8 +1156,8 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
         byte[] currentHourData = new byte[6];
 
         byte[] data = new byte[command_header_ea.length +currentHourData.length ];
-        int temperature = weatherSpec.currentTemp - 273;
-        int code = (byte)openWeatherToWEatherCode(weatherSpec.currentConditionCode).ordinal();
+        int temperature = weatherSpec.getCurrentTemp() - 273;
+        int code = (byte)openWeatherToWEatherCode(weatherSpec.getCurrentConditionCode()).ordinal();
         byte weatherCode = (byte)(code << 4);
         if (temperature < 0) {
             weatherCode+=1;
@@ -1164,10 +1165,10 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         currentHourData[0] =(byte)weatherCode;
         currentHourData[1] =(byte)temperature;
-        currentHourData[2] = (byte)(weatherSpec.windDirection/256);
-        currentHourData[3] = (byte)(weatherSpec.windDirection%256);
-        currentHourData[4] = (byte)(weatherSpec.currentHumidity);
-        currentHourData[5] = (byte)(Math.round(weatherSpec.uvIndex));
+        currentHourData[2] = (byte)(weatherSpec.getWindDirection()/256);
+        currentHourData[3] = (byte)(weatherSpec.getWindDirection()%256);
+        currentHourData[4] = (byte)(weatherSpec.getCurrentHumidity());
+        currentHourData[5] = (byte)(Math.round(weatherSpec.getUvIndex()));
 
          System.arraycopy(command_header_ea, 0, data, 0, command_header_ea.length);
         data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX] = (byte) (currentHourData.length + 5);
@@ -1184,15 +1185,15 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
         byte[] bytes = new byte[WearFitConstants.WEATHER_SIZE*2];
 
-        int dayCount = Math.min(weatherSpec.forecasts.size(), WearFitConstants.WEATHER_SIZE);
+        int dayCount = Math.min(weatherSpec.getForecasts().size(), WearFitConstants.WEATHER_SIZE);
 
 
 
         for (int i = 0; i < dayCount; i++) {
-            WeatherSpec.Daily day  = weatherSpec.forecasts.get(i);
+            WeatherSpec.Daily day  = weatherSpec.getForecasts().get(i);
 
-            int temperature = (day.minTemp + day.maxTemp)/2 - 273;
-            int code = (byte)openWeatherToWEatherCode(day.conditionCode).ordinal();
+            int temperature = (day.getMinTemp() + day.getMaxTemp())/2 - 273;
+            int code = (byte)openWeatherToWEatherCode(day.getConditionCode()).ordinal();
             byte weatherCode = (byte)(code << 4);
             if (temperature < 0) {
                 weatherCode+=1;
@@ -1212,19 +1213,19 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
 
     private WearFitDeviceSupport sendWeatherMinMax(TransactionBuilder transaction, WeatherSpec weatherSpec) {
         byte[] bytes = new byte[WearFitConstants.WEATHER_SIZE*2];
-        int dayCount = Math.min(weatherSpec.forecasts.size(), WearFitConstants.WEATHER_SIZE);
+        int dayCount = Math.min(weatherSpec.getForecasts().size(), WearFitConstants.WEATHER_SIZE);
 
         for (int i = 0; i < dayCount; i++) {
-            WeatherSpec.Daily day  = weatherSpec.forecasts.get(i);
+            WeatherSpec.Daily day  = weatherSpec.getForecasts().get(i);
 
-            byte minTemp = (byte)(Math.abs(day.minTemp -273) & 0xF7);
-            byte maxTemp = (byte)(Math.abs(day.maxTemp -273) & 0xF7);
+            byte minTemp = (byte)(Math.abs(day.getMinTemp() -273) & 0xF7);
+            byte maxTemp = (byte)(Math.abs(day.getMaxTemp() -273) & 0xF7);
 
-            if (day.minTemp -273 < 0 ) {
+            if (day.getMinTemp() -273 < 0 ) {
                 minTemp += (byte)(1<<7);
             }
 
-            if (day.maxTemp -273 < 0 ) {
+            if (day.getMaxTemp() -273 < 0 ) {
                 maxTemp += (byte)(1<<7);
             }
 
@@ -1242,7 +1243,7 @@ public class WearFitDeviceSupport extends AbstractBTLEDeviceSupport implements S
     }
 
     private WearFitDeviceSupport sendWeatherCity(TransactionBuilder transaction, WeatherSpec weatherSpec) {
-        byte[] cityBytes = weatherSpec.location.getBytes();
+        byte[] cityBytes = weatherSpec.getLocation().getBytes();
 
         byte[] command_header_ea = {
                 (byte) 0xea, // only one command in such format, hardcode for now

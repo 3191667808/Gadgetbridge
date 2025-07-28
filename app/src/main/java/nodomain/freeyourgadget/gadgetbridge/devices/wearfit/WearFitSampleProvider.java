@@ -26,6 +26,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.WearFitActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.WearFitActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 
 public class WearFitSampleProvider extends AbstractSampleProvider<WearFitActivitySample> {
 
@@ -40,13 +41,13 @@ public class WearFitSampleProvider extends AbstractSampleProvider<WearFitActivit
     }
 
     @Override
-    public int normalizeType(int rawType) {
-        return rawType;
+    public ActivityKind normalizeType(int rawType) {
+        return ActivityKind.fromCode(rawType);
     }
 
     @Override
-    public int toRawActivityKind(int activityKind) {
-        return activityKind;
+    public int toRawActivityKind(ActivityKind activityKind) {
+        return activityKind.getCode();
     }
 
     @Override
