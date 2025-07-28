@@ -51,6 +51,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.wearfit.WearFitDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 import static nodomain.freeyourgadget.gadgetbridge.GBApplication.getContext;
 
@@ -77,12 +78,10 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
         return !lostReminder.equals(getContext().getString(R.string.p_off));
     }
 
-    public static byte getTimeMode(SharedPreferences sharedPrefs) {
-        GBPrefs gbPrefs = new GBPrefs(new Prefs(sharedPrefs));
+    public static byte getTimeMode(DevicePrefs devPrefs) {
+        String timeMode = devPrefs.getTimeFormat();
 
-        String timeMode = gbPrefs.getTimeFormat();
-
-        if (timeMode.equals(getContext().getString(R.string.p_timeformat_24h))) {
+        if (timeMode.equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_24H)) {
             return WearFitConstants.ARG_SET_TIMEMODE_24H;
         } else {
             return WearFitConstants.ARG_SET_TIMEMODE_12H;
@@ -166,17 +165,12 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsCalendarEvents() {
-        return false;
-    }
-
-    @Override
     public boolean supportsRealtimeData() {
         return true;
     }
 
     @Override
-    public boolean supportsWeather() {
+    public boolean supportsWeather(final GBDevice device) {
         return true;
     }
 
@@ -186,18 +180,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supports(final GBDeviceCandidate candidate) {
-        return true;
-    }
-
-    @Nullable
-    @Override
-    public Class<? extends Activity> getPairingActivity() {
-        return null;
-    }
-
-    @Override
-    public boolean supportsActivityDataFetching() {
+    public boolean supportsActivityDataFetching(final GBDevice device) {
         return true;
     }
 
@@ -209,16 +192,6 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
         return new WearFitSampleProvider(device, session);
-    }
-
-    @Override
-    public InstallHandler findInstallHandler(Uri uri, Context context) {
-        return null;
-    }
-
-    @Override
-    public boolean supportsScreenshots(final GBDevice device) {
-        return false;
     }
 
     @Override
@@ -237,16 +210,6 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsAppsManagement(final GBDevice device) {
-        return false;
-    }
-
-    @Override
-    public Class<? extends Activity> getAppsManagementActivity() {
-        return null;
-    }
-
-    @Override
     public int[] getSupportedDeviceSpecificSettings(GBDevice device) {
         return new int[]{
                 R.xml.devicesettings_timeformat,
@@ -260,7 +223,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @NonNull
     @Override
-    public Class<? extends DeviceSupport> getDeviceSupportClass() {
+    public Class<? extends DeviceSupport> getDeviceSupportClass(GBDevice device) {
         return WearFitDeviceSupport.class;
     }
 
