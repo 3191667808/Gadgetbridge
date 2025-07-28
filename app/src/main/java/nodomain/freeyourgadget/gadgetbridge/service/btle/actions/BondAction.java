@@ -22,12 +22,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
 
+import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.BondingInterface;
 import nodomain.freeyourgadget.gadgetbridge.util.BondingUtil;
@@ -70,10 +72,10 @@ public class BondAction extends PlainAction implements BondingInterface {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         BluetoothDevice device = gatt.getDevice();
         mCandidate = new GBDeviceCandidate(device, GBDevice.RSSI_UNKNOWN, null, null);
         BondingUtil.tryBondThenComplete(this, device);
-        return true;
+        return 1;
     }
 }

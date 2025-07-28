@@ -18,8 +18,12 @@ package nodomain.freeyourgadget.gadgetbridge.service.btle.actions;
 
 import android.bluetooth.BluetoothGatt;
 
+import androidx.annotation.NonNull;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 
 /**
  * A special action that checks for an abort-condition, and if met, the currently
@@ -29,12 +33,12 @@ public abstract class AbortTransactionAction extends PlainAction {
     private static final Logger LOG = LoggerFactory.getLogger(AbortTransactionAction.class);
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         if (shouldAbort()) {
             LOG.info("Aborting transaction because abort criteria met.");
-            return false;
+            return Integer.MIN_VALUE;
         }
-        return true;
+        return 1;
     }
 
     protected abstract boolean shouldAbort();

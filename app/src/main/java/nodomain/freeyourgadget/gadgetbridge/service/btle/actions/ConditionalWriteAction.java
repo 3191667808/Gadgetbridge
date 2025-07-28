@@ -19,6 +19,10 @@ package nodomain.freeyourgadget.gadgetbridge.service.btle.actions;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 
+import androidx.annotation.NonNull;
+
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
+
 public abstract class ConditionalWriteAction extends WriteAction {
     private boolean actualGenerated;
     private byte[] actual;
@@ -28,12 +32,12 @@ public abstract class ConditionalWriteAction extends WriteAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         byte[] value = getValue();
         if (value != null) {
-            return super.run(gatt);
+            return super.run(gatt, deviceSupport, deviceIdx);
         }
-        return true;
+        return 1;
     }
 
     @Override

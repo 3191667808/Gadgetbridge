@@ -85,7 +85,7 @@ public abstract class AbstractBTLEDeviceSupport extends AbstractDeviceSupport
     @Nullable
     abstract BluetoothGattCharacteristic getCharacteristic(UUID uuid, int deviceIdx);
 
-    abstract int getMTU(int deviceIdx);
+    abstract public int getMTU(int deviceIdx);
 
     /// the maximum payload length supported for one write action
     @IntRange(from = 20L, to = 512L)

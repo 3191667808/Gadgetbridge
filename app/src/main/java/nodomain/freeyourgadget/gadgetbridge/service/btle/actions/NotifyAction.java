@@ -26,12 +26,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BleNamesResolver;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCallback;
 
 import static nodomain.freeyourgadget.gadgetbridge.service.btle.GattDescriptor.UUID_DESCRIPTOR_GATT_CLIENT_CHARACTERISTIC_CONFIGURATION;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresPermission;
 
 /**
@@ -96,7 +98,7 @@ public class NotifyAction extends BtLEAction {
 
     @Override
     @RequiresPermission("android.permission.BLUETOOTH_CONNECT")
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         // register gatt's callback to receive notifications
         boolean result = gatt.setCharacteristicNotification(getCharacteristic(), enableFlag);
 
@@ -129,7 +131,7 @@ public class NotifyAction extends BtLEAction {
             hasWrittenDescriptor = false;
         }
 
-        return result;
+        return result ? 1 : Integer.MIN_VALUE;
     }
 
     @Override

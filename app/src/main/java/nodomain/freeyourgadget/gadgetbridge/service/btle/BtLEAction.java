@@ -1,4 +1,4 @@
-/*  Copyright (C) 2015-2024 Carsten Pfeiffer, Uwe Hermann
+/*  Copyright (C) 2015-2025 Carsten Pfeiffer, Uwe Hermann, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -19,6 +19,8 @@ package nodomain.freeyourgadget.gadgetbridge.service.btle;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 
+import androidx.annotation.NonNull;
+
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 
 /**
@@ -33,7 +35,7 @@ public abstract class BtLEAction {
     private final BluetoothGattCharacteristic characteristic;
     private final long creationTimestamp;
 
-    public BtLEAction(BluetoothGattCharacteristic characteristic) {
+    protected BtLEAction(BluetoothGattCharacteristic characteristic) {
         this.characteristic = characteristic;
         creationTimestamp = System.currentTimeMillis();
     }
@@ -47,13 +49,20 @@ public abstract class BtLEAction {
      */
     public abstract boolean expectsResult();
 
-    /**
-     * Executes this action, e.g. reads or write a GATT characteristic.
-     *
-     * @param gatt the characteristic to manipulate, or null if none.
-     * @return true if the action was successful, false otherwise
-     */
-    public abstract boolean run(BluetoothGatt gatt);
+    /// Executes this action, e.g. reads or write a GATT characteristic.
+    ///
+    /// @return Delta index for the next action to execute.
+    /// <ul>
+    ///      <li>{@code 1} - action with {@code index + 1} in {@link Transaction#getActions()}
+    ///                      or finish transaction if resulting index is {@code >= list.size()}</li>
+    ///      <li>{@code 0} - repeat this action</li>
+    ///      <li>{@code -1} - action with {@code index - 1} in {@link Transaction#getActions()}
+    ///                       or abort transaction if resulting index is {@code < 0}</li>
+    ///      <li>{@code Integer.MIN_VALUE} - abort this transaction and log</li>
+    ///      <li>{@code Integer.MAX_VALUE} - finish this transaction</li>
+    ///  </ul>
+    public abstract int run(@NonNull BluetoothGatt gatt,
+                            @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx);
 
     /**
      * Returns the GATT characteristic being read/written/...
@@ -69,7 +78,7 @@ public abstract class BtLEAction {
     }
 
     public String toString() {
-        BluetoothGattCharacteristic characteristic = getCharacteristic();
+        BluetoothGattCharacteristic characteristic = this.characteristic;
         String uuid = characteristic == null ? "(null)" : characteristic.getUuid().toString();
         return getCreationTime() + " " + getClass().getSimpleName() + " on characteristic " + uuid;
     }

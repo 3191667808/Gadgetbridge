@@ -44,7 +44,6 @@ public class XiaomiBleProtocolV2 extends AbstractXiaomiBleProtocol {
     private BluetoothGattCharacteristic btCharacteristicWrite;
 
     private final AtomicInteger packetSequenceCounter = new AtomicInteger(0);
-    private int maxWriteSize = 244; // MTU of 247 - 3 bytes for the ATT overhead
 
     private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
     private final Map<XiaomiChannelHandler.Channel, XiaomiChannelHandler> mChannelHandlers = new HashMap<>();
@@ -78,7 +77,7 @@ public class XiaomiBleProtocolV2 extends AbstractXiaomiBleProtocol {
         }
 
         // request highest possible MTU; device should response with the highest supported MTU anyway
-        builder.requestMtu(512);
+        builder.requestMtu(517);
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(btCharacteristicRead, true);
         builder.setDeviceState(GBDevice.State.AUTHENTICATING);
@@ -185,10 +184,7 @@ public class XiaomiBleProtocolV2 extends AbstractXiaomiBleProtocol {
 
     @Override
     public void onMtuChanged(final BluetoothGatt gatt, final int mtu, final int status) {
-        if (status != BluetoothGatt.GATT_SUCCESS) {
-            return;
-        }
-        this.maxWriteSize = calcMaxWriteChunk(mtu);
+        // nop
     }
 
     @Override
@@ -349,6 +345,6 @@ public class XiaomiBleProtocolV2 extends AbstractXiaomiBleProtocol {
     }
 
     private void writeChunks(final TransactionBuilder builder, final byte[] value) {
-        builder.writeChunkedData(btCharacteristicWrite, value, maxWriteSize);
+        builder.writeChunked(btCharacteristicWrite.getUuid(), value);
     }
 }

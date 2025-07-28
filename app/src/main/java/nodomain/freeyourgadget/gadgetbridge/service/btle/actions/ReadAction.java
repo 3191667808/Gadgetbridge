@@ -20,9 +20,12 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 
+import androidx.annotation.NonNull;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCallback;
 
@@ -40,13 +43,17 @@ public class ReadAction extends BtLEAction {
 
     @SuppressLint("MissingPermission")
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         int properties = getCharacteristic().getProperties();
         if ((properties & BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
-            return gatt.readCharacteristic(getCharacteristic());
+            if (gatt.readCharacteristic(getCharacteristic())) {
+                return 1;
+            } else {
+                return Integer.MIN_VALUE;
+            }
         }
         LOG.error("ReadAction for non-readable characteristic {}", getCharacteristic().getUuid());
-        return false;
+        return Integer.MIN_VALUE;
     }
 
     @Override

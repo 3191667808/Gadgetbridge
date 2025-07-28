@@ -19,6 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.btle.actions;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothGatt;
 
+import androidx.annotation.NonNull;
+
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCallback;
 
@@ -40,8 +43,8 @@ public class RequestMtuAction extends BtLEAction {
 
     @SuppressLint("MissingPermission")
     @Override
-    public boolean run(BluetoothGatt gatt) {
-        return gatt.requestMtu(this.mtu);
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
+        return gatt.requestMtu(this.mtu) ? 1 : Integer.MIN_VALUE;
     }
 
     @Override

@@ -19,6 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.btle.actions;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothGatt;
 
+import androidx.annotation.NonNull;
+
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BleNamesResolver;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 
@@ -38,8 +41,12 @@ public class RequestConnectionPriorityAction extends BtLEAction {
 
     @Override
     @SuppressLint("MissingPermission")
-    public boolean run(final BluetoothGatt gatt) {
-        return gatt.requestConnectionPriority(priority);
+    public int run(@NonNull final BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
+        if (gatt.requestConnectionPriority(priority)) {
+            return 1;
+        } else {
+            return Integer.MIN_VALUE;
+        }
     }
 
     @Override

@@ -21,11 +21,13 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothGatt;
 import android.os.Build;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEQueue;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCallback;
@@ -57,14 +59,14 @@ public class SetPreferredPhyAction extends BtLEAction {
 
     @SuppressLint("MissingPermission")
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         try {
             gatt.setPreferredPhy(mTxPhy, mRxPhy, mPhyOptions);
-            return true;
+            return 1;
         } catch (final Throwable ex) {
             LOG.warn("BluetoothGatt.setPreferredPhy({}, {}, {}) failed", mTxPhy, mRxPhy,
                     mPhyOptions, ex);
-            return false;
+            return Integer.MIN_VALUE;
         }
     }
 

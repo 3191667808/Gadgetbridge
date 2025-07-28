@@ -160,8 +160,8 @@ public class WithingsSteelHRDeviceSupport extends AbstractBTLESingleDeviceSuppor
                 switch (intent.getAction()) {
                     case HANDS_CALIBRATION_CMD:
                         MoveHand moveHand = new MoveHand();
-                        moveHand.setHand(intent.getShortExtra("hand", (short) 1));
-                        moveHand.setMovement(intent.getShortExtra("movementAmount", (short) 1));
+                        moveHand.setHand(intent.getShortExtra("hand", (short)1));
+                        moveHand.setMovement(intent.getShortExtra("movementAmount", (short)1));
                         sendToDevice(new WithingsMessage(WithingsMessageType.MOVE_HAND, moveHand));
                         break;
                     case START_HANDS_CALIBRATION_CMD:
@@ -453,7 +453,7 @@ public class WithingsSteelHRDeviceSupport extends AbstractBTLESingleDeviceSuppor
             }
 
             byte[] rawData = message.getRawData();
-            builder.writeChunkedData(characteristic, rawData, getMTU() - 3);
+            builder.writeChunked(characteristic.getUuid(), rawData);
             builder.queue();
         } catch (Exception e) {
             logger.warn("Could not send message because of " + e.getMessage());

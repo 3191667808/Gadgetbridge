@@ -19,7 +19,10 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.huami.actions;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 
+import androidx.annotation.NonNull;
+
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.HuamiService;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.AbortTransactionAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.WriteAction;
 
@@ -32,13 +35,13 @@ public abstract class StopNotificationAction extends AbortTransactionAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
-        if (!super.run(gatt)) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
+        int next = super.run(gatt, deviceSupport, deviceIdx);
+        if (next == Integer.MIN_VALUE) {
             // send a signal to stop the vibration
             WriteAction.writeCharacteristic(gatt, alertLevelCharacteristic, new byte[]{HuamiService.ALERT_LEVEL_NONE});
-            return false;
         }
-        return true;
+        return next;
     }
 };
 

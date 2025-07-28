@@ -91,7 +91,7 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
     public boolean connect() {
         synchronized (ConnectionMonitor) {
             if (mQueue == null) {
-                mQueue = new BtLEQueue(getDevice(), mSupportedServerServices, this);
+                mQueue = new BtLEQueue(getDevice(), mSupportedServerServices, this, 0);
             }
 
             return mQueue.connect();
@@ -505,7 +505,7 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
     }
 
     @Override
-    int getMTU(int deviceIdx) {
+    public int getMTU(int deviceIdx) {
         if(deviceIdx != 0){
             throw new IllegalArgumentException("deviceIdx is " + deviceIdx);
         }

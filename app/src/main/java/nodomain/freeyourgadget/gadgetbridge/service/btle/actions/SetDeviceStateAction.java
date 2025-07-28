@@ -22,6 +22,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 
 public class SetDeviceStateAction extends PlainAction {
     private final GBDevice device;
@@ -35,9 +36,9 @@ public class SetDeviceStateAction extends PlainAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         device.setUpdateState(deviceState, context);
-        return true;
+        return 1;
     }
 
     public Context getContext() {

@@ -20,9 +20,11 @@ import android.bluetooth.BluetoothGatt;
 import android.content.Context;
 import android.content.Intent;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class SetProgressAction extends PlainAction {
@@ -48,13 +50,13 @@ public class SetProgressAction extends PlainAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         GB.updateInstallNotification(this.text, this.ongoing, this.percentage, this.context);
 
         final LocalBroadcastManager broadcastManager = LocalBroadcastManager.getInstance(context);
         broadcastManager.sendBroadcast(new Intent(GB.ACTION_SET_PROGRESS_BAR).putExtra(GB.PROGRESS_BAR_PROGRESS, percentage));
 
-        return true;
+        return 1;
     }
 
     @Override

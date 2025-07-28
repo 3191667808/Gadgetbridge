@@ -146,7 +146,7 @@ public abstract class AbstractBTLEMultiDeviceSupport extends AbstractBTLEDeviceS
         synchronized (ConnectionMonitor) {
             for (int i = 0; i < deviceCount; i++) {
                 if (mQueues[i] == null && devices[i] != null) {
-                    mQueues[i] = new BtLEQueue(devices[i], mSupportedServerServices[i], this);
+                    mQueues[i] = new BtLEQueue(devices[i], mSupportedServerServices[i], this, i);
                 }
 
                 if (mQueues[i] != null) {

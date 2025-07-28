@@ -23,6 +23,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 
 public class SetDeviceBusyAction extends PlainAction {
     private final GBDevice device;
@@ -45,7 +46,7 @@ public class SetDeviceBusyAction extends PlainAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         if (busyTask == 0) {
             device.unsetBusyTask();
         } else {
@@ -53,7 +54,7 @@ public class SetDeviceBusyAction extends PlainAction {
         }
         device.sendDeviceUpdateIntent(context);
 
-        return true;
+        return 1;
     }
 
     @Override

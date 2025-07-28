@@ -91,6 +91,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
     private final NoThrowBluetoothGattCallback<InternalGattCallback> internalGattCallback;
     private final InternalGattServerCallback internalGattServerCallback;
     private final AbstractBTLEDeviceSupport mDeviceSupport;
+    private final int mDeviceIdx;
     private final boolean mImplicitGattCallbackModify;
     private final boolean mSendWriteRequestResponse;
 
@@ -161,7 +162,10 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                         }
                         mAbortTransaction = false;
                         // Run all actions of the transaction until one doesn't succeed
-                        for (final BtLEAction action : transaction.getActions()) {
+                        final List<BtLEAction> actions = transaction.getActions();
+                        long nextAction = 0L;
+                        while (nextAction < actions.size()) {
+                            final BtLEAction action = actions.get((int) nextAction);
                             if (mAbortTransaction) { // got disconnected
                                 LOG.info("Aborting running transaction");
                                 break;
@@ -178,14 +182,15 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                             mWaitCharacteristic = action.getCharacteristic();
                             mWaitForActionResultLatch = new CountDownLatch(1);
                             if (LOG.isDebugEnabled()) {
-                                LOG.debug("execute: {}", action);
+                                LOG.debug("execute {}: {}", nextAction, action);
                             }
                             if (action instanceof final GattListenerAction listenerAction) {
                                 // this special action overwrites the transaction gatt listener (if any), it must
                                 // always be the last action in the transaction
                                 internalGattCallback.Delegate.setTransactionGattCallback(listenerAction.getGattCallback());
                             }
-                            if (action.run(mBluetoothGatt)) {
+                            final int result = action.run(mBluetoothGatt, mDeviceSupport, mDeviceIdx);
+                            if (result != Integer.MIN_VALUE) {
                                 // check again, maybe due to some condition, action did not need to write, so we can't wait
                                 boolean waitForResult = action.expectsResult();
                                 if (waitForResult) {
@@ -195,9 +200,18 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                                         break;
                                     }
                                 }
-                            } else {
-                                LOG.error("Action returned false: {}", action);
-                                break; // abort the transaction
+                            }
+
+                            nextAction += result;
+                            if(result == Integer.MIN_VALUE) {
+                                LOG.warn("abort transaction (abs)");
+                                break;
+                            } else if (nextAction < 0L) {
+                                LOG.error("abort transaction (delta)");
+                                break;
+                            } else if (result == Integer.MAX_VALUE) {
+                                LOG.debug("end transaction");
+                                break;
                             }
                         }
                     }
@@ -217,7 +231,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         }
     }
 
-    BtLEQueue(GBDevice gbDevice, Set<? extends BluetoothGattService> supportedServerServices, AbstractBTLEDeviceSupport deviceSupport) {
+    BtLEQueue(GBDevice gbDevice, Set<? extends BluetoothGattService> supportedServerServices, AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         final long threadIdx = THREAD_COUNTER.getAndIncrement();
 
         LOG = LoggerFactory.getLogger(BtLEQueue.class.getName() + "(" + QUEUE_COUNTER.getAndIncrement() + ")");
@@ -228,6 +242,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         mBluetoothAdapter = deviceSupport.getBluetoothAdapter();
         mContext = deviceSupport.getContext();
         mDeviceSupport = deviceSupport;
+        mDeviceIdx = deviceIdx;
         mGbDevice = gbDevice;
         mImplicitGattCallbackModify = deviceSupport.getImplicitCallbackModify();
         mPauseTransaction = false;
@@ -250,7 +265,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         mDispatchThread.start();
 
         // 4) handler thread ensure serial processing and informative thread name in the log
-        if (GBApplication.isRunningOreoOrLater() && !connectionForceLegacyGatt) {
+        if(GBApplication.isRunningOreoOrLater() && !connectionForceLegacyGatt){
             mReceiverThread = new HandlerThread("BtLEQueue_" + threadIdx + "_in");
             mReceiverThread.setUncaughtExceptionHandler(this);
             mReceiverThread.start();

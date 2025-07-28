@@ -41,6 +41,7 @@ import java.util.function.Predicate;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.BondAction;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.ChunkWriterAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.FunctionAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.NotifyAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.ReadAction;
@@ -191,6 +192,30 @@ public class TransactionBuilder {
         }
 
         return this;
+    }
+
+    @NonNull
+    public TransactionBuilder writeChunked(UUID characteristic, ChunkWriterAction.ChunkEncoder chunker) {
+        BluetoothGattCharacteristic bgc = mDeviceSupport.getCharacteristic(characteristic, mDeviceIdx);
+        if (bgc == null) {
+            LOG.warn("Unable to write non-existing characteristic: {}", characteristic);
+            return this;
+        }
+        int properties = bgc.getProperties();
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) == 0
+                && ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) == 0)) {
+            LOG.error("Unable to write non-writeable characteristic {}", characteristic);
+            return this;
+        }
+        BtLEAction action = new ChunkWriterAction(bgc, chunker);
+        return add(action);
+    }
+
+    @NonNull
+    public TransactionBuilder writeChunked(UUID characteristic, byte[] data) {
+
+        ChunkWriterAction.ChunkEncoder chunker = new ChunkWriterAction.SimpleEncoder(data.clone());
+        return writeChunked(characteristic, chunker);
     }
 
     /// the maximum payload length supported for one write action

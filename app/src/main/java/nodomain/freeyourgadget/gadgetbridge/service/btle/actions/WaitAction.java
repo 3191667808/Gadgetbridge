@@ -18,6 +18,10 @@ package nodomain.freeyourgadget.gadgetbridge.service.btle.actions;
 
 import android.bluetooth.BluetoothGatt;
 
+import androidx.annotation.NonNull;
+
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
+
 /**
  * An action that will cause the queue to {@link Thread#sleep(long) sleep} for the specified time.
  * Note that this is usually a bad idea, since it will not be able to process messages
@@ -32,12 +36,12 @@ public class WaitAction extends PlainAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         try {
             Thread.sleep(mMillis);
-            return true;
+            return 1;
         } catch (InterruptedException e) {
-            return false;
+            return Integer.MIN_VALUE;
         }
     }
 

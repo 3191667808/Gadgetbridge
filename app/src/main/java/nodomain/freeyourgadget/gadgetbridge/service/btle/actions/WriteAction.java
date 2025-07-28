@@ -22,10 +22,13 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothStatusCodes;
 
+import androidx.annotation.NonNull;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BleNamesResolver;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCallback;
@@ -53,16 +56,18 @@ public class WriteAction extends BtLEAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         BluetoothGattCharacteristic characteristic = getCharacteristic();
         int properties = characteristic.getProperties();
         //TODO: expectsResult should return false if PROPERTY_WRITE_NO_RESPONSE is true, but this leads to timing issues
         if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0 || ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) > 0)) {
-            return writeCharacteristicImp(gatt, characteristic, getValue(), legacyCompat);
+            if(writeCharacteristicImp(gatt, characteristic, getValue(), legacyCompat)){
+                return 1;
+            }
+        } else {
+            LOG.error("WriteAction for non-writeable characteristic {}", characteristic.getUuid());
         }
-
-        LOG.error("WriteAction for non-writeable characteristic {}", characteristic.getUuid());
-        return false;
+        return Integer.MIN_VALUE;
     }
 
     /// shared write implementation that can be used without a BtLEAction
@@ -109,6 +114,7 @@ public class WriteAction extends BtLEAction {
         return true;
     }
 
+    @NonNull
     @Override
     public String toString() {
         BluetoothGattCharacteristic characteristic = getCharacteristic();

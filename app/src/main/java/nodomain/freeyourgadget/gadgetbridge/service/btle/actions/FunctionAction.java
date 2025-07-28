@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.function.Predicate;
 
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCallback;
 
@@ -50,7 +51,7 @@ public class FunctionAction extends BtLEAction {
     }
 
     @Override
-    public boolean run(BluetoothGatt gatt) {
+    public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
         try {
             final boolean success;
             if (mRunnable != null) {
@@ -65,10 +66,10 @@ public class FunctionAction extends BtLEAction {
                 LOG.warn("aborting transaction because function is (null)");
                 success = false;
             }
-            return success;
+            return success ? 1 : Integer.MIN_VALUE;
         } catch (Exception e) {
             LOG.warn("aborting transaction because function threw exception", e);
-            return false;
+            return Integer.MIN_VALUE;
         }
     }
 

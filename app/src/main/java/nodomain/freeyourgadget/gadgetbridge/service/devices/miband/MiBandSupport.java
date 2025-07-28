@@ -66,6 +66,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice.State;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLEDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.FunctionAction;
 import nodomain.freeyourgadget.gadgetbridge.util.calendar.CalendarEvent;
@@ -302,11 +303,11 @@ public class MiBandSupport extends AbstractBTLESingleDeviceSupport {
             }
 
             @Override
-            public boolean run(BluetoothGatt gatt) {
+            public int run(@NonNull BluetoothGatt gatt, @NonNull AbstractBTLEDeviceSupport deviceSupport, int deviceIdx) {
                 // at this point, mDeviceInfo should be set
                 return new WriteAction(getCharacteristic(),
                         MiBandCoordinator.getAnyUserInfo(getDevice().getAddress()).getData(mDeviceInfo)
-                ).run(gatt);
+                ).run(gatt, deviceSupport, deviceIdx);
             }
         });
         return this;
