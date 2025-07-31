@@ -31,7 +31,6 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.widget.Toast;
@@ -41,6 +40,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -70,12 +70,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
-import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
-import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
-import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
-import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -441,13 +437,6 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         ActivityUser activityUser = new ActivityUser();
 
-        this.setPersonalInformation(transaction,
-                (byte) Math.round(activityUser.getHeightCm() * 0.43), // Thanks no1f1
-                activityUser.getAge(),
-                activityUser.getHeightCm(),
-                activityUser.getWeightKg(),
-                activityUser.getStepsGoal() / 1000);
-
         this.fetch(true);
     }
 
@@ -714,6 +703,12 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
                         this.getDevice().setFirmwareVersion(((int) (arguments[0] & 0xff)) + "." + (arguments[1] & 0xff));
                     }
                     break;
+                case WearFitConstants.CMD_SET_PERSONAL_INFORMATION:
+                    if (arguments.length == 2 ) {
+                        setUserName(arguments[0], arguments[1]);
+                    }
+                    setUserData();
+                    break;
                 default: // Non-80 reports
                     if (Arrays.equals(report, WearFitConstants.RPRT_FITNESS)) {
                         int steps = (arguments[1] & 0xff) * 0x100 + (arguments[2] & 0xff);
@@ -928,41 +923,6 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         return this;
     }
 
-    /**
-     * @param transactionBuilder
-     * @param stepLength         cm
-     * @param age                years
-     * @param height             cm
-     * @param weight             kg
-     * @param stepGoal           kilo
-     */
-    private WearFitDeviceSupport setPersonalInformation(TransactionBuilder transactionBuilder,
-                                                           int stepLength, int age, int height, int weight, int stepGoal) {
-
-        byte distanceUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS;
-        byte tempUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_CELSIUS;
-        String units = GBApplication.getPrefs().getString(SettingsActivity.PREF_MEASUREMENT_SYSTEM, GBApplication.getContext().getString(R.string.p_unit_metric));
-        if (units.equals(GBApplication.getContext().getString(R.string.p_unit_imperial))) {
-            distanceUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_MILES;
-            tempUnit = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_FAHRENHEIT;
-        }
-
-        byte[] data = this.craftData(WearFitConstants.CMD_SET_PERSONAL_INFORMATION,
-                new byte[]{
-                        (byte) stepLength,
-                        (byte) age,
-                        (byte) height,
-                        (byte) weight,
-                        distanceUnit,
-                        (byte) stepGoal,
-                        (byte) tempUnit,
-                });
-
-        transactionBuilder.write(this.mControlCharacteristic, data);
-
-        return this;
-    }
-
     private WearFitDeviceSupport setHeadsUpScreen(TransactionBuilder transactionBuilder, boolean enable) {
         byte[] data = this.craftData(WearFitConstants.CMD_SET_HEADS_UP_SCREEN,
                 new byte[]{(byte) (enable ? 0x01 : 0x00)});
@@ -1095,6 +1055,129 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
             LoggerFactory.getLogger(this.getClass()).error("fetch recorded data failed");
         }
     }
+
+    @Override
+    public void onSendConfiguration(String config) {
+        switch (config) {
+            case ActivityUser.PREF_USER_WEIGHT_KG:
+            case ActivityUser.PREF_USER_GENDER:
+            case ActivityUser.PREF_USER_HEIGHT_CM:
+            case ActivityUser.PREF_USER_DATE_OF_BIRTH:
+            case SettingsActivity.PREF_MEASUREMENT_SYSTEM:
+                setUserData();
+                setWeight();
+                break;
+        }
+
+    }
+
+    private void setUserName(byte crc1, byte crc2) {
+        TransactionBuilder builder = this.createTransactionBuilder("sendUSerName");
+        ActivityUser user = new ActivityUser();
+        byte[] userName = user.getName().getBytes(StandardCharsets.UTF_16BE);
+        byte[] fullData = new byte[4+ userName.length];
+
+        fullData[0] = 0;
+        fullData[1] = crc1;
+        fullData[2] = crc2;
+        fullData[3] = (byte)userName.length;
+
+        System.arraycopy(userName, 0, fullData, 4, userName.length);
+
+        byte[] data = this.craftData(WearFitConstants.CMD_SET_PERSONAL_INFORMATION, fullData);
+        data[5] = 0x01; //HACK: set type
+
+        LOG.info("sending username: " + GB.hexdump(data));
+        writeSafe(this.mControlCharacteristic, builder, data);
+        builder.queue();
+
+    }
+
+    private void setUserData() {
+
+        TransactionBuilder builder = this.createTransactionBuilder("sendConfiguration");
+
+        ActivityUser user = new ActivityUser();
+        byte distanceUnits = 0;
+        byte tempUnits = 0;
+        byte energyUnits = 1;
+        byte stepsGoal = (byte) (user.getStepsGoal() / 1000);
+        byte genderByte = (byte)user.getGender();
+        if (genderByte > 1)
+            genderByte = 1;
+        String units = GBApplication.getPrefs().getString(SettingsActivity.PREF_MEASUREMENT_SYSTEM, GBApplication.getContext().getString(R.string.p_unit_metric));
+        if (units.equals(GBApplication.getContext().getString(R.string.p_unit_imperial))) {
+            distanceUnits =   WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_MILES;
+            tempUnits = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_FAHRENHEIT;
+        } else {
+            distanceUnits =   WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS;
+            tempUnits = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_CELSIUS;
+        }
+
+        byte[] data = this.craftData(WearFitConstants.CMD_SET_PERSONAL_INFORMATION,
+                new byte[]{
+                        //(byte) user.getStepLengthCm(),
+                        (byte) Math.round(user.getHeightCm()*0.43),
+                        (byte) user.getAge(),
+                        (byte) user.getHeightCm(),
+                        (byte) user.getWeightKg(),
+                        distanceUnits,
+                        stepsGoal,
+                        tempUnits,
+                        energyUnits,
+                        genderByte
+                });
+
+        LOG.info("sending userinfo: " + GB.hexdump(data));
+        builder.write(this.mControlCharacteristic, data);
+        builder.queue();
+    }
+
+
+    private void setWeight() {
+
+        TransactionBuilder builder = this.createTransactionBuilder("sendConfiguration");
+
+        ActivityUser user = new ActivityUser();
+
+
+        byte[] data = this.craftData(WearFitConstants.CMD_SET_HEALT_CALC_INFORMATION,
+                new byte[]{
+                        //(byte) user.getStepLengthCm(),
+                        (byte) Math.round(user.getWeightKg()),
+                        (byte) Math.round(user.getWeightKg() % 1.0f),
+                        (byte) 1, // weight flag
+                        (byte) 2, // unknown hardcoded
+
+                        (byte) Math.round(user.getWeightKg()), // history whole part
+                        (byte) Math.round(user.getWeightKg() % 1.0f), // history frac part
+
+                        (byte) Math.round(user.getWeightKg()), // history whole part
+                        (byte) Math.round(user.getWeightKg() % 1.0f), // history frac part
+
+                        (byte) 0, // history whole part
+                        (byte) 0, // history frac part
+
+                        (byte) 0, // history whole part
+                        (byte) 0, // history frac part
+
+                        (byte) 0, // history whole part
+                        (byte) 0, // history frac part
+
+                        (byte) 0, // history whole part
+                        (byte) 0, // history frac part
+
+                        (byte) 0, // history whole part
+                        (byte) 0, // history frac part
+                });
+
+
+        data[5] = 0x03;
+        LOG.info("sending weigth data : " + GB.hexdump(data));
+        writeSafe(this.mControlCharacteristic, builder, data);
+        builder.queue();
+    }
+
 
     @Override
     public void onSendWeather(ArrayList<WeatherSpec> weatherSpecs) {

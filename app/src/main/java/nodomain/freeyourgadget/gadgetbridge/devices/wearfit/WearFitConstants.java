@@ -238,7 +238,8 @@ public final class WearFitConstants {
     public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS = (byte) 0x01;
     public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_CELSIUS = (byte) 0x00;
     public static final byte ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_FAHRENHEIT = (byte) 0x01;
-    // step length (in/cm)
+
+    // args with type 0x80:
     // step length (in/cm)
     // age (years)
     // height (in/cm)
@@ -246,6 +247,16 @@ public final class WearFitConstants {
     // ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_*
     // target step count (kilo)
     // temperature units
+    // energy unit
+    // gender byte
+
+    // args with type 0x01:
+    // 0
+    // unknown
+    // unknown
+    // string length
+    // username utf8 string
+
 
     public static final byte CMD_SET_PERSONAL_INFORMATION = (byte) 0x74;
 
@@ -335,6 +346,32 @@ public final class WearFitConstants {
     // looks like enable/disable.
     public static final byte CMD_e5 = (byte) 0xe5;
 
+
+    // type 0x01 glucose data
+
+    //type 0x02 breath data
+
+    //type 0x03 weight data
+    //    recent whole weight number
+    //    recent whole fraction number
+    //    flag means weight change 1 - bigger 0 - lower
+    //    always 2
+    //    history 1 weight whole number
+    //    history 1 weight fraction number
+    //    history 2 weight whole number
+    //    history 2 weight fraction number
+    //    history 3 weight whole number
+    //    history 3 weight fraction number
+    //    history 4 weight whole number
+    //    history 4 weight fraction number
+    //    history 5 weight whole number
+    //    history 5 weight fraction number
+    //    history 6 weight whole number
+    //    history 6 weight fraction number
+    //    history 7 weight whole number
+    //    history 7 weight fraction number
+    //type 0x06 BMI data
+    public static final byte CMD_SET_HEALT_CALC_INFORMATION = (byte) 0xc8;
 
     // If this is sent after {@link CMD_FACTORY_RESET}, it's a shutdown, not a reboot.
     // Rebooting resets the watch face and wallpaper.
