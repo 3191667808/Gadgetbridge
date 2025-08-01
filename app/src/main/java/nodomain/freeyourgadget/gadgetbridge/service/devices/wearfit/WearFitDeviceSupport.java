@@ -738,7 +738,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         System.arraycopy(WearFitConstants.DATA_TEMPLATE, 0, result, 0, WearFitConstants.DATA_TEMPLATE.length);
 
-        result[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX] = (byte) (data.length + 3);
+        int packetLength = data.length + 3;
+        result[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX_HIGH] = (byte)(packetLength/256);
+        result[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX_LOW] = (byte)(packetLength%256);
 
         System.arraycopy(command, 0, result, 4, command.length);
 
@@ -1254,7 +1256,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         currentHourData[5] = (byte)(Math.round(weatherSpec.getUvIndex()));
 
          System.arraycopy(command_header_ea, 0, data, 0, command_header_ea.length);
-        data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX] = (byte) (currentHourData.length + 5);
+        data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX_LOW] = (byte) (currentHourData.length + 5);
         System.arraycopy(currentHourData, 0, data, 8, currentHourData.length);
 
         this.writeSafe(
@@ -1341,7 +1343,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         byte[] data = new byte[cityBytes.length+command_header_ea.length];
         System.arraycopy(command_header_ea, 0, data, 0, command_header_ea.length);
-        data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX] = (byte) (cityBytes.length + 4);
+        data[WearFitConstants.DATA_ARGUMENT_COUNT_INDEX_LOW] = (byte) (cityBytes.length + 4);
         System.arraycopy(cityBytes, 0, data, 7, cityBytes.length);
 
         transaction.write(this.mControlCharacteristic, data);

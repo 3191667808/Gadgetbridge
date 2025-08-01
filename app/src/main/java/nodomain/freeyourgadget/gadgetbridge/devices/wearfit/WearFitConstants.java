@@ -36,21 +36,22 @@ public final class WearFitConstants {
     // public static final UUID SICHE_LOG_SERVICE_UUID = UUID.fromString("00000000-0000-0000-6473-5f696c666973");
 
     // Command structure
-    // ab 00 [argument_count] ff [command] 80 [arguments]
+    // ab [argument_count high] [argument_count low] ff [command] [type] [arguments]
     // where [argument_count] is [arguments].length + 3
-    // 80 might by different.
+    // [type] mostly 80 but some commands use different.
 
     public static final byte[] DATA_TEMPLATE = {
             (byte) 0xab,
-            (byte) 0x00,
-            (byte) 0, // argument_count
+            (byte) 0x00, // argument_count high
+            (byte) 0, // argument_count low
             (byte) 0xff,
             (byte) 0, // command
-            (byte) 0x80
+            (byte) 0x80 // type
 //           ,arguments
     };
 
-    public static final int DATA_ARGUMENT_COUNT_INDEX = 2;
+    public static final int DATA_ARGUMENT_COUNT_INDEX_LOW = 2;
+    public static final int DATA_ARGUMENT_COUNT_INDEX_HIGH = 1;
     public static final int DATA_COMMAND_INDEX = 4;
     public static final int DATA_ARGUMENTS_INDEX = 6;
 
