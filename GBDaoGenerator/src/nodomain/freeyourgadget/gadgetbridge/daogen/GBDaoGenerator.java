@@ -54,7 +54,7 @@ public class GBDaoGenerator {
 
 
     public static void main(String[] args) throws Exception {
-        final Schema schema = new Schema(97, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(101, MAIN_PACKAGE + ".entities");
 
         Entity userAttributes = addUserAttributes(schema);
         Entity user = addUserInfo(schema, userAttributes);
@@ -154,6 +154,10 @@ public class GBDaoGenerator {
         addColmiHrvValueSample(schema, user, device);
         addColmiHrvSummarySample(schema, user, device);
         addColmiTemperatureSample(schema, user, device);
+        addSR08ActivitySample(schema, user, device);
+        addSR08HeartRateSample(schema, user, device);
+        addSR08SleepSample(schema, user, device);
+        addSR08Spo2Sample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
 
@@ -1684,5 +1688,40 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractWeightSample", sample, user, device);
         sample.addFloatProperty(SAMPLE_WEIGHT_KG).notNull().codeBeforeGetter(OVERRIDE);
         return sample;
+    }
+
+
+    private static Entity addSR08ActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "SR08ActivitySample");
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.implementsSerializable();
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("distance");
+        activitySample.addIntProperty("calories");
+        return activitySample;
+    }
+
+    private static Entity addSR08HeartRateSample(Schema schema, Entity user, Entity device) {
+        Entity heartRateSample = addEntity(schema, "SR08HeartRateSample");
+        heartRateSample.implementsSerializable();
+        addCommonTimeSampleProperties("AbstractHeartRateSample", heartRateSample, user, device);
+        heartRateSample.addIntProperty(SAMPLE_HEART_RATE).notNull();
+        return heartRateSample;
+    }
+
+    private static Entity addSR08SleepSample(Schema schema, Entity user, Entity device) {
+        Entity sleepSample = addEntity(schema, "SR08SleepSample");
+        sleepSample.addImport(MAIN_PACKAGE + ".model.SleepScoreSample");
+        addCommonTimeSampleProperties("SleepScoreSample", sleepSample, user, device);
+        sleepSample.addIntProperty("sleepScore").notNull().codeBeforeGetter(OVERRIDE);
+        return sleepSample;
+    }
+
+    private static Entity addSR08Spo2Sample(Schema schema, Entity user, Entity device) {
+        Entity spo2sample = addEntity(schema, "SR08Spo2Sample");
+        addCommonTimeSampleProperties("AbstractSpo2Sample", spo2sample, user, device);
+        spo2sample.addIntProperty("spo2").notNull().codeBeforeGetter(OVERRIDE);
+        return spo2sample;
     }
 }
