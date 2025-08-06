@@ -1303,8 +1303,8 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         for (int i = 0; i < dayCount; i++) {
             WeatherSpec.Daily day  = weatherSpec.getForecasts().get(i);
 
-            byte minTemp = (byte)(Math.abs(day.getMinTemp() -273) & 0xF7);
-            byte maxTemp = (byte)(Math.abs(day.getMaxTemp() -273) & 0xF7);
+            byte minTemp = (byte)(Math.abs(day.getMinTemp() -273) & 0x7F);
+            byte maxTemp = (byte)(Math.abs(day.getMaxTemp() -273) & 0x7F);
 
             if (day.getMinTemp() -273 < 0 ) {
                 minTemp += (byte)(1<<7);
