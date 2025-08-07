@@ -229,7 +229,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_wearfit_hk8_pro_max;
+        return R.string.devicetype_wearfit_hk_generic;
     }
 
 }
