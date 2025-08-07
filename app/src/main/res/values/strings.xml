@@ -3809,7 +3809,7 @@
     <string name="pref_auto_reply_calls_title">Automatically answer phone calls</string>
     <string name="pref_auto_reply_calls_delay_summary">Number of seconds after which the call is automatically picked up</string>
     <string name="pref_auto_reply_calls_delay_title">Automatic Answer Delay</string>
-    <string name="devicetype_wearfit_hk8_pro_max">HK8 Pro Max</string>
+    <string name="devicetype_wearfit_hk_generic">Wearfit HK (Generic)</string>
     <string name="pref_speak_notifications_aloud_summary">Notifications will be read aloud through the headphones</string>
     <string name="pref_speak_notifications_aloud_title">Speak Notifications Aloud</string>
     <string name="pref_speak_notifications_focus_exclusive_title">Pause audio of other applications</string>
