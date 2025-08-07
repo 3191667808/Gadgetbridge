@@ -1242,7 +1242,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         byte[] data = new byte[command_header_ea.length +currentHourData.length ];
         int temperature = weatherSpec.getCurrentTemp() - 273;
-        int code = (byte)openWeatherToWEatherCode(weatherSpec.getCurrentConditionCode()).ordinal();
+        int code = (byte) openWeatherToWearfitCode(weatherSpec.getCurrentConditionCode()).ordinal();
         byte weatherCode = (byte)(code << 4);
         if (temperature < 0) {
             weatherCode+=1;
@@ -1270,22 +1270,30 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         byte[] bytes = new byte[WearFitConstants.WEATHER_SIZE*2];
 
-        int dayCount = Math.min(weatherSpec.getForecasts().size(), WearFitConstants.WEATHER_SIZE);
+        int dayCount = Math.min(weatherSpec.getForecasts().size(), WearFitConstants.WEATHER_SIZE-1);
 
-
+        //need to unclude today too
+        int temperature = weatherSpec.getCurrentTemp() - 273;
+        int code = (byte) openWeatherToWearfitCode(weatherSpec.getCurrentConditionCode()).ordinal();
+        byte weatherCode = (byte)(code << 4);
+        if (temperature < 0) {
+            weatherCode+=1;
+        }
+        bytes[0] = weatherCode;
+        bytes[1] = (byte) Math.abs(temperature);
 
         for (int i = 0; i < dayCount; i++) {
             WeatherSpec.Daily day  = weatherSpec.getForecasts().get(i);
 
-            int temperature = (day.getMinTemp() + day.getMaxTemp())/2 - 273;
-            int code = (byte)openWeatherToWEatherCode(day.getConditionCode()).ordinal();
-            byte weatherCode = (byte)(code << 4);
+            temperature = (day.getMinTemp() + day.getMaxTemp())/2 - 273;
+            code = (byte) openWeatherToWearfitCode(day.getConditionCode()).ordinal();
+            weatherCode = (byte)(code << 4);
             if (temperature < 0) {
                 weatherCode+=1;
             }
 
-            bytes[0+2 * i] = weatherCode;
-            bytes[1+2 * i] = (byte) Math.abs(temperature);
+            bytes[2+0+2 * i] = weatherCode;
+            bytes[2+1+2 * i] = (byte) Math.abs(temperature);
 
         }
 
@@ -1298,13 +1306,29 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
     private WearFitDeviceSupport sendWeatherMinMax(TransactionBuilder transaction, WeatherSpec weatherSpec) {
         byte[] bytes = new byte[WearFitConstants.WEATHER_SIZE*2];
-        int dayCount = Math.min(weatherSpec.getForecasts().size(), WearFitConstants.WEATHER_SIZE);
+        int dayCount = Math.min(weatherSpec.getForecasts().size(), WearFitConstants.WEATHER_SIZE-1);
+
+
+        //need to unclude today too
+        byte minTemp = (byte)(Math.abs(weatherSpec.getTodayMinTemp() -273) & 0x7F);
+        byte maxTemp = (byte)(Math.abs(weatherSpec.getTodayMaxTemp() -273) & 0x7F);
+
+        if (weatherSpec.getTodayMinTemp() -273 < 0 ) {
+            minTemp += (byte)(1<<7);
+        }
+
+        if (weatherSpec.getTodayMaxTemp() -273 < 0 ) {
+            maxTemp += (byte)(1<<7);
+        }
+
+        bytes[0] = maxTemp;
+        bytes[1] = minTemp;
 
         for (int i = 0; i < dayCount; i++) {
             WeatherSpec.Daily day  = weatherSpec.getForecasts().get(i);
 
-            byte minTemp = (byte)(Math.abs(day.getMinTemp() -273) & 0x7F);
-            byte maxTemp = (byte)(Math.abs(day.getMaxTemp() -273) & 0x7F);
+            minTemp = (byte)(Math.abs(day.getMinTemp() -273) & 0x7F);
+            maxTemp = (byte)(Math.abs(day.getMaxTemp() -273) & 0x7F);
 
             if (day.getMinTemp() -273 < 0 ) {
                 minTemp += (byte)(1<<7);
@@ -1315,8 +1339,8 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
             }
 
 
-            bytes[0+2 * i] = maxTemp;
-            bytes[1+2 * i] = minTemp;
+            bytes[2+0+2 * i] = maxTemp;
+            bytes[2+1+2 * i] = minTemp;
 
         }
 
@@ -1353,7 +1377,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
     }
 
 
-    private WearFitConstants.WeatherCode openWeatherToWEatherCode(int weatherCode) {
+    private WearFitConstants.WeatherCode openWeatherToWearfitCode(int weatherCode) {
         WearFitConstants.WeatherCode wearFitWeatherCode = WearFitConstants.WeatherCode.PARTLY_CLOUDY;
         if (weatherCode >= 200 && weatherCode < 600) {
             wearFitWeatherCode = WearFitConstants.WeatherCode.RAIN;
@@ -1371,6 +1395,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
             wearFitWeatherCode = WearFitConstants.WeatherCode.PARTLY_CLOUDY;
         }
 
+        LOG.debug("weatherCode: " + weatherCode +  "wearFitWeatherCode: " + wearFitWeatherCode );
         return wearFitWeatherCode;
 
     }
