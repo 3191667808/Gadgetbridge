@@ -96,6 +96,8 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         public void onFinish() {
             LOG.debug("download finished");
             GB.updateTransferNotification(null, "", false, 100, getContext());
+            GB.signalActivityDataFinish(getDevice());
+            unsetBusy();
         }
     };
 
@@ -911,6 +913,13 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         return this;
     }
 
+    protected void unsetBusy() {
+        if (getDevice().isBusy()) {
+            getDevice().unsetBusyTask();
+            getDevice().sendDeviceUpdateIntent(getContext());
+        }
+    }
+
     private WearFitDeviceSupport setAlarmReminder(TransactionBuilder transaction,
                                                      int id, boolean enable, int hour, int minute, byte repeat) {
         transaction.write(this.mControlCharacteristic,
@@ -1049,10 +1058,11 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
     @Override
     public void onFetchRecordedData(int dataTypes) {
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onfetchfitness");
+        transactionBuilder.setBusyTask(R.string.busy_task_fetch_activity_data);
         this.requestFitness(transactionBuilder);
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queue();
         } catch (Exception ex) {
             LoggerFactory.getLogger(this.getClass()).error("fetch recorded data failed");
         }
