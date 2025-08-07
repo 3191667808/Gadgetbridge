@@ -396,6 +396,9 @@ import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.liberty3_pro.Sound
 import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.liberty4_nc.SoundcoreLiberty4NCCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.motion300.SoundcoreMotion300Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.soundcore.q30.SoundcoreQ30Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.keepfit.SR08RingCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.keepfit.ColmiSR1Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.keepfit.Z10Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.supercars.SuperCarsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.test.TestDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.thermalprinter.ThermalPrinterCoordinator;
@@ -885,6 +888,9 @@ public enum DeviceType {
     SOLARFLOW(SolarFlowDeviceCoordinator.class),
     SANITAS_SBM_67(SanitasSBM67Coordinator.class),
     SILVERCREST_SBM_67(SilverCrestSBM67Coordinator.class),
+    SR08_RING(SR08RingCoordinator.class),
+    COLMI_SR1(ColmiSR1Coordinator.class),
+    Z10_BAND(Z10Coordinator.class),
     TEST(TestDeviceCoordinator.class);
 
     private DeviceCoordinator coordinator;
