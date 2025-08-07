@@ -767,7 +767,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         int extraBytes = 0;
 
         if (data.length > 20) {
-            extraBytes = (((data.length - maxMessageLength) / maxMessageLength) + 1);
+            extraBytes = (((data.length - maxMessageLength) / (maxMessageLength-1)) + 1);
         }
 
         int totalDataLength = (data.length + extraBytes);
@@ -897,13 +897,12 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         byte[] msg =message.getBytes();
         byte[] data = new byte[msg.length + 2];
+        //maximum length shown on watch is about 521 bytes
         data[0] = source;
         data[1] = (byte) 0x02;
 
 
-        for (int i = 0; i < msg.length; ++i) {
-            data[i + 2] = (byte) msg[i];
-        }
+        System.arraycopy(msg, 0, data, 2, msg.length);
 
         this.writeSafe(
                 this.mControlCharacteristic,
