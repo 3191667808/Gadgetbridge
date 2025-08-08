@@ -1073,7 +1073,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     }
 
     public File getWritableExportDirectory() throws IOException {
-        return getDevice().getDeviceCoordinator().getWritableExportDirectory(getDevice());
+        return getDevice().getDeviceCoordinator().getWritableExportDirectory(getDevice(), true);
     }
 
     @Override
