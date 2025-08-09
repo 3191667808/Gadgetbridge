@@ -47,11 +47,11 @@ import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Contact;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.NavigationInfoSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Reminder;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WorldClock;
-import nodomain.freeyourgadget.gadgetbridge.model.NavigationInfoSpec;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 // TODO: support option for a single reminder notification when notifications could not be delivered?
@@ -69,8 +69,6 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     private BluetoothAdapter btAdapter;
     private Context context;
     private boolean autoReconnect, scanReconnect;
-
-
 
     @Override
     public void setContext(GBDevice gbDevice, BluetoothAdapter btAdapter, Context context) {
