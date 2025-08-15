@@ -46,6 +46,7 @@ import java.util.Locale;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
+import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -193,8 +194,19 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
         for (int i =0; i < samples.size(); i++) {
             TemperatureSample sample = samples.get(i);
             int timestamp_in_seconds = (int) (sample.getTimestamp() / 1000L);
-            lineEntries.add(new Entry(tsTranslation.shorten(timestamp_in_seconds), sample.getTemperature()));
-            accumulator.add(sample.getTemperature());
+            String measurementSystem = GBApplication.getPrefs().getString(SettingsActivity.PREF_MEASUREMENT_SYSTEM, "metric");
+            // if imperial then convert else leave as-is
+            if (measurementSystem.equals("imperial")) {
+                LOG.info("GB measurement system is '{}'. Converting to Fahrenheit.", measurementSystem);
+                LOG.info("Original metric value: {}; converted imperial value: {}", sample.getTemperature(), (float) ((sample.getTemperature() * 1.8) + 32));
+                lineEntries.add(new Entry(tsTranslation.shorten(timestamp_in_seconds), (float) ((sample.getTemperature() * 1.8) + 32)));
+                accumulator.add((float) ((sample.getTemperature() * 1.8) + 32));
+
+            } else {
+                LOG.info("GB measurement system is '{}'. Not performing a conversion.", measurementSystem);
+                lineEntries.add(new Entry(tsTranslation.shorten(timestamp_in_seconds), sample.getTemperature()));
+                accumulator.add(sample.getTemperature());
+            }
         }
 
         LineDataSet dataSet = new LineDataSet(lineEntries, "Heart Rate");
