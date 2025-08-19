@@ -46,6 +46,7 @@ import java.util.Locale;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
+import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -190,11 +191,20 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
         List<? extends TemperatureSample> samples = data.samples;
         final Accumulator accumulator = new Accumulator();
 
+        Boolean isMetricUnits = GBApplication.getPrefs().isMetricUnits();
         for (int i =0; i < samples.size(); i++) {
             TemperatureSample sample = samples.get(i);
             int timestamp_in_seconds = (int) (sample.getTimestamp() / 1000L);
-            lineEntries.add(new Entry(tsTranslation.shorten(timestamp_in_seconds), sample.getTemperature()));
-            accumulator.add(sample.getTemperature());
+
+            Float temperature = sample.getTemperature();
+            if (isMetricUnits.equals(false)) {
+                temperature = (float) ((sample.getTemperature() * 1.8) + 32);
+                LOG.info("GB measurement system is 'Imperial'. Converting to Fahrenheit.");
+                LOG.info("Original Metric value: {}; converted Imperial value: {}", sample.getTemperature(), temperature);
+            }
+
+            lineEntries.add(new Entry(tsTranslation.shorten(timestamp_in_seconds), temperature));
+            accumulator.add(temperature);
         }
 
         LineDataSet dataSet = new LineDataSet(lineEntries, "Heart Rate");
