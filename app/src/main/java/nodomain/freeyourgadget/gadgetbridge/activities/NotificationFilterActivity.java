@@ -55,6 +55,7 @@ public class NotificationFilterActivity extends AbstractGBActivity {
     private Button mButtonSave;
     private Spinner mSpinnerFilterMode;
     private Spinner mSpinnerFilterSubMode;
+    private Spinner mSpinnerMessagePrivacyOverride;
     private NotificationFilter mNotificationFilter;
     private EditText mEditTextWords;
     private List<String> mWordsList = new ArrayList<>();
@@ -143,6 +144,9 @@ public class NotificationFilterActivity extends AbstractGBActivity {
 
         mSpinnerFilterSubMode.setSelection(mNotificationFilter.getNotificationFilterSubMode());
 
+        mSpinnerMessagePrivacyOverride = findViewById(R.id.spinnerMessagePrivacyOverride);
+        mSpinnerMessagePrivacyOverride.setSelection(mNotificationFilter.getNotificationFilterMessagePrivacyOverride());
+
         mEditTextWords = findViewById(R.id.editTextWords);
 
         if (!mWordsList.isEmpty()) {
@@ -183,6 +187,7 @@ public class NotificationFilterActivity extends AbstractGBActivity {
 
             mNotificationFilter.setNotificationFilterMode(mSpinnerFilterMode.getSelectedItemPosition());
             mNotificationFilter.setNotificationFilterSubMode(mSpinnerFilterSubMode.getSelectedItemPosition());
+            mNotificationFilter.setNotificationFilterMessagePrivacyOverride(mSpinnerMessagePrivacyOverride.getSelectedItemPosition());
 
             notificationFilterEntryDao.deleteByKeyInTx(mFilterEntryIds);
 

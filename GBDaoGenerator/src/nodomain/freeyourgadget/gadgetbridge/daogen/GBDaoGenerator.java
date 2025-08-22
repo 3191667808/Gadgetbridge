@@ -1355,6 +1355,7 @@ public class GBDaoGenerator {
 
         Property notificationFilterMode = notificatonFilter.addIntProperty("notificationFilterMode").notNull().getProperty();
         Property notificationFilterSubMode = notificatonFilter.addIntProperty("notificationFilterSubMode").notNull().getProperty();
+        Property notificationFilterMessagePrivacyOverride = notificatonFilter.addIntProperty("notificationFilterMessagePrivacyOverride").notNull().getProperty();
         return notificatonFilter;
     }
 

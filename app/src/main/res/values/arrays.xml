@@ -3162,6 +3162,13 @@
         <item>@string/filter_submode_all</item>
     </string-array>
 
+    <string-array name="notification_filterf_message_privacy_override">
+        <item name="default">@string/pref_message_privacy_override_default</item>
+        <item name="off">@string/pref_message_privacy_mode_off</item>
+        <item name="complete">@string/pref_message_privacy_mode_complete</item>
+        <item name="bodyonly">@string/pref_message_privacy_mode_bodyonly</item>
+    </string-array>
+
     <!-- Note: ZeTime preferences -->
     <string-array name="zetime_analog_mode">
         <item name="0">@string/zetime_analog_mode_hands</item>

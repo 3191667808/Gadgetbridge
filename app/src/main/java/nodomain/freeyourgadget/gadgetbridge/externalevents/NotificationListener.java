@@ -55,6 +55,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.RemoteInput;
+import androidx.core.util.Pair;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
@@ -101,6 +102,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import static nodomain.freeyourgadget.gadgetbridge.activities.NotificationFilterActivity.NOTIFICATION_FILTER_MODE_BLACKLIST;
 import static nodomain.freeyourgadget.gadgetbridge.activities.NotificationFilterActivity.NOTIFICATION_FILTER_MODE_WHITELIST;
 import static nodomain.freeyourgadget.gadgetbridge.activities.NotificationFilterActivity.NOTIFICATION_FILTER_SUBMODE_ALL;
+import static nodomain.freeyourgadget.gadgetbridge.util.JavaExtensions.coalesce;
 import static nodomain.freeyourgadget.gadgetbridge.util.StringUtils.ensureNotNull;
 
 public class NotificationListener extends NotificationListenerService {
@@ -464,10 +466,22 @@ public class NotificationListener extends NotificationListenerService {
         dissectNotificationTo(notification, notificationSpec, preferBigText);
 
         if (notificationSpec.title != null || notificationSpec.body != null) {
-            final String textToCheck = ensureNotNull(notificationSpec.title) + " " + ensureNotNull(notificationSpec.body);
-            if (!checkNotificationContentForWhiteAndBlackList(sbn.getPackageName().toLowerCase(), textToCheck)) {
-                return;
+            // get the notification filter from the database
+            Pair<NotificationFilter, List<NotificationFilterEntry>> result = getNotificationFilter(sbn.getPackageName().toLowerCase());
+            NotificationFilter notificationFilter = result != null ? result.first : null;
+            List<NotificationFilterEntry> notificationFilterEntries = result != null ? result.second : null;
+
+            // check if we have blacklisted words in the notification
+            if (notificationFilter != null && notificationFilterEntries != null)
+            {
+                final String textToCheck = ensureNotNull(notificationSpec.title) + " " + ensureNotNull(notificationSpec.body);
+                if (!checkNotificationContentForWhiteAndBlackList(notificationFilter, notificationFilterEntries, textToCheck)) {
+                    return;
+                }
             }
+
+            // apply message privacy settings
+            processNotificationPrivacy(notificationSpec, notificationFilter);
         }
 
         // ignore Gadgetbridge's very own notifications, except for those from the debug screen
@@ -607,10 +621,8 @@ public class NotificationListener extends NotificationListenerService {
         return shouldIgnore;
     }
 
-    private boolean checkNotificationContentForWhiteAndBlackList(String packageName, String body) {
+    private Pair<NotificationFilter, List<NotificationFilterEntry>> getNotificationFilter(String packageName) {
         long start = System.currentTimeMillis();
-
-        List<String> wordsList = new ArrayList<>();
         NotificationFilter notificationFilter;
 
         try (DBHandler db = GBApplication.acquireDB()) {
@@ -623,7 +635,7 @@ public class NotificationListener extends NotificationListenerService {
 
             if (notificationFilter == null) {
                 LOG.debug("No Notification Filter found");
-                return true;
+                return null;
             }
 
             LOG.debug("Loaded notification filter for '{}'", packageName);
@@ -635,19 +647,81 @@ public class NotificationListener extends NotificationListenerService {
                 LOG.info("Database lookup took '{}' ms", System.currentTimeMillis() - start);
             }
 
-            if (!filterEntries.isEmpty()) {
-                for (NotificationFilterEntry temp : filterEntries) {
-                    wordsList.add(temp.getNotificationFilterContent());
-                    LOG.debug("Loaded filter word: " + temp.getNotificationFilterContent());
-                }
-            }
+            return new Pair<>(notificationFilter, filterEntries);
 
         } catch (Exception e) {
             LOG.error("Could not acquire DB.", e);
+            return null;
+        }
+    }
+
+    private boolean checkNotificationContentForWhiteAndBlackList(NotificationFilter notificationFilter, List<NotificationFilterEntry> filterEntries, String body) {
+        long start = System.currentTimeMillis();
+
+        List<String> wordsList = new ArrayList<>();
+
+
+            if (notificationFilter == null) {
+                LOG.debug("Notification Filter is null");
+                return true;
+            }
+
+        if (filterEntries == null) {
+            LOG.debug("FilterEntries are null");
             return true;
         }
 
+        if (!filterEntries.isEmpty()) {
+            for (NotificationFilterEntry temp : filterEntries) {
+                wordsList.add(temp.getNotificationFilterContent());
+                LOG.debug("Loaded filter word: " + temp.getNotificationFilterContent());
+            }
+        }
+
         return shouldContinueAfterFilter(body, wordsList, notificationFilter);
+    }
+
+    private void processNotificationPrivacy(NotificationSpec notificationSpec, NotificationFilter notificationFilter)
+    {
+        // global settings
+        // set privacy settings
+        String messagePrivacyMode = GBApplication.getPrefs().getString("pref_message_privacy_mode",
+                GBApplication.getContext().getString(R.string.p_message_privacy_mode_off));
+        boolean hideMessageDetails = messagePrivacyMode.equals(GBApplication.getContext().getString(R.string.p_message_privacy_mode_complete));
+        boolean hideMessageBodyOnly = messagePrivacyMode.equals(GBApplication.getContext().getString(R.string.p_message_privacy_mode_bodyonly));
+
+        // check if notification exists and the override for the privacy has been set != 0
+        if (notificationFilter != null && notificationFilter.getNotificationFilterMessagePrivacyOverride() != 0)
+        {
+            switch (notificationFilter.getNotificationFilterMessagePrivacyOverride())
+            {
+                case 1: // display all content
+                    hideMessageDetails = false;
+                    hideMessageBodyOnly = false;
+                    break;
+                case 2: // hide all content
+                    hideMessageDetails = true;
+                    break;
+                case 3: // hide only body
+                    hideMessageDetails = false;
+                    hideMessageBodyOnly = true;
+                    break;
+            }
+        }
+
+        if (hideMessageDetails)
+        {
+            notificationSpec.phoneNumber = null;
+            notificationSpec.title = null;
+            notificationSpec.body = null;
+            notificationSpec.sender = null;
+            notificationSpec.subject = null;
+        }
+
+        if (hideMessageBodyOnly)
+        {
+            notificationSpec.body = null;
+        }
     }
 
     private void handleCallNotification(StatusBarNotification sbn) {
