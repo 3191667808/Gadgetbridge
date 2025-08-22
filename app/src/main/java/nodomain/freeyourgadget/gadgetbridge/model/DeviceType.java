@@ -797,6 +797,11 @@ public enum DeviceType {
         return this != UNKNOWN;
     }
 
+    /** Generic types are not special other than they can get grouped as such when adding a test device */
+    public boolean isGeneric() {
+        return this == SCANNABLE || this == BLE_GATT_CLIENT;
+    }
+
     public static DeviceType fromName(String name) {
         for (DeviceType type : values()) {
             if (type.name().equals(name)) {

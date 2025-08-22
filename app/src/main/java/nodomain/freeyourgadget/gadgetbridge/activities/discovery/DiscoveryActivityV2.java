@@ -796,14 +796,14 @@ public class DiscoveryActivityV2 extends AbstractGBActivity implements AdapterVi
     private void showUnsupportedDeviceDialog(final GBDeviceCandidate deviceCandidate) {
         LOG.info("Unsupported device candidate selected: {}", deviceCandidate);
 
-        final Map<String, Pair<Long, Integer>> allDevices = DebugActivity.getAllSupportedDevices(getApplicationContext());
+        final Map<Pair<Integer, String>, Pair<Long, Integer>> allDevices = DebugActivity.getAllSupportedDevices(getApplicationContext());
 
         final LinearLayout linearLayout = new LinearLayout(DiscoveryActivityV2.this);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
 
         final ArrayList<SpinnerWithIconItem> deviceListArray = new ArrayList<>();
-        for (Map.Entry<String, Pair<Long, Integer>> item : allDevices.entrySet()) {
-            deviceListArray.add(new SpinnerWithIconItem(item.getKey(), item.getValue().first, item.getValue().second));
+        for (Map.Entry<Pair<Integer, String>, Pair<Long, Integer>> item : allDevices.entrySet()) {
+            deviceListArray.add(new SpinnerWithIconItem(item.getKey().second, item.getValue().first, item.getValue().second));
         }
         final SpinnerWithIconAdapter deviceListAdapter = new SpinnerWithIconAdapter(
                 DiscoveryActivityV2.this,

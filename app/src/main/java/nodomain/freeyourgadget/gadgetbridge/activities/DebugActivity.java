@@ -86,6 +86,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -579,7 +580,7 @@ public class DebugActivity extends AbstractGBActivity {
         addDeviceButtonDebug.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Map<String, Pair<Long, Integer>> allDevices = getAllSupportedDevices(getApplicationContext());
+                Map<Pair<Integer, String>, Pair<Long, Integer>> allDevices = getAllSupportedDevices(getApplicationContext());
 
                 final LinearLayout linearLayout = new LinearLayout(DebugActivity.this);
                 linearLayout.setOrientation(LinearLayout.VERTICAL);
@@ -635,8 +636,8 @@ public class DebugActivity extends AbstractGBActivity {
 
                 final Spinner deviceListSpinner = new Spinner(DebugActivity.this);
                 ArrayList<SpinnerWithIconItem> deviceListArray = new ArrayList<>();
-                for (Map.Entry<String, Pair<Long, Integer>> item : allDevices.entrySet()) {
-                    deviceListArray.add(new SpinnerWithIconItem(item.getKey(), item.getValue().first, item.getValue().second));
+                for (Map.Entry<Pair<Integer, String>, Pair<Long, Integer>> item : allDevices.entrySet()) {
+                    deviceListArray.add(new SpinnerWithIconItem(item.getKey().second, item.getValue().first, item.getValue().second));
                 }
                 final SpinnerWithIconAdapter deviceListAdapter = new SpinnerWithIconAdapter(DebugActivity.this,
                         R.layout.spinner_with_image_layout, R.id.spinner_item_text, deviceListArray);
@@ -1266,8 +1267,9 @@ public class DebugActivity extends AbstractGBActivity {
         return builder.toString();
     }
 
-    public static Map<String, Pair<Long, Integer>> getAllSupportedDevices(Context appContext) {
-        LinkedHashMap<String, Pair<Long, Integer>> newMap = new LinkedHashMap<>(1);
+    /** List of all device types. Keys provide sorting and text label, values are the device type ordinal and the icon. */
+    public static Map<Pair<Integer, String>, Pair<Long, Integer>> getAllSupportedDevices(Context appContext) {
+        LinkedHashMap<Pair<Integer, String>, Pair<Long, Integer>> newMap = new LinkedHashMap<>(1);
         GBApplication app = (GBApplication) appContext;
         for (DeviceType deviceType : DeviceType.values()) {
             DeviceCoordinator coordinator = deviceType.getDeviceCoordinator();
@@ -1277,15 +1279,15 @@ public class DebugActivity extends AbstractGBActivity {
                 name += " (" + coordinator.getManufacturer() + ")";
             }
             long deviceId = deviceType.ordinal();
-            newMap.put(name, new Pair<>(deviceId, icon));
+            newMap.put(new Pair<Integer, String>(deviceType.isGeneric() ? 1 : 2, name), new Pair<>(deviceId, icon));
         }
-        TreeMap <String, Pair<Long, Integer>> sortedMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        TreeMap <Pair<Integer, String>, Pair<Long, Integer>> sortedMap = new TreeMap<>(
+                Comparator.comparing((Pair<Integer, String> p) -> p.first)
+                    .thenComparing((Pair<Integer, String> p) -> p.second, String.CASE_INSENSITIVE_ORDER)
+                );
         sortedMap.putAll(newMap);
         newMap = new LinkedHashMap<>(1);
-        newMap.put(app.getString(R.string.widget_settings_select_device_title), new Pair<>(SELECT_DEVICE, R.drawable.ic_device_unknown));
-        newMap.put(app.getString(R.string.devicetype_scannable), new Pair<>((long) DeviceType.SCANNABLE.ordinal(), R.drawable.ic_device_scannable));
-        newMap.put(app.getString(R.string.devicetype_ble_gatt_client), new Pair<>((long) DeviceType.BLE_GATT_CLIENT.ordinal(), R.drawable.ic_device_scannable));
-
+        newMap.put(new Pair<Integer, String>(0, app.getString(R.string.widget_settings_select_device_title)), new Pair<>(SELECT_DEVICE, R.drawable.ic_device_unknown));
         newMap.putAll(sortedMap);
 
         return newMap;
