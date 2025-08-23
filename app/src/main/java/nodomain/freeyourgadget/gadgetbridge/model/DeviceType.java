@@ -799,7 +799,12 @@ public enum DeviceType {
 
     /** Generic types are not special other than they can get grouped as such when adding a test device */
     public boolean isGeneric() {
-        return this == SCANNABLE || this == BLE_GATT_CLIENT;
+        return this == SCANNABLE ||
+         this == BLE_GATT_CLIENT ||
+         this == GENERIC_HEADPHONES ||
+         this == GENERIC_THERMAL_PRINTER ||
+         this == GENERIC_HEART_RATE ||
+         this == GENERIC_WEIGHT_SCALE;
     }
 
     public static DeviceType fromName(String name) {
