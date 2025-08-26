@@ -38,7 +38,7 @@ public class HealthyPiMoveCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("healthypi move");
+        return Pattern.compile("^healthypi move$");
     }
 
     @Override
