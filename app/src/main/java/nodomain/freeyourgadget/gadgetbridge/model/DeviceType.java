@@ -202,6 +202,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.hplus.HPlusCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.MakibesF68Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.Q8Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.SG2Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.hryfine.HryFineCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.amazfitband5.AmazfitBand5Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.amazfitbip.AmazfitBipCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.amazfitbip.AmazfitBipLiteCoordinator;
@@ -966,6 +967,7 @@ public enum DeviceType {
     COOSPO_H9Z(CoospoH9ZCoordinator.class),
     KEEPHEALTH_C60(C60DeviceCoordinator.class),
     GENERIC_WEIGHT_SCALE(GenericWeightScaleCoordinator.class),
+    HRYFINE(HryFineCoordinator.class),
     SOLARFLOW(SolarFlowDeviceCoordinator.class),
     SANITAS_SBM_67(SanitasSBM67Coordinator.class),
     SILVERCREST_SBM_67(SilverCrestSBM67Coordinator.class),
