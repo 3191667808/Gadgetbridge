@@ -157,6 +157,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.hplus.HPlusCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.MakibesF68Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.Q8Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.SG2Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.hryfine.HryFineCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.amazfitband5.AmazfitBand5Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.amazfitbip.AmazfitBipCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.amazfitbip.AmazfitBipLiteCoordinator;
@@ -789,6 +790,7 @@ public enum DeviceType {
     COOSPO_HW9(CoospoHW9Coordinator.class),
     COOSPO_HW807(CoospoHW807Coordinator.class),
     GENERIC_WEIGHT_SCALE(GenericWeightScaleCoordinator.class),
+    HRYFINE(HryFineCoordinator.class),
     TEST(TestDeviceCoordinator.class);
 
     private DeviceCoordinator coordinator;
