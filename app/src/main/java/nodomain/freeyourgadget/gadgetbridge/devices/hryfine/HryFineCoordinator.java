@@ -33,7 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.hryfine.HryFineSuppo
 public class HryFineCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("HryFine.*", Pattern.CASE_INSENSITIVE);
+        return Pattern.compile("^HryFine.*", Pattern.CASE_INSENSITIVE);
     }
 
     @NonNull
