@@ -62,9 +62,7 @@ public class HealthyPiMoveSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
-        builder.add(new SetDeviceStateAction(getDevice(),
-                                             GBDevice.State.INITIALIZING,
-                                             getContext()));
+        builder.setDeviceState(GBDevice.State.INITIALIZING);
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
 
@@ -76,9 +74,7 @@ public class HealthyPiMoveSupport extends AbstractBTLESingleDeviceSupport {
         //builder.notify(getCharacteristic(GattService.UUID_SERVICE_PULSE_OXIMETER), true);
         //builder.notify(getCharacteristic(GattService.UUID_SERVICE_HEALTH_THERMOMETER), true);
 
-        builder.add(new SetDeviceStateAction(getDevice(),
-                                             GBDevice.State.INITIALIZED,
-                                             getContext()));
+        builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
     }
 
