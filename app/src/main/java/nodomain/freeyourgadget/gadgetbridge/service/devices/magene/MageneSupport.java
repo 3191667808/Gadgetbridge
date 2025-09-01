@@ -11,7 +11,17 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.FunctionCode;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.ResourceType;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacketParser;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeSerialInfoPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NotificationPacket;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -23,6 +33,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(MageneSupport.class);
     public BluetoothGattCharacteristic readCharacteristic;
     public BluetoothGattCharacteristic writeCharacteristic;
+    private byte nodeAddress;
 
     public MageneSupport() {
 
@@ -47,9 +58,9 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         builder.notify(GattService.UUID_SERVICE_BATTERY_SERVICE, true);
         builder.setCallback(this);
 
-        byte[] data = GB.hexStringToByteArray("80f10101000000000000000000"); // HACK: send firrst packet to check UART configured correctly
+        NodeBasicInfoReadPacket.Read basicInfoRead = new NodeBasicInfoReadPacket.Read((byte)0x80, ResourceType.MAIN);
 
-        builder.write(writeCharacteristic, data);
+        builder.write(writeCharacteristic, basicInfoRead.toByteArray());
 
 
         getDevice().setFirmwareVersion("N/A");
@@ -62,20 +73,32 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] data) {
+
         TransactionBuilder builder = createTransactionBuilder("test second packet");
-        byte[] writeData;
-        if (data[3] == 1 ) {
 
-            writeData = GB.hexStringToByteArray("a9f101020000000000000000000000000000000000000000000000"); // HACK hardcoded ask for serial number
-            builder.write(writeCharacteristic, writeData);
+        SRAPPacketParser parser = new SRAPPacketParser();
+        Object parsedObject = parser.parse(data);
+        if (parsedObject instanceof NodeBasicInfoReadPacket.Response) {
+            NodeBasicInfoReadPacket.Response info = (NodeBasicInfoReadPacket.Response) parsedObject;
+            LOG.debug(info.toString());
+            nodeAddress = info.getNodeAddress();
+            getDevice().setFirmwareVersion(String.valueOf(info.getNodeFwVersion()));
 
-        } else if  (data[3] == 2) {
-            writeData = GB.hexStringToByteArray("a9f1010302");
-            builder.write(writeCharacteristic, writeData);
-        } else if  (data[3] == 3) {
+            NodeSerialInfoPacket.Read serialInfoPacket = new NodeSerialInfoPacket.Read(nodeAddress, ResourceType.MAIN);
+            builder.write(writeCharacteristic, serialInfoPacket.toByteArray());
+        } else if (parsedObject instanceof NodeSerialInfoPacket.Response) {
+            NodeSerialInfoPacket.Response serialInfo = (NodeSerialInfoPacket.Response) parsedObject;
+            LOG.debug(serialInfo.toString());
+            NodeAddressInfoPacket.Read addressInfoPacket = new NodeAddressInfoPacket.Read(nodeAddress, ResourceType.MAIN);
+            builder.write(writeCharacteristic, addressInfoPacket.toByteArray());
+        } else if (parsedObject instanceof NodeAddressInfoPacket.Response) {
+            NodeAddressInfoPacket.Response addressInfo = (NodeAddressInfoPacket.Response) parsedObject;
+            LOG.debug(addressInfo.toString());
+            byte[] writeData;
             writeData = GB.hexStringToByteArray("a9f210e108");
             builder.write(writeCharacteristic, writeData);
         }
+
         builder.queue();
         return true;
     }
@@ -84,18 +107,10 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onNotification(NotificationSpec notificationSpec) {
         TransactionBuilder builder = createTransactionBuilder("notification");
-        byte[] dataHeader = GB.hexStringToByteArray("A9F201440206");
-        byte[] senderData = notificationSpec.sender.getBytes(StandardCharsets.UTF_8);
-        byte[] message = notificationSpec.body.getBytes(StandardCharsets.UTF_8);
-        byte[] fullData = new byte[senderData.length + message.length + dataHeader.length + 2];
-        ByteBuffer buffer = ByteBuffer.wrap(fullData);
-        buffer.put(dataHeader);
-        buffer.put((byte) senderData.length);;
-        buffer.put(senderData);
-        buffer.put((byte)(message.length));
-        buffer.put(message);
-        fullData = buffer.array();
-        builder.write(writeCharacteristic, fullData);
+
+        NotificationPacket.Write writeNotificationPacket = new NotificationPacket.Write(nodeAddress, ResourceType.MAIN, (byte) 2, (byte) 6, notificationSpec.sender, notificationSpec.body);
+
+        builder.write(writeCharacteristic, writeNotificationPacket.toByteArray());
         builder.queue();
     }
 
