@@ -21,12 +21,10 @@ public final class NodeBasicInfoReadPacket {
      */
     public static class Read extends AbstractSRAPMessage {
         private final byte nodeAddress;
-        private final ResourceType resourceType;
         private final byte[] payload = new byte[9]; // As per the dissector, this request requires a 9-byte padding payload.
 
-        public Read(byte nodeAddress, ResourceType resourceType) {
+        public Read(byte nodeAddress) {
             this.nodeAddress = nodeAddress;
-            this.resourceType = resourceType;
         }
 
         @Override
@@ -36,7 +34,7 @@ public final class NodeBasicInfoReadPacket {
         public FunctionCode getFunctionCode() { return FunctionCode.READ; }
 
         @Override
-        public ResourceType getResourceType() { return resourceType; }
+        public ResourceType getResourceType() { return ResourceType.MAIN; }
 
         @Override
         public PageNumber getPageNumber() { return PageNumber.NODE_BASIC_INFO; }

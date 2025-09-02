@@ -58,7 +58,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         builder.notify(GattService.UUID_SERVICE_BATTERY_SERVICE, true);
         builder.setCallback(this);
 
-        NodeBasicInfoReadPacket.Read basicInfoRead = new NodeBasicInfoReadPacket.Read((byte)0x80, ResourceType.MAIN);
+        NodeBasicInfoReadPacket.Read basicInfoRead = new NodeBasicInfoReadPacket.Read((byte)0x80);
 
         builder.write(writeCharacteristic, basicInfoRead.toByteArray());
 
@@ -84,12 +84,12 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
             nodeAddress = info.getNodeAddress();
             getDevice().setFirmwareVersion(String.valueOf(info.getNodeFwVersion()));
 
-            NodeSerialInfoPacket.Read serialInfoPacket = new NodeSerialInfoPacket.Read(nodeAddress, ResourceType.MAIN);
+            NodeSerialInfoPacket.Read serialInfoPacket = new NodeSerialInfoPacket.Read(nodeAddress);
             builder.write(writeCharacteristic, serialInfoPacket.toByteArray());
         } else if (parsedObject instanceof NodeSerialInfoPacket.Response) {
             NodeSerialInfoPacket.Response serialInfo = (NodeSerialInfoPacket.Response) parsedObject;
             LOG.debug(serialInfo.toString());
-            NodeAddressInfoPacket.Read addressInfoPacket = new NodeAddressInfoPacket.Read(nodeAddress, ResourceType.MAIN);
+            NodeAddressInfoPacket.Read addressInfoPacket = new NodeAddressInfoPacket.Read(nodeAddress);
             builder.write(writeCharacteristic, addressInfoPacket.toByteArray());
         } else if (parsedObject instanceof NodeAddressInfoPacket.Response) {
             NodeAddressInfoPacket.Response addressInfo = (NodeAddressInfoPacket.Response) parsedObject;
@@ -109,7 +109,6 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         TransactionBuilder builder = createTransactionBuilder("notification");
 
         NotificationPacket.Write writeNotificationPacket = new NotificationPacket.Write(nodeAddress,
-                ResourceType.MAIN,
                 NotificationPacket.NotificationType.MESSAGE,
                 NotificationPacket.NotificationOrigin.WHATSAPP,
                 notificationSpec.sender,

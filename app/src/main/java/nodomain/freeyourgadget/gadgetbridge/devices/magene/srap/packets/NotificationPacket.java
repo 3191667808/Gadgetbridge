@@ -86,12 +86,10 @@ public final class NotificationPacket {
      */
     public static class Write extends AbstractSRAPMessage {
         private final byte nodeAddress;
-        private final ResourceType resourceType;
         private final byte[] payload;
 
-        public Write(byte nodeAddress, ResourceType resourceType, NotificationType notificationType, NotificationOrigin notificationOrigin, String sender, String message) {
+        public Write(byte nodeAddress, NotificationType notificationType, NotificationOrigin notificationOrigin, String sender, String message) {
             this.nodeAddress = nodeAddress;
-            this.resourceType = resourceType;
             this.payload = buildPayload(notificationType, notificationOrigin, sender, message);
         }
 
@@ -119,7 +117,7 @@ public final class NotificationPacket {
 
         @Override public byte getNodeAddress() { return nodeAddress; }
         @Override public FunctionCode getFunctionCode() { return FunctionCode.WRITE; }
-        @Override public ResourceType getResourceType() { return resourceType; }
+        @Override public ResourceType getResourceType() { return ResourceType.MAIN; }
         @Override public PageNumber getPageNumber() { return PageNumber.NOTIFICATION; }
         @Override public byte[] getPayload() { return payload; }
     }

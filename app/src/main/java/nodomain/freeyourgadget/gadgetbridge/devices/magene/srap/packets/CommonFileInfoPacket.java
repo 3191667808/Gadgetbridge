@@ -24,12 +24,10 @@ public final class CommonFileInfoPacket {
      */
     public static class Write extends AbstractSRAPMessage {
         private final byte nodeAddress;
-        private final ResourceType resourceType;
         private final byte[] payload;
 
         /**
          * @param nodeAddress     The target node address.
-         * @param resourceType    The target resource type.
          * @param fileType        The type of file being sent.
          * @param transformType   The type of transfer (e.g., 0 for upload).
          * @param fileSize        Total size of the file in bytes.
@@ -37,9 +35,8 @@ public final class CommonFileInfoPacket {
          * @param crc             CRC16 of the file.
          * @param filename        The name of the file.
          */
-        public Write(byte nodeAddress, ResourceType resourceType, FileType fileType, byte transformType, int fileSize, int packageNumber, int crc, String filename) {
+        public Write(byte nodeAddress, FileType fileType, byte transformType, int fileSize, int packageNumber, int crc, String filename) {
             this.nodeAddress = nodeAddress;
-            this.resourceType = resourceType;
             this.payload = buildPayload(fileType, transformType, fileSize, packageNumber, crc, filename);
         }
 
@@ -63,7 +60,7 @@ public final class CommonFileInfoPacket {
 
         @Override public byte getNodeAddress() { return nodeAddress; }
         @Override public FunctionCode getFunctionCode() { return FunctionCode.WRITE; }
-        @Override public ResourceType getResourceType() { return resourceType; }
+        @Override public ResourceType getResourceType() { return ResourceType.MAIN; }
         @Override public PageNumber getPageNumber() { return PageNumber.COMMON_FILE_INFO; }
         @Override public byte[] getPayload() { return payload; }
     }

@@ -22,7 +22,6 @@ public final class CommonFilePacket {
      */
     public static class Write extends AbstractSRAPMessage {
         private final byte nodeAddress;
-        private final ResourceType resourceType;
         private final byte[] payload;
 
         /**
@@ -31,9 +30,8 @@ public final class CommonFilePacket {
          * @param chunkIndex   The 0-based index of this file chunk.
          * @param chunkData    The raw byte data of the file chunk.
          */
-        public Write(byte nodeAddress, ResourceType resourceType, int chunkIndex, byte[] chunkData) {
+        public Write(byte nodeAddress, int chunkIndex, byte[] chunkData) {
             this.nodeAddress = nodeAddress;
-            this.resourceType = resourceType;
             this.payload = buildPayload(chunkIndex, chunkData);
         }
 
@@ -59,7 +57,7 @@ public final class CommonFilePacket {
 
         @Override public byte getNodeAddress() { return nodeAddress; }
         @Override public FunctionCode getFunctionCode() { return FunctionCode.WRITE; }
-        @Override public ResourceType getResourceType() { return resourceType; }
+        @Override public ResourceType getResourceType() { return ResourceType.MAIN; }
         @Override public PageNumber getPageNumber() { return PageNumber.COMMON_FILE; }
         @Override public byte[] getPayload() { return payload; }
     }
