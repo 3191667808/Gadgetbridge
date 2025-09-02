@@ -16,77 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl;
 
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.ACTIVE_SECONDS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.ALTITUDE_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.ALTITUDE_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.ALTITUDE_MIN;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.CADENCE_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.CADENCE_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.CALORIES_BURNT;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.DISTANCE_METERS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.ELEVATION_GAIN;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.ELEVATION_LOSS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_MIN;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_ZONE_AEROBIC;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_ZONE_ANAEROBIC;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_ZONE_EXTREME;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_ZONE_FAT_BURN;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.HR_ZONE_WARM_UP;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.LAPS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.PACE_AVG_SECONDS_KM;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.PACE_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.PACE_MIN;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.RECOVERY_TIME;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.SPEED_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.SPEED_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.STEPS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.STEP_RATE_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.STEP_RATE_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.STROKES;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.STROKE_RATE_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.JUMPS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.JUMP_RATE_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.JUMP_RATE_MAX;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.SWIM_STYLE;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.SWOLF_AVG;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.TIME_END;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.TIME_START;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.TRAINING_EFFECT_AEROBIC;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.TRAINING_EFFECT_ANAEROBIC;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_BPM;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_HOURS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_KCAL;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_KMPH;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_LAPS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_METERS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_ML_KG_MIN;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_NONE;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_SECONDS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_SECONDS_PER_KM;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_SECONDS_PER_M;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_SPM;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_STEPS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_STROKES;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_STROKES_PER_MINUTE;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_JUMPS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_JUMPS_PER_MINUTE;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_UNIX_EPOCH_SECONDS;
-import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.WORKOUT_LOAD;
-import static nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.XiaomiSimpleActivityParser.XIAOMI_WORKOUT_TYPE;
-
 import android.widget.Toast;
-
 import androidx.annotation.Nullable;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -102,6 +33,14 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.Xiao
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.XiaomiActivityParser;
 import nodomain.freeyourgadget.gadgetbridge.util.CheckSums;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.*;
+import static nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl.XiaomiSimpleActivityParser.XIAOMI_WORKOUT_TYPE;
 
 public class WorkoutSummaryParser extends XiaomiActivityParser implements ActivitySummaryParser {
     private static final Logger LOG = LoggerFactory.getLogger(WorkoutSummaryParser.class);
@@ -524,6 +463,9 @@ public class WorkoutSummaryParser extends XiaomiActivityParser implements Activi
             case 6:
                 headerSize = 7;
                 break;
+            case 8:
+                headerSize = 8;
+                break;
             default:
                 LOG.warn("Unable to parse outdoor cycling summary version {}", fileId.getVersion());
                 return null;
@@ -535,10 +477,15 @@ public class WorkoutSummaryParser extends XiaomiActivityParser implements Activi
         builder.addInt(TIME_START, UNIT_UNIX_EPOCH_SECONDS);
         builder.addInt(TIME_END, UNIT_UNIX_EPOCH_SECONDS);
         builder.addInt(ACTIVE_SECONDS, UNIT_SECONDS);
-        builder.addUnknown(4);
+        builder.addUnknown(4);  // version 8: at least sometimes the same as ACTIVE_SECONDS
         builder.addInt(DISTANCE_METERS, UNIT_METERS);
-        builder.addUnknown(2);
-        builder.addShort(CALORIES_BURNT, UNIT_KCAL);
+        if (version == 8) {
+            builder.addShort(CALORIES_BURNT, UNIT_KCAL);
+            builder.addShort(CALORIES_ACTIVE, UNIT_KCAL);
+        } else {
+            builder.addUnknown(2);
+            builder.addShort(CALORIES_BURNT, UNIT_KCAL);
+        }
         builder.addUnknown(4);
         builder.addUnknown(4);
         if (version >= 5) {
