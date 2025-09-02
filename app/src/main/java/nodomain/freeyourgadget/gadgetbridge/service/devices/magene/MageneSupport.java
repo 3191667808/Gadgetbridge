@@ -65,6 +65,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         writeCharacteristic = getCharacteristic(MageneConstants.UUID_CHARACTERISTIC_TX);
 
         builder.notify(MageneConstants.UUID_CHARACTERISTIC_RX, true);
+        builder.notify(MageneConstants.UUID_CHARACTERISTIC_TX, true);
         builder.notify(GattService.UUID_SERVICE_BATTERY_SERVICE, true);
         builder.setCallback(this);
 
@@ -134,7 +135,11 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
 
         if (parsedObject instanceof FileTransformControlPacket.Response) {
             FileTransformControlPacket.Response response = (FileTransformControlPacket.Response) parsedObject;
-            mageneFileManager.handleMtuResponse(response);
+            if ( response.getControlType() == FileTransformControlPacket.FileTransformControlCode.START_TRANSFER) {
+                mageneFileManager.handleMtuResponse(response);
+            } else {
+                LOG.info("Get file upload end code");
+            }
         } else if (parsedObject instanceof CommonFileInfoPacket.Response) {
             CommonFileInfoPacket.Response response = (CommonFileInfoPacket.Response) parsedObject;
             mageneFileManager.onFileInfoSent(response);

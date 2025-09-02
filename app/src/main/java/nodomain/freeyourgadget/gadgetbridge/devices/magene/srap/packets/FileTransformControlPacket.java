@@ -16,6 +16,7 @@ import java.util.Map;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.FunctionCode;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.ResourceType;
+import nodomain.freeyourgadget.gadgetbridge.util.CheckSums;
 
 /**
  * A container for messages related to the FILE_TRANSFORM_CONTROL (0x24) page.
@@ -25,6 +26,10 @@ public final class FileTransformControlPacket {
 
     private FileTransformControlPacket() {
         // Namespace class
+    }
+
+    public static int getMageneCRC16(byte[] data) {
+        return CheckSums.getCRC16(data, 0x0000); //CRC-16/XMODEM used in Magene
     }
 
     public enum FileTransformControlCode {

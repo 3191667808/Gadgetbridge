@@ -1,15 +1,15 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.magene;
 
+import static nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket.getMageneCRC16;
+
 import java.io.IOException;
 import java.util.Collections;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.FileType;
-import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.AbstractSRAPMessage;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
-import nodomain.freeyourgadget.gadgetbridge.util.CheckSums;
 
 
 public class MageneFileManager {
@@ -64,7 +64,7 @@ public class MageneFileManager {
         this.filename = filename;
         this.fileType = fileType;
         this.fileSize = fileData.length;
-        this.fileCrc = CheckSums.getCRC8(fileData);
+        this.fileCrc = getMageneCRC16(fileData);
 
         this.state = UploadState.AWAITING_MTU;
 
@@ -75,7 +75,7 @@ public class MageneFileManager {
                 FileTransformControlPacket.FileTransformControlCode.START_TRANSFER,
                 1,
                 0,
-                1756705303, // SPU version, adjust if needed FIXME
+                0, // SPU version, adjust if needed FIXME
                 Collections.singletonList(this.filename)
         );
         builder.write(support.writeCharacteristic, startUpload.toByteArray());
@@ -104,7 +104,7 @@ public class MageneFileManager {
         }
 
         // Calculate chunk size, leaving room for packet headers (4 bytes for CommonFilePacket)
-        int dataPerChunk = this.mtu;
+        int dataPerChunk = this.mtu-8;
         this.totalChunks = (int) Math.ceil((double) this.fileSize / dataPerChunk);
 
         this.state = UploadState.READY_TO_SEND_INFO;
@@ -159,18 +159,19 @@ public class MageneFileManager {
         while (currentReadPosition < fileSize) {
 
             // Calculate how much data to send in this chunk
-            int dataPerChunk = this.mtu; // Max data size per chunk, leaving room for headers
+            int dataPerChunk = this.mtu - 8; // Max data size per chunk, leaving room for headers
             int bytesToRead = (int) Math.min(dataPerChunk, fileSize - currentReadPosition);
 
             byte[] chunkData = new byte[bytesToRead];
             System.arraycopy(this.fileData, currentReadPosition, chunkData, 0, bytesToRead);
 
-            // Create the packet for the current chunk
-            CommonFilePacket.Write packet = new CommonFilePacket.Write(nodeAddress, nextChunkIndex, chunkData);
-
             // Update state for the next call
             currentReadPosition += bytesToRead;
             nextChunkIndex++;
+
+            // Create the packet for the current chunk
+            CommonFilePacket.Write packet = new CommonFilePacket.Write(nodeAddress, nextChunkIndex, chunkData);
+
             builder.write(support.writeCharacteristic, packet.toByteArray());
 
         }

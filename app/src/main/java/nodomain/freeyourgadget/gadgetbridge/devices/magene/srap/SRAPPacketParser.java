@@ -99,26 +99,34 @@ public class SRAPPacketParser {
                         return null;
                     }
 
-                case COMMON_FILE:
-                    try {
-                        if (genericPacket.getFunctionCode() == FunctionCode.NOTIFICATION) {
-                            return new CommonFilePacket.Notification(genericPacket.getPayload());
-                        }
-                    } catch (IllegalArgumentException e) {
-                        LOG.error("Error parsing COMMON_FILE_INFO response: " + e.getMessage());
-                        return null;
-                    }
-
                     // Add more cases for other PageNumbers here
                     // case DEVICE_STATUS:
                     //     return new DeviceStatusPacket.Response(genericPacket.getPayload());
                 default:
                     // This is a valid response, but we don't have a specific parser for it yet.
+                    LOG.warn("Unhandled response type: page number" + genericPacket.getPageNumber());
                     return null;
             }
         }
         // You could add handlers for NOTIFICATION function codes here as well
+        // Dispatch based on function and page number to the correct response parser
+        if (genericPacket.getFunctionCode() == FunctionCode.NOTIFICATION) {
+            switch (genericPacket.getPageNumber()) {
+                case COMMON_FILE:
+                    try {
+                        return new CommonFilePacket.Notification(genericPacket.getPayload());
+                    } catch (IllegalArgumentException e) {
+                        LOG.error("Error parsing COMMON_FILE_INFO response: " + e.getMessage());
+                        return null;
+                    }
 
+                default:
+                    // This is a valid response, but we don't have a specific parser for it yet.
+                    LOG.warn("Unhandled notification type: page number" + genericPacket.getPageNumber());
+                    return null;
+            }
+
+        }
         return null; // Unhandled packet type
     }
 }
