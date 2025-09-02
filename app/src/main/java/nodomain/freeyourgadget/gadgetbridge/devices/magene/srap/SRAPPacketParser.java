@@ -4,6 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeSerialInfoPacket;
@@ -80,6 +83,30 @@ public class SRAPPacketParser {
                             LOG.error("Unknown payload start for BOND_SYNC_STATE_CONTROL: " + control);
                             return null;
 
+                    }
+                case FILE_TRANSFORM_CONTROL:
+                    try {
+                        return new FileTransformControlPacket.Response(genericPacket.getPayload());
+                    } catch (IllegalArgumentException e) {
+                        LOG.error("Error parsing FILE_TRANSFORM_CONTROL response: " + e.getMessage());
+                        return null;
+                    }
+                case COMMON_FILE_INFO:
+                    try {
+                        return new CommonFileInfoPacket.Response(genericPacket.getPayload());
+                    } catch (IllegalArgumentException e) {
+                        LOG.error("Error parsing COMMON_FILE_INFO response: " + e.getMessage());
+                        return null;
+                    }
+
+                case COMMON_FILE:
+                    try {
+                        if (genericPacket.getFunctionCode() == FunctionCode.NOTIFICATION) {
+                            return new CommonFilePacket.Notification(genericPacket.getPayload());
+                        }
+                    } catch (IllegalArgumentException e) {
+                        LOG.error("Error parsing COMMON_FILE_INFO response: " + e.getMessage());
+                        return null;
                     }
 
                     // Add more cases for other PageNumbers here

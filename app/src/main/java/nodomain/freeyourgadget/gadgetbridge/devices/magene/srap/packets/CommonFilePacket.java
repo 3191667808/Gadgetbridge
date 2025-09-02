@@ -26,7 +26,6 @@ public final class CommonFilePacket {
 
         /**
          * @param nodeAddress  The target node address.
-         * @param resourceType The target resource type.
          * @param chunkIndex   The 0-based index of this file chunk.
          * @param chunkData    The raw byte data of the file chunk.
          */
@@ -61,6 +60,19 @@ public final class CommonFilePacket {
         @Override public PageNumber getPageNumber() { return PageNumber.COMMON_FILE; }
         @Override public byte[] getPayload() { return payload; }
     }
+
+    public static class Notification {
+
+        public Notification(byte[] payload) {
+            if (payload == null || payload.length < 5) {
+                throw new IllegalArgumentException("Payload for CommonFile Notification must be at least 3 bytes long.");
+            }
+
+            //TODO: parse payload
+        }
+
+    }
+
 }
 
 

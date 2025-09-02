@@ -64,6 +64,55 @@ public final class CommonFileInfoPacket {
         @Override public PageNumber getPageNumber() { return PageNumber.COMMON_FILE_INFO; }
         @Override public byte[] getPayload() { return payload; }
     }
+
+    public static class Response {
+        private final FileType fileType;
+        private final byte transformType;
+        private final int fileSize;
+        private final int packageNumber;
+        private final int crc;
+        private final String filename;
+
+        public Response(byte[] payload) {
+            if (payload == null || payload.length < 19) {
+                throw new IllegalArgumentException("Payload for CommonFileInfo Response must be at least 19 bytes long.");
+            }
+
+            ByteBuffer buffer = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
+
+            this.fileType = FileType.fromValue(buffer.get() & 0xFF);
+            this.transformType = buffer.get();
+            buffer.get(new byte[5]); // Skip 5 bytes of padding
+            this.fileSize = buffer.getInt();
+            this.packageNumber = buffer.getShort() & 0xFFFF;
+            this.crc = buffer.getShort() & 0xFFFF;
+            buffer.get(new byte[4]); // Skip 4 bytes of padding
+
+            byte[] filenameBytes = new byte[buffer.remaining()];
+            buffer.get(filenameBytes);
+            this.filename = new String(filenameBytes, StandardCharsets.UTF_8);
+        }
+
+        // Getters
+        public FileType getFileType() { return fileType; }
+        public byte getTransformType() { return transformType; }
+        public int getFileSize() { return fileSize; }
+        public int getPackageNumber() { return packageNumber; }
+        public int getCrc() { return crc; }
+        public String getFilename() { return filename; }
+
+        @Override
+        public String toString() {
+            return "CommonFileInfoPacket.Response{" +
+                    "fileType=" + fileType +
+                    ", transformType=" + transformType +
+                    ", fileSize=" + fileSize +
+                    ", packageNumber=" + packageNumber +
+                    ", crc=0x" + Integer.toHexString(crc) +
+                    ", filename='" + filename + '\'' +
+                    '}';
+        }
+    }
 }
 
 

@@ -7,10 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.TimeZone;
 
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.FileType;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.FunctionCode;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
@@ -18,11 +20,15 @@ import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.ResourceType;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacketParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeSerialInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NotificationPacket;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -36,10 +42,12 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     public BluetoothGattCharacteristic readCharacteristic;
     public BluetoothGattCharacteristic writeCharacteristic;
     private byte nodeAddress;
+    private MageneFileManager mageneFileManager;
 
     public MageneSupport() {
 
         super(LOG);
+
         addSupportedService(MageneConstants.UUID_CHARACTERISTIC_RX);
         addSupportedService(MageneConstants.UUID_CHARACTERISTIC_UART);
     }
@@ -84,6 +92,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
             NodeBasicInfoReadPacket.Response info = (NodeBasicInfoReadPacket.Response) parsedObject;
             LOG.debug(info.toString());
             nodeAddress = info.getNodeAddress();
+            mageneFileManager = new MageneFileManager(nodeAddress, this);
             getDevice().setFirmwareVersion(String.valueOf(info.getNodeFwVersion()));
 
             NodeSerialInfoPacket.Read serialInfoPacket = new NodeSerialInfoPacket.Read(nodeAddress);
@@ -123,6 +132,23 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
             LOG.info("Connected and synced");
         }
 
+        if (parsedObject instanceof FileTransformControlPacket.Response) {
+            FileTransformControlPacket.Response response = (FileTransformControlPacket.Response) parsedObject;
+            mageneFileManager.handleMtuResponse(response);
+        } else if (parsedObject instanceof CommonFileInfoPacket.Response) {
+            CommonFileInfoPacket.Response response = (CommonFileInfoPacket.Response) parsedObject;
+            mageneFileManager.onFileInfoSent(response);
+        } else if (parsedObject instanceof CommonFilePacket.Notification) {
+            LOG.info("upload completed");
+            CommonFilePacket.Notification response = (CommonFilePacket.Notification) parsedObject;
+            try {
+                mageneFileManager.endUpload(response);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
+
         builder.queue();
         return true;
     }
@@ -139,6 +165,30 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
 
         builder.write(writeCharacteristic, writeNotificationPacket.toByteArray());
         builder.queue();
+    }
+
+
+    @Override
+    public void onSendConfiguration(String config) {
+
+        switch (config) {
+            case ActivityUser.PREF_USER_WEIGHT_KG:
+            case ActivityUser.PREF_USER_GENDER:
+            case ActivityUser.PREF_USER_HEIGHT_CM:
+            case ActivityUser.PREF_USER_DATE_OF_BIRTH:
+                sendUserConfig();
+                break;
+
+        }
+    }
+
+    private void sendUserConfig() {
+        byte[] hardcodedUserInfo = GB.hexStringToByteArray("4a6f6e6820446f650000000000000000000000000000000000000000000000004336303600000000000000000000000000000000000000000000000000000000b900b900ef00c607060101c0b603000000000000000000000000000000000000000000000000000001000000a55a55aa");
+        try {
+            mageneFileManager.startUpload(hardcodedUserInfo, "user_info.bin", FileType.USER_PROFILE);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }
