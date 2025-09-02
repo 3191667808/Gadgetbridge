@@ -3,6 +3,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.FunctionCode;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
@@ -17,6 +19,68 @@ public final class NotificationPacket {
         // This class is a namespace and should not be instantiated.
     }
 
+
+    public enum NotificationType {
+        CALL(1),
+        MESSAGE(2),
+        UNKNOWN(-1);
+
+        private final int value;
+        private static final Map<Integer, NotificationType> map = new HashMap<>();
+
+        NotificationType(int value) {
+            this.value = value;
+        }
+
+        static {
+            for (NotificationType type : NotificationType.values()) {
+                map.put(type.value, type);
+            }
+        }
+
+        public static NotificationType fromValue(int value) {
+            return map.getOrDefault(value, UNKNOWN);
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
+
+    public enum NotificationOrigin {
+        PHONE(0),
+        SMS(1),
+        QQ(2),
+        WECHAT(3),
+        OTHER(4),
+        SKYPE(5),
+        WHATSAPP(6),
+        EMAIL(7),
+        LINE(8),
+        UNKNOWN(-1);
+
+        private final int value;
+        private static final Map<Integer, NotificationOrigin> map = new HashMap<>();
+
+        NotificationOrigin(int value) {
+            this.value = value;
+        }
+
+        static {
+            for (NotificationOrigin origin : NotificationOrigin.values()) {
+                map.put(origin.value, origin);
+            }
+        }
+
+        public static NotificationOrigin fromValue(int value) {
+            return map.getOrDefault(value, UNKNOWN);
+        }
+
+        public int getValue() {
+            return value;
+        }
+    }
+
     /**
      * Represents a WRITE command for sending a Notification (f2:44).
      */
@@ -25,13 +89,13 @@ public final class NotificationPacket {
         private final ResourceType resourceType;
         private final byte[] payload;
 
-        public Write(byte nodeAddress, ResourceType resourceType, byte notificationType, byte notificationOrigin, String sender, String message) {
+        public Write(byte nodeAddress, ResourceType resourceType, NotificationType notificationType, NotificationOrigin notificationOrigin, String sender, String message) {
             this.nodeAddress = nodeAddress;
             this.resourceType = resourceType;
             this.payload = buildPayload(notificationType, notificationOrigin, sender, message);
         }
 
-        private byte[] buildPayload(byte notificationType, byte notificationOrigin, String sender, String message) {
+        private byte[] buildPayload(NotificationType notificationType, NotificationOrigin notificationOrigin, String sender, String message) {
             byte[] senderBytes = sender.getBytes(StandardCharsets.UTF_8);
             byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
 
@@ -40,8 +104,8 @@ public final class NotificationPacket {
             }
 
             try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
-                stream.write(notificationType);
-                stream.write(notificationOrigin);
+                stream.write(notificationType.getValue());
+                stream.write(notificationOrigin.getValue());
                 stream.write((byte) senderBytes.length);
                 stream.write(senderBytes);
                 stream.write((byte) messageBytes.length);

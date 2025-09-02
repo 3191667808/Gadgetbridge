@@ -108,7 +108,12 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     public void onNotification(NotificationSpec notificationSpec) {
         TransactionBuilder builder = createTransactionBuilder("notification");
 
-        NotificationPacket.Write writeNotificationPacket = new NotificationPacket.Write(nodeAddress, ResourceType.MAIN, (byte) 2, (byte) 6, notificationSpec.sender, notificationSpec.body);
+        NotificationPacket.Write writeNotificationPacket = new NotificationPacket.Write(nodeAddress,
+                ResourceType.MAIN,
+                NotificationPacket.NotificationType.MESSAGE,
+                NotificationPacket.NotificationOrigin.WHATSAPP,
+                notificationSpec.sender,
+                notificationSpec.body);
 
         builder.write(writeCharacteristic, writeNotificationPacket.toByteArray());
         builder.queue();
