@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.FunctionCode;
@@ -16,6 +17,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.ResourceType;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacketParser;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeSerialInfoPacket;
@@ -94,9 +96,31 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         } else if (parsedObject instanceof NodeAddressInfoPacket.Response) {
             NodeAddressInfoPacket.Response addressInfo = (NodeAddressInfoPacket.Response) parsedObject;
             LOG.debug(addressInfo.toString());
-            byte[] writeData;
-            writeData = GB.hexStringToByteArray("a9f210e108");
-            builder.write(writeCharacteristic, writeData);
+            BondSyncStateControlPacket.RequestBond.Write requestBond = new BondSyncStateControlPacket.RequestBond.Write(nodeAddress);
+            builder.write(writeCharacteristic, requestBond.toByteArray());
+        } else if (parsedObject instanceof BondSyncStateControlPacket.RequestBond.Response) {
+            LOG.info("Bonded");
+            BondSyncStateControlPacket.SyncStart.Write syncStart = new BondSyncStateControlPacket.SyncStart.Write(nodeAddress);
+            builder.write(writeCharacteristic, syncStart.toByteArray());
+        } else if (parsedObject instanceof BondSyncStateControlPacket.SyncStart.Response) {
+            LOG.info("Sync started");
+            // TODO: upload configs here
+            BondSyncStateControlPacket.SetTimestamp.Write setTimeStamp = new BondSyncStateControlPacket.SetTimestamp.Write(nodeAddress, System.currentTimeMillis()/1000);
+            builder.write(writeCharacteristic, setTimeStamp.toByteArray());
+        } else if (parsedObject instanceof BondSyncStateControlPacket.SetTimestamp.Response) {
+            LOG.info("Timestamp set");
+            int offset = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000;
+            int offsetAbove12 = offset < 0 ? Math.abs(offset) + 54000 : offset;
+            BondSyncStateControlPacket.SetTimezone.Write setTimezone = new BondSyncStateControlPacket.SetTimezone.Write(nodeAddress, offsetAbove12);
+            builder.write(writeCharacteristic, setTimezone.toByteArray());
+        } else if (parsedObject instanceof BondSyncStateControlPacket.SetTimezone.Response) {
+            LOG.info("Timezone set");
+            LOG.info("Sending sync end");
+            BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
+            builder.write(writeCharacteristic, syncEnd.toByteArray());
+            builder.write(writeCharacteristic, syncEnd.toByteArray());
+        } else if (parsedObject instanceof BondSyncStateControlPacket.SyncEnd.Response) {
+            LOG.info("Connected and synced");
         }
 
         builder.queue();
