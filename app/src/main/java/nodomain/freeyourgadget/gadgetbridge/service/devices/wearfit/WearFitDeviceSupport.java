@@ -251,9 +251,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
                 sender, message);
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("notification failed");
+            LOG.error("notification failed");
         }
     }
 
@@ -264,9 +264,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         this.setDateTime(transactionBuilder);
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("factory reset failed");
+            LOG.error("factory reset failed");
         }
     }
 
@@ -317,9 +317,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         }
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("setalarms failed");
+            LOG.error("setalarms failed");
         }
     }
 
@@ -334,9 +334,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         }
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("call state failed");
+            LOG.error("call state failed");
         }
     }
 
@@ -348,18 +348,18 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
             this.factoryReset(transactionBuilder);
 
             try {
-                this.performConnected(transactionBuilder.getTransaction());
+                transactionBuilder.queueConnected();
             } catch (Exception ex) {
-                LoggerFactory.getLogger(this.getClass()).error("factory reset failed");
+                LOG.error("factory reset failed");
             }
         } else if ((flags & GBDeviceProtocol.RESET_FLAGS_REBOOT) != 0) {
             TransactionBuilder transactionBuilder = this.createTransactionBuilder("reboot");
             this.reboot(transactionBuilder);
 
             try {
-                this.performConnected(transactionBuilder.getTransaction());
+                transactionBuilder.queueConnected();
             } catch (Exception ex) {
-                LoggerFactory.getLogger(this.getClass()).error("factory reset failed");
+                LOG.error("factory reset failed");
             }
         }
     }
@@ -371,9 +371,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         this.setEnableRealTimeHeartRate(transactionBuilder, enable);
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();
         } catch (Exception e) {
-            LOG.debug("ERROR");
+            LOG.debug("ERROR onEnableRealtimeHeartRateMeasurement");
         }
     }
 
@@ -421,9 +421,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         this.findDevice(transactionBuilder);
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();;
         } catch (Exception e) {
-            LOG.debug("ERROR");
+            LOG.debug("ERROR sending onFindDevice");
         }
     }
 
@@ -472,7 +472,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         }
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();;
         } catch (Exception ex) {
             LOG.warn(ex.getMessage());
         }
@@ -1064,7 +1064,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         try {
             transactionBuilder.queue();
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("fetch recorded data failed");
+            LOG.error("fetch recorded data failed");
         }
     }
 
@@ -1208,14 +1208,14 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         //sendWeatherHourlyPressure(transactionBuilder, weatherSpec); //not necessary for hk8
 
         try {
-            this.performConnected(transactionBuilder.getTransaction());
+            transactionBuilder.queueConnected();
         } catch (Exception ex) {
-            LoggerFactory.getLogger(this.getClass()).error("send weather failed");
+            LOG.error("send weather failed");
         }
     }
 
     private WearFitDeviceSupport sendWeatherHourlyPressure(TransactionBuilder transaction, WeatherSpec weatherSpec) {
-        byte[] data = GB.hexStringToByteArray("ab0038ffe4800c170101b403bf03bf03bf03bf03be03be03be03be03be03be03be03be03bd03be03bd03be03bf03c003c103c203c303c403c403c4");
+        byte[] data = GB.hexStringToByteArray("ab0038ffe4800c170101b403bf03bf03bf03bf03be03be03be03be03be03be03be03be03bd03be03bd03be03bf03c003c103c203c303c403c403c4"); // FIXME: implement this instead of sending hardcode
         transaction.write(this.mControlCharacteristic, data);
         return this;
     }
