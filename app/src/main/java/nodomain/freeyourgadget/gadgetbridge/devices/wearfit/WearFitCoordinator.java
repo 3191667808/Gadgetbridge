@@ -165,7 +165,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsRealtimeData() {
+    public boolean supportsRealtimeData(GBDevice device) {
         return true;
     }
 
@@ -175,7 +175,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsFindDevice() {
+    public boolean supportsFindDevice(GBDevice device) {
         return true;
     }
 
@@ -185,7 +185,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsActivityTracking() {
+    public boolean supportsActivityTracking(GBDevice device) {
         return true;
     }
 
