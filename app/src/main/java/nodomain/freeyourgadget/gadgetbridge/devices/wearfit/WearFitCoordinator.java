@@ -149,7 +149,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("HK.*");
+        return Pattern.compile("^HK.*");
     }
 
     @Override
