@@ -478,25 +478,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         }
     }
 
-    /**
-     * Use to show the battery icon in the device card.
-     * If the icon shows up later, the user might be trying to tap one thing but the battery icon
-     * will shift everything.
-     * This is hacky. There should be a "supportsBattery" function in the coordinator that displays
-     * the battery icon before the battery level is received.
-     */
-    private void fakeBattery() {
-        GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
-
-        batteryInfo.level = 100;
-        batteryInfo.state = BatteryState.UNKNOWN;
-
-        this.handleGBDeviceEvent(batteryInfo);
-    }
-
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
-        this.fakeBattery();
+
 
         GB.updateTransferNotification(null, getContext().getString(R.string.busy_task_fetch_activity_data), true, 0, getContext());
 

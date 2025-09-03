@@ -236,4 +236,9 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
         return R.string.devicetype_wearfit_hk_generic;
     }
 
+    @Override
+    public int getBatteryCount(final GBDevice device) {
+        return 1;
+    }
+
 }
