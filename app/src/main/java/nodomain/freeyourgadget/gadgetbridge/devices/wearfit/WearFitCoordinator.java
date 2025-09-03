@@ -20,6 +20,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.wearfit;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import android.app.Activity;
@@ -33,6 +35,8 @@ import androidx.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.greenrobot.dao.AbstractDao;
+import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.QueryBuilder;
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -153,10 +157,10 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    protected void deleteDevice(@NonNull GBDevice gbDevice, @NonNull Device device, @NonNull DaoSession session) throws GBException {
-        Long deviceId = device.getId();
-        QueryBuilder<?> qb = session.getWearFitActivitySampleDao().queryBuilder();
-        qb.where(WearFitActivitySampleDao.Properties.DeviceId.eq(deviceId)).buildDelete().executeDeleteWithoutDetachingEntities();
+    public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
+        Map<AbstractDao<?, ?>, Property> map = new HashMap<>(1);
+        map.put(session.getWearFitActivitySampleDao(), WearFitActivitySampleDao.Properties.DeviceId);
+        return map;
     }
 
     @Override
