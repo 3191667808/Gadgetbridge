@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.NotificationsConfig;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.UserInfo;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
@@ -30,5 +31,28 @@ public class MageneConfigFileTest {
         System.out.println(config);
         Assert.assertEquals(expectedOutput, config.toString());
     }
+
+    @Test
+    public void testNotificationsConfig() throws IOException {
+        // notifications enabled, only skype enabled
+        byte[] expectedOutput = GB.hexStringToByteArray("0100000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000A55A55AA");
+        NotificationsConfig config = new NotificationsConfig(
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false
+        );
+        System.out.println(config);
+        byte[] output = config.serializeToByteArray();
+        System.out.println(arrayToString(output));
+        Assert.assertArrayEquals(expectedOutput, output);
+    }
+
 
 }
