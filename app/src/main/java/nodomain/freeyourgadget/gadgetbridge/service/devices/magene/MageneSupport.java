@@ -19,6 +19,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.ResourceType;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacketParser;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.UserInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
@@ -177,6 +178,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     public void onSendConfiguration(String config) {
 
         switch (config) {
+            case ActivityUser.PREF_USER_NAME:
             case ActivityUser.PREF_USER_WEIGHT_KG:
             case ActivityUser.PREF_USER_GENDER:
             case ActivityUser.PREF_USER_HEIGHT_CM:
@@ -188,9 +190,22 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void sendUserConfig() {
-        byte[] hardcodedUserInfo = GB.hexStringToByteArray("4a6f6e6820446f650000000000000000000000000000000000000000000000004336303600000000000000000000000000000000000000000000000000000000b900b900ef00c607060101c0b603000000000000000000000000000000000000000000000000000001000000a55a55aa");
+        ActivityUser user = new ActivityUser();
+        UserInfo userInfo = new UserInfo(user.getName(),
+                "C606",
+                185,
+                185,
+                239,
+                user.getDateOfBirth().getYear(),
+                user.getDateOfBirth().getMonthValue(),
+                user.getDateOfBirth().getDayOfMonth(),
+                user.getGender(),
+                user.getHeightCm(),
+                user.getWeightKg()*10
+        ); //FIXME: input or calculate mhr, lthr and ftp
+
         try {
-            mageneFileManager.startUpload(hardcodedUserInfo, "user_info.bin", FileType.USER_PROFILE);
+            mageneFileManager.startUpload(userInfo.serializeToByteArray(), userInfo.getFilename(), userInfo.getFileType());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
