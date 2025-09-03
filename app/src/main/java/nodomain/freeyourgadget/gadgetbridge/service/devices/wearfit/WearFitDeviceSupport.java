@@ -74,6 +74,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
@@ -1191,9 +1192,12 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
 
     @Override
-    public void onSendWeather(ArrayList<WeatherSpec> weatherSpecs) {
-        final WeatherSpec weatherSpec = weatherSpecs.get(0);
-
+    public void onSendWeather() {
+        WeatherSpec weatherSpec = Weather.getWeatherSpec();
+        if (weatherSpec == null) {
+            LOG.error("WeatherSpec is null");
+            return;
+        }
         TransactionBuilder transactionBuilder = this.createTransactionBuilder("onweather");
         sendWeatherCity(transactionBuilder, weatherSpec);
 
