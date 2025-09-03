@@ -654,21 +654,20 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         UUID characteristicUuid = characteristic.getUuid();
 
         if (characteristicUuid.equals(mReportCharacteristic.getUuid())) {
-            byte[] value = characteristic.getValue();
-            byte[] arguments = new byte[value.length - 6];
+            byte[] arguments = new byte[data.length - 6];
 
             if (arguments.length >= 0) {
-                System.arraycopy(value, 6, arguments, 0, arguments.length);
+                System.arraycopy(data, 6, arguments, 0, arguments.length);
             }
 
-            byte[] report = new byte[]{value[4], value[5]};
+            byte[] report = new byte[]{data[4], data[5]};
 
             switch (report[0]) {
                 case WearFitConstants.RPRT_REVERSE_FIND_DEVICE:
                     this.onReverseFindDevice(arguments[0] == 0x01);
                     break;
                 case WearFitConstants.RPRT_HEARTRATE:
-                    if (value.length == 7) {
+                    if (data.length == 7) {
                         this.onReceiveHeartRate((int) arguments[0]);
                     }
                     break;
