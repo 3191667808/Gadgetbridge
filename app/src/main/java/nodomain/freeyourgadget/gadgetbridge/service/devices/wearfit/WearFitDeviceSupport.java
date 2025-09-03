@@ -484,15 +484,13 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         GB.updateTransferNotification(null, getContext().getString(R.string.busy_task_fetch_activity_data), true, 0, getContext());
 
-        gbDevice.setState(GBDevice.State.INITIALIZING);
-        gbDevice.sendDeviceUpdateIntent(getContext());
+        builder.setDeviceState(GBDevice.State.INITIALIZING);
 
         this.mControlCharacteristic = getCharacteristic(WearFitConstants.UUID_CHARACTERISTIC_CONTROL);
         this.mReportCharacteristic = getCharacteristic(WearFitConstants.UUID_CHARACTERISTIC_REPORT);
 
         builder.notify(this.mReportCharacteristic, true);
         builder.setCallback(this);
-
 
         // Allow modifications
         builder.write(this.mControlCharacteristic, new byte[]{0x01, 0x00});
@@ -502,8 +500,7 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
 
         this.requestFitness(builder);
 
-        gbDevice.setState(GBDevice.State.INITIALIZED);
-        gbDevice.sendDeviceUpdateIntent(getContext());
+        builder.setDeviceState(GBDevice.State.INITIALIZED);
 
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
