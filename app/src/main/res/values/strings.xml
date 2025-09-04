@@ -1743,6 +1743,7 @@
     <string name="activity_summary_yesterday">Yesterday</string>
     <string name="hrv_status_day_avg">Day average</string>
     <string name="hrv_status_day_avg_legend">Daily average (ms)</string>
+    <string name="hrv_status_night_avg_legend">Overnight average (ms)</string>
     <string name="hrv_status_seven_days_avg">7-day average</string>
     <string name="hrv_status_seven_days_avg_status">Status</string>
     <string name="hrv_status_balanced">Balanced</string>

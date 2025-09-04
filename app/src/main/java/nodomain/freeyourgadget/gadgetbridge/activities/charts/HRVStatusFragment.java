@@ -136,18 +136,18 @@ public class HRVStatusFragment extends AbstractChartFragment<HRVStatusFragment.H
         mWeeklyHRVStatusChart.invalidate();
     }
 
-    protected LineDataSet createDataSet(final List<Entry> values) {
+    protected LineDataSet createDataSet(final List<Entry> values, int color, boolean drawValues) {
         final LineDataSet lineDataSet = new LineDataSet(values, getString(R.string.hrv_status_day_avg));
-        lineDataSet.setColor(getResources().getColor(R.color.hrv_status_char_line_color));
+        lineDataSet.setColor(getResources().getColor(color));
         lineDataSet.setDrawCircles(false);
         lineDataSet.setLineWidth(2f);
         lineDataSet.setFillAlpha(255);
         lineDataSet.setCircleRadius(5f);
         lineDataSet.setDrawCircles(true);
         lineDataSet.setDrawCircleHole(false);
-        lineDataSet.setCircleColor(getResources().getColor(R.color.hrv_status_char_line_color));
+        lineDataSet.setCircleColor(getResources().getColor(color));
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-        lineDataSet.setDrawValues(true);
+        lineDataSet.setDrawValues(drawValues);
         lineDataSet.setValueTextSize(10f);
         lineDataSet.setValueTextColor(TEXT_COLOR);
         lineDataSet.setValueFormatter(new ValueFormatter() {
@@ -165,31 +165,50 @@ public class HRVStatusFragment extends AbstractChartFragment<HRVStatusFragment.H
         mDateView.setText(formattedDate);
 
         mWeeklyHRVStatusChart.setData(null); // workaround for https://github.com/PhilJay/MPAndroidChart/issues/2317
-        List<Entry> lineEntries = new ArrayList<>();
+        List<Entry> dailyEntries = new ArrayList<>();
+        List<Entry> nightlyEntries = new ArrayList<>();
         final List<ILineDataSet> lineDataSets = new ArrayList<>();
         final Accumulator dailyAccumulator = new Accumulator();
         weeklyData.getDaysData().forEach((HRVStatusDayData day) -> {
+            if (day.lastNight > 0) {
+                nightlyEntries.add(new Entry(day.i, day.lastNight));
+            } else {
+                if (!nightlyEntries.isEmpty()) {
+                    List<Entry> clone = new ArrayList<>(nightlyEntries.size());
+                    clone.addAll(nightlyEntries);
+                    lineDataSets.add(createDataSet(clone, R.color.hrv_status_char_line_color_night, false));
+                    nightlyEntries.clear();
+                }
+            }
             if (day.dayAvg > 0) {
                 dailyAccumulator.add(day.dayAvg);
-                lineEntries.add(new Entry(day.i, day.dayAvg));
+                dailyEntries.add(new Entry(day.i, day.dayAvg));
             } else {
-                if (!lineEntries.isEmpty()) {
-                    List<Entry> clone = new ArrayList<>(lineEntries.size());
-                    clone.addAll(lineEntries);
-                    lineDataSets.add(createDataSet(clone));
-                    lineEntries.clear();
+                if (!dailyEntries.isEmpty()) {
+                    List<Entry> clone = new ArrayList<>(dailyEntries.size());
+                    clone.addAll(dailyEntries);
+                    lineDataSets.add(createDataSet(clone, R.color.hrv_status_char_line_color, true));
+                    dailyEntries.clear();
                 }
             }
         });
-        if (!lineEntries.isEmpty()) {
-            lineDataSets.add(createDataSet(lineEntries));
+
+        if (!nightlyEntries.isEmpty()) {
+            lineDataSets.add(createDataSet(nightlyEntries, R.color.hrv_status_char_line_color_night, false));
+        }
+        if (!dailyEntries.isEmpty()) {
+            lineDataSets.add(createDataSet(dailyEntries, R.color.hrv_status_char_line_color, true));
         }
 
         List<LegendEntry> legendEntries = new ArrayList<>(1);
-        LegendEntry activityEntry = new LegendEntry();
-        activityEntry.label = getString(R.string.hrv_status_day_avg_legend);
-        activityEntry.formColor = getResources().getColor(R.color.hrv_status_char_line_color);
-        legendEntries.add(activityEntry);
+        LegendEntry dayAvgEntry = new LegendEntry();
+        dayAvgEntry.label = getString(R.string.hrv_status_day_avg_legend);
+        dayAvgEntry.formColor = getResources().getColor(R.color.hrv_status_char_line_color);
+        legendEntries.add(dayAvgEntry);
+        LegendEntry nightAvgEntry = new LegendEntry();
+        nightAvgEntry.label = getString(R.string.hrv_status_night_avg_legend);
+        nightAvgEntry.formColor = getResources().getColor(R.color.hrv_status_char_line_color_night);
+        legendEntries.add(nightAvgEntry);
         mWeeklyHRVStatusChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
         mWeeklyHRVStatusChart.getLegend().setCustom(legendEntries);
 
