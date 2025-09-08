@@ -245,7 +245,7 @@ public class BLEScanService extends Service {
         }
         String action = intent.getAction();
         if (action == null) {
-            return START_STICKY;
+            return START_REDELIVER_INTENT;
         }
         switch (action) {
             case COMMAND_SCAN_DEVICE:
@@ -258,9 +258,9 @@ public class BLEScanService extends Service {
                 handleStopScanAll(intent);
                 break;
             default:
-                return START_STICKY;
+                return START_REDELIVER_INTENT;
         }
-        return START_STICKY;
+        return START_REDELIVER_INTENT;
     }
 
     private void handleStopScanAll(Intent intent) {

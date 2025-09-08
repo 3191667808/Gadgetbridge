@@ -797,7 +797,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
         if (action == null) {
             LOG.info("no action");
-            return START_STICKY;
+            return START_REDELIVER_INTENT;
         }
 
         // when we get past this, we should have valid mDeviceSupport and mGBDevice instances
@@ -858,7 +858,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 }
                 break;
         }
-        return START_STICKY;
+        return START_REDELIVER_INTENT;
     }
 
     /**
