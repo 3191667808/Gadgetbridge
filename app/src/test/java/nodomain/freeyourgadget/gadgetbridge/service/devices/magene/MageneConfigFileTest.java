@@ -6,8 +6,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.NotificationsConfig;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.RidingBikeConfig;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.UserInfo;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
@@ -54,5 +56,24 @@ public class MageneConfigFileTest {
         Assert.assertArrayEquals(expectedOutput, output);
     }
 
+    @Test
+    public void testBikeConfig() throws IOException {
+        byte[] expectedOutput = GB.hexStringToByteArray("02000000000000000B4E65776C7920637265617465642076656869636C65000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000102730080A57656C742032390000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000603B260901000000A55A55AA");
+        RidingBikeConfig.Entry bike1 = new RidingBikeConfig.Entry((byte)11, "Newly created vehicle", (short)10000, (short)2096);
+        RidingBikeConfig.Entry bike2 = new RidingBikeConfig.Entry((byte)10, "Welt 29", (short)15200, (short)2342);
+        RidingBikeConfig config = new RidingBikeConfig(Arrays.asList(bike1, bike2));
+        System.out.println(config);
+        byte[] output = config.serializeToByteArray();
+        System.out.println(arrayToString(output));
+        Assert.assertArrayEquals(expectedOutput, output);
+    }
 
+    @Test
+    public void testParseBikeConfig() throws IOException {
+        byte[] input = GB.hexStringToByteArray("02000000000000000B4E65776C7920637265617465642076656869636C65000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000102730080A57656C742032390000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000603B260901000000A55A55AA");
+        String expectedOutput = "RidingBikeConfig{, entries=[Entry{bikeName=Newly created vehicle, weight='10000', wheelLength=2096}, Entry{bikeName=Welt 29, weight='15200', wheelLength=2342}]}";
+        RidingBikeConfig config = RidingBikeConfig.fromBytes(input);
+        System.out.println(config);
+        Assert.assertEquals(expectedOutput, config.toString());
+    }
 }
