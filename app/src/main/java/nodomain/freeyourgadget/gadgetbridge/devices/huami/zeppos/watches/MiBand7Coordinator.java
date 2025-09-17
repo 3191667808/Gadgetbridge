@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -79,5 +80,10 @@ public class MiBand7Coordinator extends ZeppOsCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_miband6;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.FITNESS_BAND;
     }
 }

@@ -40,4 +40,9 @@ public abstract class CasioDeviceCoordinator extends AbstractBLEDeviceCoordinato
     public String getManufacturer() {
         return "Casio";
     }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.WATCH;
+    }
 }

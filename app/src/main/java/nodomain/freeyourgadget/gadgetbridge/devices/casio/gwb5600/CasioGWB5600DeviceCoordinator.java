@@ -100,4 +100,8 @@ public class CasioGWB5600DeviceCoordinator extends Casio2C2DDeviceCoordinator {
         return R.string.devicetype_casiogwb5600;
     }
 
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.WATCH;
+    }
 }

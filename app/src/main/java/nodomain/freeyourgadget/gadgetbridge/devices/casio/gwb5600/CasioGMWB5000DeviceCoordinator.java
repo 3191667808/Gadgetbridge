@@ -22,6 +22,7 @@ import androidx.annotation.NonNull;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 
@@ -34,5 +35,10 @@ public class CasioGMWB5000DeviceCoordinator extends CasioGWB5600DeviceCoordinato
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_casiogmwb5000;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.WATCH;
     }
 }

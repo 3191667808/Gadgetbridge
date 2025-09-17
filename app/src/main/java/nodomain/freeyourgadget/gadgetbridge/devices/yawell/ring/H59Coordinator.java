@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 
 public class H59Coordinator extends AbstractYawellRingCoordinator {
     @Override
@@ -39,5 +40,10 @@ public class H59Coordinator extends AbstractYawellRingCoordinator {
     @Override
     public String getManufacturer() {
         return "Brandless";
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
     }
 }

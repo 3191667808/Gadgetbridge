@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.Casio2C2DDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
@@ -59,5 +60,10 @@ public class CasioECBS100DeviceCoordinator extends Casio2C2DDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_casioecbs100;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.WATCH;
     }
 }

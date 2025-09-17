@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 
 public class ColmiR10Coordinator extends AbstractYawellRingCoordinator {
     private static final Logger LOG = LoggerFactory.getLogger(ColmiR10Coordinator.class);
@@ -34,5 +35,10 @@ public class ColmiR10Coordinator extends AbstractYawellRingCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_colmi_r10;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
     }
 }

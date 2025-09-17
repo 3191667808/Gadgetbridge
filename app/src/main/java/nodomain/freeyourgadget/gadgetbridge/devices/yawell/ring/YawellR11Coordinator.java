@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 
 public class YawellR11Coordinator extends AbstractYawellRingCoordinator {
     @Override
@@ -34,5 +35,10 @@ public class YawellR11Coordinator extends AbstractYawellRingCoordinator {
     @Override
     public boolean hasDisplay() {
         return true;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
     }
 }

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
 
 public class AmazfitHelioRingCoordinator extends ZeppOsCoordinator {
@@ -47,5 +48,15 @@ public class AmazfitHelioRingCoordinator extends ZeppOsCoordinator {
     @Override
     public boolean hasDisplay() {
         return false;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
+    }
+
+    @Override
+    public DeviceTypeHealthConnect getDeviceType() {
+        return DeviceTypeHealthConnect.RING;
     }
 }

@@ -19,6 +19,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCardAction;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -218,5 +219,10 @@ public class G1DeviceCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public boolean supportsWeather(final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.HEAD_MOUNTED;
     }
 }

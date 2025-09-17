@@ -32,6 +32,7 @@ import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.MiScaleWeightSampleDao;
@@ -133,5 +134,10 @@ public class MiCompositionScaleCoordinator extends AbstractBLEDeviceCoordinator 
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_miscale;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.SCALE;
     }
 }

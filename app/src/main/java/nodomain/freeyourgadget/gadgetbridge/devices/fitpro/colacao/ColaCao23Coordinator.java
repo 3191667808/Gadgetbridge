@@ -22,6 +22,7 @@ import androidx.annotation.DrawableRes;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -46,5 +47,10 @@ public class ColaCao23Coordinator extends FitProDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_colacao23;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.FITNESS_BAND;
     }
 }

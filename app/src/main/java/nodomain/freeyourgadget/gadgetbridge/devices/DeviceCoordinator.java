@@ -132,6 +132,18 @@ public interface DeviceCoordinator {
         }
     }
 
+    enum DeviceKind {
+        UNKNOWN,
+        WATCH,
+        PHONE,
+        SCALE,
+        RING,
+        HEAD_MOUNTED,
+        FITNESS_BAND,
+        CHEST_STRAP,
+        SMART_DISPLAY
+    }
+
     /**
      * Returns the type of connection, Classic of BLE
      *
@@ -893,4 +905,6 @@ public interface DeviceCoordinator {
     String getAuthHelp();
 
     List<DeviceCardAction> getCustomActions();
+
+    DeviceKind getDeviceKind();
 }

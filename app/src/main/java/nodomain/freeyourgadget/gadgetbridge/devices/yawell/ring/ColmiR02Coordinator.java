@@ -35,4 +35,9 @@ public class ColmiR02Coordinator extends AbstractYawellRingCoordinator {
     public int getDeviceNameResource() {
         return R.string.devicetype_colmi_r02;
     }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
+    }
 }

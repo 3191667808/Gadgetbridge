@@ -57,4 +57,9 @@ public class BandWPSeriesDeviceCoordinator extends AbstractBLEDeviceCoordinator 
         };
     }
 
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.FITNESS_BAND;
+    }
+
 }

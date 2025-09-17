@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class YawellR10Coordinator extends AbstractYawellRingCoordinator {
@@ -40,5 +41,10 @@ public class YawellR10Coordinator extends AbstractYawellRingCoordinator {
     @Override
     public boolean supportsContinuousTemperature(final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
     }
 }

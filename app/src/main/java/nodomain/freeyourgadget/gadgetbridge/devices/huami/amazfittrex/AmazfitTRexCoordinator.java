@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.HuamiCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -139,5 +140,10 @@ public class AmazfitTRexCoordinator extends HuamiCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_amazfit_trex;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.WATCH;
     }
 }

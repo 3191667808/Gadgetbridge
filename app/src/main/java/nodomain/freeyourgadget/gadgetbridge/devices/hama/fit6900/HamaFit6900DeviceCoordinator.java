@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.hama.fit6900.HamaFit6900DeviceSupport;
@@ -93,5 +94,10 @@ public final class HamaFit6900DeviceCoordinator extends AbstractBLEDeviceCoordin
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_hama_fit6900;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.FITNESS_BAND;
     }
 }

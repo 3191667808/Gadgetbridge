@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class ColmiR09Coordinator extends AbstractYawellRingCoordinator {
@@ -45,5 +46,10 @@ public class ColmiR09Coordinator extends AbstractYawellRingCoordinator {
     @Override
     public boolean supportsContinuousTemperature(final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.RING;
     }
 }

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -80,4 +81,8 @@ public class AmazfitActiveCoordinator extends ZeppOsCoordinator {
         return true;
     }
 
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.WATCH;
+    }
 }

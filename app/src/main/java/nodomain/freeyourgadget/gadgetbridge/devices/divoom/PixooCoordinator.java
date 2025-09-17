@@ -93,4 +93,9 @@ public class PixooCoordinator extends AbstractBLEDeviceCoordinator {
                 R.xml.devicesettings_device_name,
         };
     }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.SMART_DISPLAY;
+    }
 }

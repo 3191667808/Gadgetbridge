@@ -28,6 +28,7 @@ import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.MiScaleWeightSampleDao;
@@ -129,5 +130,10 @@ public class MiSmartScaleCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public EnumSet<ServiceDeviceSupport.Flags> getInitialFlags() {
         return EnumSet.noneOf(ServiceDeviceSupport.Flags.class);
+    }
+
+    @Override
+    public DeviceKind getDeviceKind() {
+        return DeviceKind.SCALE;
     }
 }
