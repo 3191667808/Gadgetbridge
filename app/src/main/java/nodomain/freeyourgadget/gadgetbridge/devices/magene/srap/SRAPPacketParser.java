@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.DeviceControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
@@ -96,6 +97,15 @@ public class SRAPPacketParser {
                         return new CommonFileInfoPacket.Response(genericPacket.getPayload());
                     } catch (IllegalArgumentException e) {
                         LOG.error("Error parsing COMMON_FILE_INFO response: " + e.getMessage());
+                        return null;
+                    }
+
+                case DEVICE_CONTROL:
+                    try {
+                        if (genericPacket.getPayload()[0] == DeviceControlPacket.SetBtAndDeviceName.FUNCTION_ID_SET_NAMES)
+                            return new DeviceControlPacket.SetBtAndDeviceName.Response(genericPacket.getPayload());
+                    } catch (IllegalArgumentException e) {
+                        LOG.error("Error parsing DEVICE_CONTROL response: " + e.getMessage());
                         return null;
                     }
 

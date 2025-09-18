@@ -1,7 +1,15 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.magene;
 
+import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.UserInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.DeviceControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
@@ -44,6 +53,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
     public BluetoothGattCharacteristic writeCharacteristic;
     private byte nodeAddress;
     private MageneFileManager mageneFileManager;
+    boolean waitingsyncEnd = false;
 
     public MageneSupport() {
 
@@ -83,6 +93,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         return builder;
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] data) {
 
@@ -127,11 +138,37 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
         } else if (parsedObject instanceof BondSyncStateControlPacket.SetTimezone.Response) {
             LOG.info("Timezone set");
             LOG.info("Sending sync end");
+
+            String bluetoothName;
+            try {
+                bluetoothName = BluetoothAdapter.getDefaultAdapter().getName();
+            } catch (final Exception e) {
+                LOG.error("Failed to get bluetooth name", e);
+                bluetoothName = "Unknown";
+            }
+            DeviceControlPacket.SetBtAndDeviceName.Write setBtDeviceName = new DeviceControlPacket.SetBtAndDeviceName.Write(nodeAddress, bluetoothName, Build.MODEL);
+            builder.write(writeCharacteristic, setBtDeviceName.toByteArray());
+
+            LOG.info("BT name set");
             BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
             builder.write(writeCharacteristic, syncEnd.toByteArray());
-            builder.write(writeCharacteristic, syncEnd.toByteArray());
+            waitingsyncEnd = true;
+
+        } else if (parsedObject instanceof  DeviceControlPacket.SetBtAndDeviceName.Response) {
+//            LOG.info("BT name set");
+//            BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
+//            builder.write(writeCharacteristic, syncEnd.toByteArray());
+//            waitingsyncEnd = true;
+
         } else if (parsedObject instanceof BondSyncStateControlPacket.SyncEnd.Response) {
-            LOG.info("Connected and synced");
+            if (waitingsyncEnd) {
+                LOG.info("Double sync end");
+                BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
+                builder.write(writeCharacteristic, syncEnd.toByteArray());
+                waitingsyncEnd = false;
+            } else {
+                LOG.info("Connected and synced");
+            }
         }
 
         if (parsedObject instanceof FileTransformControlPacket.Response) {
