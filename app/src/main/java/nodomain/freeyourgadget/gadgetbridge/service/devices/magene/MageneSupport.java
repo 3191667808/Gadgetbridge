@@ -16,17 +16,14 @@ import org.slf4j.LoggerFactory;
 
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+
 import java.util.TimeZone;
 
-import nodomain.freeyourgadget.gadgetbridge.devices.magene.FileType;
+
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneConstants;
-import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.FunctionCode;
-import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.PageNumber;
-import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.ResourceType;
-import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacketParser;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.NotificationsConfig;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.RouteFile;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.UserInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
@@ -44,6 +41,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.GpxRouteFileConverter;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class MageneSupport extends AbstractBTLESingleDeviceSupport {
@@ -203,7 +202,7 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
 
         NotificationPacket.Write writeNotificationPacket = new NotificationPacket.Write(nodeAddress,
                 NotificationPacket.NotificationType.MESSAGE,
-                NotificationPacket.NotificationOrigin.WHATSAPP,
+                NotificationPacket.NotificationOrigin.OTHER,
                 notificationSpec);
 
         builder.write(writeCharacteristic, writeNotificationPacket.toByteArray());
@@ -241,10 +240,51 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
                 user.getWeightKg()*10
         ); //FIXME: input or calculate mhr, lthr and ftp
 
+
+        //NotificationsConfig notifyConf = new NotificationsConfig(true,
+        //true,true,true,true,true,true,true,true,true);
         try {
             mageneFileManager.startUpload(userInfo.serializeToByteArray(), userInfo.getFilename(), userInfo.getFileType());
+
+
+//            mageneFileManager.startUpload(notifyConf.serializeToByteArray(), notifyConf.getFilename(), notifyConf.getFileType());
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void onInstallApp(Uri uri, @NonNull final Bundle options) {
+        final MageneGpxRouteInstallHandler gpxRouteHandler = new MageneGpxRouteInstallHandler(uri, getContext());
+        if (gpxRouteHandler.isValid()) {
+            final String trackName = options.getString(MageneGpxRouteInstallHandler.EXTRA_TRACK_NAME);
+
+            final MageneGpxRouteFileConverter mageneGpxRouteFileConverter = new MageneGpxRouteFileConverter(
+                    gpxRouteHandler.getGpxFile(),
+                    trackName
+            );
+
+
+            try {
+                byte[] payload = mageneGpxRouteFileConverter.convertToPayload();
+                RouteFile routeFile = new RouteFile(
+                        "route_111222.bin", System.currentTimeMillis()/1000, trackName,
+                        750, 3200, 669, -37,
+                        0,(short)6,
+                        623318606, 1243961335,
+                -300,
+                        payload,
+                        trackName
+                ); // FIXME: hardcoded values
+
+                LOG.info("Route file size: " + routeFile.serializeToByteArray().length + "dump: " + GB.hexdump(routeFile.serializeToByteArray()));
+
+                mageneFileManager.startUpload(routeFile.serializeToByteArray(), routeFile.getFilename(), routeFile.getFileType());
+            } catch (final Exception e) {
+                GB.toast(getContext(), "Gpx install error: " + e.getLocalizedMessage(), Toast.LENGTH_LONG, GB.ERROR, e);
+            }
+
+            return;
         }
     }
 

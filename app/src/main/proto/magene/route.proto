@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+option java_package = "nodomain.freeyourgadget.gadgetbridge.proto.magene";
+option java_outer_classname = "MageneRoute";
+
+message RoadPlan {
+  required StepSourceLocation StepOrigin = 1;//本段路程信息
+  required uint32 PathSize = 2; //PATH点数（当前路的所有点数包含起点和出口点）
+  repeated PathType path = 3; //PATH点数据
+}
+//本段路程信息
+message StepSourceLocation{
+  required uint32 distance = 1;//距离
+  required uint32 duration = 2;//预估时间
+  required PathType OriginLocation = 3;//起始点位
+  required PathType destinationlocation = 4;//目的点位
+  required DestinationType directioninfor = 5;//目的点位信息
+  optional string road_name = 6;//路名
+}
+//经纬度信息
+message PathType {
+  required sint32 latitude = 1;//纬度
+  required sint32 longitude = 2; //经度
+}
+//目的地点位信息
+message DestinationType {
+  required uint32 dest_type = 1;//类型：1:拐点, 2: 途经点
+  required uint32 dest_direct = 2;//(转向) 0：直行,1:左转, 2:左前, 3:右转, 4:右前, 5：掉头
+}

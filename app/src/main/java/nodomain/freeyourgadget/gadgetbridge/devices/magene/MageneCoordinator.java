@@ -1,13 +1,19 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.magene;
 
+import android.content.Context;
+import android.net.Uri;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.magene.MageneGpxRouteInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.magene.MageneSupport;
 
 public class MageneCoordinator extends AbstractBLEDeviceCoordinator {
@@ -34,6 +40,21 @@ public class MageneCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("C606.*");
+        return Pattern.compile("C606.*|C706.*");
+    }
+
+    @Override
+    public boolean supportsFlashing(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Nullable
+    @Override
+    public InstallHandler findInstallHandler(Uri uri, Context context) {
+
+        final MageneGpxRouteInstallHandler mageneGpxRouteInstallHandler = new MageneGpxRouteInstallHandler(uri, context);
+        if (mageneGpxRouteInstallHandler.isValid())
+            return mageneGpxRouteInstallHandler;
+        return null;
     }
 }
