@@ -270,8 +270,8 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
                 RouteFile routeFile = new RouteFile(
                         "route_111222.bin", System.currentTimeMillis()/1000, trackName,
                         750, 3200, 669, -37,
-                        0,(short)6,
-                        623318606, 1243961335,
+                        0,(short)mageneGpxRouteFileConverter.getNumberOfSegments(),
+                        mageneGpxRouteFileConverter.getRouteLatitude(), mageneGpxRouteFileConverter.getRouteLongitude(),
                 -300,
                         payload,
                         trackName

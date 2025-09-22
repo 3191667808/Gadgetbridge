@@ -16,14 +16,32 @@ message StepSourceLocation{
   required PathType destinationlocation = 4;//目的点位
   required DestinationType directioninfor = 5;//目的点位信息
   optional string road_name = 6;//路名
+  optional int32 unk = 7;
+  optional subMesssage_8SubMsg sub_messsage_8 = 8;
 }
 //经纬度信息
 message PathType {
   required sint32 latitude = 1;//纬度
   required sint32 longitude = 2; //经度
+  required sint32 height = 3;
+  required sint32 unk2 = 4;
+  required sint32 len = 5;
 }
 //目的地点位信息
 message DestinationType {
   required uint32 dest_type = 1;//类型：1:拐点, 2: 途经点
   required uint32 dest_direct = 2;//(转向) 0：直行,1:左转, 2:左前, 3:右转, 4:右前, 5：掉头
 }
+
+message subMesssage_2SubMsg {
+
+        required string string_1 = 1;
+        required int32 int_2 = 2;
+        required int32 int_3 = 3;
+    }
+
+    message subMesssage_8SubMsg {
+
+        required int32 int_1 = 1;
+        repeated subMesssage_2SubMsg sub_messsage_2 = 2;
+    }

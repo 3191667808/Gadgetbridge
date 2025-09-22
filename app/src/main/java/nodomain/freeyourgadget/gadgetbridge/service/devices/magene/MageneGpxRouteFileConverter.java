@@ -113,12 +113,14 @@ public class MageneGpxRouteFileConverter {
                 MageneRoute.PathType.Builder originBuilder = MageneRoute.PathType.newBuilder();
                 originBuilder.setLatitude((int) ((startPoint[1] * PRECISION) / 180.0d)); // lat is at index 1
                 originBuilder.setLongitude((int) ((startPoint[0] * PRECISION) / 180.0d)); // lon is at index 0
+                originBuilder.setHeight(0).setUnk2(0).setLen(0); // FIXME: set real altitude and distance
                 stepBuilder.setOriginLocation(originBuilder.build());
 
                 // Set Destination location (endPoint of the current original segment)
                 MageneRoute.PathType.Builder destBuilder = MageneRoute.PathType.newBuilder();
                 destBuilder.setLatitude((int) ((endPoint[1] * PRECISION) / 180.0d));   // lat is at index 1
                 destBuilder.setLongitude((int) ((endPoint[0] * PRECISION) / 180.0d));  // lon is at index 0
+                destBuilder.setHeight(0).setUnk2(0).setLen(0); // FIXME: set real altitude and distance
                 stepBuilder.setDestinationlocation(destBuilder.build());
 
                 // Set dummy direction info
@@ -137,12 +139,14 @@ public class MageneGpxRouteFileConverter {
                 MageneRoute.PathType.Builder startPathBuilder = MageneRoute.PathType.newBuilder();
                 startPathBuilder.setLatitude((int) ((startPoint[1] * PRECISION) / 180.0d));
                 startPathBuilder.setLongitude((int) ((startPoint[0] * PRECISION) / 180.0d));
+                startPathBuilder.setHeight(0).setUnk2(0).setLen(0); // FIXME: set real altitude and distance
                 roadPlanBuilder.addPath(startPathBuilder.build());
 
                 for (double[] point : interpolatedPoints) {
                     MageneRoute.PathType.Builder pathBuilder = MageneRoute.PathType.newBuilder();
                     pathBuilder.setLatitude((int) ((point[1] * PRECISION) / 180.0d));  // lat is at index 1
                     pathBuilder.setLongitude((int) ((point[0] * PRECISION) / 180.0d)); // lon is at index 0
+                    pathBuilder.setHeight(0).setUnk2(0).setLen(0); // FIXME: set real altitude and distance
                     roadPlanBuilder.addPath(pathBuilder.build());
                 }
 
@@ -150,6 +154,7 @@ public class MageneGpxRouteFileConverter {
                 MageneRoute.PathType.Builder endPathBuilder = MageneRoute.PathType.newBuilder();
                 endPathBuilder.setLatitude((int) ((endPoint[1] * PRECISION) / 180.0d));
                 endPathBuilder.setLongitude((int) ((endPoint[0] * PRECISION) / 180.0d));
+                endPathBuilder.setHeight(0).setUnk2(0).setLen(0); // FIXME: set real altitude and distance
                 roadPlanBuilder.addPath(endPathBuilder.build());
 
                 roadPlanBuilder.setPathSize(roadPlanBuilder.getPathCount());

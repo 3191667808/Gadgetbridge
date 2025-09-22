@@ -25,7 +25,7 @@ public class RouteFile {
     // padding[2]
     private final int totalAscend; // u32, meters
     private final int unknown4; // u32, 0x00000000
-    private final short unknown5; // u16, 0x0C00
+    private final short plottingScale; // u16, 0x0C00
     private final short numberOfSegments; // u16
     private final int latitudeEncoded; // u32
     private final int longitudeEncoded; // u32
@@ -46,8 +46,8 @@ public class RouteFile {
     public static final short UNKNOWN2_DEFAULT = (short) 2500 + 5 * 71; // max elevation meters * 5 + 2500
     public static final short UNKNOWN3_DEFAULT = (short) 2500 + 5 * 56; // min elevation meters * 5 + 2500
     public static final int UNKNOWN4_DEFAULT = 0;
-    public static final short UNKNOWN5_DEFAULT = (short) 12;
-    public static final int UNKNOWN6_DEFAULT = 65535;
+    public static final short PLOTTING_SCALE_DEFAULT = (short) 12; //hardcoded for now
+    public static final int UNKNOWN6_DEFAULT = 65535; //YawPlanRoadIndex
     public static final int UNKNOWN7_DEFAULT = 0;
     protected static final byte[] MAGIC_BYTES = new byte[]{0x02, 0x00, 0x00, 0x00, (byte)0xA5, 0x5A, 0x55, (byte)0xAA};
 
@@ -105,7 +105,7 @@ public class RouteFile {
         this.minElevation = UNKNOWN3_DEFAULT;
         this.totalAscend = totalAscend;
         this.unknown4 = UNKNOWN4_DEFAULT;
-        this.unknown5 = UNKNOWN5_DEFAULT;
+        this.plottingScale = PLOTTING_SCALE_DEFAULT;
         this.numberOfSegments = numberOfSegments;
         this.latitudeEncoded = latitudeEncoded;
         this.longitudeEncoded = longitudeEncoded;
@@ -138,7 +138,7 @@ public class RouteFile {
         buffer.put(new byte[PADDING_2_BYTES_SIZE]); // padding[2]
         buffer.putInt(totalAscend);
         buffer.putInt(unknown4);
-        buffer.putShort(unknown5);
+        buffer.putShort(plottingScale);
         buffer.putShort(numberOfSegments);
         buffer.putInt(latitudeEncoded);
         buffer.putInt(longitudeEncoded);
@@ -266,7 +266,7 @@ public class RouteFile {
     public short getMinElevation() { return minElevation; }
     public int getTotalAscend() { return totalAscend; }
     public int getUnknown4() { return unknown4; }
-    public short getUnknown5() { return unknown5; }
+    public short getPlottingScale() { return plottingScale; }
     public short getNumberOfSegments() { return numberOfSegments; }
     public int getLatitudeEncoded() { return latitudeEncoded; }
     public int getLongitudeEncoded() { return longitudeEncoded; }
@@ -294,7 +294,7 @@ public class RouteFile {
                 ", unknown3=" + String.format("0x%04X", minElevation) +
                 ", totalAscend=" + totalAscend +
                 ", unknown4=" + String.format("0x%08X", unknown4) +
-                ", unknown5=" + String.format("0x%04X", unknown5) +
+                ", unknown5=" + String.format("0x%04X", plottingScale) +
                 ", numberOfSegments=" + numberOfSegments +
                 ", latitudeEncoded=" + latitudeEncoded +
                 ", longitudeEncoded=" + longitudeEncoded +
