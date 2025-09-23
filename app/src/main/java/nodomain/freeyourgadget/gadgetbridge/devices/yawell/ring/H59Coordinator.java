@@ -46,6 +46,6 @@ public class H59Coordinator extends AbstractYawellRingCoordinator {
 
     @Override
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
-        return DeviceKind.RING;
+        return DeviceKind.FITNESS_BAND;
     }
 }

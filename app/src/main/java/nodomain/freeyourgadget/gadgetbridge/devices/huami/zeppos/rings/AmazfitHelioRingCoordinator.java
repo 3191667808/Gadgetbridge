@@ -56,9 +56,4 @@ public class AmazfitHelioRingCoordinator extends ZeppOsCoordinator {
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.RING;
     }
-
-    @Override
-    public DeviceTypeHealthConnect getDeviceType() {
-        return DeviceTypeHealthConnect.RING;
-    }
 }
