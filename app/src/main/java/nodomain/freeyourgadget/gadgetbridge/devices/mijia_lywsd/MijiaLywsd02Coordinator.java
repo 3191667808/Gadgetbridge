@@ -21,7 +21,7 @@ import androidx.annotation.NonNull;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator; // Added import
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class MijiaLywsd02Coordinator extends AbstractMijiaLywsdCoordinator {
@@ -46,7 +46,7 @@ public class MijiaLywsd02Coordinator extends AbstractMijiaLywsdCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) { // Added method
         return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 }

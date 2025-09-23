@@ -37,7 +37,7 @@ public class EarFunAirSCoordinator extends AbstractEarFunCoordinator {
             return true;
         }
 
-        // cant only check with name, because the device name can be changed
+        // can\'t only check with name, because the device name can be changed
         // via the device settings, so we use some of the UUIDs available on the device
         // and the mac address prefix to hopefully detect this model reliably
         String[] uuids = {

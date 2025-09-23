@@ -74,6 +74,6 @@ public class SG2Coordinator extends HPlusCoordinator {
 
     @Override
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
-        return DeviceKind.WATCH;
+        return DeviceKind.FITNESS_BAND;
     }
 }
