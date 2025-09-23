@@ -1,5 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.garmin.bike;
 
+import androidx.annotation.NonNull;
+
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -23,7 +25,7 @@ public class GarminEdgeExplore2Coordinator extends GarminBikeComputerCoordinator
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.SMART_DISPLAY;
     }
 }

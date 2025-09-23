@@ -53,7 +53,7 @@ public class PixelBudsACoordinator extends AbstractBLClassicDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

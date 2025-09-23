@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 
+import androidx.annotation.NonNull;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -83,7 +84,7 @@ public class MiBand7Coordinator extends ZeppOsCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.FITNESS_BAND;
     }
 }

@@ -112,7 +112,7 @@ public class CyclingSensorCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
-        return DeviceCoordinator.DeviceKind.CHEST_STRAP;
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.UNKNOWN;
     }
 }

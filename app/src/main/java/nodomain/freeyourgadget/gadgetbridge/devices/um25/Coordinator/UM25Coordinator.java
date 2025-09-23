@@ -99,7 +99,7 @@ public class UM25Coordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 }

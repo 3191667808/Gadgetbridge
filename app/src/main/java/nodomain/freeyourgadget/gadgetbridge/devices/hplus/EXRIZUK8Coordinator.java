@@ -26,7 +26,6 @@ import androidx.annotation.NonNull;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.hplus.EXRIZUK8Support;
@@ -57,7 +56,7 @@ public class EXRIZUK8Coordinator extends HPlusCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.FITNESS_BAND;
     }
 }

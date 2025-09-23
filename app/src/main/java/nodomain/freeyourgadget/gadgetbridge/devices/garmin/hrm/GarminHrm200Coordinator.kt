@@ -2,6 +2,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.garmin.hrm
 
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import java.util.regex.Pattern
 
 /// #5110
@@ -14,7 +15,7 @@ class GarminHrm200Coordinator: GarminHrmCoordinator() {
         return R.string.devicetype_garmin_hrm_200
     }
 
-    override fun getDeviceKind(): DeviceCoordinator.DeviceKind {
+    override fun getDeviceKind(device: GBDevice): DeviceCoordinator.DeviceKind {
         return DeviceCoordinator.DeviceKind.CHEST_STRAP
     }
 }

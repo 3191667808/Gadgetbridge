@@ -18,11 +18,11 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.fitpro.colacao;
 
 import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -50,7 +50,7 @@ public class ColaCao21Coordinator extends FitProDeviceCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.FITNESS_BAND;
     }
 }

@@ -26,7 +26,7 @@ public class GarminVivosmart5Coordinator extends GarminWatchCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) { // Added method
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

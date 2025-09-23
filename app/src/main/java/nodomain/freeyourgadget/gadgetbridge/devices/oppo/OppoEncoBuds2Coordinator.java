@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.oppo;
 
 import android.util.Pair;
 
+import androidx.annotation.NonNull;
+
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,6 +28,7 @@ import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
@@ -47,7 +50,7 @@ public class OppoEncoBuds2Coordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 

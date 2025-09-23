@@ -67,7 +67,7 @@ public class DomyosT540Coordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 }

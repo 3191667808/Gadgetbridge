@@ -65,7 +65,7 @@ public class HuaweiFreebuds6Coordinator extends HuaweiFreebudsCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

@@ -124,7 +124,7 @@ public class FemometerVinca2DeviceCoordinator extends AbstractBLEDeviceCoordinat
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 }

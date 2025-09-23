@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.realme;
 
 import android.util.Pair;
 
+import androidx.annotation.NonNull;
+
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -85,7 +87,7 @@ public class RealmeBudsAir5ProCoordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

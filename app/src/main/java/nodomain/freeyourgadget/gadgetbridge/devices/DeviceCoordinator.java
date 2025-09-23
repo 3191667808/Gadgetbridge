@@ -906,5 +906,12 @@ public interface DeviceCoordinator {
 
     List<DeviceCardAction> getCustomActions();
 
-    DeviceKind getDeviceKind();
+    /**
+     * Returns the general kind of the device (watch, fitness band, etc.).
+     * The default implementation returns WATCH. Coordinators for other kinds
+     * of devices should override this method.
+     */
+    default DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.WATCH;
+    }
 }

@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators;
 
+import androidx.annotation.NonNull;
+
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -72,7 +74,7 @@ public class SonyWFSP800NCoordinator extends SonyHeadphonesCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

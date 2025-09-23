@@ -24,7 +24,6 @@ package nodomain.freeyourgadget.gadgetbridge.devices.hplus;
 import androidx.annotation.NonNull;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
@@ -57,7 +56,7 @@ public class MakibesF68Coordinator extends HPlusCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.FITNESS_BAND;
     }
 }

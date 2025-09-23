@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.galaxy_buds;
 
+import androidx.annotation.NonNull;
+
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -61,7 +63,7 @@ public class GalaxyBudsLiveDeviceCoordinator extends GalaxyBudsGenericCoordinato
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 

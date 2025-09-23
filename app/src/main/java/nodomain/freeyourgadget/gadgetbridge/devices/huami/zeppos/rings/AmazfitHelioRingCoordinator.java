@@ -16,13 +16,15 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.rings;
 
+import androidx.annotation.NonNull;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class AmazfitHelioRingCoordinator extends ZeppOsCoordinator {
     @Override
@@ -51,7 +53,7 @@ public class AmazfitHelioRingCoordinator extends ZeppOsCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.RING;
     }
 

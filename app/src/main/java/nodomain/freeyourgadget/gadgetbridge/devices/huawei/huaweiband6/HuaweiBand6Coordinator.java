@@ -16,12 +16,15 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.huawei.huaweiband6;
 
+import androidx.annotation.NonNull;
+
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator; // Added import
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLECoordinator;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 
 public class HuaweiBand6Coordinator extends HuaweiLECoordinator {
@@ -41,7 +44,7 @@ public class HuaweiBand6Coordinator extends HuaweiLECoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) { // Added method
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

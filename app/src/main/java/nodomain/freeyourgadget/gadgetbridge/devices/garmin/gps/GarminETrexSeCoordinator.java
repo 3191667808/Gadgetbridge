@@ -1,5 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.garmin.gps;
 
+import androidx.annotation.NonNull;
+
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -41,7 +43,7 @@ public class GarminETrexSeCoordinator extends GarminCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) { // Added method
         return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 

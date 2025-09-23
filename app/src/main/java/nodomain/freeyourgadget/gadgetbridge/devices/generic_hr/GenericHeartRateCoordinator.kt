@@ -90,7 +90,7 @@ class GenericHeartRateCoordinator : AbstractBLEDeviceCoordinator() {
         }
     }
 
-    override fun getDeviceKind(): DeviceCoordinator.DeviceKind {
+    override fun getDeviceKind(device: GBDevice): DeviceCoordinator.DeviceKind {
         return DeviceCoordinator.DeviceKind.CHEST_STRAP
     }
 }

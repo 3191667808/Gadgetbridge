@@ -96,7 +96,7 @@ public class BFH16DeviceCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

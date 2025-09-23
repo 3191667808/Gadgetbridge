@@ -56,7 +56,7 @@ public class LiveviewCoordinator extends AbstractBLClassicDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) { // Added method
         return DeviceCoordinator.DeviceKind.SMART_DISPLAY;
     }
 }

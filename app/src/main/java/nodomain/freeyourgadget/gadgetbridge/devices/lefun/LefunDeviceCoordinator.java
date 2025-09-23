@@ -167,7 +167,7 @@ public class LefunDeviceCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

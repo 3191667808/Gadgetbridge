@@ -54,7 +54,7 @@ public class MiBand7ProCoordinator extends XiaomiCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) { // Added method
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

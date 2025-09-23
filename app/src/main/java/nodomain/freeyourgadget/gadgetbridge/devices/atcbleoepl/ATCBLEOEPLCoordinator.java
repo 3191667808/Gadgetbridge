@@ -90,7 +90,7 @@ public class ATCBLEOEPLCoordinator extends AbstractDeviceCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.SMART_DISPLAY;
     }
 }

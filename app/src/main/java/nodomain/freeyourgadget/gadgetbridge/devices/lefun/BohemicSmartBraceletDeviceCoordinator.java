@@ -56,7 +56,7 @@ public class BohemicSmartBraceletDeviceCoordinator extends LefunDeviceCoordinato
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

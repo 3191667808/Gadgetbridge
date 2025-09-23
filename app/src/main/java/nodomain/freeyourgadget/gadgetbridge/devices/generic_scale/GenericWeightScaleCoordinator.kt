@@ -112,7 +112,7 @@ class GenericWeightScaleCoordinator : AbstractBLEDeviceCoordinator() {
         return false
     }
 
-    override fun getDeviceKind(): DeviceCoordinator.DeviceKind {
+    override fun getDeviceKind(device: GBDevice): DeviceCoordinator.DeviceKind {
         return DeviceCoordinator.DeviceKind.SCALE
     }
 }

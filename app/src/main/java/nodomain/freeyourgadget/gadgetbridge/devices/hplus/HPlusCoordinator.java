@@ -266,7 +266,7 @@ public class HPlusCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.FITNESS_BAND;
     }
 }

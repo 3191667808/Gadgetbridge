@@ -95,7 +95,7 @@ public class PixooCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceKind getDeviceKind() {
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.SMART_DISPLAY;
     }
 }

@@ -35,7 +35,7 @@ public class EarFunAirPro4Coordinator extends AbstractEarFunCoordinator {
             return true;
         }
 
-        // can\'t only check with name, because the device name can be changed
+        // can't only check with name, because the device name can be changed
         // via the device settings, so we use some of the UUIDs available on the device
         // and the mac address prefix to hopefully detect this model reliably
         String[] uuids = {
@@ -108,7 +108,7 @@ public class EarFunAirPro4Coordinator extends AbstractEarFunCoordinator {
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

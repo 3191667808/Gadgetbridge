@@ -35,7 +35,7 @@ public class GarminEdge130PlusCoordinator extends GarminBikeComputerCoordinator 
     }
 
     @Override
-    public DeviceCoordinator.DeviceKind getDeviceKind() {
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.SMART_DISPLAY;
     }
 }
