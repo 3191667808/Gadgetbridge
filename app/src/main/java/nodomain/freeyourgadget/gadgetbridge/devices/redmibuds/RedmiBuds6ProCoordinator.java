@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class RedmiBuds6ProCoordinator extends AbstractRedmiBudsCoordinator {
@@ -46,5 +47,10 @@ public class RedmiBuds6ProCoordinator extends AbstractRedmiBudsCoordinator {
     @Override
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(final GBDevice device) {
         return new RedmiBudsSettingsCustomizer(device);
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

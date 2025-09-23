@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCapabilities;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
 
@@ -65,5 +66,10 @@ public class SonyLinkBudsCoordinator extends SonyHeadphonesCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_galaxy_buds;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

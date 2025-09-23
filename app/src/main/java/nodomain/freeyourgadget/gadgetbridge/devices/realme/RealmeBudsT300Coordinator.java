@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 
 public class RealmeBudsT300Coordinator extends OppoHeadphonesCoordinator {
     @Override
@@ -63,7 +64,7 @@ public class RealmeBudsT300Coordinator extends OppoHeadphonesCoordinator {
 
     @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
-        return new LinkedHashMap<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>>() {{
+        return new LinkedHashMap<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>>() {{ // 
             final List<TouchConfigValue> options = Arrays.asList(
                     TouchConfigValue.OFF,
                     TouchConfigValue.PLAY_PAUSE,
@@ -84,5 +85,10 @@ public class RealmeBudsT300Coordinator extends OppoHeadphonesCoordinator {
                     TouchConfigValue.GAME_MODE
             ));
         }};
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

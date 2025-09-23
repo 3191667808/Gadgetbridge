@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.oppo;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 
 public class OppoEncoAir2Coordinator extends OppoEncoAirCoordinator {
     @Override
@@ -29,5 +30,10 @@ public class OppoEncoAir2Coordinator extends OppoEncoAirCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_oppo_enco_air2;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

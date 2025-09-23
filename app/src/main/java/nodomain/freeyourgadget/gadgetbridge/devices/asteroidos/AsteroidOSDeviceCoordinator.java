@@ -28,7 +28,6 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
@@ -90,10 +89,5 @@ public class AsteroidOSDeviceCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_asteroidos;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

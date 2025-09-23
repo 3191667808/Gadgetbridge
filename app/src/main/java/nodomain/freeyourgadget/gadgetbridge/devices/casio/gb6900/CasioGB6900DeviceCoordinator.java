@@ -23,7 +23,6 @@ import androidx.annotation.NonNull;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.CasioDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -75,10 +74,5 @@ public class CasioGB6900DeviceCoordinator extends CasioDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_casiogb6900;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

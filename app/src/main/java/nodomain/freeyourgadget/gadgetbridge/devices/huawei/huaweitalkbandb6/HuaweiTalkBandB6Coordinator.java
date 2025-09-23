@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huawei.huaweitalkbandb6;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiBRCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
@@ -42,5 +43,10 @@ public class HuaweiTalkBandB6Coordinator extends HuaweiBRCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_huawei_talk_band_b6;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

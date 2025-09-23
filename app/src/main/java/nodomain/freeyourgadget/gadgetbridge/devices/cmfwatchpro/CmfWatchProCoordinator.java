@@ -44,7 +44,6 @@ import nodomain.freeyourgadget.gadgetbridge.activities.appmanager.AppManagerActi
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -363,10 +362,5 @@ public class CmfWatchProCoordinator extends AbstractBLEDeviceCoordinator {
 
     public boolean supportsSunriseSunset() {
         return false;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

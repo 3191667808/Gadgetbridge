@@ -27,7 +27,6 @@ import java.util.regex.Pattern;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.HuamiCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -126,10 +125,5 @@ public class AmazfitVergeLCoordinator extends HuamiCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_amazfit_bip;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

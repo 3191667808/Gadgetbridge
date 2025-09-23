@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCapabilities;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -69,5 +70,10 @@ public class SonyWF1000XM3Coordinator extends SonyHeadphonesCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_galaxy_buds;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

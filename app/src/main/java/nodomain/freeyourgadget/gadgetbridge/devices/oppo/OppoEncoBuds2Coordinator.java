@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
@@ -43,6 +44,11 @@ public class OppoEncoBuds2Coordinator extends OppoHeadphonesCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_oppo_enco_buds2;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 
     @Override

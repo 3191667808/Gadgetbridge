@@ -21,6 +21,7 @@ import androidx.annotation.NonNull;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
@@ -47,6 +48,11 @@ public class GalaxyBudsDeviceCoordinator extends GalaxyBudsGenericCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_galaxybuds;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 
     @Override

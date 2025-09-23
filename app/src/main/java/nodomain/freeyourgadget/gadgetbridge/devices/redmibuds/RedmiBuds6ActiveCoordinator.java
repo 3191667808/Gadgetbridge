@@ -3,6 +3,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.redmibuds;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 
 public class RedmiBuds6ActiveCoordinator extends AbstractRedmiBudsCoordinator {
 
@@ -16,4 +17,8 @@ public class RedmiBuds6ActiveCoordinator extends AbstractRedmiBudsCoordinator {
         return Pattern.compile("Redmi Buds 6 Active");
     }
 
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
+    }
 }

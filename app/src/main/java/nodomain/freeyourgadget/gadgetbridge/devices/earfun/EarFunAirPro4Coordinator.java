@@ -13,6 +13,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
@@ -34,7 +35,7 @@ public class EarFunAirPro4Coordinator extends AbstractEarFunCoordinator {
             return true;
         }
 
-        // can't only check with name, because the device name can be changed
+        // can\'t only check with name, because the device name can be changed
         // via the device settings, so we use some of the UUIDs available on the device
         // and the mac address prefix to hopefully detect this model reliably
         String[] uuids = {
@@ -104,5 +105,10 @@ public class EarFunAirPro4Coordinator extends AbstractEarFunCoordinator {
     @Override
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(final GBDevice device) {
         return new EarFunAirPro4SettingsCustomizer(device);
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

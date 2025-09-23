@@ -1,6 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.coospo
 
 import nodomain.freeyourgadget.gadgetbridge.R
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import java.util.regex.Pattern
 
 /// #5110
@@ -11,5 +12,9 @@ class CoospoHW9Coordinator: CoospoHeartRateCoordinator() {
 
     override fun getDeviceNameResource(): Int {
         return R.string.devicetype_coospo_hw9
+    }
+
+    override fun getDeviceKind(): DeviceCoordinator.DeviceKind {
+        return DeviceCoordinator.DeviceKind.CHEST_STRAP
     }
 }

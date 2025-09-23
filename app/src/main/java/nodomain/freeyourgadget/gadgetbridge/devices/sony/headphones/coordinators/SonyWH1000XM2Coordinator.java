@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCapabilities;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
 
@@ -49,5 +50,10 @@ public class SonyWH1000XM2Coordinator extends SonyHeadphonesCoordinator {
                 SonyHeadphonesCapabilities.SurroundMode,
                 SonyHeadphonesCapabilities.AudioUpsampling
         ));
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

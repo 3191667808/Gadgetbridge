@@ -25,9 +25,4 @@ public abstract class Casio2C2DDeviceCoordinator extends CasioDeviceCoordinator 
         return false;
     }
 
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
-    }
-
 }

@@ -20,6 +20,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.nothing;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 
 public class Ear1Coordinator extends AbstractEarCoordinator {
     @Override
@@ -30,6 +31,11 @@ public class Ear1Coordinator extends AbstractEarCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_nothingear1;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 
     @Override

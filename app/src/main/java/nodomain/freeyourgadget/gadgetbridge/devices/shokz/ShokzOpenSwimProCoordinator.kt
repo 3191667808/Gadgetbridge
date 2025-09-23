@@ -1,6 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.shokz
 
 import nodomain.freeyourgadget.gadgetbridge.R
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import java.util.regex.Pattern
 
 class ShokzOpenSwimProCoordinator: ShokzCoordinator() {
@@ -10,5 +11,9 @@ class ShokzOpenSwimProCoordinator: ShokzCoordinator() {
 
     override fun getDeviceNameResource(): Int {
         return R.string.devicetype_shokz_openswim_pro
+    }
+
+    override fun getDeviceKind(): DeviceCoordinator.DeviceKind {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED
     }
 }

@@ -29,6 +29,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesCoordinat
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 
 public class RealmeBudsT110Coordinator extends OppoHeadphonesCoordinator {
     @Override
@@ -69,5 +70,10 @@ public class RealmeBudsT110Coordinator extends OppoHeadphonesCoordinator {
                     TouchConfigValue.GAME_MODE
             ));
         }};
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 }

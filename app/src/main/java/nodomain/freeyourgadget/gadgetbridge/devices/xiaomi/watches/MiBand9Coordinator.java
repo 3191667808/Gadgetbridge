@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.watches;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
 
 public class MiBand9Coordinator extends XiaomiCoordinator {
@@ -45,5 +46,10 @@ public class MiBand9Coordinator extends XiaomiCoordinator {
     @Override
     public boolean isExperimental() {
         return true;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

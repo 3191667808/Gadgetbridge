@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.watches;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
 
 public class MiBand8Coordinator extends XiaomiCoordinator {
@@ -40,5 +41,10 @@ public class MiBand8Coordinator extends XiaomiCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_miband6;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

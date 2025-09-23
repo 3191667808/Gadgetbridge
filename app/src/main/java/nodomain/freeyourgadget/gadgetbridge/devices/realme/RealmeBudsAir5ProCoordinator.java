@@ -31,7 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
-
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 
 
 public class RealmeBudsAir5ProCoordinator extends OppoHeadphonesCoordinator {
@@ -61,7 +61,7 @@ public class RealmeBudsAir5ProCoordinator extends OppoHeadphonesCoordinator {
 
     @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
-        return new LinkedHashMap<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>>() {{
+        return new LinkedHashMap<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>>() {{ // 
             final List<TouchConfigValue> options = Arrays.asList(
                     TouchConfigValue.OFF,
                     TouchConfigValue.PLAY_PAUSE,
@@ -84,4 +84,8 @@ public class RealmeBudsAir5ProCoordinator extends OppoHeadphonesCoordinator {
         }};
     }
 
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
+    }
 }

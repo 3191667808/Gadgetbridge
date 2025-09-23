@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huawei.honorband7;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLECoordinator;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
@@ -42,5 +43,10 @@ public class HonorBand7Coordinator extends HuaweiLECoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_honor_band7;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

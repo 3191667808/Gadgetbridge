@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -82,10 +81,5 @@ public class AmazfitCheetahSquareCoordinator extends ZeppOsCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_amazfit_bip;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

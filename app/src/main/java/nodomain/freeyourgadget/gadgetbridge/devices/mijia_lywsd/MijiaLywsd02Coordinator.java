@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.mijia_lywsd;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator; // Added import
 
 public class MijiaLywsd02Coordinator extends AbstractMijiaLywsdCoordinator {
     @Override
@@ -39,5 +40,10 @@ public class MijiaLywsd02Coordinator extends AbstractMijiaLywsdCoordinator {
     @Override
     public boolean supportsSetTime() {
         return true;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+        return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 }

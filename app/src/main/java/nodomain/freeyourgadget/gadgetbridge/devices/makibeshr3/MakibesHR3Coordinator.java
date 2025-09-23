@@ -36,6 +36,7 @@ import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.MakibesHR3ActivitySampleDao;
@@ -58,14 +59,14 @@ public class MakibesHR3Coordinator extends AbstractBLEDeviceCoordinator {
     public static boolean shouldEnableHeadsUpScreen(SharedPreferences sharedPrefs) {
         String liftMode = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_ACTIVATE_DISPLAY_ON_LIFT, getContext().getString(R.string.p_on));
 
-        // Makibes HR3 doesn't support scheduled intervals. Treat it as "on".
+        // Makibes HR3 doesn\'t support scheduled intervals. Treat it as "on".
         return !liftMode.equals(getContext().getString(R.string.p_off));
     }
 
     public static boolean shouldEnableLostReminder(SharedPreferences sharedPrefs) {
         String lostReminder = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_DISCONNECT_NOTIFICATION, getContext().getString(R.string.p_on));
 
-        // Makibes HR3 doesn't support scheduled intervals. Treat it as "on".
+        // Makibes HR3 doesn\'t support scheduled intervals. Treat it as "on".
         return !lostReminder.equals(getContext().getString(R.string.p_off));
     }
 
@@ -201,5 +202,10 @@ public class MakibesHR3Coordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_makibes_hr3;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 }

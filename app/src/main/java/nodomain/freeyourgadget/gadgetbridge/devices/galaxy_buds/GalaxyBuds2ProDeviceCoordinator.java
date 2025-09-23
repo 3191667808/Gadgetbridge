@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 
@@ -58,6 +59,11 @@ public class GalaxyBuds2ProDeviceCoordinator extends GalaxyBudsGenericCoordinato
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_galaxybuds_2_pro;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() {
+        return DeviceCoordinator.DeviceKind.HEAD_MOUNTED;
     }
 
 

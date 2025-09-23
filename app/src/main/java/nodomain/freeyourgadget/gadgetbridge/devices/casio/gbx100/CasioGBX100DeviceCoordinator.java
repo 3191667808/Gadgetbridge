@@ -32,7 +32,6 @@ import java.util.regex.Pattern;
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.Casio2C2DDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.CasioGBX100ActivitySampleDao;
@@ -144,10 +143,5 @@ public class CasioGBX100DeviceCoordinator extends Casio2C2DDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_casiogbx100;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

@@ -19,7 +19,6 @@ package nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceKind;
 
 public class CmfWatchPro2Coordinator extends CmfWatchProCoordinator {
     @Override
@@ -46,10 +45,5 @@ public class CmfWatchPro2Coordinator extends CmfWatchProCoordinator {
     @Override
     public boolean supportsSunriseSunset() {
         return true;
-    }
-
-    @Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 }

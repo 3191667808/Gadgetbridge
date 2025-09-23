@@ -44,7 +44,6 @@ import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SleepAsAndroidFeature;
 import nodomain.freeyourgadget.gadgetbridge.entities.BangleJSActivitySampleDao;
@@ -277,11 +276,6 @@ public class BangleJSCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_banglejs;
-    }
-
-@Override
-    public DeviceKind getDeviceKind() {
-        return DeviceKind.WATCH;
     }
 
     @Override

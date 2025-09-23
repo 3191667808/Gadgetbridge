@@ -3,6 +3,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.garmin.gps;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator; // Added import
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -37,6 +38,11 @@ public class GarminETrexSeCoordinator extends GarminCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_garmin_etrex_se;
+    }
+
+    @Override
+    public DeviceCoordinator.DeviceKind getDeviceKind() { // Added method
+        return DeviceCoordinator.DeviceKind.UNKNOWN;
     }
 
 }
