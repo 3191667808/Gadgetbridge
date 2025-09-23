@@ -59,14 +59,14 @@ public class MakibesHR3Coordinator extends AbstractBLEDeviceCoordinator {
     public static boolean shouldEnableHeadsUpScreen(SharedPreferences sharedPrefs) {
         String liftMode = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_ACTIVATE_DISPLAY_ON_LIFT, getContext().getString(R.string.p_on));
 
-        // Makibes HR3 doesn\'t support scheduled intervals. Treat it as "on".
+        // Makibes HR3 doesnt support scheduled intervals. Treat it as "on".
         return !liftMode.equals(getContext().getString(R.string.p_off));
     }
 
     public static boolean shouldEnableLostReminder(SharedPreferences sharedPrefs) {
         String lostReminder = sharedPrefs.getString(DeviceSettingsPreferenceConst.PREF_DISCONNECT_NOTIFICATION, getContext().getString(R.string.p_on));
 
-        // Makibes HR3 doesn\'t support scheduled intervals. Treat it as "on".
+        // Makibes HR3 doesnt support scheduled intervals. Treat it as "on".
         return !lostReminder.equals(getContext().getString(R.string.p_off));
     }
 
