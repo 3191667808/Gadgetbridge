@@ -60,13 +60,13 @@ public class LefunDeviceCoordinator extends AbstractBLEDeviceCoordinator {
             return supportedDeviceName.matcher(candidate.getName()).matches();
         }
 
-        // There\'s a bunch of other names other than "Lefun", but let\'s just focus on one for now.
+        // There's a bunch of other names other than "Lefun", but let's just focus on one for now.
         if (ADVERTISEMENT_NAME.equals(candidate.getName())) {
-            // The device does not advertise service UUIDs, so can\'t check whether it supports
-            // the proper service. We can check that it doesn\'t advertise any services, though.
-            // We\'re actually supposed to check for presence of the string "TJDR" within the
-            // manufacturer specific data, which consists of the device\'s MAC address and said
-            // string. But we\'re not being given it, so *shrug*.
+            // The device does not advertise service UUIDs, so can't check whether it supports
+            // the proper service. We can check that it doesn't advertise any services, though.
+            // We're actually supposed to check for presence of the string "TJDR" within the
+            // manufacturer specific data, which consists of the device's MAC address and said
+            // string. But we're not being given it, so *shrug*.
             if (candidate.getServiceUuids().length == 0) {
                 return true;
             }
