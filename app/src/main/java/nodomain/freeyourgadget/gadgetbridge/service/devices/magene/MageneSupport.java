@@ -17,18 +17,22 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
+import java.util.Arrays;
 import java.util.TimeZone;
 
 
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.FileType;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.SRAPPacketParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.NotificationsConfig;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.RidingBikeConfig;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.RouteFile;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.config.UserInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSyncStateControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.DeviceControlPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.DeviceStatusPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
@@ -121,13 +125,18 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
             builder.write(writeCharacteristic, requestBond.toByteArray());
         } else if (parsedObject instanceof BondSyncStateControlPacket.RequestBond.Response) {
             LOG.info("Bonded");
+        }
+        // Now waiting for user confirmation of bonding
+        if (parsedObject instanceof  DeviceStatusPacket.Read) {
+            //need more parsing here
+            LOG.info("recieved DeviceStatusPacket.Read not parsed payload");
             BondSyncStateControlPacket.SyncStart.Write syncStart = new BondSyncStateControlPacket.SyncStart.Write(nodeAddress);
             builder.write(writeCharacteristic, syncStart.toByteArray());
         } else if (parsedObject instanceof BondSyncStateControlPacket.SyncStart.Response) {
             LOG.info("Sync started");
-            // TODO: upload configs here
-            BondSyncStateControlPacket.SetTimestamp.Write setTimeStamp = new BondSyncStateControlPacket.SetTimestamp.Write(nodeAddress, System.currentTimeMillis()/1000);
+            BondSyncStateControlPacket.SetTimestamp.Write setTimeStamp = new BondSyncStateControlPacket.SetTimestamp.Write(nodeAddress, System.currentTimeMillis() / 1000);
             builder.write(writeCharacteristic, setTimeStamp.toByteArray());
+
         } else if (parsedObject instanceof BondSyncStateControlPacket.SetTimestamp.Response) {
             LOG.info("Timestamp set");
             int offset = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000;
@@ -136,6 +145,13 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
             builder.write(writeCharacteristic, setTimezone.toByteArray());
         } else if (parsedObject instanceof BondSyncStateControlPacket.SetTimezone.Response) {
             LOG.info("Timezone set");
+            // TODO: upload configs here
+//            sendWifiConfig();
+//            sendUserAvatar();
+//            sendIndoorTrainconfig();
+//            sendRidingModeConfig();
+//            sendBikeConfig();
+            //sendUserConfig();
             LOG.info("Sending sync end");
 
             String bluetoothName;
@@ -148,28 +164,17 @@ public class MageneSupport extends AbstractBTLESingleDeviceSupport {
             DeviceControlPacket.SetBtAndDeviceName.Write setBtDeviceName = new DeviceControlPacket.SetBtAndDeviceName.Write(nodeAddress, bluetoothName, Build.MODEL);
             builder.write(writeCharacteristic, setBtDeviceName.toByteArray());
 
+        } else if (parsedObject instanceof  DeviceControlPacket.SetBtAndDeviceName.Response) {
             LOG.info("BT name set");
             BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
             builder.write(writeCharacteristic, syncEnd.toByteArray());
-            waitingsyncEnd = true;
-
-        } else if (parsedObject instanceof  DeviceControlPacket.SetBtAndDeviceName.Response) {
-//            LOG.info("BT name set");
-//            BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
-//            builder.write(writeCharacteristic, syncEnd.toByteArray());
-//            waitingsyncEnd = true;
-
+            LOG.info("Sent SyncEnd");
         } else if (parsedObject instanceof BondSyncStateControlPacket.SyncEnd.Response) {
-            if (waitingsyncEnd) {
-                LOG.info("Double sync end");
-                BondSyncStateControlPacket.SyncEnd.Write  syncEnd = new BondSyncStateControlPacket.SyncEnd.Write(nodeAddress);
-                builder.write(writeCharacteristic, syncEnd.toByteArray());
-                waitingsyncEnd = false;
-            } else {
-                LOG.info("Connected and synced");
-            }
+            LOG.info("Connected and synced");
         }
 
+
+        // file upload handler
         if (parsedObject instanceof FileTransformControlPacket.Response) {
             FileTransformControlPacket.Response response = (FileTransformControlPacket.Response) parsedObject;
             if ( response.getControlType() == FileTransformControlPacket.FileTransformControlCode.START_TRANSFER) {

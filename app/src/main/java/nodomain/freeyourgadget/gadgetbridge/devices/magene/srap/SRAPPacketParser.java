@@ -7,6 +7,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.BondSync
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFileInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.CommonFilePacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.DeviceControlPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.DeviceStatusPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.FileTransformControlPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeAddressInfoPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.srap.packets.NodeBasicInfoReadPacket;
@@ -137,6 +138,21 @@ public class SRAPPacketParser {
             }
 
         }
+
+        if (genericPacket.getFunctionCode() == FunctionCode.READ) {
+            switch (genericPacket.getPageNumber()) {
+                case DEVICE_STATUS:
+                    try {
+                        return new DeviceStatusPacket.Read((byte) 0, genericPacket.getPayload());
+                    } catch (IllegalArgumentException e) {
+                        LOG.error("Error parsing DEVICE_STATUS response: " + e.getMessage());
+                        return null;
+                    }
+
+            }
+        }
+
+
         return null; // Unhandled packet type
     }
 }
