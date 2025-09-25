@@ -139,20 +139,23 @@ public final class FileTransformControlPacket {
     public static class Response {
         private final FileTransformControlCode controlType;
         private final FileTransformReadyStatus readyStatus;
-        private final int executeTime;
-        private final int spuVersion;
-        private final int mtu;
-        private final List<String> filenames;
+        private int executeTime = 0;
+        private int spuVersion = 0;
+        private int mtu = 0;
+        private List<String> filenames = new ArrayList<>();;
 
         public Response(byte[] payload) {
-            if (payload == null || payload.length < 17) {
-                throw new IllegalArgumentException("Payload for FileTransformControl Response must be at least 17 bytes long.");
-            }
+//            if (payload == null || payload.length < 17) {
+//                throw new IllegalArgumentException("Payload for FileTransformControl Response must be at least 17 bytes long.");
+//            }
 
             ByteBuffer buffer = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
 
             this.controlType = FileTransformControlCode.fromValue(buffer.get() & 0xFF);
             this.readyStatus = FileTransformReadyStatus.fromValue(buffer.get() & 0xFF);
+            if (this.readyStatus != FileTransformReadyStatus.READY) {
+                return;
+            }
             buffer.get(); // 1 byte padding
             this.executeTime = buffer.getShort() & 0xFFFF;
             buffer.getShort(); // 2 bytes padding
@@ -160,7 +163,7 @@ public final class FileTransformControlPacket {
             buffer.getInt(); // 4 bytes padding
             this.mtu = buffer.getShort() & 0xFFFF;
 
-            this.filenames = new ArrayList<>();
+            //this.filenames = new ArrayList<>();
             if (buffer.hasRemaining()) {
                 try {
                     byte[] stringBytes = new byte[buffer.remaining()];
