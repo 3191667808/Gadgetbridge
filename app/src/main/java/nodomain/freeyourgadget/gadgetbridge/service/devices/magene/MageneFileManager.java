@@ -183,6 +183,7 @@ public class MageneFileManager {
                         (int)(System.currentTimeMillis()/1000), // SPU version
                         Collections.singletonList(currentUploadRequest.filename)
                 );
+                builder.wait(1000);
                 builder.write(support.writeCharacteristic, startUploadPacket.toByteArray());
                 try {
                     builder.queue();
