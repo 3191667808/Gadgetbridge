@@ -18,4 +18,6 @@ object RequestBuilder {
     fun deviceStatus(type: DeviceStatusType): ByteArray = byteArrayOf(-86, 33, 1, type.id)
 
     fun batteryInfo(): ByteArray = byteArrayOf(-86, 37, 1, 0)
+
+    fun shutDown(): ByteArray = byteArrayOf(-86, -105, 0)
 }

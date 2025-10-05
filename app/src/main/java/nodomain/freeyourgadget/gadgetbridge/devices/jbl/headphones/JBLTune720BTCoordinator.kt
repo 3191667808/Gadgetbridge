@@ -18,5 +18,7 @@ class JBLTune720BTCoordinator : AbstractBLEDeviceCoordinator() {
 
     override fun getDeviceKind(device: GBDevice): DeviceCoordinator.DeviceKind = DeviceCoordinator.DeviceKind.HEADPHONES
 
+    override fun supportsPowerOff(device: GBDevice) = true
+
     override fun getBondingStyle() = BONDING_STYLE_ASK
 }
