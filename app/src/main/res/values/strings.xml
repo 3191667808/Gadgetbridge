@@ -2440,6 +2440,7 @@
     <string name="devicetype_igpsport_igs800" translatable="false">iGPSPORT iGS800</string>
     <string name="devicetype_igpsport_binavi_air" translatable="false">iGPSPORT BiNavi Air</string>
     <string name="devicetype_igpsport_binavi" translatable="false">iGPSPORT BiNavi</string>
+    <string name="devicetype_jbl_tune_720bt" translatable="false">JBL Tune 720BT</string>
     <string name="task_installing_route">Installing route</string>
     <string name="route_upload_completed">Route upload completed</string>
     <string name="route_upload_failed">Route upload failed</string>

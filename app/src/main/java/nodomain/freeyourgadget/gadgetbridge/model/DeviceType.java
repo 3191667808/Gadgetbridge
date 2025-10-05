@@ -427,6 +427,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.itag.ITagCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve255Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve265Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve65Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.jbl.headphones.JBLTune720BTCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.BFH16DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.TeclastH30.TeclastH30Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.y5.Y5Coordinator;
@@ -1209,6 +1210,7 @@ public enum DeviceType {
     OLLEE_WATCH_ONE(OlleeDeviceCoordinator.class),
     UNA_WATCH(UnaDeviceCoordinator.class),
     ZEBLAZE_BEYOND_3_PRO(Beyond3ProCoordinator.class),
+    JBL_TUNE_720BT(JBLTune720BTCoordinator.class),
     TEST(TestDeviceCoordinator.class);
 
     private DeviceCoordinator coordinator;
