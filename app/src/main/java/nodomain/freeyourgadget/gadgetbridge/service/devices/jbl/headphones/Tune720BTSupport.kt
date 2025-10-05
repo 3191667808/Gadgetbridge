@@ -51,21 +51,6 @@ class Tune720BTSupport : AbstractBTLESingleDeviceSupport(LOG) {
         return builder
     }
 
-    override fun onCharacteristicRead(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic,
-        value: ByteArray,
-        status: Int
-    ): Boolean {
-        LOG.debug(
-            "onCharacteristicRead: characteristic={}, value={}",
-            characteristic.uuid,
-            GB.hexdump(value)
-        )
-
-        return super.onCharacteristicRead(gatt, characteristic, value, status)
-    }
-
     override fun onCharacteristicChanged(
         gatt: BluetoothGatt,
         characteristic: BluetoothGattCharacteristic,
