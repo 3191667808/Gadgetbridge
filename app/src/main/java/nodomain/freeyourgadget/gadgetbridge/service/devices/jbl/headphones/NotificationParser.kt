@@ -12,11 +12,14 @@ object NotificationParser {
     private val LOG = LoggerFactory.getLogger(NotificationParser::class.java)
 
     private const val MAGIC = 0xaa.toByte()
+
+    // Notifications
+
     private const val ID_BATTERY_STATUS = 0x25.toByte()
 
     fun tryParse(support: AbstractDeviceSupport, value: ByteArray): Boolean {
-        if (value.size < 2) {
-            LOG.error("Received malformed notification (the data was less than 2 bytes long). Ignoring.")
+        if (value.size < 3) {
+            LOG.error("Received malformed notification (the data was less than 3 bytes long). Ignoring.")
             return false
         }
 
@@ -25,82 +28,93 @@ object NotificationParser {
             return false
         }
 
-        when (value[1]) {
-            ID_BATTERY_STATUS -> {
-                if (value.size < 3) {
-                    LOG.error("Malformed battery status packet. Expected size of at least 3, got {}.", value.size)
-                    return false
-                }
+        val id = value[1]
+        val length = value[2].toInt()
 
-                val subCommand = value[3]
+        if (length != value.size - 3) {
+            LOG.error("Received malformed notification (expected length of {}, got {}). Ignoring.", value.size - 3, length)
+            return false
+        }
 
-                if (subCommand != 1.toByte()) {
-                    LOG.error("Unsupported subcommand {} for battery status. Only 1 is supported.", subCommand)
-                    return false
-                }
+        val data = value.drop(3).toByteArray()
 
-                if (value.size != 16) {
-                    LOG.error("Malformed battery status packet. Expected size of 16, got {}.", value.size)
-                    return false
-                }
-
-                val leftChargeStatus = value[4]
-                val rightChargeStatus = value[5]
-                val leftBatteryLevel = value[6]
-                val rightBatteryLevel = value[7]
-                val boxChargeStatus = value[8]
-                val boxBatteryLevel = value[9]
-                val leftVoltage = value.beShortAt(10)
-                val rightVoltage = value.beShortAt(12)
-                val boxVoltage = value.beShortAt(14)
-
-                LOG.debug(
-                    "Received ID_BATTERY_STATUS\n" +
-                            "    leftChargeStatus={}\n" +
-                            "    rightChargeStatus={}\n" +
-                            "    leftBatteryLevel={}\n" +
-                            "    rightBatteryLevel={}\n" +
-                            "    boxChargeStatus={}\n" +
-                            "    boxBatteryLevel={}\n" +
-                            "    leftVoltage={}\n" +
-                            "    rightVoltage={}\n" +
-                            "    boxVoltage={}",
-                    leftChargeStatus,
-                    rightChargeStatus,
-                    leftBatteryLevel,
-                    rightBatteryLevel,
-                    boxChargeStatus,
-                    boxBatteryLevel,
-                    leftVoltage,
-                    rightVoltage,
-                    boxVoltage
-                )
-
-                support.handleGBDeviceEvent(GBDeviceEventBatteryInfo().apply {
-                    level = min(rightBatteryLevel.toInt(), 100)
-                    state =
-                        if (rightChargeStatus != 0.toByte())
-                            if (level == 100)
-                                BatteryState.BATTERY_CHARGING_FULL
-                            else
-                                BatteryState.BATTERY_CHARGING
-                        else when (level) {
-                            100 -> BatteryState.BATTERY_NOT_CHARGING_FULL
-                            in 0..20 -> BatteryState.BATTERY_LOW
-                            else -> BatteryState.BATTERY_NORMAL
-                        }
-                })
-            }
-
+        return when (id) {
+            ID_BATTERY_STATUS -> parseBatteryStatus(support, data)
             else -> {
                 LOG.warn(
-                    "Received unrecognized notification (id={}, value={}). Ignoring.",
-                    value[1].toHexString(),
-                    GB.hexdump(value, 2, -1)
+                    "Received unrecognized notification (id={}, data={}). Ignoring.",
+                    id.toHexString(),
+                    data.toHexString()
                 )
-                return false
+                false
             }
         }
+    }
+
+    private fun parseBatteryStatus(support: AbstractDeviceSupport, value: ByteArray): Boolean {
+        if (value.isEmpty()) {
+            LOG.error("Malformed battery status packet (expected at least one byte, got empty data). Ignoring.")
+            return false
+        }
+
+        val subCommand = value[0]
+
+        if (subCommand != 1.toByte()) {
+            LOG.error("Unsupported subcommand for battery status (only 1 is supported, got {}). Ignoring.", subCommand)
+            return false
+        }
+
+        if (value.size != 13) {
+            LOG.error("Malformed battery status packet (expected size of 13, got {}). Ignoring.", value.size)
+            return false
+        }
+
+        val leftChargeStatus = value[1]
+        val rightChargeStatus = value[2]
+        val leftBatteryLevel = value[3]
+        val rightBatteryLevel = value[4]
+        val boxChargeStatus = value[5]
+        val boxBatteryLevel = value[6]
+        val leftVoltage = value.beShortAt(7)
+        val rightVoltage = value.beShortAt(9)
+        val boxVoltage = value.beShortAt(11)
+
+        LOG.debug(
+            "Received battery status\n" +
+                    "    leftChargeStatus={}\n" +
+                    "    rightChargeStatus={}\n" +
+                    "    leftBatteryLevel={}\n" +
+                    "    rightBatteryLevel={}\n" +
+                    "    boxChargeStatus={}\n" +
+                    "    boxBatteryLevel={}\n" +
+                    "    leftVoltage={}\n" +
+                    "    rightVoltage={}\n" +
+                    "    boxVoltage={}",
+            leftChargeStatus,
+            rightChargeStatus,
+            leftBatteryLevel,
+            rightBatteryLevel,
+            boxChargeStatus,
+            boxBatteryLevel,
+            leftVoltage,
+            rightVoltage,
+            boxVoltage
+        )
+
+        support.handleGBDeviceEvent(GBDeviceEventBatteryInfo().apply {
+            level = min(rightBatteryLevel.toInt(), 100)
+            state =
+                if (rightChargeStatus != 0.toByte())
+                    if (level == 100)
+                        BatteryState.BATTERY_CHARGING_FULL
+                    else
+                        BatteryState.BATTERY_CHARGING
+                else when (level) {
+                    100 -> BatteryState.BATTERY_NOT_CHARGING_FULL
+                    in 0..20 -> BatteryState.BATTERY_LOW
+                    else -> BatteryState.BATTERY_NORMAL
+                }
+        })
 
         return true
     }
