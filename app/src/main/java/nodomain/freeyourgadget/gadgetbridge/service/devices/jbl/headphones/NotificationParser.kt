@@ -27,8 +27,22 @@ object NotificationParser {
 
         when (value[1]) {
             ID_BATTERY_STATUS -> {
-                val length = value[2]
+                if (value.size < 3) {
+                    LOG.error("Malformed battery status packet. Expected size of at least 3, got {}.", value.size)
+                    return false
+                }
+
                 val subCommand = value[3]
+
+                if (subCommand != 1.toByte()) {
+                    LOG.error("Unsupported subcommand {} for battery status. Only 1 is supported.", subCommand)
+                    return false
+                }
+
+                if (value.size != 16) {
+                    LOG.error("Malformed battery status packet. Expected size of 16, got {}.", value.size)
+                    return false
+                }
 
                 val leftChargeStatus = value[4]
                 val rightChargeStatus = value[5]
