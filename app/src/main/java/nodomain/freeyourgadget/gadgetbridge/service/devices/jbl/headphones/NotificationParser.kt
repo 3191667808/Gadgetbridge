@@ -1,11 +1,11 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.jbl.headphones
 
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState
-import nodomain.freeyourgadget.gadgetbridge.service.AbstractDeviceSupport
-import nodomain.freeyourgadget.gadgetbridge.util.GB
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.beShortAt
 import org.slf4j.LoggerFactory
+import kotlin.math.max
 import kotlin.math.min
 
 object NotificationParser {
@@ -17,15 +17,19 @@ object NotificationParser {
 
     private const val ID_BATTERY_STATUS = 0x25.toByte()
 
-    fun tryParse(support: AbstractDeviceSupport, value: ByteArray): Boolean {
+    /**
+     * Parse a characteristic notification.
+     * @return A list of actions to be applied to the device.
+     */
+    fun tryParse(value: ByteArray): List<GBDeviceEvent> {
         if (value.size < 3) {
             LOG.error("Received malformed notification (the data was less than 3 bytes long). Ignoring.")
-            return false
+            return listOf()
         }
 
         if (value[0] != MAGIC) {
             LOG.error("Received malformed notification (it didn't start with the magic byte 0xAA). Ignoring.")
-            return false
+            return listOf()
         }
 
         val id = value[1]
@@ -33,40 +37,40 @@ object NotificationParser {
 
         if (length != value.size - 3) {
             LOG.error("Received malformed notification (expected length of {}, got {}). Ignoring.", value.size - 3, length)
-            return false
+            return listOf()
         }
 
         val data = value.drop(3).toByteArray()
 
         return when (id) {
-            ID_BATTERY_STATUS -> parseBatteryStatus(support, data)
+            ID_BATTERY_STATUS -> parseBatteryStatus(data)
             else -> {
                 LOG.warn(
                     "Received unrecognized notification (id={}, data={}). Ignoring.",
                     id.toHexString(),
                     data.toHexString()
                 )
-                false
+                listOf()
             }
         }
     }
 
-    private fun parseBatteryStatus(support: AbstractDeviceSupport, value: ByteArray): Boolean {
+    private fun parseBatteryStatus(value: ByteArray): List<GBDeviceEvent> {
         if (value.isEmpty()) {
             LOG.error("Malformed battery status packet (expected at least one byte, got empty data). Ignoring.")
-            return false
+            return listOf()
         }
 
         val subCommand = value[0]
 
         if (subCommand != 1.toByte()) {
             LOG.error("Unsupported subcommand for battery status (only 1 is supported, got {}). Ignoring.", subCommand)
-            return false
+            return listOf()
         }
 
         if (value.size != 13) {
             LOG.error("Malformed battery status packet (expected size of 13, got {}). Ignoring.", value.size)
-            return false
+            return listOf()
         }
 
         val leftChargeStatus = value[1]
@@ -101,21 +105,21 @@ object NotificationParser {
             boxVoltage
         )
 
-        support.handleGBDeviceEvent(GBDeviceEventBatteryInfo().apply {
-            level = min(rightBatteryLevel.toInt(), 100)
-            state =
-                if (rightChargeStatus != 0.toByte())
-                    if (level == 100)
-                        BatteryState.BATTERY_CHARGING_FULL
-                    else
-                        BatteryState.BATTERY_CHARGING
-                else when (level) {
-                    100 -> BatteryState.BATTERY_NOT_CHARGING_FULL
-                    in 0..20 -> BatteryState.BATTERY_LOW
-                    else -> BatteryState.BATTERY_NORMAL
-                }
-        })
-
-        return true
+        return listOf(
+            GBDeviceEventBatteryInfo().apply {
+                level = max(min(rightBatteryLevel.toInt(), 100), 0)
+                state =
+                    if (rightChargeStatus != 0.toByte())
+                        if (level == 100)
+                            BatteryState.BATTERY_CHARGING_FULL
+                        else
+                            BatteryState.BATTERY_CHARGING
+                    else when (level) {
+                        100 -> BatteryState.BATTERY_NOT_CHARGING_FULL
+                        in 0..20 -> BatteryState.BATTERY_LOW
+                        else -> BatteryState.BATTERY_NORMAL
+                    }
+            }
+        )
     }
 }

@@ -61,8 +61,11 @@ class Tune720BTSupport : AbstractBTLESingleDeviceSupport(LOG) {
             GB.hexdump(value)
         )
 
-        return NotificationParser.tryParse(this, value) ||
-                super.onCharacteristicChanged(gatt, characteristic, value)
+        NotificationParser.tryParse(value).forEach {
+            handleGBDeviceEvent(it)
+        }
+
+        return super.onCharacteristicChanged(gatt, characteristic, value)
     }
 
     override fun onPowerOff() =
