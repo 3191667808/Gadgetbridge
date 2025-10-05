@@ -66,6 +66,11 @@ class Tune720BTSupport : AbstractBTLESingleDeviceSupport(LOG) {
         return super.onCharacteristicChanged(gatt, characteristic, value)
     }
 
+    override fun onPowerOff() =
+        createTransactionBuilder("Power Off")
+            .jblRequest(RequestBuilder.shutDown())
+            .queue()
+
     companion object {
         private val LOG = LoggerFactory.getLogger(Tune720BTSupport::class.java)
     }
