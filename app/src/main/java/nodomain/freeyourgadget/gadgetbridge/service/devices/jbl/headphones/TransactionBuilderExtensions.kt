@@ -17,9 +17,14 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.jbl.headphones
 
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder
+import org.slf4j.LoggerFactory
+
+private val LOG = LoggerFactory.getLogger("nodomain.freeyourgadget.gadgetbridge.service.devices.jbl.headphones.TransactionBuilderExtensions")
 
 fun TransactionBuilder.jblEnableResponseNotifications() =
     notify(BleUUIDs.UUID_CHARACTERISTIC_READ, true)
 
-fun TransactionBuilder.jblRequest(data: ByteArray) =
-    write(BleUUIDs.UUID_CHARACTERISTIC_WRITE, *data)
+fun TransactionBuilder.jblRequest(data: ByteArray): TransactionBuilder {
+    LOG.debug("Sending request: {}", data.toHexString())
+    return write(BleUUIDs.UUID_CHARACTERISTIC_WRITE, *data)
+}
