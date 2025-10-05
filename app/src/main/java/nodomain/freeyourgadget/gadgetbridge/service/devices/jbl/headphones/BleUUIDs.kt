@@ -1,0 +1,15 @@
+package nodomain.freeyourgadget.gadgetbridge.service.devices.jbl.headphones
+
+import java.util.UUID
+
+object BleUUIDs {
+    val UUID_SERVICE_GENERIC = UUID.fromString("65786365-6c70-6f69-6e74-2e636f6d0000")
+    val UUID_CHARACTERISTIC_READ = UUID.fromString("65786365-6c70-6f69-6e74-2e636f6d0001")
+    val UUID_CHARACTERISTIC_WRITE = UUID.fromString("65786365-6c70-6f69-6e74-2e636f6d0002")
+
+    val UUID_SERVICE_OTA = UUID.fromString("66666666-6666-6666-6666-666666666666")
+    val UUID_CHARACTERISTIC_OTA = UUID.fromString("77777777-7777-7777-7777-777777777777")
+
+    val UUID_SERVICE_UNKNOWN1 = UUID.fromString("00007033-0000-1000-8000-00805f9b34fb")
+    val UUID_SERVICE_UNKNOWN2 = UUID.fromString("0000fe2c-0000-1000-8000-00805f9b34fb")
+}

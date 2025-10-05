@@ -2273,6 +2273,7 @@
     <string name="task_installing_route">Installing route</string>
     <string name="route_upload_completed">Route upload completed</string>
     <string name="route_upload_failed">Route upload failed</string>
+    <string name="devicetype_jbl_tune_720bt" translatable="false">JBL Tune 720BT</string>
     <string name="choose_auto_export_location">Choose export location</string>
     <string name="notification_channel_name">General</string>
     <string name="notification_channel_high_priority_name">High-priority</string>
