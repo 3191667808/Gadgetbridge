@@ -1,13 +1,13 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.jbl.headphones
 
 import nodomain.freeyourgadget.gadgetbridge.R
-import nodomain.freeyourgadget.gadgetbridge.devices.AbstractDeviceCoordinator
+import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.service.devices.jbl.headphones.Tune720BTSupport
 import java.util.regex.Pattern
 
-class JBLTune720BTCoordinator : AbstractDeviceCoordinator() {
+class JBLTune720BTCoordinator : AbstractBLEDeviceCoordinator() {
     override fun getSupportedDeviceName(): Pattern =
         Pattern.compile(".*JBL Tune720BT.*")
 
