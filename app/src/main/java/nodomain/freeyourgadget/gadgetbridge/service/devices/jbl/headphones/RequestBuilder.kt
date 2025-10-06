@@ -31,9 +31,9 @@ object RequestBuilder {
         ANC_TUNING_STATUS(58),
     }
 
-    fun deviceStatus(type: DeviceStatusType): ByteArray = byteArrayOf(-86, 33, 1, type.id)
-
-    fun batteryInfo(): ByteArray = byteArrayOf(-86, 37, 1, 0)
-
-    fun shutDown(): ByteArray = byteArrayOf(-86, -105, 0)
+    fun deviceStatus(type: DeviceStatusType) = byteArrayOf(-86, 33, 1, type.id)
+    fun batteryInfo() = byteArrayOf(-86, 37, 1, 0)
+    fun ancStatus(enabled: Boolean) = byteArrayOf(-86, 49, if (enabled) 1 else 0)
+    fun shutDown() = byteArrayOf(-86, -105, 0)
+    fun factoryReset() = byteArrayOf(-86, -107, 0)
 }
