@@ -40,6 +40,7 @@ class Tune720BTSupport : AbstractBTLESingleDeviceSupport(LOG) {
         builder
             .setDeviceState(GBDevice.State.INITIALIZING)
             .jblEnableResponseNotifications()
+            .jblRequest(RequestBuilder.voiceAwareMode())
             .jblRequest(RequestBuilder.batteryInfo())
             .setDeviceState(GBDevice.State.INITIALIZED)
 
@@ -78,6 +79,27 @@ class Tune720BTSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 .jblRequest(RequestBuilder.factoryReset())
                 .queue()
         }
+    }
+
+
+
+    override fun onSendConfiguration(config: String) {
+        LOG.debug("onSendConfiguration {}", config)
+
+        val builder = createTransactionBuilder("Send Configuration")
+        when (config) {
+            SettingKeys.PREF_JBL_VOICEAWARE -> {
+                builder.jblRequest(
+                    RequestBuilder.setVoiceAwareMode(
+                        RequestBuilder.VoiceAwareMode.prefValueMap[devicePrefs.getString(
+                            config,
+                            RequestBuilder.VoiceAwareMode.OFF.prefValue
+                        )]!!
+                    )
+                )
+            }
+        }
+        builder.queue()
     }
 
     companion object {

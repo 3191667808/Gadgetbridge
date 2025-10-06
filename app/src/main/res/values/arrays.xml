@@ -5620,4 +5620,16 @@
         <item>MUSIC_CONTROL</item>
         <item>RING_PHONE</item>
     </string-array>
+    <string-array name="pref_jbl_voiceaware_entries">
+        <item>@string/off</item>
+        <item>@string/low</item>
+        <item>@string/medium</item>
+        <item>@string/high</item>
+    </string-array>
+    <string-array name="pref_jbl_voiceaware_values">
+        <item>off</item>
+        <item>low</item>
+        <item>medium</item>
+        <item>high</item>
+    </string-array>
 </resources>

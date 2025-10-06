@@ -5500,4 +5500,7 @@
     <string name="gpx_include_navigation">Include turn-by-turn navigation</string>
     <string name="gpx_include_navigation_straight">Include \'Continue straight\' instructions</string>
     <string name="gpx_roundabout_exit">Exit %1$d</string>
+    <string name="pref_jbl_voiceaware">VoiceAware</string>
+    <string name="pref_jbl_voiceaware_summary">How well you can hear your own voice during calls.</string>
+    <string name="medium">Medium</string>
 </resources>
