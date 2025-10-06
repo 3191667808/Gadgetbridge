@@ -18,6 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.jbl.headphones
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.beShortAt
 import org.slf4j.LoggerFactory
@@ -32,6 +33,7 @@ object NotificationParser {
     // Notifications
 
     private const val ID_BATTERY_STATUS = 0x25.toByte()
+    private const val ID_VOICEAWARE_INFO = 0x98.toByte()
 
     /**
      * Parse a characteristic notification.
@@ -60,6 +62,7 @@ object NotificationParser {
 
         return when (id) {
             ID_BATTERY_STATUS -> parseBatteryStatus(data)
+            ID_VOICEAWARE_INFO -> parseVoiceAwareInfo(data)
             else -> {
                 LOG.warn(
                     "Received unrecognized notification (id={}, data={}). Ignoring.",
@@ -136,6 +139,25 @@ object NotificationParser {
                         else -> BatteryState.BATTERY_NORMAL
                     }
             }
+        )
+    }
+
+    private fun parseVoiceAwareInfo(value: ByteArray): List<GBDeviceEvent> {
+        if (value.size != 3) {
+            LOG.error("Malformed VoiceAware info packet (expected three bytes, got {} instead). Ignoring.", value.size)
+            return listOf()
+        }
+
+        return listOf(
+            GBDeviceEventUpdatePreferences(
+                SettingKeys.PREF_JBL_VOICEAWARE,
+                RequestBuilder.VoiceAwareMode.idMap.getOrElse(value[1]) {
+                    LOG.error("Malformed VoiceAware info packet (expected 0-3 for the mode, got {} instead). Ignoring.", value[1])
+                    return listOf()
+                }.also {
+                    LOG.debug("Received VoiceAware info: {}", it)
+                }.prefValue
+            )
         )
     }
 }

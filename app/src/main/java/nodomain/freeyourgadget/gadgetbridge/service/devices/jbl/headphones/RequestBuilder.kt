@@ -31,9 +31,23 @@ object RequestBuilder {
         ANC_TUNING_STATUS(58),
     }
 
+    enum class VoiceAwareMode(val id: Byte, val isEnabled: Byte, val prefValue: String) {
+        OFF(0, 0, "off"),
+        LOW(1, 1, "low"),
+        MEDIUM(2, 1, "medium"),
+        HIGH(3, 1, "high");
+
+        companion object {
+            val prefValueMap = entries.associateBy { it.prefValue }
+            val idMap = entries.associateBy { it.id }
+        }
+    }
+
     fun deviceStatus(type: DeviceStatusType) = byteArrayOf(-86, 33, 1, type.id)
     fun batteryInfo() = byteArrayOf(-86, 37, 1, 0)
     fun ancStatus(enabled: Boolean) = byteArrayOf(-86, 49, if (enabled) 1 else 0)
+    fun voiceAwareMode() = byteArrayOf(-86, -104, 1, 1)
+    fun setVoiceAwareMode(mode: VoiceAwareMode) = byteArrayOf(-86, -104, 3, 0, mode.id, mode.isEnabled)
     fun shutDown() = byteArrayOf(-86, -105, 0)
     fun factoryReset() = byteArrayOf(-86, -107, 0)
 }
