@@ -22,6 +22,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder
+import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 import org.slf4j.LoggerFactory
 
@@ -70,6 +71,14 @@ class Tune720BTSupport : AbstractBTLESingleDeviceSupport(LOG) {
         createTransactionBuilder("Power Off")
             .jblRequest(RequestBuilder.shutDown())
             .queue()
+
+    override fun onReset(flags: Int) {
+        if (flags and GBDeviceProtocol.RESET_FLAGS_FACTORY_RESET != 0) {
+            createTransactionBuilder("Factory Reset")
+                .jblRequest(RequestBuilder.factoryReset())
+                .queue()
+        }
+    }
 
     companion object {
         private val LOG = LoggerFactory.getLogger(Tune720BTSupport::class.java)
