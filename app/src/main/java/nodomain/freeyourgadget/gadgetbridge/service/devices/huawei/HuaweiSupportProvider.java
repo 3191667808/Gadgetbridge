@@ -71,6 +71,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinatorSupp
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinatorSupplier.HuaweiDeviceType;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCrypto;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiDictTypes;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiEmotionsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiGpsParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiHrvValueSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
@@ -93,6 +94,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEmotionsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiHrvValueSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStatsSample;
@@ -865,7 +867,7 @@ public class HuaweiSupportProvider {
         try {
 
             // NOTE: register all DAta Sync handlers on the early stage. We can receive requests from the watch during initialization.
-            if(getHuaweiCoordinator().getSendCountryCodeEnabled(getDevice())) {
+            if (getHuaweiCoordinator().getSendCountryCodeEnabled(getDevice())) {
                 huaweiDataSyncFeatureManager = new HuaweiDataSyncFeatureManager(HuaweiSupportProvider.this);
             }
 
@@ -884,13 +886,13 @@ public class HuaweiSupportProvider {
             if (getHuaweiCoordinator().supportsArrhythmia() && getHuaweiCoordinator().isShowForceCountrySpecificFeatures(getCoordinator().getDevice())) {
                 huaweiDataSyncArrhythmia = new HuaweiDataSyncArrhythmia(HuaweiSupportProvider.this);
             }
-            if (getHuaweiCoordinator().supportsECG()  && getHuaweiCoordinator().isShowForceCountrySpecificFeatures(getCoordinator().getDevice())) {
+            if (getHuaweiCoordinator().supportsECG() && getHuaweiCoordinator().isShowForceCountrySpecificFeatures(getCoordinator().getDevice())) {
                 huaweiDataSyncEcg = new HuaweiDataSyncEcg(HuaweiSupportProvider.this);
             }
-            if(getHuaweiCoordinator().supportsSleepApnea()) {
+            if (getHuaweiCoordinator().supportsSleepApnea()) {
                 huaweiDataSyncSleepApnea = new HuaweiDataSyncSleepApnea(HuaweiSupportProvider.this);
             }
-            if(getHuaweiCoordinator().supportsArterialStiffnessDetection()) {
+            if (getHuaweiCoordinator().supportsArterialStiffnessDetection()) {
                 huaweiDataSyncArterialStiffnessDetection = new HuaweiDataSyncArterialStiffnessDetection(HuaweiSupportProvider.this);
             }
 
@@ -1574,7 +1576,7 @@ public class HuaweiSupportProvider {
         HuaweiP2PDataDictionarySyncService P2PSyncService = HuaweiP2PDataDictionarySyncService.getRegisteredInstance(huaweiP2PManager);
 
         if (P2PSyncService != null) {
-            List<Integer> list = P2PSyncService.checkSupported(this.getHuaweiCoordinator(), Arrays.asList(HuaweiDictTypes.SKIN_TEMPERATURE_CLASS, HuaweiDictTypes.HRV_CLASS));
+            List<Integer> list = P2PSyncService.checkSupported(this.getHuaweiCoordinator(), Arrays.asList(HuaweiDictTypes.SKIN_TEMPERATURE_CLASS, HuaweiDictTypes.HRV_CLASS, HuaweiDictTypes.EMOTION_CLASS));
             if (!list.isEmpty()) {
                 syncState.setP2pSync(true);
                 P2PSyncService.startSync(list, new HuaweiP2PDataDictionarySyncService.DictionarySyncCallback() {
@@ -1591,8 +1593,16 @@ public class HuaweiSupportProvider {
                             return 0;
                         } else if (dictClass == HuaweiDictTypes.HRV_CLASS) {
                             try (DBHandler db = GBApplication.acquireDB()) {
-                                HuaweiHrvValueSampleProvider sleepStatsSampleProvider = new HuaweiHrvValueSampleProvider(gbDevice, db.getDaoSession());
-                                return sleepStatsSampleProvider.getLastFetchTimestamp();
+                                HuaweiHrvValueSampleProvider hrvStatsSampleProvider = new HuaweiHrvValueSampleProvider(gbDevice, db.getDaoSession());
+                                return hrvStatsSampleProvider.getLastFetchTimestamp();
+                            } catch (Exception e) {
+                                LOG.warn("Exception for getting HRV start time", e);
+                            }
+                            return 0;
+                        } else if (dictClass == HuaweiDictTypes.EMOTION_CLASS) {
+                            try (DBHandler db = GBApplication.acquireDB()) {
+                                HuaweiEmotionsSampleProvider emotionsStatsSampleProvider = new HuaweiEmotionsSampleProvider(gbDevice, db.getDaoSession());
+                                return emotionsStatsSampleProvider.getLastFetchTimestamp();
                             } catch (Exception e) {
                                 LOG.warn("Exception for getting HRV start time", e);
                             }
@@ -1653,6 +1663,63 @@ public class HuaweiSupportProvider {
                                 new HuaweiHrvValueSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, hrvSamples);
                             } catch (Exception e) {
                                 LOG.error("Cannot save skin HRV samples, continue");
+                            }
+                        } else if (dictClass == HuaweiDictTypes.EMOTION_CLASS) {
+                            List<HuaweiEmotionsSample> emotionsSamples = new ArrayList<>();
+                            for (HuaweiP2PDataDictionarySyncService.DictData dt : dictData) {
+                                long timestamp = dt.getStartTimestamp();
+                                long lastTime = Math.max(dt.getEndTimestamp(), dt.getModifyTimestamp());
+                                Integer status = null;
+                                Double valenceCharacter = null;
+                                Integer originStatus = null;
+                                Double arousalCharacter = null;
+                                for (HuaweiP2PDataDictionarySyncService.DictData.DictDataValue val : dt.getData()) {
+                                    if (val.getTag() != 10) {
+                                        LOG.info("emotions unexpected tag: {}", val.getTag());
+                                        continue;
+                                    }
+                                    if (val.getDataType() == HuaweiDictTypes.EMOTION_STATUS_VALUE) {
+                                        double value = HuaweiUtil.convBytes2Double(val.getValue());
+                                        if (value >= 0 && value < 100) {
+                                            status = (int) value;
+                                        }
+                                    } else if (val.getDataType() == HuaweiDictTypes.EMOTION_VALENCE_CHARACTER_VALUE) {
+                                        double value = HuaweiUtil.convBytes2Double(val.getValue());
+                                        if (value >= 0 && value <= 100) {
+                                            valenceCharacter = value;
+                                        }
+                                    } else if (val.getDataType() == HuaweiDictTypes.EMOTION_ORIGIN_STATUS_VALUE) {
+                                        double value = HuaweiUtil.convBytes2Double(val.getValue());
+                                        if (value >= 0 && value < 100) {
+                                            originStatus = (int) value;
+                                        }
+                                    } else if (val.getDataType() == HuaweiDictTypes.EMOTION_AROUSAL_CHARACTER_VALUE) {
+                                        double value = HuaweiUtil.convBytes2Double(val.getValue());
+                                        if (value >= 0 && value <= 100) {
+                                            arousalCharacter = value;
+                                        }
+                                    } else {
+                                        LOG.info("emotions unknown data type: {}", val.getDataType());
+                                    }
+
+                                }
+                                if (status != null || valenceCharacter != null || originStatus != null || arousalCharacter != null) {
+                                    HuaweiEmotionsSample sample = new HuaweiEmotionsSample();
+                                    sample.setTimestamp(timestamp);
+                                    sample.setLastTimestamp(lastTime);
+                                    sample.setStatus(status == null ? 0 : status);
+                                    sample.setValenceCharacter(valenceCharacter);
+                                    sample.setOriginStatus(originStatus);
+                                    sample.setArousalCharacter(arousalCharacter);
+                                    emotionsSamples.add(sample);
+                                }
+
+                            }
+                            try (DBHandler db = GBApplication.acquireDB()) {
+                                final DaoSession session = db.getDaoSession();
+                                new HuaweiEmotionsSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, emotionsSamples);
+                            } catch (Exception e) {
+                                LOG.error("Cannot save skin emotions samples, continue");
                             }
                         }
                     }
@@ -2351,14 +2418,14 @@ public class HuaweiSupportProvider {
     }
 
     public void setSleepBreath() {
-        if(huaweiDataSyncSleepApnea != null) {
+        if (huaweiDataSyncSleepApnea != null) {
             boolean sleepBreathSwitch = GBApplication
                     .getDeviceSpecificSharedPrefs(this.getDevice().getAddress())
                     .getBoolean(HuaweiConstants.PREF_HUAWEI_SLEEP_BREATH, false);
-            if(!huaweiDataSyncSleepApnea.changeSleepBreatheState(sleepBreathSwitch)) {
+            if (!huaweiDataSyncSleepApnea.changeSleepBreatheState(sleepBreathSwitch)) {
                 LOG.error("Failed to configure sleep breathing");
             }
-            if(!huaweiDataSyncSleepApnea.changeSleepApneaState(sleepBreathSwitch)) {
+            if (!huaweiDataSyncSleepApnea.changeSleepApneaState(sleepBreathSwitch)) {
                 LOG.error("Failed to configure sleep apnea");
             }
         } else {
@@ -2600,11 +2667,11 @@ public class HuaweiSupportProvider {
     }
 
     private void activateArrhythmia() {
-        if(huaweiDataSyncArrhythmia != null) {
+        if (huaweiDataSyncArrhythmia != null) {
             boolean arrhythmiaEnabled = GBApplication
                     .getDeviceSpecificSharedPrefs(getDevice().getAddress())
                     .getBoolean(HuaweiConstants.PREF_HUAWEI_ARRHYTHMIA_SWITCH, false);
-            if(!huaweiDataSyncArrhythmia.changeState(arrhythmiaEnabled)) {
+            if (!huaweiDataSyncArrhythmia.changeState(arrhythmiaEnabled)) {
                 LOG.error("Error Arrhythmia change state");
             }
         }
@@ -2612,22 +2679,22 @@ public class HuaweiSupportProvider {
     }
 
     private void setArrhythmiaAutomatic() {
-        if(huaweiDataSyncArrhythmia != null) {
+        if (huaweiDataSyncArrhythmia != null) {
             boolean automaticArrhythmiaEnabled = GBApplication
                     .getDeviceSpecificSharedPrefs(getDevice().getAddress())
                     .getBoolean(HuaweiConstants.PREF_HUAWEI_ARRHYTHMIA_AUTOMATIC, false);
-            if(!huaweiDataSyncArrhythmia.setAutomatic(automaticArrhythmiaEnabled)) {
+            if (!huaweiDataSyncArrhythmia.setAutomatic(automaticArrhythmiaEnabled)) {
                 LOG.error("Error Arrhythmia change automatic");
             }
         }
     }
 
     private void setArrhythmiaAlert() {
-        if(huaweiDataSyncArrhythmia != null) {
+        if (huaweiDataSyncArrhythmia != null) {
             boolean arrhythmiaAlertEnabled = GBApplication
                     .getDeviceSpecificSharedPrefs(getDevice().getAddress())
                     .getBoolean(HuaweiConstants.PREF_HUAWEI_ARRHYTHMIA_ALERT, false);
-            if(!huaweiDataSyncArrhythmia.setAlert(arrhythmiaAlertEnabled)) {
+            if (!huaweiDataSyncArrhythmia.setAlert(arrhythmiaAlertEnabled)) {
                 LOG.error("Error Arrhythmia change alert");
             }
         }

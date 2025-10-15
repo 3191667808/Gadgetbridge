@@ -58,7 +58,7 @@ public class GBDaoGenerator {
 
 
     public static void main(String[] args) throws Exception {
-        final Schema schema = new Schema(118, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(119, MAIN_PACKAGE + ".entities");
 
         Entity userAttributes = addUserAttributes(schema);
         Entity user = addUserInfo(schema, userAttributes);
@@ -174,6 +174,7 @@ public class GBDaoGenerator {
         addHuaweiSleepStatsSample(schema, user, device);
         addHuaweiTemperatureSample(schema, user, device);
         addHuaweiHrvValuesSample(schema, user, device);
+        addHuaweiEmotionsSample(schema, user, device);
 
         addUltrahumanActivitySample(schema, user, device);
         addUltrahumanDeviceStateSample(schema, user, device);
@@ -1610,6 +1611,18 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractHrvValueSample", sample, user, device);
         sample.addLongProperty("lastTimestamp").notNull().index();
         sample.addIntProperty("value").notNull().codeBeforeGetter(OVERRIDE);
+        return sample;
+    }
+
+    private static Entity addHuaweiEmotionsSample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "HuaweiEmotionsSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
+        sample.addLongProperty("lastTimestamp").notNull().index();
+        sample.addIntProperty("status").notNull();
+        sample.addDoubleProperty("valenceCharacter");
+        sample.addIntProperty("originStatus");
+        sample.addDoubleProperty("arousalCharacter");
+        
         return sample;
     }
 

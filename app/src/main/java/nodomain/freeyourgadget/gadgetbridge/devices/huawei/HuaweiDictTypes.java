@@ -30,4 +30,12 @@ public class HuaweiDictTypes {
 
     public static final int HRV_CLASS = 500044;
     public static final int HRV_RMSSD_VALUE = 500044831;
+
+    public static final int EMOTION_CLASS = 500031;
+
+    public static final int EMOTION_STATUS_VALUE = 500031195;
+    public static final int EMOTION_VALENCE_CHARACTER_VALUE = 500031347;
+    public static final int EMOTION_ORIGIN_STATUS_VALUE = 500031160;
+    public static final int EMOTION_AROUSAL_CHARACTER_VALUE = 500031842;
+
 }
