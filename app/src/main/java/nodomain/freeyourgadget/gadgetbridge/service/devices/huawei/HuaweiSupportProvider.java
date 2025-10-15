@@ -72,6 +72,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinatorSupp
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCrypto;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiDictTypes;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiGpsParser;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiHrvValueSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSequenceDataParser;
@@ -92,6 +93,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiHrvValueSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStatsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiStressSample;
@@ -1572,7 +1574,7 @@ public class HuaweiSupportProvider {
         HuaweiP2PDataDictionarySyncService P2PSyncService = HuaweiP2PDataDictionarySyncService.getRegisteredInstance(huaweiP2PManager);
 
         if (P2PSyncService != null) {
-            List<Integer> list = P2PSyncService.checkSupported(this.getHuaweiCoordinator(), Arrays.asList(HuaweiDictTypes.SKIN_TEMPERATURE_CLASS));
+            List<Integer> list = P2PSyncService.checkSupported(this.getHuaweiCoordinator(), Arrays.asList(HuaweiDictTypes.SKIN_TEMPERATURE_CLASS, HuaweiDictTypes.HRV_CLASS));
             if (!list.isEmpty()) {
                 syncState.setP2pSync(true);
                 P2PSyncService.startSync(list, new HuaweiP2PDataDictionarySyncService.DictionarySyncCallback() {
@@ -1585,6 +1587,14 @@ public class HuaweiSupportProvider {
                                 return sleepStatsSampleProvider.getLastFetchTimestamp();
                             } catch (Exception e) {
                                 LOG.warn("Exception for getting temperature start time", e);
+                            }
+                            return 0;
+                        } else if (dictClass == HuaweiDictTypes.HRV_CLASS) {
+                            try (DBHandler db = GBApplication.acquireDB()) {
+                                HuaweiHrvValueSampleProvider sleepStatsSampleProvider = new HuaweiHrvValueSampleProvider(gbDevice, db.getDaoSession());
+                                return sleepStatsSampleProvider.getLastFetchTimestamp();
+                            } catch (Exception e) {
+                                LOG.warn("Exception for getting HRV start time", e);
                             }
                             return 0;
                         }
@@ -1611,7 +1621,6 @@ public class HuaweiSupportProvider {
                                             temperatureSamples.add(sample);
                                         }
                                     }
-
                                 }
                             }
                             try (DBHandler db = GBApplication.acquireDB()) {
@@ -1619,6 +1628,31 @@ public class HuaweiSupportProvider {
                                 new HuaweiTemperatureSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, temperatureSamples);
                             } catch (Exception e) {
                                 LOG.error("Cannot save skin temperature samples, continue");
+                            }
+                        } else if (dictClass == HuaweiDictTypes.HRV_CLASS) {
+                            List<HuaweiHrvValueSample> hrvSamples = new ArrayList<>();
+                            for (HuaweiP2PDataDictionarySyncService.DictData dt : dictData) {
+                                long timestamp = dt.getStartTimestamp();
+                                long lastTime = Math.max(dt.getEndTimestamp(), dt.getModifyTimestamp());
+                                for (HuaweiP2PDataDictionarySyncService.DictData.DictDataValue val : dt.getData()) {
+                                    if (val.getTag() == 10 && val.getDataType() == HuaweiDictTypes.HRV_RMSSD_VALUE) {
+                                        double rmssd = HuaweiUtil.convBytes2Double(val.getValue());
+                                        int value = (int) rmssd;
+                                        if (value >= 0 && value <= 200) {
+                                            HuaweiHrvValueSample sample = new HuaweiHrvValueSample();
+                                            sample.setTimestamp(timestamp);
+                                            sample.setLastTimestamp(lastTime);
+                                            sample.setValue(value);
+                                            hrvSamples.add(sample);
+                                        }
+                                    }
+                                }
+                            }
+                            try (DBHandler db = GBApplication.acquireDB()) {
+                                final DaoSession session = db.getDaoSession();
+                                new HuaweiHrvValueSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, hrvSamples);
+                            } catch (Exception e) {
+                                LOG.error("Cannot save skin HRV samples, continue");
                             }
                         }
                     }

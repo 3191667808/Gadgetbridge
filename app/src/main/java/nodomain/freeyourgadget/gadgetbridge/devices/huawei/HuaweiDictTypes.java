@@ -27,4 +27,7 @@ public class HuaweiDictTypes {
     public static final int SLEEP_DETAILS_CLASS = 700013;
 
     public static final int ARRHYTHMIA_CLASS = 700004;
+
+    public static final int HRV_CLASS = 500044;
+    public static final int HRV_RMSSD_VALUE = 500044831;
 }
