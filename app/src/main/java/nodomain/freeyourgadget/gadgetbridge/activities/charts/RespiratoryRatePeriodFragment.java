@@ -142,6 +142,7 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
         lineDataSet.setCircleColor(getResources().getColor(color));
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
         lineDataSet.setDrawValues(false);
+        lineDataSet.setDrawHighlightIndicators(false);
         return lineDataSet;
     }
 

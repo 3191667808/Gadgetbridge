@@ -279,6 +279,7 @@ public class HeartRatePeriodFragment extends AbstractChartFragment<HeartRatePeri
         dataSet.setColor(color);
         dataSet.setValueTextColor(TEXT_COLOR);
         dataSet.setValueTextSize(10f);
+        dataSet.setDrawHighlightIndicators(false);
         return dataSet;
     }
 

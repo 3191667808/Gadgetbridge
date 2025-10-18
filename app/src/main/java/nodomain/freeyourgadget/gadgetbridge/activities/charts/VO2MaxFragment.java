@@ -236,6 +236,7 @@ public class VO2MaxFragment extends AbstractChartFragment<VO2MaxFragment.VO2MaxD
         lineDataSet.setCircleColor(color);
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
         lineDataSet.setDrawValues(true);
+        lineDataSet.setDrawHighlightIndicators(false);
         lineDataSet.setValueTextSize(10f);
         lineDataSet.setValueTextColor(TEXT_COLOR);
         lineDataSet.setValueFormatter(new ValueFormatter() {

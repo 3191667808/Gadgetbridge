@@ -115,6 +115,7 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
         lineDataSet.setFillAlpha(255);
         lineDataSet.setValueTextColor(TEXT_COLOR);
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
+        lineDataSet.setDrawHighlightIndicators(false);
         if (manualPoints) {
             lineDataSet.setDrawCircles(true);
             lineDataSet.enableDashedLine(0f,1f,0f);

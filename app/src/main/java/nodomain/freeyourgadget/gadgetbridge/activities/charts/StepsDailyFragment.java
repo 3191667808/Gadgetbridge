@@ -171,7 +171,8 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
         lineDataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
         lineDataSet.setDrawFilled(true);
         lineDataSet.setFillAlpha(60);
-        lineDataSet.setFillColor(getResources().getColor(R.color.steps_color ));
+        lineDataSet.setFillColor(getResources().getColor(R.color.steps_color));
+        lineDataSet.setDrawHighlightIndicators(false);
 
         final LimitLine goalLine = new LimitLine(STEPS_GOAL);
         goalLine.setLineColor(getResources().getColor(R.color.steps_color));

@@ -145,6 +145,7 @@ public class RespiratoryRateDailyFragment extends RespiratoryRateFragment<Respir
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
         lineDataSet.setDrawValues(false);
         lineDataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
+        lineDataSet.setDrawHighlightIndicators(false);
 
         lineDataSets.add(lineDataSet);
         final LineData lineData = new LineData(lineDataSets);
@@ -162,6 +163,7 @@ public class RespiratoryRateDailyFragment extends RespiratoryRateFragment<Respir
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
         lineDataSet.setDrawValues(false);
         lineDataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
+        lineDataSet.setDrawHighlightIndicators(false);
 
         return lineDataSet;
     }
