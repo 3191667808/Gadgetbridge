@@ -277,6 +277,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.lefun.BohemicSmartBraceletDe
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.LefunDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.VivitarHrBpMonitorActivityTrackerCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.lenovo.watchxplus.WatchXPlusDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.liveview.LiveviewCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.makibeshr3.MakibesHR3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.marstek.MarstekB2500DeviceCoordinator;
@@ -812,6 +813,7 @@ public enum DeviceType {
     COOSPO_H6(CoospoH6Coordinator.class),
     COOSPO_HW9(CoospoHW9Coordinator.class),
     COOSPO_HW807(CoospoHW807Coordinator.class),
+    KEEPHEALTH_C60(C60DeviceCoordinator.class),
     GENERIC_WEIGHT_SCALE(GenericWeightScaleCoordinator.class),
     TEST(TestDeviceCoordinator.class);
 
