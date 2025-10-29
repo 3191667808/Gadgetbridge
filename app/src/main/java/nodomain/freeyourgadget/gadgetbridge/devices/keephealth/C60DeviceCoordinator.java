@@ -34,7 +34,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
 
     @Override
     public int getDefaultIconResource() {
-        return R.drawable.ic_device_h30_h10;
+        return R.drawable.ic_device_default;
     }
 
     @Override

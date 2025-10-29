@@ -2,6 +2,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.keephealth;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.widget.Toast;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import java.util.UUID;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
@@ -22,10 +24,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(C60DeviceSupport.class);
     private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
 
-    private final byte[] CMD_GET_DEVICE_DATA = { 0x01, 0x00, 0x00, (byte)0xb0 };
-    private final byte CMD_GET_DEVICE_DATA_RESPONSE_PREFIX = (byte) 0x1b;
-    private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, (byte)0x74 };
-    private final byte CMD_GET_CURRENT_BATTERY_RESPONSE_PREFIX = (byte) 0xa7;
+    private final byte[] CMD_GET_DEVICE_DATA = { 0x01, 0x00, 0x00, (byte) 0xb0 };
+    private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, 0x74 };
+    private final byte[] CMD_GET_DEVICE_STATE = { 0x02, 0x00, 0x00, 0x06 };
+    private final byte[] CMD_GET_CURRENT_STEPS = { 0x20, 0x01, 0x00, 0x00, 0x70 };
 
     public C60DeviceSupport() {
         super(LOG);
@@ -37,9 +39,16 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(C60Constants.CHARACTERISTIC_READ, true);
 
-        getDeviceData();
-        getBatteryData();
-        setDateTime();
+        getDeviceData(builder);
+        builder.wait(200);
+        getBatteryData(builder);
+        builder.wait(200);
+        setTime(builder);
+        builder.wait(200);
+        getDeviceState(builder);
+        builder.wait(200);
+        getSteps(builder);
+        builder.wait(200);
 
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
@@ -51,7 +60,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSetTime() {
-        setDateTime();
+        LOG.debug("set date and time");
+        TransactionBuilder builder = createTransactionBuilder("Set date and time");
+        setTime(builder);
+        builder.queue();
     }
 
     @Override
@@ -68,8 +80,17 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         LOG.info("Characteristic changed value: {}", GB.hexdump(value));
 
         if (responseChecksumValid(value)) {
-            if (value[0] == CMD_GET_CURRENT_BATTERY_RESPONSE_PREFIX) {
+            // get cmd based on response first byte - 0x80
+            byte cmdPrefix = (byte) (value[0] - (byte) 0x80);
+            LOG.info("Expected CMD prefix: {}", GB.hexdump(new byte[]{cmdPrefix}));
+            if (cmdPrefix == CMD_GET_DEVICE_DATA[0]) {
+                handleDeviceData(value);
+            } else if (cmdPrefix == CMD_GET_CURRENT_BATTERY[0]) {
                 handleBatteryInfo(value);
+            } else if (cmdPrefix == CMD_GET_DEVICE_STATE[0]) {
+                handleDeviceState(value);
+            } else if (cmdPrefix == CMD_GET_CURRENT_STEPS[0]) {
+                handleSteps(value);
             }
         } else {
             LOG.info("Received data have invalid checksum: {}", GB.hexdump(value));
@@ -78,20 +99,41 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return false;
     }
 
-    private void sendCommand(String taskName, byte[] contents) {
-        TransactionBuilder builder = createTransactionBuilder(taskName);
-        BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
-        if (characteristic != null && contents != null) {
-            builder.write(characteristic, contents);
-            builder.queue();
-        }
-    }
-
     private void handleBatteryInfo(byte[] info) {
         LOG.debug("Battery info: " + GB.hexdump(info));
-        batteryCmd.level = Math.min(info[3], 100);
+        var level = info[3];
+        if (level == (byte) 0xff) {
+            batteryCmd.state = BatteryState.BATTERY_CHARGING;
+        } else {
+            batteryCmd.state = BatteryState.BATTERY_NORMAL;
+            batteryCmd.level = Math.min(info[3], 100);
+        }
         handleGBDeviceEvent(batteryCmd);
     }
+
+    private void handleDeviceData(byte[] info) {
+        LOG.debug("Device Data: " + GB.hexdump(info));
+        String model = new String(info, 3, 8);
+        int major = Byte.toUnsignedInt(info[11]);
+        int minor = Byte.toUnsignedInt(info[12]);
+        String version = major + "." + (minor < 10 ? "0" + minor : Integer.toString(minor));
+        getDevice().setModel(model + " v" + version);
+    }
+
+    private void handleDeviceState(byte[] info) {
+        LOG.debug("Device State: " + GB.hexdump(info));
+        // TODO
+    }
+
+    private void handleSteps(byte[] data) {
+        LOG.debug("Current steps data: " + GB.hexdump(data));
+        ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+        int totalSteps    = bb.getInt(4);
+        int totalCalories = bb.getInt(8);
+        int totalDistance = bb.getInt(12);
+        GB.toast("totalSteps: " +  totalSteps + " | totalCalories: " + totalCalories + " | totalDistance: " + totalDistance, Toast.LENGTH_LONG, GB.INFO);
+    }
+
 
     private byte[] encodeSetCurrentTime() {
         byte length = 12;
@@ -117,16 +159,29 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return buf.array();
     }
 
-    public void getDeviceData() {
-        sendCommand("get Device Data", CMD_GET_DEVICE_DATA);
+    public C60DeviceSupport getDeviceData(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DEVICE_DATA);
+        return this;
     }
 
-    public void getBatteryData() {
-        sendCommand("get Battery Data", CMD_GET_CURRENT_BATTERY);
+    public C60DeviceSupport getBatteryData(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_BATTERY);
+        return this;
     }
 
-    public void setDateTime() {
-        sendCommand("set Date Time", encodeSetCurrentTime());
+    public C60DeviceSupport setTime(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, encodeSetCurrentTime());
+        return this;
+    }
+
+    public C60DeviceSupport getDeviceState(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DEVICE_STATE);
+        return this;
+    }
+
+    public C60DeviceSupport getSteps(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_STEPS);
+        return this;
     }
 
     private byte getChecksum(byte[] command) {
