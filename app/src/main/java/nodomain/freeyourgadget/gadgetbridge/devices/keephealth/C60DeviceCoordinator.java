@@ -1,4 +1,4 @@
-/*  Copyright (C) 2025 Arjan Schrijver
+/*  Copyright (C) 2025 LiJu09
 
     This file is part of Gadgetbridge.
 
