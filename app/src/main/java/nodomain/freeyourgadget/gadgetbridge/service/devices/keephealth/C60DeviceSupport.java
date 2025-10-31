@@ -10,10 +10,16 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Calendar;
+import java.util.TimeZone;
 import java.util.UUID;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
+import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -214,41 +220,65 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.debug("No history steps data for this date");
             } else {
                 LOG.debug("History steps data: " + GB.hexdump(data));
-                ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+                ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
 
-                // read header
-                byte header0 = bb.get();                   // [0]
-                short length = bb.getShort();           // [1..2]
-                byte subtype = bb.get();                   // [3]
-                int year = bb.getShort() & 0xFFFF;         // [4..5]
-                int month = bb.get() & 0xFF;               // [6]
-                int day = bb.get() & 0xFF;                 // [7]
-                int interval = bb.get() & 0xFF;            // [8] minutes per sample
+                // Header (9 bytes)
+                byte header0 = buf.get();                    // [0]
+                short length = buf.getShort();            // [1..2]
+                byte subtype = buf.get();                    // [3]
+                int year = buf.getShort() & 0xFFFF;          // [4..5]
+                int month = buf.get() & 0xFF;                // [6]
+                int day = buf.get() & 0xFF;                  // [7]
+                int interval = buf.get() & 0xFF;             // [8] minutes per sample
 
                 int samplesPerDay = 1440 / interval;
-                for (int sampleIndex = 0; sampleIndex < samplesPerDay && bb.remaining() >= 2; sampleIndex++) {
-                    int raw = bb.getShort() & 0xFFFF;           // little-endian 16-bit
-                    int flag = (raw >> 12) & 0xF;               // top 4 bits
-                    int value = raw & 0x0FFF;                   // lower 12 bits
 
-                    int hour = sampleIndex / (60 / interval);
-                    int minute = (sampleIndex % (60 / interval)) * interval;
+                KeephealthActivitySample[] activitySample = new KeephealthActivitySample[samplesPerDay];
 
-                    if (flag == 0xF) {
-                        int sleepStatus = (value >> 8) & 0xF; // handlerHistory reads next 4 bits when flag==15; this matches extracting bits 4..7 in the original higher-level logic
-                        // handle sleep sample:
-                        LOG.debug("sample {} time {}:{} sleepStatus {}", sampleIndex, hour, minute, sleepStatus);
-                    } else {
-                        int stepCount = value;
-                        // compute calories/distance externally if needed using user profile
-                        LOG.debug("sample {} time {}:{} steps {}", sampleIndex, hour, minute, stepCount);
+                try (DBHandler db = GBApplication.acquireDB()) {
+                    Long userId = DBHelper.getUser(db.getDaoSession()).getId();
+                    Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
+                    KeephealthSampleProvider sampleProvider = new KeephealthSampleProvider(getDevice(), db.getDaoSession());
+
+                    for (int sampleIndex = 0; sampleIndex < samplesPerDay && buf.remaining() >= 2; sampleIndex++) {
+                        int raw = buf.getShort() & 0xFFFF;         // little-endian 16-bit
+                        int flag = (raw >> 12) & 0xF;             // top 4 bits
+                        int value = raw & 0x0FFF;                 // lower 12 bits
+
+                        int hour = sampleIndex / (60 / interval);
+                        int minute = (sampleIndex % (60 / interval)) * interval;
+                        int timestamp = buildTimestamp(year, month, day, hour, minute); // implement to produce epoch seconds or ms as needed
+
+                        activitySample[sampleIndex] = new KeephealthActivitySample(timestamp, deviceId);
+
+                        if (flag == 0xF) {
+                            int sleepStatus = (value >> 8) & 0xF;
+                            // TODO find codes for sleep status
+                            activitySample[sampleIndex].setRawKind(sleepStatus);
+                            LOG.debug("sample {} time {}:{} sleepStatus {}", sampleIndex, hour, minute, sleepStatus);
+                        } else {
+                            int steps = value;
+                            activitySample[sampleIndex].setSteps(steps);
+                            LOG.debug("sample {} time {}:{} steps {}", sampleIndex, hour, minute, steps);
+                        }
                     }
+
+                    sampleProvider.addGBActivitySamples(activitySample);
+                } catch (Exception e) {
+                    LOG.error("Error acquiring database", e);
                 }
             }
         } else {
             LOG.debug("Cmd arg: " + GB.hexdump(new byte[]{data[3]}));
             LOG.debug("other steps data: " + GB.hexdump(data));
         }
+    }
+
+    private int buildTimestamp(int year, int month, int day, int hour, int minute) {
+        Calendar cal = Calendar.getInstance();
+        cal.clear();
+        cal.set(year, month - 1, day, hour, minute, 0);
+        return (int) (cal.getTimeInMillis() / 1000);
     }
 
 
