@@ -22,6 +22,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(C60DeviceSupport.class);
+    private ByteBuffer cmdBuff = null;
     private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
 
     private final byte[] CMD_GET_DEVICE_DATA = { 0x01, 0x00, 0x00, (byte) 0xb0 };
@@ -51,7 +52,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte[] CMD_GET_HEARTRATE_SAMPLING = { 0x21, 0x01, 0x00, 0x08, (byte) 0x76 }; // TODO find more about
 
     // two fragment response
-    private final byte[] CMD_GET_ALARM = { 0x02, 0x00, 0x08, (byte) 0x80 }; // TODO find more about
+    private final byte[] CMD_GET_ALARM = { 0x05, 0x00, 0x08, (byte) 0x80 }; // TODO find more about
 
     // Step count and sleep history data, 15 fragment response
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
@@ -60,43 +61,51 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     public C60DeviceSupport() {
         super(LOG);
         addSupportedService(C60Constants.SERVICE);
+//        addSupportedService(C60Constants.SERVICE_ACTIVE_UPLOAD);
+//        addSupportedService(C60Constants.SERVICE_ECG);
+//        addSupportedService(C60Constants.SERVICE_FFD2);
     }
 
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(C60Constants.CHARACTERISTIC_READ, true);
+//        builder.notify(C60Constants.READ_ECG, true);
+//        builder.notify(C60Constants.READ_FFD2, true);
+//        builder.notify(C60Constants.SERVICE_ACTIVE_UPLOAD_READ, true);
+        // builder.requestMtu(23);
 
+        int wait = 100;
         getDeviceData(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getBatteryData(builder);
-        builder.wait(200);
+        builder.wait(wait);
         setTime(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getDeviceState(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getSteps(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getHeartrate(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getBodytemp(builder);
-        builder.wait(200);
+        builder.wait(wait);
         setDeviceState(builder);
-        builder.wait(200);
+        builder.wait(wait);
         setUserInfo(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getTargetData(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getNotice(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getOxygen(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getHrSampling(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getAlarm(builder);
-        builder.wait(200);
+        builder.wait(wait);
         getStepsHistory(builder);
-        builder.wait(200);
+        builder.wait(wait);
 
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
@@ -119,31 +128,48 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return true;
     }
 
-    public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value) {
-        super.onCharacteristicChanged(gatt, characteristic, value);
+    public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] responseValue) {
+        super.onCharacteristicChanged(gatt, characteristic, responseValue);
 
         UUID characteristicUUID = characteristic.getUuid();
 
         LOG.info("Characteristic changed UUID: {}", characteristicUUID);
-        LOG.info("Characteristic changed value: {}", GB.hexdump(value));
+        LOG.info("Characteristic changed value: {}", GB.hexdump(responseValue));
 
-        if (responseChecksumValid(value)) {
-            // get cmd based on response first byte - 0x80
-            byte cmdPrefix = (byte) (value[0] - (byte) 0x80);
-            LOG.info("Expected CMD prefix: {}", GB.hexdump(new byte[]{cmdPrefix}));
-            if (cmdPrefix == CMD_GET_DEVICE_DATA[0]) {
-                handleDeviceData(value);
-            } else if (cmdPrefix == CMD_GET_CURRENT_BATTERY[0]) {
-                handleBatteryInfo(value);
-            } else if (cmdPrefix == CMD_GET_DEVICE_STATE[0]) {
-                handleDeviceState(value);
-            } else if (cmdPrefix == CMD_GET_CURRENT_STEPS[0]) {
-                handleSteps(value);
+        ByteBuffer bb = ByteBuffer.wrap(responseValue).order(ByteOrder.LITTLE_ENDIAN);
+
+        if (cmdBuff == null) {
+            int expectedLength = bb.getShort(1) + 4; // 1 cmd, 2 length, 1 checksum
+            LOG.info("Incoming data expected length: {}", expectedLength);
+            cmdBuff = ByteBuffer.allocate(expectedLength);
+        }
+
+        cmdBuff.put(bb);
+
+        LOG.info("cmdBuff.remaining() = {}", cmdBuff.remaining());
+
+        if (cmdBuff.remaining() == 0) {
+            byte[] value = cmdBuff.array();
+            if (responseChecksumValid(value)) {
+                // get cmd based on response first byte - 0x80
+                byte cmdPrefix = (byte) (value[0] - (byte) 0x80);
+                LOG.info("Expected CMD prefix: {}", GB.hexdump(new byte[]{cmdPrefix}));
+                if (cmdPrefix == CMD_GET_DEVICE_DATA[0]) {
+                    handleDeviceData(value);
+                } else if (cmdPrefix == CMD_GET_CURRENT_BATTERY[0]) {
+                    handleBatteryInfo(value);
+                } else if (cmdPrefix == CMD_GET_DEVICE_STATE[0]) {
+                    handleDeviceState(value);
+                } else if (cmdPrefix == CMD_GET_CURRENT_STEPS[0]) {
+                    handleSteps(value);
+                } else {
+                    LOG.info("Unhandled data: {}", GB.hexdump(value));
+                }
             } else {
-                LOG.info("Unhandled data: {}", GB.hexdump(value));
+                LOG.info("Received data have invalid checksum: {}", GB.hexdump(value));
             }
-        } else {
-            LOG.info("Received data have invalid checksum: {}", GB.hexdump(value));
+            // when received all data delete buffer
+            cmdBuff = null;
         }
 
         return false;
@@ -176,12 +202,53 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleSteps(byte[] data) {
-        LOG.debug("Current steps data: " + GB.hexdump(data));
-        ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
-        int totalSteps    = bb.getInt(4);
-        int totalCalories = bb.getInt(8);
-        int totalDistance = bb.getInt(12);
-        GB.toast("totalSteps: " +  totalSteps + " | totalCalories: " + totalCalories + " | totalDistance: " + totalDistance, Toast.LENGTH_LONG, GB.INFO);
+        if (data[3] == 0) {
+            LOG.debug("Current steps data: " + GB.hexdump(data));
+            ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+            int totalSteps    = bb.getInt(4);
+            int totalCalories = bb.getInt(8);
+            int totalDistance = bb.getInt(12);
+            GB.toast("totalSteps: " +  totalSteps + " | totalCalories: " + totalCalories + " | totalDistance: " + totalDistance, Toast.LENGTH_LONG, GB.INFO);
+        } else if (data[3] == 1) {
+            if (data[4] == 5) {
+                LOG.debug("No history steps data for this date");
+            } else {
+                LOG.debug("History steps data: " + GB.hexdump(data));
+                ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+
+                // read header
+                byte header0 = bb.get();                   // [0]
+                short length = bb.getShort();           // [1..2]
+                byte subtype = bb.get();                   // [3]
+                int year = bb.getShort() & 0xFFFF;         // [4..5]
+                int month = bb.get() & 0xFF;               // [6]
+                int day = bb.get() & 0xFF;                 // [7]
+                int interval = bb.get() & 0xFF;            // [8] minutes per sample
+
+                int samplesPerDay = 1440 / interval;
+                for (int sampleIndex = 0; sampleIndex < samplesPerDay && bb.remaining() >= 2; sampleIndex++) {
+                    int raw = bb.getShort() & 0xFFFF;           // little-endian 16-bit
+                    int flag = (raw >> 12) & 0xF;               // top 4 bits
+                    int value = raw & 0x0FFF;                   // lower 12 bits
+
+                    int hour = sampleIndex / (60 / interval);
+                    int minute = (sampleIndex % (60 / interval)) * interval;
+
+                    if (flag == 0xF) {
+                        int sleepStatus = (value >> 8) & 0xF; // handlerHistory reads next 4 bits when flag==15; this matches extracting bits 4..7 in the original higher-level logic
+                        // handle sleep sample:
+                        LOG.debug("sample {} time {}:{} sleepStatus {}", sampleIndex, hour, minute, sleepStatus);
+                    } else {
+                        int stepCount = value;
+                        // compute calories/distance externally if needed using user profile
+                        LOG.debug("sample {} time {}:{} steps {}", sampleIndex, hour, minute, stepCount);
+                    }
+                }
+            }
+        } else {
+            LOG.debug("Cmd arg: " + GB.hexdump(new byte[]{data[3]}));
+            LOG.debug("other steps data: " + GB.hexdump(data));
+        }
     }
 
 
@@ -199,7 +266,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         int low = year & 0xFF;
         buf.put((byte) low);
         buf.put((byte) high);
-        buf.put((byte) calendar.get(Calendar.MONTH + 1));
+        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
         buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
         buf.put((byte) calendar.get(Calendar.HOUR_OF_DAY));
         buf.put((byte) calendar.get(Calendar.MINUTE));
