@@ -56,7 +56,7 @@ public class GBDaoGenerator {
     private static final String TIMESTAMP_TO = "timestampTo";
 
     public static void main(String[] args) throws Exception {
-        final Schema schema = new Schema(118, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(119, MAIN_PACKAGE + ".entities");
 
         Entity userAttributes = addUserAttributes(schema);
         Entity user = addUserInfo(schema, userAttributes);
@@ -166,6 +166,7 @@ public class GBDaoGenerator {
         addMoyoungSleepStageSample(schema, user, device);
         addMoyoungStressSample(schema, user, device);
         addGloryFitStepsSample(schema, user, device);
+        addKeephealthActivitySample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
         addHuaweiStressSample(schema, user, device);
@@ -1181,6 +1182,21 @@ public class GBDaoGenerator {
         sleepStageSample.addIntProperty("walkingEnd").notNull();
         sleepStageSample.addIntProperty("walkingSteps").notNull();
         return sleepStageSample;
+    }
+
+    private static Entity addKeephealthActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "KeephealthActivitySample");
+        activitySample.implementsSerializable();
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        activitySample.addFloatProperty(SAMPLE_TEMPERATURE).notNull();
+        activitySample.addIntProperty("distance");
+        activitySample.addIntProperty("calories");
+        addBloodPressureProperies(activitySample);
+        activitySample.addIntProperty(SAMPLE_SPO2).notNull();
+        return activitySample;
     }
 
     private static void addCommonActivitySampleProperties(String superClass, Entity activitySample, Entity user, Entity device) {

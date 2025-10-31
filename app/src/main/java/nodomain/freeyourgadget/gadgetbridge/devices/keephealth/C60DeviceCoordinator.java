@@ -22,7 +22,10 @@ import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.keephealth.C60DeviceSupport;
 
@@ -72,5 +75,25 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     @Override
     public boolean supportsFindDevice(GBDevice device) {
         return false;
+    }
+
+    @Override
+    public boolean supportsActivityDataFetching(final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsActivityTracking(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsHeartRateMeasurement(GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
+        return new KeephealthSampleProvider(device, session);
     }
 }
