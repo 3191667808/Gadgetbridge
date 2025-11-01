@@ -186,6 +186,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onFindDevice(boolean start) {
+        if (!start) return;
         ByteBuffer buf = ByteBuffer.allocate(12);
         buf.order(ByteOrder.LITTLE_ENDIAN);
 
