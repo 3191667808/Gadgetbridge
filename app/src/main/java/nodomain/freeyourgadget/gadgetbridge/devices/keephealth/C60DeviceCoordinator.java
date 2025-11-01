@@ -74,7 +74,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
 
     @Override
     public boolean supportsFindDevice(GBDevice device) {
-        return false;
+        return true;
     }
 
     @Override
