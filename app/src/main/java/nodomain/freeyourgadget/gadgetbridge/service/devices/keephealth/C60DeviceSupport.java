@@ -184,6 +184,37 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return false;
     }
 
+    @Override
+    public void onFindDevice(boolean start) {
+        ByteBuffer buf = ByteBuffer.allocate(12);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+
+        buf.put((byte) 0x10);
+        buf.put((byte) 8);
+        buf.put((byte) 0);
+        buf.put((byte) 0);
+        buf.put((byte) 0);
+        buf.put((byte) 0);
+        buf.put((byte) 0);
+        buf.put((byte) 1);
+        buf.put((byte) 0);
+        buf.put((byte) 0);
+        buf.put((byte) 0);
+        buf.put((byte) 0xc0);
+//            buf.put(getChecksum(buf.array()));
+        // 10 08 00 00 00 00 00 01 00 00 00 c0
+        sendCommand("Find Me", buf.array());
+    }
+
+    private void sendCommand(String taskName, byte[] contents) {
+        TransactionBuilder builder = createTransactionBuilder(taskName);
+        BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
+        if (characteristic != null) {
+            builder.write(characteristic, contents);
+            builder.queue();
+        }
+    }
+
     private void handleBatteryInfo(byte[] info) {
         LOG.debug("Battery info: " + GB.hexdump(info));
         var level = info[3];
