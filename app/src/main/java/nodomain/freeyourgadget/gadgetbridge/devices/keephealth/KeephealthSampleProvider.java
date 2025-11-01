@@ -42,37 +42,35 @@ public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthA
     @Override
     public ActivityKind normalizeType(int rawType) {
         // TODO
-//        switch (rawType) {
-//            case 1: //DEEP_NAP
-//            case 2: //DEEP_SLEEP
-//                return ActivityKind.DEEP_SLEEP;
-//            case 3: //LIGHT_NAP
-//            case 4: //LIGHT_SLEEP
-//                return ActivityKind.LIGHT_SLEEP;
-//            case 5: //ACTIVITY
-//            case 6: //WALK
-//            case 7: //RUN
-//                return ActivityKind.ACTIVITY;
-//            default:
-//                return ActivityKind.UNKNOWN;
-//        }
-        return ActivityKind.fromCode(rawType);
+        switch (rawType) {
+            case 1: // fall asleep in vendor app, is there a better kind?
+                return ActivityKind.SLEEP_ANY;
+            case 2: // LIGHT_SLEEP
+                return ActivityKind.LIGHT_SLEEP;
+            case 3: // DEEP_SLEEP
+            case 5: // deep sleep in vendor app, but might be some other thing
+                return ActivityKind.DEEP_SLEEP;
+            case 4: // awake
+                return ActivityKind.AWAKE_SLEEP;
+            default:
+                return ActivityKind.UNKNOWN;
+        }
     }
 
     @Override
     public int toRawActivityKind(ActivityKind activityKind) {
-        // TODO
-//        switch (activityKind) {
-//            case ActivityKind.ACTIVITY:
-//                return 5; // ACTIVITY
-//            case ActivityKind.SLEEP:
-//                return 2; // DEEP_SLEEP
-//            case ActivityKind.SLEEP:
-//                return 4; // LIGH_SLEEP
-//            default:
-//                return 5; //ACTIVITY
-//        }
-        return activityKind.getCode();
+        switch (activityKind) {
+            case SLEEP_ANY: // fall asleep
+                return 1;
+            case LIGHT_SLEEP: // LIGHT_SLEEP
+                return 2;
+            case DEEP_SLEEP: // DEEP_SLEEP
+                return 3;
+            case AWAKE_SLEEP: // awake
+                return 4;
+            default:
+                return 0;
+        }
     }
 
 
