@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Calendar;
-import java.util.TimeZone;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -63,7 +62,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // Step count and sleep history data, 15 fragment response
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
     private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
-
 
     public C60DeviceSupport() {
         super(LOG);
@@ -341,7 +339,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         LOG.debug("sample {} time {}:{} bp {}/{} oxy {}", sampleIndex, hour, minute, Math.min(fz, ss), Math.max(fz, ss), oxy);
                     }
 
-                    sampleProvider.addGBActivitySamples(activitySample);
+                    // TODO fix different samples interval
+                    // sampleProvider.addGBActivitySamples(activitySample);
                 } catch (Exception e) {
                     LOG.error("Error acquiring database", e);
                 }
@@ -410,12 +409,27 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public C60DeviceSupport getStepsHistory(TransactionBuilder builder) {
+        // TODO implement automatic history loading till "a0 02 00 01 05 ca" response
+        // probably means no data for that date
+        // for now just load last 3 days manually
+        Calendar calendar = Calendar.getInstance();
+        getStepsHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getStepsHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getStepsHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        return this;
+    }
+    public C60DeviceSupport getStepsHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
         byte length = 9;
         ByteBuffer buf = ByteBuffer.allocate(length);
         buf.order(ByteOrder.LITTLE_ENDIAN);
 
         buf.put(CMD_GET_CURRENT_HISTORY_STEP);
-        final Calendar calendar = Calendar.getInstance();
         int year = calendar.get(Calendar.YEAR);
         int high = (year >> 8) & 0xFF;
         int low = year & 0xFF;
@@ -425,8 +439,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
         buf.put(getChecksum(buf.array()));
         builder.write(C60Constants.CHARACTERISTIC_WRITE, buf.array());
+
         return this;
     }
+
 
     public C60DeviceSupport getHeartrateHistory(TransactionBuilder builder) {
         byte length = 9;
