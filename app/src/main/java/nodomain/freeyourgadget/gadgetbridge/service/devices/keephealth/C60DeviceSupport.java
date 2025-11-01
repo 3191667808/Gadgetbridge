@@ -328,12 +328,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         cal.set(Calendar.HOUR_OF_DAY, hour);
                         cal.set(Calendar.MINUTE, minute);
                         cal.set(Calendar.SECOND, 0);
-                        long timestamp = cal.getTimeInMillis(); // change to seconds if your samples expect seconds
+                        int timestamp = buildTimestamp(year, month, day, hour, minute);
 
                         // create sample
-                        activitySample[sampleIndex] = new KeephealthActivitySample((int) timestamp/1000, deviceId);
+                        activitySample[sampleIndex] = new KeephealthActivitySample(timestamp, deviceId);
                         activitySample[sampleIndex].setHeartRate(hr);
-                        LOG.debug("sample {} time {}:{} hr {}", sampleIndex, hour, minute, hr);
+                        LOG.debug("sample {} time {}:{} timestamp: {} hr {}", sampleIndex, hour, minute, timestamp, hr);
 
                         activitySample[sampleIndex].setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
                         activitySample[sampleIndex].setBpSystolic(Math.max(fz, ss));

@@ -91,9 +91,26 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     public boolean supportsHeartRateMeasurement(GBDevice device) {
         return true;
     }
+
+    @Override
+    public boolean supportsTemperatureMeasurement(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsSpo2(@NonNull final GBDevice device) {
+        return true;
+    }
+
     @Override
     public boolean supportsHeartRateStats(@NonNull GBDevice device) {
         return true;
+    }
+
+    @Override
+    public int getAlarmSlotCount(@NonNull GBDevice device) {
+        // TODO implement
+        return 0;
     }
 
     @Override
