@@ -41,7 +41,6 @@ public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthA
 
     @Override
     public ActivityKind normalizeType(int rawType) {
-        // TODO
         switch (rawType) {
             case 1: // fall asleep in vendor app, is there a better kind?
                 return ActivityKind.SLEEP_ANY;

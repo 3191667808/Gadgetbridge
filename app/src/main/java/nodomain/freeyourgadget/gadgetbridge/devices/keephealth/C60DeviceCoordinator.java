@@ -91,6 +91,10 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     public boolean supportsHeartRateMeasurement(GBDevice device) {
         return true;
     }
+    @Override
+    public boolean supportsHeartRateStats(@NonNull GBDevice device) {
+        return true;
+    }
 
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
