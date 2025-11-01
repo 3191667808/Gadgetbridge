@@ -68,6 +68,10 @@ import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
+
+    @Override
+    public boolean isConnectBack() { return true; }
+
     @Override
     public GBDevice createDevice(GBDeviceCandidate candidate, DeviceType deviceType) {
         GBDevice gbDevice = super.createDevice(candidate, deviceType);
@@ -78,7 +82,6 @@ public class UltrahumanDeviceCoordinator extends AbstractBLEDeviceCoordinator {
 
         // a low powered BLE gadget with gadget initiated connections
         editor.putBoolean(DeviceSettingsPreferenceConst.PREF_CONNECTION_PRIORITY_LOW_POWER, true);
-        editor.putBoolean(GBPrefs.DEVICE_CONNECT_BACK, true);
         editor.putBoolean(GBPrefs.DEVICE_AUTO_RECONNECT, true);
 
         // the gadget loses it's clock when the battery is low

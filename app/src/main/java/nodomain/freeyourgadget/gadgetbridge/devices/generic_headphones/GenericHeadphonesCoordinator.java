@@ -31,6 +31,9 @@ public class GenericHeadphonesCoordinator extends AbstractDeviceCoordinator {
     }
 
     @Override
+    public boolean isConnectBack() { return true; }
+
+    @Override
     public boolean suggestUnbindBeforePair() {
         // Not needed
         return false;

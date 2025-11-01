@@ -168,6 +168,13 @@ public interface DeviceCoordinator {
     boolean isConnectable();
 
     /**
+     * Returns true if the device should be connected back on ACL_CONNECT.
+     *
+     * @return boolean
+     */
+    boolean isConnectBack();
+
+    /**
      * Checks whether this coordinator handles the given candidate.
      *
      * @param candidate
@@ -696,7 +703,7 @@ public interface DeviceCoordinator {
     boolean supportsWeather(@NonNull GBDevice device);
 
     /**
-     * Indicates whether the device supports being found by vibrating, 
+     * Indicates whether the device supports being found by vibrating,
      * making some sound or lighting up
      */
     boolean supportsFindDevice(@NonNull GBDevice device);

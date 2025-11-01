@@ -39,7 +39,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.BondingInterface;
 import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
-import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 
 /**
  * This class manages the pairing of both the left and right device for G1 glasses.
@@ -345,8 +344,7 @@ public class G1PairingActivity extends AbstractGBActivity
                          .putString(G1Constants.Side.RIGHT.getNameKey(),
                                     rightDeviceCandidate.getName())
                          .putString(G1Constants.Side.RIGHT.getAddressKey(),
-                                    rightDeviceCandidate.getDevice().getAddress())
-                         .putBoolean(GBPrefs.DEVICE_CONNECT_BACK, true).apply();
+                                    rightDeviceCandidate.getDevice().getAddress()).apply();
 
 
                     // Add the left device info to the right device's pref and then mark it as the
@@ -358,8 +356,7 @@ public class G1PairingActivity extends AbstractGBActivity
                          .putString(G1Constants.Side.LEFT.getNameKey(),
                                     leftDeviceCandidate.getName())
                          .putString(G1Constants.Side.LEFT.getAddressKey(),
-                                    leftDeviceCandidate.getDevice().getAddress())
-                         .putBoolean(GBPrefs.DEVICE_CONNECT_BACK, true).apply();
+                                    leftDeviceCandidate.getDevice().getAddress()).apply();
 
                     GBDevice leftDevice =
                             DeviceHelper.getInstance().toSupportedDevice(leftDeviceCandidate);

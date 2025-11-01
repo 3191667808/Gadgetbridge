@@ -146,6 +146,9 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         return true;
     }
 
+    @Override
+    public boolean isConnectBack() { return false; }
+
     @NonNull
     @Override
     public Collection<? extends ScanFilter> createBLEScanFilters() {
@@ -159,24 +162,48 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         }
     }
 
+
+    /**
+     * Create a device from a newly scanned device. This is the first time Gadgetbridge is seeing
+     * this device, therefore there is some extra initialization to the prefs for the device that
+     * needs to happen.
+     *
+     * @param candidate - A candidate generated from a BLE Scan event.
+     * @param deviceType - The type of the device.
+     *
+     * @return The GBDevice created from the database entry.
+     */
     @Override
     public GBDevice createDevice(GBDeviceCandidate candidate, DeviceType deviceType) {
         GBDevice gbDevice = new GBDevice(candidate.getDevice().getAddress(), candidate.getName(), null, null, deviceType);
         setBatteryConfigOnDevice(gbDevice);
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            final DevicePrefs devicePreferences = GBApplication.getDevicePrefs(gbDevice);
-            final SharedPreferences.Editor editor = devicePreferences.getPreferences().edit();
+        final DevicePrefs devicePreferences = GBApplication.getDevicePrefs(gbDevice);
+        final SharedPreferences.Editor editor = devicePreferences.getPreferences().edit();
 
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             // #5414 - Some old Android versions misbehave
             editor.putBoolean(DeviceSettingsPreferenceConst.PREF_CONNECTION_FORCE_LEGACY_GATT, true);
 
-            editor.apply();
         }
+
+        if (isConnectBack()) {
+            editor.putBoolean(GBPrefs.DEVICE_CONNECT_BACK, true).apply();
+        }
+
+        editor.apply();
 
         return gbDevice;
     }
 
+    /**
+     * Create a device from a database entry. The device already exists within Gadgetbridge.
+     *
+     * @param dbDevice - The device object pulled from persistent storage.
+     * @param deviceType - The type of the device.
+     *
+     * @return The GBDevice created from the database entry.
+     */
     @Override
     public GBDevice createDevice(Device dbDevice, DeviceType deviceType) {
         GBDevice gbDevice =
