@@ -62,6 +62,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     // Step count and sleep history data, 15 fragment response
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
+    private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
 
 
     public C60DeviceSupport() {
@@ -111,7 +112,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getAlarm(builder);
         builder.wait(wait);
         getStepsHistory(builder);
-        builder.wait(wait);
+        builder.wait(500);
+        getHeartrateHistory(builder);
+        builder.wait(500);
 
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
@@ -168,6 +171,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleDeviceState(value);
                 } else if (cmdPrefix == CMD_GET_CURRENT_STEPS[0]) {
                     handleSteps(value);
+                } else if (cmdPrefix == CMD_GET_CURRENT_HEARTRATE[0]) {
+                    handleHeartrate(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -274,6 +279,79 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private void handleHeartrate(byte[] data) {
+        if (data[3] == 0) {
+            LOG.debug("Current heartrate data: " + GB.hexdump(data));
+//            ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+//            int totalSteps    = bb.getInt(4);
+//            int totalCalories = bb.getInt(8);
+//            int totalDistance = bb.getInt(12);
+//            GB.toast("totalSteps: " +  totalSteps + " | totalCalories: " + totalCalories + " | totalDistance: " + totalDistance, Toast.LENGTH_LONG, GB.INFO);
+        } else if (data[3] == 1) {
+            if (data[4] == 5) {
+                LOG.debug("No history heartrate data for this date");
+            } else {
+                LOG.debug("History heart/bp data: " + GB.hexdump(data));
+                ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+
+                // Header (9 bytes)
+                byte header0 = buf.get();                  // [0]
+                short length = buf.getShort();             // [1..2]
+                byte subtype = buf.get();                  // [3]
+                int year = buf.getShort() & 0xFFFF;        // [4..5]
+                int month = buf.get() & 0xFF;              // [6]
+                int day = buf.get() & 0xFF;                // [7]
+                int interval = buf.get() & 0xFF;           // [8] minutes per sample
+
+                int samplesPerDay = 1440 / interval;
+
+                // allocate arrays
+                KeephealthActivitySample[] activitySample = new KeephealthActivitySample[samplesPerDay];
+
+                try (DBHandler db = GBApplication.acquireDB()) {
+                    Long userId = DBHelper.getUser(db.getDaoSession()).getId();
+                    Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
+                    KeephealthSampleProvider sampleProvider = new KeephealthSampleProvider(getDevice(), db.getDaoSession());
+
+                    Calendar cal = Calendar.getInstance();
+                    cal.clear();
+                    cal.set(year, month - 1, day, 0, 0, 0);
+
+                    for (int sampleIndex = 0; sampleIndex < samplesPerDay && buf.remaining() >= 4; sampleIndex++) {
+                        int hr = buf.get() & 0xFF;           // heart rate
+                        int fz = buf.get() & 0xFF;           // blood pressure fz (diastolic/systolic order in original)
+                        int ss = buf.get() & 0xFF;           // blood pressure ss
+                        int oxy = buf.get() & 0xFF;          // oxygen
+
+                        int hour = sampleIndex / (60 / interval);
+                        int minute = (sampleIndex % (60 / interval)) * interval;
+                        cal.set(Calendar.HOUR_OF_DAY, hour);
+                        cal.set(Calendar.MINUTE, minute);
+                        cal.set(Calendar.SECOND, 0);
+                        long timestamp = cal.getTimeInMillis(); // change to seconds if your samples expect seconds
+
+                        // create sample
+                        activitySample[sampleIndex] = new KeephealthActivitySample((int) timestamp/1000, deviceId);
+                        activitySample[sampleIndex].setHeartRate(hr);
+                        LOG.debug("sample {} time {}:{} hr {}", sampleIndex, hour, minute, hr);
+
+                        activitySample[sampleIndex].setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
+                        activitySample[sampleIndex].setBpSystolic(Math.max(fz, ss));
+                        activitySample[sampleIndex].setSpo2(oxy);
+                        LOG.debug("sample {} time {}:{} bp {}/{} oxy {}", sampleIndex, hour, minute, Math.min(fz, ss), Math.max(fz, ss), oxy);
+                    }
+
+                    sampleProvider.addGBActivitySamples(activitySample);
+                } catch (Exception e) {
+                    LOG.error("Error acquiring database", e);
+                }
+            }
+        } else {
+            LOG.debug("Cmd arg: " + GB.hexdump(new byte[]{data[3]}));
+            LOG.debug("other heartrate data: " + GB.hexdump(data));
+        }
+    }
+
     private int buildTimestamp(int year, int month, int day, int hour, int minute) {
         Calendar cal = Calendar.getInstance();
         cal.clear();
@@ -337,6 +415,25 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.order(ByteOrder.LITTLE_ENDIAN);
 
         buf.put(CMD_GET_CURRENT_HISTORY_STEP);
+        final Calendar calendar = Calendar.getInstance();
+        int year = calendar.get(Calendar.YEAR);
+        int high = (year >> 8) & 0xFF;
+        int low = year & 0xFF;
+        buf.put((byte) low);
+        buf.put((byte) high);
+        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
+        buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
+        buf.put(getChecksum(buf.array()));
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, buf.array());
+        return this;
+    }
+
+    public C60DeviceSupport getHeartrateHistory(TransactionBuilder builder) {
+        byte length = 9;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+
+        buf.put(CMD_GET_CURRENT_HISTORY_HEARTRATE);
         final Calendar calendar = Calendar.getInstance();
         int year = calendar.get(Calendar.YEAR);
         int high = (year >> 8) & 0xFF;
