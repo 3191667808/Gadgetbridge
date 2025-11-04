@@ -18,14 +18,22 @@ package nodomain.freeyourgadget.gadgetbridge.devices.keephealth;
 
 import androidx.annotation.NonNull;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
+import de.greenrobot.dao.AbstractDao;
+import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.keephealth.C60DeviceSupport;
 
@@ -88,7 +96,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     }
 
     @Override
-    public boolean supportsHeartRateMeasurement(GBDevice device) {
+    public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
@@ -108,6 +116,11 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     }
 
     @Override
+    public boolean supportsHeartRateRestingMeasurement(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public int getAlarmSlotCount(@NonNull GBDevice device) {
         // TODO implement
         return 0;
@@ -116,5 +129,18 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
         return new KeephealthSampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends HeartRateSample> getHeartRateRestingSampleProvider(GBDevice device, DaoSession session) {
+        return new KeephealthHeartRateSampleProvider(device, session);
+    }
+
+    @Override
+    public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
+        Map<AbstractDao<?, ?>, Property> map = new HashMap<>(2);
+        map.put(session.getKeephealthActivitySampleDao(), KeephealthActivitySampleDao.Properties.DeviceId);
+        map.put(session.getKeephealthHeartRateSampleDao(), KeephealthHeartRateSampleDao.Properties.DeviceId);
+        return map;
     }
 }

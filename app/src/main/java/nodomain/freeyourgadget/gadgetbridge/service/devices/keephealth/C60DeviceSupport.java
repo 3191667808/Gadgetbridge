@@ -9,7 +9,10 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -17,8 +20,10 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
+import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -336,12 +341,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 int samplesPerDay = 1440 / interval;
 
                 // allocate arrays
-                KeephealthActivitySample[] activitySample = new KeephealthActivitySample[samplesPerDay];
+                List<KeephealthHeartRateSample> samples = new ArrayList<>();
 
                 try (DBHandler db = GBApplication.acquireDB()) {
                     Long userId = DBHelper.getUser(db.getDaoSession()).getId();
                     Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
-                    KeephealthSampleProvider sampleProvider = new KeephealthSampleProvider(getDevice(), db.getDaoSession());
+                    KeephealthHeartRateSampleProvider sampleProvider = new KeephealthHeartRateSampleProvider(getDevice(), db.getDaoSession());
 
                     Calendar cal = Calendar.getInstance();
                     cal.clear();
@@ -361,18 +366,18 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         int timestamp = buildTimestamp(year, month, day, hour, minute);
 
                         // create sample
-                        activitySample[sampleIndex] = new KeephealthActivitySample(timestamp, deviceId);
-                        activitySample[sampleIndex].setHeartRate(hr);
+                        KeephealthHeartRateSample sample = new KeephealthHeartRateSample(timestamp, deviceId);
+                        sample.setHeartRate(hr);
                         LOG.debug("sample {} time {}:{} timestamp: {} hr {}", sampleIndex, hour, minute, timestamp, hr);
 
-                        activitySample[sampleIndex].setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
-                        activitySample[sampleIndex].setBpSystolic(Math.max(fz, ss));
-                        activitySample[sampleIndex].setSpo2(oxy);
+                        sample.setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
+                        sample.setBpSystolic(Math.max(fz, ss));
+                        sample.setSpo2(oxy);
                         LOG.debug("sample {} time {}:{} bp {}/{} oxy {}", sampleIndex, hour, minute, Math.min(fz, ss), Math.max(fz, ss), oxy);
+                        samples.add(sample);
                     }
 
-                    // TODO fix different samples interval
-                    // sampleProvider.addGBActivitySamples(activitySample);
+                    sampleProvider.addSamples(samples);
                 } catch (Exception e) {
                     LOG.error("Error acquiring database", e);
                 }
@@ -454,6 +459,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getStepsHistoryByCalendar(builder, calendar);
         builder.wait(500);
         calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getStepsHistoryByCalendar(builder, calendar);
+        builder.wait(500);
         return this;
     }
     public C60DeviceSupport getStepsHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
