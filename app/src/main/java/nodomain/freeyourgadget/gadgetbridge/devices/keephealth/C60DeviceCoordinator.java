@@ -31,9 +31,11 @@ import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
+import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.keephealth.C60DeviceSupport;
 
@@ -102,7 +104,8 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
 
     @Override
     public boolean supportsTemperatureMeasurement(@NonNull final GBDevice device) {
-        return true;
+        // TODO implement
+        return false;
     }
 
     @Override
@@ -137,10 +140,16 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     }
 
     @Override
+    public TimeSampleProvider<? extends Spo2Sample> getSpo2SampleProvider(GBDevice device, DaoSession session) {
+        return new KeephealthSpo2SampleProvider(device, session);
+    }
+
+    @Override
     public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
         Map<AbstractDao<?, ?>, Property> map = new HashMap<>(2);
         map.put(session.getKeephealthActivitySampleDao(), KeephealthActivitySampleDao.Properties.DeviceId);
         map.put(session.getKeephealthHeartRateSampleDao(), KeephealthHeartRateSampleDao.Properties.DeviceId);
+        map.put(session.getKeephealthSpo2SampleDao(), KeephealthSpo2SampleDao.Properties.DeviceId);
         return map;
     }
 }

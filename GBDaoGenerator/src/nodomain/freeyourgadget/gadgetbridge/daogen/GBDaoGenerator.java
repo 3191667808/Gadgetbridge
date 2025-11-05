@@ -168,6 +168,7 @@ public class GBDaoGenerator {
         addGloryFitStepsSample(schema, user, device);
         addKeephealthActivitySample(schema, user, device);
         addKeephealthHeartRateSample(schema, user, device);
+        addKeephealthSpo2Sample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
         addHuaweiStressSample(schema, user, device);
@@ -1193,6 +1194,7 @@ public class GBDaoGenerator {
         activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         activitySample.addIntProperty("distance");
         activitySample.addIntProperty("calories");
+        addHeartRateProperties(activitySample);
         return activitySample;
     }
 
@@ -1203,8 +1205,15 @@ public class GBDaoGenerator {
         sample.addIntProperty(SAMPLE_HEART_RATE).notNull();
 //        sample.addFloatProperty(SAMPLE_TEMPERATURE).notNull();
         addBloodPressureProperies(sample);
-        sample.addIntProperty(SAMPLE_SPO2).notNull();
+//        sample.addIntProperty(SAMPLE_SPO2).notNull();
         return sample;
+    }
+
+    private static Entity addKeephealthSpo2Sample(Schema schema, Entity user, Entity device) {
+        Entity spo2sample = addEntity(schema, "KeephealthSpo2Sample");
+        addCommonTimeSampleProperties("AbstractSpo2Sample", spo2sample, user, device);
+        spo2sample.addIntProperty(SAMPLE_SPO2).notNull().codeBeforeGetter(OVERRIDE);
+        return spo2sample;
     }
 
     private static void addCommonActivitySampleProperties(String superClass, Entity activitySample, Entity user, Entity device) {
