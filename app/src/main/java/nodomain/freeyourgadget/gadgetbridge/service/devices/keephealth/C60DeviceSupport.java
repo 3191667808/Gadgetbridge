@@ -11,7 +11,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,8 +21,10 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInf
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -67,6 +68,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // Step count and sleep history data, 15 fragment response
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
     private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
+
+    private int heartrateRecivieExpected = 0;
 
     public C60DeviceSupport() {
         super(LOG);
@@ -287,7 +290,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
                         int hour = sampleIndex / (60 / interval);
                         int minute = (sampleIndex % (60 / interval)) * interval;
-                        int timestamp = buildTimestamp(year, month, day, hour, minute); // implement to produce epoch seconds or ms as needed
+                        int timestamp = (int) (buildTimestamp(year, month, day, hour, minute) / 1000); // implement to produce epoch seconds or ms as needed
 
                         activitySample[sampleIndex] = new KeephealthActivitySample(timestamp, deviceId);
 
@@ -342,11 +345,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
                 // allocate arrays
                 List<KeephealthHeartRateSample> samples = new ArrayList<>();
+                List<KeephealthSpo2Sample> spo2Samples = new ArrayList<>();
 
                 try (DBHandler db = GBApplication.acquireDB()) {
                     Long userId = DBHelper.getUser(db.getDaoSession()).getId();
                     Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
                     KeephealthHeartRateSampleProvider sampleProvider = new KeephealthHeartRateSampleProvider(getDevice(), db.getDaoSession());
+                    KeephealthSpo2SampleProvider spo2SampleProvider = new KeephealthSpo2SampleProvider(getDevice(), db.getDaoSession());
 
                     Calendar cal = Calendar.getInstance();
                     cal.clear();
@@ -363,21 +368,25 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         cal.set(Calendar.HOUR_OF_DAY, hour);
                         cal.set(Calendar.MINUTE, minute);
                         cal.set(Calendar.SECOND, 0);
-                        int timestamp = buildTimestamp(year, month, day, hour, minute);
+                        long timestamp = buildTimestamp(year, month, day, hour, minute);
 
                         // create sample
                         KeephealthHeartRateSample sample = new KeephealthHeartRateSample(timestamp, deviceId);
                         sample.setHeartRate(hr);
-                        LOG.debug("sample {} time {}:{} timestamp: {} hr {}", sampleIndex, hour, minute, timestamp, hr);
-
                         sample.setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
                         sample.setBpSystolic(Math.max(fz, ss));
-                        sample.setSpo2(oxy);
-                        LOG.debug("sample {} time {}:{} bp {}/{} oxy {}", sampleIndex, hour, minute, Math.min(fz, ss), Math.max(fz, ss), oxy);
                         samples.add(sample);
+
+                        KeephealthSpo2Sample spo2Sample = new KeephealthSpo2Sample(timestamp, deviceId);
+                        spo2Sample.setSpo2(oxy);
+                        spo2Samples.add(spo2Sample);
+
+                        LOG.debug("sample {} time {}:{} timestamp: {} hr {}", sampleIndex, hour, minute, timestamp, hr);
+                        LOG.debug("sample {} time {}:{} bp {}/{} oxy {}", sampleIndex, hour, minute, Math.min(fz, ss), Math.max(fz, ss), oxy);
                     }
 
                     sampleProvider.addSamples(samples);
+                    spo2SampleProvider.addSamples(spo2Samples);
                 } catch (Exception e) {
                     LOG.error("Error acquiring database", e);
                 }
@@ -388,11 +397,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    private int buildTimestamp(int year, int month, int day, int hour, int minute) {
+    private long buildTimestamp(int year, int month, int day, int hour, int minute) {
         Calendar cal = Calendar.getInstance();
         cal.clear();
         cal.set(year, month - 1, day, hour, minute, 0);
-        return (int) (cal.getTimeInMillis() / 1000);
+        return cal.getTimeInMillis();
     }
 
 
@@ -448,8 +457,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     public C60DeviceSupport getStepsHistory(TransactionBuilder builder) {
         // TODO implement automatic history loading till "a0 02 00 01 05 ca" response
         // probably means no data for that date
-        // for now just load last 3 days manually
+        // for now just load last 4 days manually
         Calendar calendar = Calendar.getInstance();
+        getStepsHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
         getStepsHistoryByCalendar(builder, calendar);
         builder.wait(500);
         calendar.add(Calendar.DAY_OF_MONTH, -1);
@@ -484,12 +496,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
 
     public C60DeviceSupport getHeartrateHistory(TransactionBuilder builder) {
+        Calendar calendar = Calendar.getInstance();
+        getHeartrateHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getHeartrateHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getHeartrateHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getHeartrateHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        calendar.add(Calendar.DAY_OF_MONTH, -1);
+        getHeartrateHistoryByCalendar(builder, calendar);
+        builder.wait(500);
+        return this;
+    }
+
+    public C60DeviceSupport getHeartrateHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
         byte length = 9;
         ByteBuffer buf = ByteBuffer.allocate(length);
         buf.order(ByteOrder.LITTLE_ENDIAN);
 
         buf.put(CMD_GET_CURRENT_HISTORY_HEARTRATE);
-        final Calendar calendar = Calendar.getInstance();
         int year = calendar.get(Calendar.YEAR);
         int high = (year >> 8) & 0xFF;
         int low = year & 0xFF;
