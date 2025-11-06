@@ -181,6 +181,8 @@ public class GBDaoGenerator {
         addKeephealthActivitySample(schema, user, device);
         addKeephealthHeartRateSample(schema, user, device);
         addKeephealthSpo2Sample(schema, user, device);
+        addKeephealthBloodPressureSample(schema, user, device);
+        addKeephealthTemperatureSample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
         addHuaweiStressSample(schema, user, device);
@@ -1295,9 +1297,6 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractHeartRateSample", sample, user, device);
         sample.implementsSerializable();
         sample.addIntProperty(SAMPLE_HEART_RATE).notNull();
-//        sample.addFloatProperty(SAMPLE_TEMPERATURE).notNull();
-        addBloodPressureProperies(sample);
-//        sample.addIntProperty(SAMPLE_SPO2).notNull();
         return sample;
     }
 
@@ -1306,6 +1305,20 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractSpo2Sample", spo2sample, user, device);
         spo2sample.addIntProperty(SAMPLE_SPO2).notNull().codeBeforeGetter(OVERRIDE);
         return spo2sample;
+    }
+
+    private static Entity addKeephealthBloodPressureSample(Schema schema, Entity user, Entity device) {
+        Entity bpSample = addEntity(schema, "KeephealthBloodPressureSample");
+        addCommonTimeSampleProperties("AbstractBloodPressureSample", bpSample, user, device);
+        addBloodPressureProperies(bpSample);
+        return bpSample;
+    }
+
+    private static Entity addKeephealthTemperatureSample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "KeephealthTemperatureSample");
+        addCommonTimeSampleProperties("AbstractTemperatureSample", sample, user, device);
+        sample.addFloatProperty(SAMPLE_TEMPERATURE).notNull().codeBeforeGetter(OVERRIDE);
+        return sample;
     }
 
     private static void addCommonActivitySampleProperties(String superClass, Entity activitySample, Entity user, Entity device) {

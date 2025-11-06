@@ -15,21 +15,28 @@ import java.util.List;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
+import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.YawellRingConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.YawellRingPacketHandler;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(C60DeviceSupport.class);
@@ -69,7 +76,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
     private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
 
-    private int heartrateRecivieExpected = 0;
+    private int daysAgo;
+    private Calendar syncingDay;
 
     public C60DeviceSupport() {
         super(LOG);
@@ -87,6 +95,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 //        builder.notify(C60Constants.READ_FFD2, true);
 //        builder.notify(C60Constants.SERVICE_ACTIVE_UPLOAD_READ, true);
         // builder.requestMtu(23);
+        getDevice().setFirmwareVersion("N/A");
+        getDevice().setFirmwareVersion2("N/A");
 
         int wait = 100;
         getDeviceData(builder);
@@ -97,33 +107,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.wait(wait);
         getDeviceState(builder);
         builder.wait(wait);
-        getSteps(builder);
-        builder.wait(wait);
-        getHeartrate(builder);
-        builder.wait(wait);
-        getBodytemp(builder);
-        builder.wait(wait);
-        setDeviceState(builder);
-        builder.wait(wait);
-        setUserInfo(builder);
-        builder.wait(wait);
-        getTargetData(builder);
-        builder.wait(wait);
-        getNotice(builder);
-        builder.wait(wait);
-        getOxygen(builder);
-        builder.wait(wait);
-        getHrSampling(builder);
-        builder.wait(wait);
-        getAlarm(builder);
-        builder.wait(wait);
-        getStepsHistory(builder);
-        builder.wait(500);
-        getHeartrateHistory(builder);
-        builder.wait(500);
-
-        getDevice().setFirmwareVersion("N/A");
-        getDevice().setFirmwareVersion2("N/A");
+//        getSteps(builder);
+//        builder.wait(wait);
+//        getHeartrate(builder);
+//        builder.wait(wait);
+//        getBodytemp(builder);
+//        builder.wait(wait);
+//        setDeviceState(builder);
+//        builder.wait(wait);
+//        setUserInfo(builder);
+//        builder.wait(wait);
+//        getTargetData(builder);
+//        builder.wait(wait);
+//        getNotice(builder);
+//        builder.wait(wait);
+//        getOxygen(builder);
+//        builder.wait(wait);
+//        getHrSampling(builder);
+//        builder.wait(wait);
+//        getAlarm(builder);
+//        builder.wait(wait);
+//        getStepsHistory(builder);
+//        builder.wait(500);
+//        getHeartrateHistory(builder);
+//        builder.wait(500);
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
 
@@ -141,6 +148,49 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public boolean useAutoConnect() {
         return true;
+    }
+
+    @Override
+    public void onFetchRecordedData(int dataTypes) {
+        GB.updateTransferNotification(getContext().getString(R.string.busy_task_fetch_activity_data), "", true, 0, getContext());
+        daysAgo = 0;
+        fetchHistoryActivity();
+    }
+
+    private void fetchRecordedDataFinished() {
+        GB.updateTransferNotification(null, "", false, 100, getContext());
+        LOG.info("Sync finished!");
+        getDevice().unsetBusyTask();
+        getDevice().sendDeviceUpdateIntent(getContext());
+        GB.signalActivityDataFinish(getDevice());
+    }
+
+    private void fetchHistoryActivity() {
+        getDevice().setBusyTask(R.string.busy_task_fetch_activity_data, getContext());
+        getDevice().sendDeviceUpdateIntent(getContext());
+        syncingDay = Calendar.getInstance();
+        syncingDay.add(Calendar.DAY_OF_MONTH, 0 - daysAgo);
+        syncingDay.set(Calendar.HOUR_OF_DAY, 0);
+        syncingDay.set(Calendar.MINUTE, 0);
+        syncingDay.set(Calendar.SECOND, 0);
+        syncingDay.set(Calendar.MILLISECOND, 0);
+        byte[] activityHistoryRequest = getStepsHistoryCommand(syncingDay);
+        LOG.info("Fetch historical activity data request sent: {}", StringUtils.bytesToHex(activityHistoryRequest));
+        sendWrite("activityHistoryRequest", activityHistoryRequest);
+    }
+
+    private void fetchHistoryHR() {
+        getDevice().setBusyTask(R.string.busy_task_fetch_hr_data, getContext());
+        getDevice().sendDeviceUpdateIntent(getContext());
+        syncingDay = Calendar.getInstance();
+        syncingDay.add(Calendar.DAY_OF_MONTH, 0 - daysAgo);
+        syncingDay.set(Calendar.HOUR_OF_DAY, 0);
+        syncingDay.set(Calendar.MINUTE, 0);
+        syncingDay.set(Calendar.SECOND, 0);
+        syncingDay.set(Calendar.MILLISECOND, 0);
+        byte[] hrHistoryRequest = getHeartrateHistoryCommand(syncingDay);
+        LOG.info("Fetch historical HR data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(hrHistoryRequest));
+        sendWrite("hrHistoryRequest", hrHistoryRequest);
     }
 
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] responseValue) {
@@ -177,8 +227,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleDeviceState(value);
                 } else if (cmdPrefix == CMD_GET_CURRENT_STEPS[0]) {
                     handleSteps(value);
+                    getDevice().unsetBusyTask();
+                    getDevice().sendDeviceUpdateIntent(getContext());
+                    if (!getDevice().isBusy()) {
+                        if (daysAgo < 7) {
+                            daysAgo++;
+                            fetchHistoryActivity();
+                        } else {
+                            daysAgo = 0;
+                            fetchHistoryHR();
+                        }
+                    }
                 } else if (cmdPrefix == CMD_GET_CURRENT_HEARTRATE[0]) {
                     handleHeartrate(value);
+                    getDevice().unsetBusyTask();
+                    getDevice().sendDeviceUpdateIntent(getContext());
+                    if (!getDevice().isBusy()) {
+                        if (daysAgo < 7) {
+                            daysAgo++;
+                            fetchHistoryHR();
+                        } else {
+                            daysAgo = 0;
+                            fetchRecordedDataFinished();
+                        }
+                    }
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -215,6 +287,15 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         sendCommand("Find Me", buf.array());
     }
 
+    private void sendWrite(String taskName, byte[] contents) {
+        TransactionBuilder builder = createTransactionBuilder(taskName);
+        BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
+        if (characteristic != null) {
+            builder.write(characteristic, contents);
+            builder.queue();
+        }
+    }
+
     private void sendCommand(String taskName, byte[] contents) {
         TransactionBuilder builder = createTransactionBuilder(taskName);
         BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
@@ -243,6 +324,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         int minor = Byte.toUnsignedInt(info[12]);
         String version = major + "." + (minor < 10 ? "0" + minor : Integer.toString(minor));
         getDevice().setModel(model + " v" + version);
+        getDevice().setFirmwareVersion(version);
     }
 
     private void handleDeviceState(byte[] info) {
@@ -296,7 +378,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
                         if (flag == 0xF) {
                             int sleepStatus = (value >> 8) & 0xF;
-                            // TODO find codes for sleep status
                             activitySample[sampleIndex].setRawKind(sleepStatus);
                             LOG.debug("sample {} time {}:{} sleepStatus {}", sampleIndex, hour, minute, sleepStatus);
                         } else {
@@ -346,12 +427,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // allocate arrays
                 List<KeephealthHeartRateSample> samples = new ArrayList<>();
                 List<KeephealthSpo2Sample> spo2Samples = new ArrayList<>();
+                List<KeephealthBloodPressureSample> bpSamples = new ArrayList<>();
 
                 try (DBHandler db = GBApplication.acquireDB()) {
                     Long userId = DBHelper.getUser(db.getDaoSession()).getId();
                     Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
                     KeephealthHeartRateSampleProvider sampleProvider = new KeephealthHeartRateSampleProvider(getDevice(), db.getDaoSession());
                     KeephealthSpo2SampleProvider spo2SampleProvider = new KeephealthSpo2SampleProvider(getDevice(), db.getDaoSession());
+                    KeephealthBloodPressureSampleProvider bpSampleProvider = new KeephealthBloodPressureSampleProvider(getDevice(), db.getDaoSession());
 
                     Calendar cal = Calendar.getInstance();
                     cal.clear();
@@ -373,13 +456,16 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         // create sample
                         KeephealthHeartRateSample sample = new KeephealthHeartRateSample(timestamp, deviceId);
                         sample.setHeartRate(hr);
-                        sample.setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
-                        sample.setBpSystolic(Math.max(fz, ss));
                         samples.add(sample);
 
                         KeephealthSpo2Sample spo2Sample = new KeephealthSpo2Sample(timestamp, deviceId);
                         spo2Sample.setSpo2(oxy);
                         spo2Samples.add(spo2Sample);
+
+                        KeephealthBloodPressureSample bpSample = new KeephealthBloodPressureSample(timestamp, deviceId);
+                        bpSample.setBpDiastolic(Math.min(fz, ss));   // original code orders values to ss/fz but store both
+                        bpSample.setBpSystolic(Math.max(fz, ss));
+                        bpSamples.add(bpSample);
 
                         LOG.debug("sample {} time {}:{} timestamp: {} hr {}", sampleIndex, hour, minute, timestamp, hr);
                         LOG.debug("sample {} time {}:{} bp {}/{} oxy {}", sampleIndex, hour, minute, Math.min(fz, ss), Math.max(fz, ss), oxy);
@@ -387,6 +473,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
                     sampleProvider.addSamples(samples);
                     spo2SampleProvider.addSamples(spo2Samples);
+                    bpSampleProvider.addSamples(bpSamples);
                 } catch (Exception e) {
                     LOG.error("Error acquiring database", e);
                 }
@@ -476,10 +563,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return this;
     }
     public C60DeviceSupport getStepsHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, getStepsHistoryCommand(calendar));
+        return this;
+    }
+
+    public byte[] getStepsHistoryCommand(Calendar calendar) {
         byte length = 9;
         ByteBuffer buf = ByteBuffer.allocate(length);
         buf.order(ByteOrder.LITTLE_ENDIAN);
-
         buf.put(CMD_GET_CURRENT_HISTORY_STEP);
         int year = calendar.get(Calendar.YEAR);
         int high = (year >> 8) & 0xFF;
@@ -489,9 +580,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
         buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
         buf.put(getChecksum(buf.array()));
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, buf.array());
-
-        return this;
+        return buf.array();
     }
 
 
@@ -515,6 +604,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public C60DeviceSupport getHeartrateHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, getHeartrateHistoryCommand(calendar));
+        return this;
+    }
+
+    public byte[] getHeartrateHistoryCommand(Calendar calendar) {
         byte length = 9;
         ByteBuffer buf = ByteBuffer.allocate(length);
         buf.order(ByteOrder.LITTLE_ENDIAN);
@@ -528,8 +622,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
         buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
         buf.put(getChecksum(buf.array()));
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, buf.array());
-        return this;
+        return buf.array();
     }
 
     public C60DeviceSupport getHeartrate(TransactionBuilder builder) {
