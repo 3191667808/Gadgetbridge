@@ -1,5 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.keephealth;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class C60Constants {
@@ -27,5 +29,48 @@ public class C60Constants {
     public static final UUID SERVICE_PAIR = UUID.fromString("0000ff04-0000-1000-8000-00805f9b34fb");
     public static final UUID WRITE_ECG = UUID.fromString("0000ef02-0000-1000-8000-00805f9b34fb");
     public static final UUID WRITE_FFD2 = UUID.fromString("0000ffd1-0000-1000-8000-00805f9b34fb");
+
+    public static final Map<String, Integer> LANGUAGES = new HashMap<String, Integer>() {{
+        put("en_US", 0);
+        put("zh_CN", 1);
+        put("ru_RU", 2);
+        put("fr_FR", 4);
+        put("es_ES", 5);
+        put("de_DE", 7);
+        put("ja_JP", 8);
+        put("pl_PL", 9);
+        put("it_IT", 10);
+        put("zh_TW", 12);
+        put("nl_NL", 15);
+    }};
+
+    // UNUSED might be used later
+//    public static final Map<String, Integer> SPORT_MODES = new HashMap<String, Integer>() {{
+//        put("walk", 0);
+//        put("run", 1);
+//        put("by_bike", 3);
+//        put("run_in_door", 4);
+//        put("train", 5);
+//        put("football", 6);
+//        put("basketball", 7);
+//        put("badminton", 8);
+//        put("rope_skipping", 9);
+//        put("push_up", 10);
+//        put("sit_up", 11);
+//        put("mountain_climbing", 12);
+//        put("tennis", 13);
+//        put("high_intensity", 14);
+//        put("indoor_cycling", 15);
+//        put("fitness", 16);
+//        put("rugby", 17);
+//        put("golf", 18);
+//        put("dynamic_bicycle", 19);
+//        put("weightlifting", 20);
+//        put("roller", 21);
+//        put("dancing", 22);
+//        put("yoga", 23);
+//        put("indoor_walk", 24);
+//        put("on_foot", 25);
+//    }};
 
 }

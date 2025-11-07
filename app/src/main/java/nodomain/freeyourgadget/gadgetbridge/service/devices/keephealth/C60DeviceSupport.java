@@ -2,6 +2,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.keephealth;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.text.format.DateFormat;
 import android.widget.Toast;
 
 import org.slf4j.Logger;
@@ -16,6 +17,8 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
@@ -24,8 +27,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthBloodPr
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSpo2SampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.YawellRingConstants;
-import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.YawellRingPacketHandler;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
@@ -36,7 +37,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDevic
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(C60DeviceSupport.class);
@@ -49,11 +52,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte[] CMD_GET_CURRENT_STEPS = { 0x20, 0x01, 0x00, 0x00, 0x70 };
     private final byte[] CMD_GET_CURRENT_HEARTRATE = { 0x21, 0x01, 0x00, 0x00, (byte) 0xc6 };
     private final byte[] CMD_GET_CURRENT_BODYTEMP = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
+//    private final byte[] CMD_SET_DEVICE_STATE = { // TODO build based on settings
+//            (byte) 0x02, (byte) 0x10, (byte) 0x00, (byte) 0x64, (byte) 0x05,
+//            (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
+//            (byte) 0x00, (byte) 0x00, (byte) 0xFF, (byte) 0x00, (byte) 0x00,
+//            (byte) 0x00, (byte) 0x00, (byte) 0x02, (byte) 0x00, (byte) 0x58
+//    };
     private final byte[] CMD_SET_DEVICE_STATE = { // TODO build based on settings
-            (byte) 0x02, (byte) 0x10, (byte) 0x00, (byte) 0x64, (byte) 0x05,
-            (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-            (byte) 0x00, (byte) 0x00, (byte) 0xFF, (byte) 0x00, (byte) 0x00,
-            (byte) 0x00, (byte) 0x00, (byte) 0x02, (byte) 0x00, (byte) 0x58
+            (byte) 0x02, (byte) 0x10, (byte) 0x00
     };
     private final byte[] CMD_SET_USER_INFO = { // TODO build based on settings
             (byte) 0x03, (byte) 0x07, (byte) 0x00, (byte) 0x00, (byte) 0x14,
@@ -75,6 +81,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // Step count and sleep history data, 15 fragment response
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
     private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
+
+    private byte[] currentDeviceSettings = null;
 
     private int daysAgo;
     private Calendar syncingDay;
@@ -265,6 +273,35 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
+    public void onSendConfiguration(String config) {
+        final Prefs prefs = getDevicePrefs();
+        byte[] configPacket = null;
+        switch (config) {
+            case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
+            case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
+                configPacket = setDeviceStateCommand(prefs, config);
+                break;
+            default:
+                try {
+                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getString(config, "default"));
+                } catch (Exception e){}
+                try {
+                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getBoolean(config, false));
+                } catch (Exception e){}
+                try {
+                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getFloat(config, 0.0f));
+                } catch (Exception e){}
+                try {
+                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getInt(config, 0));
+                } catch (Exception e){}
+        }
+
+        if (configPacket == null) { return; }
+        LOG.debug("send config: {} - {}", config, StringUtils.bytesToHex(configPacket));
+        sendWrite("onSendConfigurationRequest", configPacket);
+    }
+
+    @Override
     public void onFindDevice(boolean start) {
         if (!start) return;
         ByteBuffer buf = ByteBuffer.allocate(12);
@@ -329,7 +366,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void handleDeviceState(byte[] info) {
         LOG.debug("Device State: " + GB.hexdump(info));
-        // TODO
+        int newLen = info.length - 4;
+        byte[] trimmed = new byte[newLen];
+        System.arraycopy(info, 3, trimmed, 0, newLen);
+        if (info.length == 20) {
+            this.currentDeviceSettings = trimmed;
+            LOG.debug("Saving Device State: " + GB.hexdump(trimmed));
+        }
     }
 
     private void handleSteps(byte[] data) {
@@ -634,11 +677,48 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_BODYTEMP);
         return this;
     }
-
-    public C60DeviceSupport setDeviceState(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_DEVICE_STATE);
-        return this;
+    public byte[] setDeviceStateCommand(Prefs prefs, String pref) {
+        byte length = 20;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_DEVICE_STATE);
+        buf.put(this.currentDeviceSettings);
+        switch (pref) {
+            case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
+                buf = setDeviceStateTimeformatCommand(buf, prefs.getString(pref, DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_AUTO));
+                break;
+            case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
+                buf = setDeviceStateLanguageCommand(buf, prefs.getString(pref, "en_US"));
+                break;
+        }
+        buf.put(getChecksum(buf.array()));
+        return buf.array();
     }
+
+    public ByteBuffer setDeviceStateTimeformatCommand(ByteBuffer buf, String timeFormat) {
+        byte timeformatByte;
+        if (timeFormat.equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_12H)) {
+            timeformatByte = 0x01;
+        } else if (timeFormat.equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_24H)) {
+            timeformatByte = 0x00;
+        } else {
+            timeformatByte = (byte) (DateFormat.is24HourFormat(GBApplication.getContext()) ? 0x00 : 0x01);
+        }
+        buf.put(8, timeformatByte);
+        return buf;
+    }
+
+    public ByteBuffer setDeviceStateLanguageCommand(ByteBuffer buf, String languageCode) {
+        Integer langIdObj = C60Constants.LANGUAGES.getOrDefault(languageCode, 0);
+        int langId = (langIdObj != null) ? langIdObj : 0;
+        buf.put(6, (byte) langId);
+        return buf;
+    }
+
+//    public C60DeviceSupport setDeviceState(TransactionBuilder builder) {
+//        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_DEVICE_STATE);
+//        return this;
+//    }
 
     public C60DeviceSupport setUserInfo(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_USER_INFO);
@@ -690,4 +770,54 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private boolean responseChecksumValid(byte[] data) {
         return (getResponseChecksum(data) & (byte) 0xff) == (data[data.length - 1] & (byte) 0xff);
     }
+
+    // UNUSED might be used later
+    // setting of sport modes
+    // full hashmap in SPORT_MODES constant
+//    Map<Integer, Boolean> statusMap = new HashMap<>();
+//    statusMap.put(0, true);   // walk
+//    statusMap.put(1, true);   // run
+//    statusMap.put(8, true);   // badminton
+//    statusMap.put(24, false); // indoor_walk
+//    public static byte[] buildSportModePacket(Map<Integer, Boolean> statusMap) {
+//        byte[] packet = new byte[20];
+//        // Header / command fields (match original)
+//        packet[0] = Opcodes.OPC_laload; // must match device expected start byte
+//        packet[1] = 16;
+//        packet[2] = 0;
+//        packet[3] = 2;
+//
+//        // Helper to build a byte from mode indices range [base..base+7]
+//        java.util.function.IntFunction<Byte> buildByte = base -> {
+//            byte[] bits = new byte[8];
+//            for (int i = 0; i < 8; i++) {
+//                int modeIdx = base + i;
+//                // mapping in original: mode base..base+7 -> bits[7..0]
+//                int bitArrayIndex = 7 - i;
+//                boolean val = false;
+//                if (statusMap != null && statusMap.containsKey(modeIdx)) {
+//                    Boolean b = statusMap.get(modeIdx);
+//                    val = b != null && b;
+//                }
+//                bits[bitArrayIndex] = (byte) (val ? 1 : 0);
+//            }
+//            int intVal = ByteDataConvertUtil.Bit8Array2Int(bits);
+//            return (byte) intVal;
+//        };
+//
+//        // bArr[4] covers modes 0..7, bArr[5] 8..15, bArr[6] 16..23, bArr[7] 24..31 (we use up to 25)
+//        packet[4] = buildByte.apply(0);
+//        packet[5] = buildByte.apply(8);
+//        packet[6] = buildByte.apply(16);
+//        // For base 24 only modes 24..25 exist; remaining bits remain zero
+//        packet[7] = buildByte.apply(24);
+//
+//        // bytes 8..18 are zero (explicitly set to 0 for clarity)
+//        for (int i = 8; i <= 18; i++) packet[i] = 0;
+//
+//        // checksum (uses existing helper)
+//        packet[19] = CmdHelper.completeCheckCode(packet);
+//
+//        return packet;
+//    }
 }

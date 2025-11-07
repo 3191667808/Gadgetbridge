@@ -131,7 +131,7 @@ public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthA
         // build anchor map (seconds)
         final Map<Integer, Integer> hrByAnchor = new HashMap<>();
         for (KeephealthHeartRateSample s : hrSamples) {
-            LOG.debug("hrTimestamp {}", s.getTimestamp());
+//            LOG.debug("hrTimestamp {}", s.getTimestamp());
             hrByAnchor.put((int) (s.getTimestamp() / 1000), s.getHeartRate());
         }
 
