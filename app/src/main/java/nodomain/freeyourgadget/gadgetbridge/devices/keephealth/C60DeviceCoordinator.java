@@ -77,6 +77,33 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     }
 
     @Override
+    public int[] getSupportedDeviceSpecificSettings(GBDevice device) {
+        return new int[]{
+                R.xml.devicesettings_timeformat,
+                R.xml.devicesettings_language_generic,
+                R.xml.devicesettings_liftwrist_display_noshed,
+                R.xml.devicesettings_hydration_reminder,
+        };
+    }
+
+    @Override
+    public String[] getSupportedLanguageSettings(GBDevice device) {
+        return new String[]{
+                "en_US",
+                "zh_CN",
+                "ru_RU",
+                "fr_FR",
+                "es_ES",
+                "de_DE",
+                "ja_JP",
+                "pl_PL",
+                "it_IT",
+                "zh_TW",
+                "nl_NL"
+        };
+    }
+
+    @Override
     public boolean supportsWeather(GBDevice device) {
         // TODO implement
         return false;
