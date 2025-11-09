@@ -10,10 +10,16 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -61,12 +67,20 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte[] CMD_SET_DEVICE_STATE = { // TODO build based on settings
             (byte) 0x02, (byte) 0x10, (byte) 0x00
     };
+
+    private final byte[] CMD_GET_DO_NOT_DISTURB = {
+            (byte) 0x08, (byte) 0x00, (byte) 0x00, (byte) 0x0a
+    };
+    private final byte[] CMD_SET_DO_NOT_DISTURB = { // TODO build based on settings
+            (byte) 0x08, (byte) 0x10, (byte) 0x00
+    };
+
     private final byte[] CMD_SET_USER_INFO = { // TODO build based on settings
             (byte) 0x03, (byte) 0x07, (byte) 0x00, (byte) 0x00, (byte) 0x14,
             (byte) 0xAA, (byte) 0x00, (byte) 0x58, (byte) 0x02, (byte) 0x46,
             (byte) 0x4A
     };
-    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 };
+    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 }; // TODO implement
     private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 }; // TODO find more about
 
     // Obtain blood pressure and blood oxygen data
@@ -83,9 +97,29 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
 
     private byte[] currentDeviceSettings = null;
+    private byte[] currentDndSettings = null;
 
     private int daysAgo;
     private Calendar syncingDay;
+
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledFuture<?> responseTimeoutFuture;
+    private final long RESPONSE_TIMEOUT_MS = 10_000; // choose e.g. 10s or whatever you need
+
+    private synchronized void startResponseTimeout() {
+        cancelResponseTimeout();
+        responseTimeoutFuture = scheduler.schedule(() -> {
+            LOG.warn("Response timeout fired, finishing fetch");
+            fetchRecordedDataFinished();
+        }, RESPONSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private synchronized void cancelResponseTimeout() {
+        if (responseTimeoutFuture != null) {
+            responseTimeoutFuture.cancel(true);
+            responseTimeoutFuture = null;
+        }
+    }
 
     public C60DeviceSupport() {
         super(LOG);
@@ -114,6 +148,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         setTime(builder);
         builder.wait(wait);
         getDeviceState(builder);
+        builder.wait(wait);
+        getDndState(builder);
         builder.wait(wait);
 //        getSteps(builder);
 //        builder.wait(wait);
@@ -166,6 +202,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void fetchRecordedDataFinished() {
+        cancelResponseTimeout();
         GB.updateTransferNotification(null, "", false, 100, getContext());
         LOG.info("Sync finished!");
         getDevice().unsetBusyTask();
@@ -185,6 +222,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte[] activityHistoryRequest = getStepsHistoryCommand(syncingDay);
         LOG.info("Fetch historical activity data request sent: {}", StringUtils.bytesToHex(activityHistoryRequest));
         sendWrite("activityHistoryRequest", activityHistoryRequest);
+        startResponseTimeout();
     }
 
     private void fetchHistoryHR() {
@@ -199,6 +237,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte[] hrHistoryRequest = getHeartrateHistoryCommand(syncingDay);
         LOG.info("Fetch historical HR data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(hrHistoryRequest));
         sendWrite("hrHistoryRequest", hrHistoryRequest);
+        startResponseTimeout();
     }
 
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] responseValue) {
@@ -259,6 +298,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             fetchRecordedDataFinished();
                         }
                     }
+                } else if (cmdPrefix == CMD_GET_DO_NOT_DISTURB[0]) {
+                    handleDoNotDisturb(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -279,7 +320,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         switch (config) {
             case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
             case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
+            case DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED:
                 configPacket = setDeviceStateCommand(prefs, config);
+                break;
+            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO:
+            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START:
+            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END:
+                configPacket = setDoNotDisturbCommand(prefs, config);
                 break;
             default:
                 try {
@@ -366,12 +413,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void handleDeviceState(byte[] info) {
         LOG.debug("Device State: " + GB.hexdump(info));
-        int newLen = info.length - 4;
-        byte[] trimmed = new byte[newLen];
-        System.arraycopy(info, 3, trimmed, 0, newLen);
         if (info.length == 20) {
-            this.currentDeviceSettings = trimmed;
-            LOG.debug("Saving Device State: " + GB.hexdump(trimmed));
+            this.currentDeviceSettings = trimData(info);
+            LOG.debug("Saved Device State: " + GB.hexdump(this.currentDeviceSettings));
         }
     }
 
@@ -527,6 +571,20 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private void handleDoNotDisturb(byte[] data) {
+        byte[] dndPrefix = {(byte)0x88, 0x10, 0x00};
+
+        if (data.length >= dndPrefix.length && Arrays.equals(Arrays.copyOfRange(data, 0, dndPrefix.length), dndPrefix)) {
+            LOG.debug("Current DND settings: " + GB.hexdump(data));
+            if (data.length == 20) {
+                this.currentDndSettings = trimData(data);
+                LOG.debug("Saved DND settings: " + GB.hexdump(this.currentDndSettings));
+            }
+        } else {
+            LOG.debug("other sleep/dnd data: " + GB.hexdump(data));
+        }
+    }
+
     private long buildTimestamp(int year, int month, int day, int hour, int minute) {
         Calendar cal = Calendar.getInstance();
         cal.clear();
@@ -576,6 +634,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     public C60DeviceSupport getDeviceState(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DEVICE_STATE);
+        return this;
+    }
+
+    public C60DeviceSupport getDndState(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DO_NOT_DISTURB);
         return this;
     }
 
@@ -690,8 +753,42 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
                 buf = setDeviceStateLanguageCommand(buf, prefs.getString(pref, "en_US"));
                 break;
+            case DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED:
+                buf = setDeviceStateLiftwristCommand(buf, prefs.getBoolean(pref, true));
+                break;
         }
         buf.put(getChecksum(buf.array()));
+        this.currentDeviceSettings = trimData(buf.array());
+        return buf.array();
+    }
+
+    public byte[] setDoNotDisturbCommand(Prefs prefs, String pref) {
+        byte length = 20;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_DO_NOT_DISTURB);
+        buf.put(this.currentDndSettings);
+        LocalTime time;
+        switch (pref) {
+            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO:
+                byte stateByte = (
+                        prefs.getString(pref, DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_OFF).equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_SCHEDULED))
+                        ? (byte) 0xff : 0x00;
+                buf.put(3, stateByte);
+                break;
+            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START:
+                time = prefs.getLocalTime(pref, "00:00");
+                buf.put(4, (byte) time.getHour());
+                buf.put(5, (byte) time.getMinute());
+                break;
+            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END:
+                time = prefs.getLocalTime(pref, "00:00");
+                buf.put(6, (byte) time.getHour());
+                buf.put(7, (byte) time.getMinute());
+                break;
+        }
+        buf.put(getChecksum(buf.array()));
+        this.currentDndSettings = trimData(buf.array());
         return buf.array();
     }
 
@@ -712,6 +809,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         Integer langIdObj = C60Constants.LANGUAGES.getOrDefault(languageCode, 0);
         int langId = (langIdObj != null) ? langIdObj : 0;
         buf.put(6, (byte) langId);
+        return buf;
+    }
+
+    public ByteBuffer setDeviceStateLiftwristCommand(ByteBuffer buf, boolean state) {
+        byte stateByte = (state) ? (byte) 0x01 : 0x00;
+        buf.put(9, stateByte);
         return buf;
     }
 
@@ -769,6 +872,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private boolean responseChecksumValid(byte[] data) {
         return (getResponseChecksum(data) & (byte) 0xff) == (data[data.length - 1] & (byte) 0xff);
+    }
+
+    private byte[] trimData(byte[] data) {
+        int newLen = data.length - 4;
+        byte[] trimmed = new byte[newLen];
+        System.arraycopy(data, 3, trimmed, 0, newLen);
+        return trimmed;
     }
 
     // UNUSED might be used later
