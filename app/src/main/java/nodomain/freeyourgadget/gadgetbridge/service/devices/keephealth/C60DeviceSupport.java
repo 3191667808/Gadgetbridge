@@ -2,6 +2,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.keephealth;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.SharedPreferences;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -321,12 +323,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
             case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
             case DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED:
-                configPacket = setDeviceStateCommand(prefs, config);
+                configPacket = setDeviceStateCommand(prefs);
                 break;
             case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO:
             case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START:
             case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END:
-                configPacket = setDoNotDisturbCommand(prefs, config);
+                configPacket = setDoNotDisturbCommand(prefs);
                 break;
             default:
                 try {
@@ -415,6 +417,17 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         LOG.debug("Device State: " + GB.hexdump(info));
         if (info.length == 20) {
             this.currentDeviceSettings = trimData(info);
+            Prefs prefs = getDevicePrefs();
+            SharedPreferences sharedPrefs = prefs.getPreferences();
+            String langCode = "en_US";
+            for (Map.Entry<String,Integer> e : C60Constants.LANGUAGES.entrySet()) {
+                if (e.getValue() == info[6]) langCode = e.getKey();
+            }
+            sharedPrefs.edit()
+                    .putString(DeviceSettingsPreferenceConst.PREF_LANGUAGE, langCode)
+                    .putString(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT, info[8] == 0x01 ? DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_12H : DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_24H)
+                    .putBoolean(DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED, info[9] == 0x01)
+                    .apply();
             LOG.debug("Saved Device State: " + GB.hexdump(this.currentDeviceSettings));
         }
     }
@@ -578,6 +591,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             LOG.debug("Current DND settings: " + GB.hexdump(data));
             if (data.length == 20) {
                 this.currentDndSettings = trimData(data);
+                Prefs prefs = getDevicePrefs();
+                SharedPreferences sharedPrefs = prefs.getPreferences();
+                sharedPrefs.edit()
+                        .putString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO, data[3] == (byte) 0xff ? DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_SCHEDULED : DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_OFF)
+                        .putString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, (int)data[4] + ":" + (int)data[5])
+                        .putString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, (int)data[6] + ":" + (int)data[7])
+                        .apply();
                 LOG.debug("Saved DND settings: " + GB.hexdump(this.currentDndSettings));
             }
         } else {
@@ -740,60 +760,21 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_BODYTEMP);
         return this;
     }
-    public byte[] setDeviceStateCommand(Prefs prefs, String pref) {
+    public byte[] setDeviceStateCommand(Prefs prefs) {
         byte length = 20;
         ByteBuffer buf = ByteBuffer.allocate(length);
         buf.order(ByteOrder.LITTLE_ENDIAN);
         buf.put(CMD_SET_DEVICE_STATE);
         buf.put(this.currentDeviceSettings);
-        switch (pref) {
-            case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
-                buf = setDeviceStateTimeformatCommand(buf, prefs.getString(pref, DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_AUTO));
-                break;
-            case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
-                buf = setDeviceStateLanguageCommand(buf, prefs.getString(pref, "en_US"));
-                break;
-            case DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED:
-                buf = setDeviceStateLiftwristCommand(buf, prefs.getBoolean(pref, true));
-                break;
-        }
-        buf.put(getChecksum(buf.array()));
-        this.currentDeviceSettings = trimData(buf.array());
-        return buf.array();
-    }
 
-    public byte[] setDoNotDisturbCommand(Prefs prefs, String pref) {
-        byte length = 20;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_DO_NOT_DISTURB);
-        buf.put(this.currentDndSettings);
-        LocalTime time;
-        switch (pref) {
-            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO:
-                byte stateByte = (
-                        prefs.getString(pref, DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_OFF).equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_SCHEDULED))
-                        ? (byte) 0xff : 0x00;
-                buf.put(3, stateByte);
-                break;
-            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START:
-                time = prefs.getLocalTime(pref, "00:00");
-                buf.put(4, (byte) time.getHour());
-                buf.put(5, (byte) time.getMinute());
-                break;
-            case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END:
-                time = prefs.getLocalTime(pref, "00:00");
-                buf.put(6, (byte) time.getHour());
-                buf.put(7, (byte) time.getMinute());
-                break;
-        }
-        buf.put(getChecksum(buf.array()));
-        this.currentDndSettings = trimData(buf.array());
-        return buf.array();
-    }
+        // set language byte
+        Integer langIdObj = C60Constants.LANGUAGES.getOrDefault(prefs.getString(DeviceSettingsPreferenceConst.PREF_LANGUAGE, "en_US"), 0);
+        int langId = (langIdObj != null) ? langIdObj : 0;
+        buf.put(6, (byte) langId);
 
-    public ByteBuffer setDeviceStateTimeformatCommand(ByteBuffer buf, String timeFormat) {
+        // set timeformat byte
         byte timeformatByte;
+        String timeFormat = prefs.getString(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT, DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_AUTO);
         if (timeFormat.equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_12H)) {
             timeformatByte = 0x01;
         } else if (timeFormat.equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_24H)) {
@@ -802,20 +783,35 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             timeformatByte = (byte) (DateFormat.is24HourFormat(GBApplication.getContext()) ? 0x00 : 0x01);
         }
         buf.put(8, timeformatByte);
-        return buf;
-    }
 
-    public ByteBuffer setDeviceStateLanguageCommand(ByteBuffer buf, String languageCode) {
-        Integer langIdObj = C60Constants.LANGUAGES.getOrDefault(languageCode, 0);
-        int langId = (langIdObj != null) ? langIdObj : 0;
-        buf.put(6, (byte) langId);
-        return buf;
-    }
-
-    public ByteBuffer setDeviceStateLiftwristCommand(ByteBuffer buf, boolean state) {
-        byte stateByte = (state) ? (byte) 0x01 : 0x00;
+        // set liftwrist byte
+        byte stateByte = (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED, true)) ? (byte) 0x01 : 0x00;
         buf.put(9, stateByte);
-        return buf;
+
+        buf.put(getChecksum(buf.array()));
+        this.currentDeviceSettings = trimData(buf.array());
+        return buf.array();
+    }
+
+    public byte[] setDoNotDisturbCommand(Prefs prefs) {
+        byte length = 20;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_DO_NOT_DISTURB);
+        buf.put(this.currentDndSettings);
+        byte enabled = (prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO, DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_OFF).equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_SCHEDULED))
+                ? (byte) 0xff : (byte) 0x00;
+        buf.put(3, enabled); // 3
+        LocalTime time;
+        time = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, "00:00");
+        buf.put(4, (byte) time.getHour());   // 4
+        buf.put(5, (byte) time.getMinute()); // 5
+        time = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, "00:00");
+        buf.put(6, (byte) time.getHour());   // 6
+        buf.put(7, (byte) time.getMinute()); // 7
+        buf.put(getChecksum(buf.array()));
+        this.currentDndSettings = trimData(buf.array());
+        return buf.array();
     }
 
 //    public C60DeviceSupport setDeviceState(TransactionBuilder builder) {

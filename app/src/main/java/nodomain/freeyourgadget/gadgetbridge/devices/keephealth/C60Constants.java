@@ -30,7 +30,7 @@ public class C60Constants {
     public static final UUID WRITE_ECG = UUID.fromString("0000ef02-0000-1000-8000-00805f9b34fb");
     public static final UUID WRITE_FFD2 = UUID.fromString("0000ffd1-0000-1000-8000-00805f9b34fb");
 
-    public static final Map<String, Integer> LANGUAGES = new HashMap<String, Integer>() {{
+    public static final Map<String, Integer> LANGUAGES = new HashMap<>() {{
         put("en_US", 0);
         put("zh_CN", 1);
         put("ru_RU", 2);
