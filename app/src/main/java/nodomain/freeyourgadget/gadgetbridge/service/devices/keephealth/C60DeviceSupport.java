@@ -666,41 +666,22 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             Prefs prefs = getDevicePrefs();
             SharedPreferences sharedPrefs = prefs.getPreferences();
             int rawMask = data[6] & 0xFF;
-//            sharedPrefs.edit()
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, data[3] == (byte) 0x01)
-//                .putInt(DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD, ((int)data[7] * 5))
-//                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, ((int)data[4]) + ":00")
-//                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, ((int)data[5]) + ":00")
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO, (rawMask & WeekdayMask.MON_BIT) != 0)
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU, (rawMask & WeekdayMask.TUE_BIT) != 0)
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE, (rawMask & WeekdayMask.WED_BIT) != 0)
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH, (rawMask & WeekdayMask.THU_BIT) != 0)
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR, (rawMask & WeekdayMask.FRI_BIT) != 0)
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA, (rawMask & WeekdayMask.SAT_BIT) != 0)
-//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU, (rawMask & WeekdayMask.SUN_BIT) != 0)
-//                .apply();
-            // debug log
-            boolean enable = data[3] == (byte)0x01;
-            int threshold = ((int)data[7]) * 5;
-            String start = ((int)data[4]) + ":00";
-            String end = ((int)data[5]) + ":00";
-            boolean mo = (rawMask & WeekdayMask.MON_BIT) != 0;
-            boolean tu = (rawMask & WeekdayMask.TUE_BIT) != 0;
-            boolean we = (rawMask & WeekdayMask.WED_BIT) != 0;
-            boolean th = (rawMask & WeekdayMask.THU_BIT) != 0;
-            boolean fr = (rawMask & WeekdayMask.FRI_BIT) != 0;
-            boolean sa = (rawMask & WeekdayMask.SAT_BIT) != 0;
-            boolean su = (rawMask & WeekdayMask.SUN_BIT) != 0;
-            boolean once = (rawMask & WeekdayMask.ONCE) != 0;
-
-            LOG.debug("Inactivity prefs applied: enable={}, thresholdMinutes={}, start={}, end={}, mask=0x{}, ONCE={}, MO={}, TU={}, WE={}, TH={}, FR={}, SA={}, SU={}",
-                    enable, threshold, start, end, String.format("%02x", rawMask), once, mo, tu, we, th, fr, sa, su);
-            Map<String, ?> allEntries = sharedPrefs.getAll();
-            for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                LOG.debug("pref: {} = ({}) {}", key, value == null ? "null" : value.getClass().getSimpleName(), value);
-            }
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
+            LocalTime start = LocalTime.of(data[4],0);
+            LocalTime end = LocalTime.of(data[5], 0);
+            sharedPrefs.edit()
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, data[3] == (byte) 0x01)
+                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD, String.valueOf(((int)data[7] * 5)))
+                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, start.format(fmt))
+                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, end.format(fmt))
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO, (rawMask & WeekdayMask.MON_BIT) != 0)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU, (rawMask & WeekdayMask.TUE_BIT) != 0)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE, (rawMask & WeekdayMask.WED_BIT) != 0)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH, (rawMask & WeekdayMask.THU_BIT) != 0)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR, (rawMask & WeekdayMask.FRI_BIT) != 0)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA, (rawMask & WeekdayMask.SAT_BIT) != 0)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU, (rawMask & WeekdayMask.SUN_BIT) != 0)
+                .apply();
         }
     }
 
