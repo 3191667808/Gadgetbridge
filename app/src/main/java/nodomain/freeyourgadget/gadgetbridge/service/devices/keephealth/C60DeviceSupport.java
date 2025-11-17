@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthBloodPressureSamp
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -91,6 +92,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             (byte) 0x4A
     };
     private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 }; // TODO implement
+    private final byte[] CMD_SET_TARGET_DATA = { 0x07, 0x0e, 0x00 }; // TODO implement
     private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 }; // TODO find more about
 
     // Obtain blood pressure and blood oxygen data
@@ -162,6 +164,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getDndState(builder);
         builder.wait(wait);
         getInactivityState(builder);
+        builder.wait(wait);
+        getTargetData(builder);
         builder.wait(wait);
 //        getSteps(builder);
 //        builder.wait(wait);
@@ -314,6 +318,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleDoNotDisturb(value);
                 } else if (cmdPrefix == CMD_GET_INACTIVITY[0]) {
                     handleInactivity(value);
+                } else if (cmdPrefix == CMD_GET_TARGET_DATA[0]) {
+                    handleTargetData(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -354,6 +360,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA:
             case DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU:
                 configPacket = setInactivityCommand(prefs);
+                break;
+            case DeviceSettingsPreferenceConst.PREF_USER_FITNESS_GOAL_NOTIFICATION:
+            case DeviceSettingsPreferenceConst.PREF_USER_FITNESS_GOAL:
+            case ActivityUser.PREF_USER_CALORIES_BURNT:
+            case ActivityUser.PREF_USER_DISTANCE_METERS:
+                configPacket = setGoalCommand(prefs);
                 break;
             default:
                 try {
@@ -671,7 +683,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.debug("pref: {} = ({}) {}", key, value == null ? "null" : value.getClass().getSimpleName(), value);
             }
         }
+    }
 
+    private void handleTargetData(byte[] data) {
+        if (data.length == 9) {
+            Prefs prefs = getDevicePrefs();
+            SharedPreferences sharedPrefs = prefs.getPreferences();
+
+        }
     }
 
     private long buildTimestamp(int year, int month, int day, int hour, int minute) {
@@ -925,6 +944,48 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         int thresholdMinutes = prefs.getInt(DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD, 0);
         int thresholdUnits = Math.max(0, Math.min(255, thresholdMinutes / 5));
         buf.put((byte) thresholdUnits);
+
+        buf.put(getChecksum(buf.array()));
+        return buf.array();
+    }
+
+    public byte[] setGoalCommand(Prefs prefs) {
+        ActivityUser activityUser = new ActivityUser();
+        int steps = activityUser.getStepsGoal();
+        int calories = activityUser.getCaloriesBurntGoal();
+        int distance = activityUser.getDistanceGoalMeters() / 1000;  // ZeTime only accepts km goals
+
+        byte length = 18;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_TARGET_DATA);
+        buf.put((byte) 0x00); // sleep on/off
+        buf.put((byte) 0x00); // sleep goal?
+
+        // steps goal
+        buf.put(prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_USER_FITNESS_GOAL_NOTIFICATION, false) ? (byte) 0x01 : 0x00);
+        buf.put((byte) (steps & 0xFF));
+        buf.put((byte) ((steps >>> 8) & 0xFF));
+        buf.put((byte) ((steps >>> 16) & 0xFF));
+
+        // calories is always disabled ?
+        buf.put((byte) 0x00);
+        buf.put((byte) (calories & 0xFF));
+        buf.put((byte) ((calories >>> 8) & 0xFF));
+        buf.put((byte) ((calories >>> 16) & 0xFF));
+
+        // distance is always disabled ?
+        buf.put((byte) 0x00);
+        buf.put((byte) (distance & 0xFF));
+        buf.put((byte) ((distance >>> 8) & 0xFF));
+        buf.put((byte) ((distance >>> 16) & 0xFF));
+
+
+//    reminder on/off <--------------------------
+//               ||    ||          ||          ||
+//sent: 07 0e 00 00 00 01 10 27 00 00 2c 01 00 00 05 00 00 04
+//                  ||    - goal -    - cal  -    distance
+//           sleep goal?
 
         buf.put(getChecksum(buf.array()));
         return buf.array();
