@@ -77,6 +77,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             (byte) 0x08, (byte) 0x10, (byte) 0x00
     };
 
+    private final byte[] CMD_GET_INACTIVITY = {
+            (byte) 0x06, (byte) 0x00, (byte) 0x00, (byte) 0x5e
+    };
+
+    private final byte[] CMD_SET_INACTIVITY = {
+            (byte) 0x06, (byte) 0x05, (byte) 0x00
+    };
+
     private final byte[] CMD_SET_USER_INFO = { // TODO build based on settings
             (byte) 0x03, (byte) 0x07, (byte) 0x00, (byte) 0x00, (byte) 0x14,
             (byte) 0xAA, (byte) 0x00, (byte) 0x58, (byte) 0x02, (byte) 0x46,
@@ -152,6 +160,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getDeviceState(builder);
         builder.wait(wait);
         getDndState(builder);
+        builder.wait(wait);
+        getInactivityState(builder);
         builder.wait(wait);
 //        getSteps(builder);
 //        builder.wait(wait);
@@ -302,6 +312,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     }
                 } else if (cmdPrefix == CMD_GET_DO_NOT_DISTURB[0]) {
                     handleDoNotDisturb(value);
+                } else if (cmdPrefix == CMD_GET_INACTIVITY[0]) {
+                    handleInactivity(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -329,6 +341,19 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START:
             case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END:
                 configPacket = setDoNotDisturbCommand(prefs);
+                break;
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_START:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_END:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA:
+            case DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU:
+                configPacket = setInactivityCommand(prefs);
                 break;
             default:
                 try {
@@ -605,6 +630,50 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private void handleInactivity(byte[] data) {
+        if (data.length == 9) {
+            Prefs prefs = getDevicePrefs();
+            SharedPreferences sharedPrefs = prefs.getPreferences();
+            int rawMask = data[6] & 0xFF;
+//            sharedPrefs.edit()
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, data[3] == (byte) 0x01)
+//                .putInt(DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD, ((int)data[7] * 5))
+//                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, ((int)data[4]) + ":00")
+//                .putString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, ((int)data[5]) + ":00")
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO, (rawMask & WeekdayMask.MON_BIT) != 0)
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU, (rawMask & WeekdayMask.TUE_BIT) != 0)
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE, (rawMask & WeekdayMask.WED_BIT) != 0)
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH, (rawMask & WeekdayMask.THU_BIT) != 0)
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR, (rawMask & WeekdayMask.FRI_BIT) != 0)
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA, (rawMask & WeekdayMask.SAT_BIT) != 0)
+//                .putBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU, (rawMask & WeekdayMask.SUN_BIT) != 0)
+//                .apply();
+            // debug log
+            boolean enable = data[3] == (byte)0x01;
+            int threshold = ((int)data[7]) * 5;
+            String start = ((int)data[4]) + ":00";
+            String end = ((int)data[5]) + ":00";
+            boolean mo = (rawMask & WeekdayMask.MON_BIT) != 0;
+            boolean tu = (rawMask & WeekdayMask.TUE_BIT) != 0;
+            boolean we = (rawMask & WeekdayMask.WED_BIT) != 0;
+            boolean th = (rawMask & WeekdayMask.THU_BIT) != 0;
+            boolean fr = (rawMask & WeekdayMask.FRI_BIT) != 0;
+            boolean sa = (rawMask & WeekdayMask.SAT_BIT) != 0;
+            boolean su = (rawMask & WeekdayMask.SUN_BIT) != 0;
+            boolean once = (rawMask & WeekdayMask.ONCE) != 0;
+
+            LOG.debug("Inactivity prefs applied: enable={}, thresholdMinutes={}, start={}, end={}, mask=0x{}, ONCE={}, MO={}, TU={}, WE={}, TH={}, FR={}, SA={}, SU={}",
+                    enable, threshold, start, end, String.format("%02x", rawMask), once, mo, tu, we, th, fr, sa, su);
+            Map<String, ?> allEntries = sharedPrefs.getAll();
+            for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                LOG.debug("pref: {} = ({}) {}", key, value == null ? "null" : value.getClass().getSimpleName(), value);
+            }
+        }
+
+    }
+
     private long buildTimestamp(int year, int month, int day, int hour, int minute) {
         Calendar cal = Calendar.getInstance();
         cal.clear();
@@ -659,6 +728,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     public C60DeviceSupport getDndState(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DO_NOT_DISTURB);
+        return this;
+    }
+    public C60DeviceSupport getInactivityState(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_INACTIVITY);
         return this;
     }
 
@@ -811,6 +884,49 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put(7, (byte) time.getMinute()); // 7
         buf.put(getChecksum(buf.array()));
         this.currentDndSettings = trimData(buf.array());
+        return buf.array();
+    }
+
+    public byte[] setInactivityCommand(Prefs prefs) {
+        byte length = 9;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_INACTIVITY);
+
+        // enable flag
+        byte enable = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, false) ? (byte)0x01 : (byte)0x00;
+        buf.put(enable);
+
+        // start hour
+        LocalTime time = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, "00:00");
+        buf.put((byte) time.getHour());
+
+        // end hour
+        time = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, "00:00");
+        buf.put((byte) time.getHour());
+
+        // weekday mask (byte 6)
+        int mask = 0;
+        boolean anyDay = false;
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO, false)) { mask |= WeekdayMask.MON; anyDay = true; }
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU, false)) { mask |= WeekdayMask.TUE; anyDay = true; }
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE, false)) { mask |= WeekdayMask.WED; anyDay = true; }
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH, false)) { mask |= WeekdayMask.THU; anyDay = true; }
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR, false)) { mask |= WeekdayMask.FRI; anyDay = true; }
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA, false)) { mask |= WeekdayMask.SAT; anyDay = true; }
+        if (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU, false)) { mask |= WeekdayMask.SUN; anyDay = true; }
+
+        // if no weekdays selected, set ONCE bit
+        if (!anyDay) mask |= WeekdayMask.ONCE;
+
+        buf.put((byte)(mask & 0xFF));
+
+        // threshold (byte 7) stored as minutes/5
+        int thresholdMinutes = prefs.getInt(DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD, 0);
+        int thresholdUnits = Math.max(0, Math.min(255, thresholdMinutes / 5));
+        buf.put((byte) thresholdUnits);
+
+        buf.put(getChecksum(buf.array()));
         return buf.array();
     }
 
