@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,14 +68,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 //            (byte) 0x00, (byte) 0x00, (byte) 0xFF, (byte) 0x00, (byte) 0x00,
 //            (byte) 0x00, (byte) 0x00, (byte) 0x02, (byte) 0x00, (byte) 0x58
 //    };
-    private final byte[] CMD_SET_DEVICE_STATE = { // TODO build based on settings
+    private final byte[] CMD_SET_DEVICE_STATE = {
             (byte) 0x02, (byte) 0x10, (byte) 0x00
     };
 
     private final byte[] CMD_GET_DO_NOT_DISTURB = {
             (byte) 0x08, (byte) 0x00, (byte) 0x00, (byte) 0x0a
     };
-    private final byte[] CMD_SET_DO_NOT_DISTURB = { // TODO build based on settings
+    private final byte[] CMD_SET_DO_NOT_DISTURB = {
             (byte) 0x08, (byte) 0x10, (byte) 0x00
     };
 
@@ -91,8 +92,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             (byte) 0xAA, (byte) 0x00, (byte) 0x58, (byte) 0x02, (byte) 0x46,
             (byte) 0x4A
     };
-    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 }; // TODO implement
-    private final byte[] CMD_SET_TARGET_DATA = { 0x07, 0x0e, 0x00 }; // TODO implement
+    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 };
+    private final byte[] CMD_SET_TARGET_DATA = { 0x07, 0x0e, 0x00 };
+    private final byte[] CMD_GET_HYDRATION = { 0x2e, 0x01, 0x00, 0x01, (byte) 0x7a };
+    private final byte[] CMD_SET_HYDRATION = { 0x2e, 0x17, 0x00 };
     private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 }; // TODO find more about
 
     // Obtain blood pressure and blood oxygen data
@@ -367,6 +370,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case ActivityUser.PREF_USER_DISTANCE_METERS:
                 configPacket = setGoalCommand(prefs);
                 break;
+            case DeviceSettingsPreferenceConst.PREF_HYDRATION_SWITCH:
+            case DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_START:
+            case DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_END:
+                configPacket = setHydrationCommand(prefs);
+                break;
             default:
                 try {
                     LOG.debug("Unknown pref: {}, value: {}", config, prefs.getString(config, "default"));
@@ -411,10 +419,19 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void sendWrite(String taskName, byte[] contents) {
+        final int CHUNK_SIZE = 20;
         TransactionBuilder builder = createTransactionBuilder(taskName);
         BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
         if (characteristic != null) {
-            builder.write(characteristic, contents);
+            if (contents.length > CHUNK_SIZE) {
+                for (int offset = 0; offset < contents.length; offset += CHUNK_SIZE) {
+                    int len = Math.min(CHUNK_SIZE, contents.length - offset);
+                    byte[] chunk = Arrays.copyOfRange(contents, offset, offset + len);
+                    builder.write(characteristic, chunk);
+                }
+            } else {
+                builder.write(characteristic, contents);
+            }
             builder.queue();
         }
     }
@@ -980,12 +997,54 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) ((distance >>> 8) & 0xFF));
         buf.put((byte) ((distance >>> 16) & 0xFF));
 
+        buf.put(getChecksum(buf.array()));
+        return buf.array();
+    }
 
-//    reminder on/off <--------------------------
-//               ||    ||          ||          ||
-//sent: 07 0e 00 00 00 01 10 27 00 00 2c 01 00 00 05 00 00 04
-//                  ||    - goal -    - cal  -    distance
-//           sleep goal?
+    public byte[] setHydrationCommand(Prefs prefs) {
+        byte length = 27;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_HYDRATION);
+
+        // hardcoded
+        buf.put((byte) 0x02);
+        // enabled ?
+        buf.put(prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HYDRATION_SWITCH, false) ? (byte) 0xff : 0x00);
+        buf.put((byte) 0x01);
+        buf.put((byte) 0x08);
+        buf.put((byte) 0x07);
+        buf.put((byte) 0x00);
+        buf.put((byte) 0x00);
+        // start end hour
+        LocalTime start = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_START, "00:00");
+        LocalTime end = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_END, "00:00");
+
+        int slots = 8;
+        int startMinutes = start.getHour() * 60 + start.getMinute();
+        int endMinutes = end.getHour() * 60 + end.getMinute();
+
+        // handle crossing midnight
+        if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+
+        double interval = (double) (endMinutes - startMinutes) / (slots - 1);
+
+        List<LocalTime> result = new ArrayList<>();
+        for (int i = 0; i < slots; i++) {
+            int mins = (int) Math.round(startMinutes + i * interval); // round to nearest minute
+            mins = ((mins % (24 * 60)) + (24 * 60)) % (24 * 60); // normalize to 0..1439
+            int h = mins / 60;
+            int m = mins % 60;
+            result.add(LocalTime.of(h, m));
+        }
+
+        int counter = 1;
+        for (LocalTime t : result) {
+            LOG.debug("{} cup: {}", counter, t);
+            buf.put((byte) t.getHour());
+            buf.put((byte) t.getMinute());
+            counter++;
+        }
 
         buf.put(getChecksum(buf.array()));
         return buf.array();
