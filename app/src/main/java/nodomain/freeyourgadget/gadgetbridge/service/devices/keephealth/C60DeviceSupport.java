@@ -11,8 +11,8 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.time.Duration;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -49,7 +48,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
-import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(C60DeviceSupport.class);
@@ -169,6 +167,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getInactivityState(builder);
         builder.wait(wait);
         getTargetData(builder);
+        builder.wait(wait);
+        getHydration(builder);
         builder.wait(wait);
 //        getSteps(builder);
 //        builder.wait(wait);
@@ -323,6 +323,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleInactivity(value);
                 } else if (cmdPrefix == CMD_GET_TARGET_DATA[0]) {
                     handleTargetData(value);
+                } else if (cmdPrefix == CMD_GET_HYDRATION[0]) {
+                    handleHydration(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -706,7 +708,23 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (data.length == 9) {
             Prefs prefs = getDevicePrefs();
             SharedPreferences sharedPrefs = prefs.getPreferences();
+            // TODO ?
+        }
+    }
 
+    private void handleHydration(byte[] data) {
+        if (data.length == 27) {
+            Prefs prefs = getDevicePrefs();
+            SharedPreferences sharedPrefs = prefs.getPreferences();
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
+            LocalTime start = LocalTime.of(data[10], data[11]);
+            LocalTime end = LocalTime.of(data[24], data[25]);
+            sharedPrefs.edit()
+                    .putBoolean(DeviceSettingsPreferenceConst.PREF_HYDRATION_SWITCH, data[4] == (byte) 0xff)
+                    .putString(DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_START, start.format(fmt))
+                    .putString(DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_END, end.format(fmt))
+                    .apply();
+            LOG.debug("saved hydration ({}) from: {} to: {}", data[4] == (byte) 0xff, start.format(fmt), end.format(fmt));
         }
     }
 
@@ -1062,6 +1080,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     public C60DeviceSupport getTargetData(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_TARGET_DATA);
+        return this;
+    }
+
+    public C60DeviceSupport getHydration(TransactionBuilder builder) {
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_HYDRATION);
         return this;
     }
 
