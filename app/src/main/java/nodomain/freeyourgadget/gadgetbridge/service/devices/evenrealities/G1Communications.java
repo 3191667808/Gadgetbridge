@@ -8,17 +8,25 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.DateFormatSymbols;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.Callable;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
+import nodomain.freeyourgadget.gadgetbridge.util.calendar.CalendarEvent;
 
 public class G1Communications {
     private static final Logger LOG = LoggerFactory.getLogger(G1Communications.class);
@@ -122,16 +130,21 @@ public class G1Communications {
         private byte currentChunk;
         protected final byte[] payload;
         protected final byte chunkCount;
-        Callable<Byte> getNextSequence;
+        private final byte[] sequenceIds;
 
-        protected ChunkedCommandHandler(byte sequence, Consumer<CommandHandler> sendCallback,
+        protected static byte getChunkCountForPayloadLength(int payloadLength, int headerLength) {
+            int maxChunkSize = G1Constants.MAX_PACKET_SIZE_BYTES - headerLength;
+            return (byte)((payloadLength / maxChunkSize) + 1);
+        }
+
+        protected ChunkedCommandHandler(byte[] sequenceIds, Consumer<CommandHandler> sendCallback,
                                         Function<byte[], Boolean> callback, byte[] payload) {
-            super(sequence, true, callback);
+            super((byte)0, true, callback);
             this.sendCallback = sendCallback;
             this.currentChunk = 0;
             this.payload = payload;
-            int maxChunkSize = G1Constants.MAX_PACKET_SIZE_BYTES - getHeaderSize();
-            this.chunkCount = (byte)((this.payload.length / maxChunkSize) + 1);
+            this.chunkCount = getChunkCountForPayloadLength(this.payload.length, getHeaderSize());
+            this.sequenceIds = sequenceIds;
         }
 
         @Override
@@ -157,8 +170,14 @@ public class G1Communications {
             // Create the packet with space for the header.
             byte[] packet = new byte[getHeaderSize() + payloadSize];
 
+            // Get the next sequence in the list if sequence ids are provided.
+            byte currentSequenceId = 0x00;
+            if (sequenceIds != null) {
+                currentSequenceId = sequenceIds[this.currentChunk];
+            }
+
             // Let the subclass write the header.
-            writeHeader(this.currentChunk, this.chunkCount, packet);
+            writeHeader(this.currentChunk, currentSequenceId, this.chunkCount, packet);
 
             // Copy the chunk of the payload into the packet.
             System.arraycopy(this.payload, chunkBegin, packet, getHeaderSize(), payloadSize);
@@ -168,7 +187,12 @@ public class G1Communications {
 
         @Override
         final public boolean responseMatches(byte[] payload) {
-            if (chunkMatches(currentChunk, payload)) {
+            byte currentSequenceId = 0x00;
+            if (sequenceIds != null) {
+                currentSequenceId = sequenceIds[this.currentChunk];
+            }
+
+            if (chunkMatches(currentChunk, currentSequenceId, payload)) {
                 // Advance the chunk when the response is received.
                 currentChunk++;
                 return true;
@@ -176,14 +200,20 @@ public class G1Communications {
             return false;
         }
 
+        @Override
+        public final String getName() {
+            return getPacketName() + "_" + currentChunk;
+        }
+
         private boolean sendNextChunk(byte[] payload) {
             sendCallback.accept(this);
             return true;
         }
 
-        protected abstract boolean chunkMatches(byte currentChunk, byte[] payload);
-        protected abstract void writeHeader(byte currentChunk, byte chunkCount, byte[] chunk);
+        protected abstract boolean chunkMatches(byte currentChunk, byte currentSequence, byte[] payload);
+        protected abstract void writeHeader(byte currentChunk, byte currentSequence, byte chunkCount, byte[] chunk);
         protected abstract int getHeaderSize();
+        protected abstract String getPacketName();
     }
 
     public static class CommandSendMtu extends CommandHandler {
@@ -360,7 +390,7 @@ public class G1Communications {
                 0x00,
                 sequence,
                 // Subcommand
-                G1Constants.DashboardConfig.SUB_COMMAND_SET_TIME_AND_WEATHER,
+                G1Constants.DashboardSubcommand.SET_TIME_AND_WEATHER,
                 // Time 32bit place holders
                 (byte) 0x00,
                 (byte) 0x00,
@@ -395,7 +425,7 @@ public class G1Communications {
             return payload.length >= 5 &&
                    payload[0] == G1Constants.CommandId.DASHBOARD_CONFIG.id &&
                    payload[3] == sequence &&
-                   payload[4] == G1Constants.DashboardConfig.SUB_COMMAND_SET_TIME_AND_WEATHER;
+                   payload[4] == G1Constants.DashboardSubcommand.SET_TIME_AND_WEATHER;
         }
 
         @Override
@@ -420,7 +450,7 @@ public class G1Communications {
                 0x07, // Length
                 0x00, // pad
                 sequence,
-                G1Constants.DashboardConfig.SUB_COMMAND_SET_MODE,
+                G1Constants.DashboardSubcommand.SET_MODE,
                 mode,
                 secondaryPaneMode
             };
@@ -432,7 +462,7 @@ public class G1Communications {
             return payload.length >= 5 &&
                    payload[0] == G1Constants.CommandId.DASHBOARD_CONFIG.id &&
                    payload[3] == sequence &&
-                   payload[4] == G1Constants.DashboardConfig.SUB_COMMAND_SET_MODE;
+                   payload[4] == G1Constants.DashboardSubcommand.SET_MODE;
         }
 
         @Override
@@ -747,29 +777,27 @@ public class G1Communications {
         public static int getFrameType(byte[] payload) {
             String serialNumber = getSerialNumber(payload);
             if (serialNumber.length() < 7) return -1;
-            switch(serialNumber.substring(4, 7)) {
-                case G1Constants.HardwareDescriptionKey.COLOR_GREY:
-                    return R.string.even_realities_frame_color_grey;
-                case G1Constants.HardwareDescriptionKey.COLOR_BROWN:
-                    return R.string.even_realities_frame_color_brown;
-                case G1Constants.HardwareDescriptionKey.COLOR_GREEN:
-                    return R.string.even_realities_frame_color_green;
-                default:
-                    return -1;
-            }
+            return switch (serialNumber.substring(4, 7)) {
+                case G1Constants.HardwareDescriptionKey.COLOR_GREY ->
+                        R.string.even_realities_frame_color_grey;
+                case G1Constants.HardwareDescriptionKey.COLOR_BROWN ->
+                        R.string.even_realities_frame_color_brown;
+                case G1Constants.HardwareDescriptionKey.COLOR_GREEN ->
+                        R.string.even_realities_frame_color_green;
+                default -> -1;
+            };
         }
 
         public static int getFrameColor(byte[] payload) {
             String serialNumber = getSerialNumber(payload);
             if (serialNumber.length() < 4) return -1;
-            switch(serialNumber.substring(0, 4)) {
-                case G1Constants.HardwareDescriptionKey.FRAME_ROUND:
-                    return R.string.even_realities_frame_shape_G1A;
-                case G1Constants.HardwareDescriptionKey.FRAME_SQUARE:
-                    return R.string.even_realities_frame_shape_G1B;
-                default:
-                    return -1;
-            }
+            return switch (serialNumber.substring(0, 4)) {
+                case G1Constants.HardwareDescriptionKey.FRAME_ROUND ->
+                        R.string.even_realities_frame_shape_G1A;
+                case G1Constants.HardwareDescriptionKey.FRAME_SQUARE ->
+                        R.string.even_realities_frame_shape_G1B;
+                default -> -1;
+            };
         }
 
         public static String getSerialNumber(byte[] payload) {
@@ -841,14 +869,11 @@ public class G1Communications {
                                                  boolean enableCalls,
                                                  boolean enableSMS) {
             // Sequence is not used.
-            super((byte)0, sendCallback, null,
+            super(null, sendCallback, null,
                   generatePayload(appIdentifiers, enableCalendar, enableCalls, enableSMS));
         }
 
-        private static byte[] generatePayload(List<Pair<String, String>> appIdentifiers,
-                                              boolean enableCalendar,
-                                              boolean enableCalls,
-                                              boolean enableSMS) {
+        private static byte[] generatePayload(List<Pair<String, String>> appIdentifiers, boolean enableCalendar, boolean enableCalls, boolean enableSMS) {
             try {
                 JSONObject appJson = new JSONObject();
                 JSONArray appList = new JSONArray();
@@ -881,12 +906,12 @@ public class G1Communications {
         }
 
         @Override
-        protected boolean chunkMatches(byte chunk, byte[] payload) {
+        protected boolean chunkMatches(byte chunk, byte currentSequence, byte[] payload) {
             return payload.length >= 1 && payload[0] == G1Constants.CommandId.SET_NOTIFICATION_APP_SETTINGS.id;
         }
 
         @Override
-        protected void writeHeader(byte currentChunk, byte chunkCount, byte[] chunk) {
+        protected void writeHeader(byte currentChunk, byte currentSequence, byte chunkCount, byte[] chunk) {
             chunk[0] = G1Constants.CommandId.SET_NOTIFICATION_APP_SETTINGS.id;
             chunk[1] = chunkCount;
             chunk[2] = currentChunk;
@@ -898,7 +923,7 @@ public class G1Communications {
         }
 
         @Override
-        public String getName() {
+        public String getPacketName() {
             return "set_notification_app_settings";
         }
     }
@@ -908,7 +933,7 @@ public class G1Communications {
 
         public CommandSendNotification(Consumer<CommandHandler> sendCallback, NotificationSpec notificationSpec) {
             // Sequence is not used.
-            super((byte)0, sendCallback, null, generatePayload(notificationSpec));
+            super(null, sendCallback, null, generatePayload(notificationSpec));
             this.messageId = notificationSpec.getId();
         }
 
@@ -939,12 +964,12 @@ public class G1Communications {
         }
 
         @Override
-        protected boolean chunkMatches(byte chunk, byte[] payload) {
+        protected boolean chunkMatches(byte chunk, byte currentSequence, byte[] payload) {
             return payload.length >= 1 && payload[0] == G1Constants.CommandId.SEND_NOTIFICATION.id;
         }
 
         @Override
-        protected void writeHeader(byte currentChunk, byte chunkCount, byte[] chunk) {
+        protected void writeHeader(byte currentChunk, byte currentSequence, byte chunkCount, byte[] chunk) {
             chunk[0] = G1Constants.CommandId.SEND_NOTIFICATION.id;
             chunk[1] = 0x0;
             chunk[2] = chunkCount;
@@ -957,7 +982,7 @@ public class G1Communications {
         }
 
         @Override
-        public String getName() {
+        public String getPacketName() {
             return "send_notification_" + messageId;
         }
     }
@@ -988,6 +1013,186 @@ public class G1Communications {
         @Override
         public String getName() {
             return "send_clear_notification_" + messageId;
+        }
+    }
+
+    public static class CommandSetCalendarEvents extends ChunkedCommandHandler {
+        // Formatters can be expensive to recreate repeatedly, so create them statically for re-use.
+        private static final SimpleDateFormat timeFormat24h = new SimpleDateFormat("HH:mm");
+        private static final SimpleDateFormat dateFormat24h = new SimpleDateFormat("EEE MM-dd");
+        // The below formatters seem a bit excessive, but this is required to match the clean
+        // formatting that Google Calendar has for date ranges on am/pm time.
+        private static final SimpleDateFormat timeFormat12hAmPmMin = new SimpleDateFormat("h:mma");
+        private static final SimpleDateFormat timeFormat12hAmPm = new SimpleDateFormat("ha");
+        private static final SimpleDateFormat timeFormat12h = new SimpleDateFormat("h");
+        private static final SimpleDateFormat timeFormat12hMin = new SimpleDateFormat("h:mm");
+        private static final SimpleDateFormat dateFormat12h = new SimpleDateFormat("EEE MM/dd");
+
+        static {
+            // Set the AM/PM to lower case in the formatter.
+            DateFormatSymbols symbols = new DateFormatSymbols(Locale.getDefault());
+            symbols.setAmPmStrings(new String[] { "am", "pm" });
+            timeFormat12hAmPmMin.setDateFormatSymbols(symbols);
+            timeFormat12hAmPm.setDateFormatSymbols(symbols);
+        }
+
+        public static byte getRequiredSequenceCount(final byte[] payload) {
+            return getChunkCountForPayloadLength(payload.length, headerSize());
+        }
+
+        public CommandSetCalendarEvents(byte[] sequenceIds, byte[] payload, Consumer<CommandHandler> sendCallback) {
+            super(sequenceIds, sendCallback, null, payload);
+        }
+
+        public static byte[] generatePayload(boolean use12HourFormat, List<CalendarEvent> events) {
+            ByteArrayOutputStream payloadStream = new ByteArrayOutputStream( );
+            try {
+                // Start with the magic numbers. These might mean something, but not sure.
+                payloadStream.write(new byte[] { 0x01, 0x03, 0x03 });
+
+                if (events.isEmpty()) {
+                    // If there are new events, write a dummy even saying there are no events.
+                    payloadStream.write(1);
+                    byte[] message = GBApplication.getContext().getString(R.string.even_realities_no_calendar_events).getBytes(StandardCharsets.UTF_8);
+                    int messageLen = Math.min(0xFF, message.length);
+                    payloadStream.write(0x01);
+                    payloadStream.write((byte)messageLen);
+                    payloadStream.write(message, 0, messageLen);
+                    payloadStream.write(0x02);
+                    payloadStream.write(0x00);
+                    payloadStream.write(0x03);
+                    payloadStream.write(0x00);
+                } else {
+                    payloadStream.write(
+                            (byte) Math.min(G1Constants.MAX_CALENDAR_EVENTS, events.size()));
+                    int i = 0;
+                    for (CalendarEvent event : events) {
+                        if (i >= G1Constants.MAX_CALENDAR_EVENTS) {
+                            // The number of event is only 1 byte, we can't send any more than this.
+                            break;
+                        }
+
+                        String eventTitleString = event.getTitle();
+                        byte[] title = eventTitleString.getBytes(StandardCharsets.UTF_8);
+                        int titleLen = Math.min(0xFF, title.length);
+                        payloadStream.write(0x01);
+                        payloadStream.write((byte)titleLen);
+                        payloadStream.write(title, 0, titleLen);
+
+                        String eventTimeString = formatTime(use12HourFormat, event);
+                        byte[] time = eventTimeString.getBytes(StandardCharsets.UTF_8);
+                        int timeLen = Math.min(0xFF, time.length);
+                        payloadStream.write(0x02);
+                        payloadStream.write((byte)timeLen);
+                        payloadStream.write(time, 0, timeLen);
+
+                        byte[] location = event.getLocation().getBytes(StandardCharsets.UTF_8);
+                        int locationLen = Math.min(0xFF, location.length);
+                        payloadStream.write(0x03);
+                        payloadStream.write((byte)locationLen);
+                        payloadStream.write(location, 0, locationLen);
+
+                        LOG.info("Calendar event: '{}' - '{}' - '{}'", eventTitleString, eventTimeString, event.getLocation());
+                        // Keep track of the number of events to enforce the max count.
+                        i++;
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            return payloadStream.toByteArray();
+        }
+
+        private static String formatTime(boolean use12HourFormat, CalendarEvent event) {
+            if (event.isAllDay()) {
+                if (use12HourFormat) {
+                    return GBApplication.getContext().getString(R.string.dnd_all_day) + " " + dateFormat12h.format(event.getBegin());
+                } else {
+                    return GBApplication.getContext().getString(R.string.dnd_all_day) + " " + dateFormat24h.format(event.getBegin());
+                }
+            }
+
+            Calendar now = Calendar.getInstance();
+            Calendar start = Calendar.getInstance();
+            start.setTimeInMillis(event.getBegin());
+            Calendar end = Calendar.getInstance();
+            end.setTimeInMillis(event.getEnd());
+
+            // Today: Show the start and end -> 12h: 11:30am-2pm | 24h: 11:30-14:00
+            // Otherwise: Show Day and Time -> 12h: Thu 03/27 3:45pm | 24h: Thu 27-03 14:45
+            String time = "";
+            if (now.get(Calendar.YEAR) == start.get(Calendar.YEAR) &&
+                now.get(Calendar.DAY_OF_YEAR) == start.get(Calendar.DAY_OF_YEAR)) {
+                if (use12HourFormat) {
+                    boolean amPmMatches = start.get(Calendar.AM_PM) == end.get(Calendar.AM_PM);
+                    boolean startHasMinutes = start.get(Calendar.MINUTE) != 0;
+                    boolean endHasMinutes = end.get(Calendar.MINUTE) != 0;
+
+                    DateFormat startFormat;
+                    if (amPmMatches) {
+                        // If both are the same, am or pm can be omitted from the start time.
+                        startFormat = startHasMinutes ? timeFormat12hMin: timeFormat12h;
+                    } else {
+                        startFormat = startHasMinutes ? timeFormat12hAmPmMin: timeFormat12hAmPm;
+                    }
+
+                    DateFormat endFormat = endHasMinutes ? timeFormat12hAmPmMin : timeFormat12hAmPm;
+
+                    time = startFormat.format(start.getTime()) + "-" + endFormat.format(end.getTime());
+                } else {
+                    time = timeFormat24h.format(start.getTime()) + "-" + timeFormat24h.format(end.getTime());
+                }
+            } else {
+                boolean startHasMinutes = start.get(Calendar.MINUTE) != 0;
+                String timePart = use12HourFormat ? (startHasMinutes ? timeFormat12hAmPmMin
+                                                                     : timeFormat12hAmPm).format(start.getTime())
+                                                  : timeFormat24h.format(start.getTime());
+                String datePart = use12HourFormat ? dateFormat12h.format(start.getTime())
+                                                  : dateFormat24h.format(start.getTime());
+
+                time = datePart + " " + timePart;
+            }
+
+            return time;
+        }
+
+        @Override
+        protected boolean chunkMatches(byte currentChunk, byte currentSequence, byte[] payload) {
+            return payload.length >= 8 &&
+                   payload[0] == G1Constants.CommandId.DASHBOARD_CONFIG.id &&
+                   payload[3] == currentSequence &&
+                   payload[4] == G1Constants.DashboardSubcommand.SET_CALENDAR_DATA &&
+                   // Current chunk for this command indexes at 1.
+                   payload[7] == (byte)(currentChunk + 1);
+        }
+
+        @Override
+        protected void writeHeader(byte currentChunk, byte currentSequence, byte chunkCount, byte[] chunk) {
+            chunk[0] = G1Constants.CommandId.DASHBOARD_CONFIG.id;
+            chunk[1] = (byte)chunk.length;
+            chunk[2] = 0x0;
+            chunk[3] = currentSequence;
+            chunk[4] = G1Constants.DashboardSubcommand.SET_CALENDAR_DATA;
+            chunk[5] = chunkCount;
+            chunk[6] = 0x0;
+            // Current chunk for this command indexes at 1. Why is this API so inconsistent? :/
+            chunk[7] = (byte)(currentChunk + 1);
+            chunk[8] = 0x0;
+        }
+
+        private static int headerSize() {
+            return 9;
+        }
+
+        @Override
+        protected int getHeaderSize() {
+            return headerSize();
+        }
+
+        @Override
+        public String getPacketName() {
+            return "set_calendar_events";
         }
     }
 

@@ -5343,4 +5343,12 @@
         <item>never</item>
     </string-array>
 
+    <string-array name="pref_device_even_realities_g1_double_tap">
+        <item>@string/menuitem_nothing</item>
+    </string-array>
+
+    <string-array name="pref_device_even_realities_g1_long_press">
+        <item>@string/menuitem_nothing</item>
+    </string-array>
+
 </resources>

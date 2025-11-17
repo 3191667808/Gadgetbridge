@@ -43,6 +43,11 @@ public class G1Constants {
     public static final Pair<String, String>
             FIXED_NOTIFICATION_APP_ID = new Pair<>("nodomain.freeyourgadget.gadget", "Name");
 
+    // Only 4 pages with two events each is supported.
+    public static final int MAX_CALENDAR_EVENTS = 8;
+    // Show calendar events for 5 minutes after they have started.
+    public static final int CALENDAR_EVENT_CLEAR_DELAY = 5 * 1000 * 60;
+
     // Extract the L or R at the end of the device prefix.
     public static Side getSideFromFullName(String deviceName) {
         // Name will be "G1_XX_[L|R]_YYYYY"
@@ -75,11 +80,11 @@ public class G1Constants {
         RIGHT(1, "right");
 
         private final int deviceIndex;
-        private final String stringPrefix;
+        private final String name;
 
-        Side(int deviceIndex, String stringPrefix) {
+        Side(int deviceIndex, String name) {
             this.deviceIndex = deviceIndex;
-            this.stringPrefix = stringPrefix;
+            this.name = name;
         }
 
         public int getDeviceIndex() {
@@ -91,11 +96,15 @@ public class G1Constants {
         }
 
         public String getAddressKey() {
-            return stringPrefix + "_address";
+            return name + "_address";
         }
 
         public String getNameKey() {
-            return stringPrefix + "_name";
+            return name + "_name";
+        }
+
+        public String getName() {
+            return name;
         }
     }
 
@@ -151,9 +160,6 @@ public class G1Constants {
     }
 
     public static class DashboardConfig {
-        public static final byte SUB_COMMAND_SET_TIME_AND_WEATHER = 0x01;
-        public static final byte SUB_COMMAND_SET_MODE = 0x06;
-
         public static final byte MODE_FULL = 0x00;
         public static final byte MODE_DUAL = 0x01;
         public static final byte MODE_MINIMAl = 0x02;
@@ -164,7 +170,16 @@ public class G1Constants {
         public static final byte PANE_CALENDAR = 0x03;
         public static final byte PANE_NAVIGATION = 0x04;
         public static final byte PANE_EMPTY = 0x05;
+    }
 
+    public static class DashboardSubcommand {
+        public static final byte SET_TIME_AND_WEATHER = 0x01;
+        public static final byte SET_WEATHER = 0x02;
+        public static final byte SET_CALENDAR_DATA = 0x03;
+        public static final byte SET_STOCK_DATA = 0x04;
+        public static final byte SET_NEWS_DATA = 0x05;
+        public static final byte SET_MODE = 0x06;
+        public static final byte SET_NAVIGATION_DATA = 0x07;
     }
 
     public enum SystemSubCommand {

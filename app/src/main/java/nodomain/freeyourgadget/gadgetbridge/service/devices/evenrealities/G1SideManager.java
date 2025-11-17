@@ -216,13 +216,13 @@ public class G1SideManager {
 
     public void send(G1Communications.CommandHandler command) {
         TransactionBuilder transaction =
-                createTransactionBuilder.apply(command.getName(), mySide.getDeviceIndex());
+                createTransactionBuilder.apply(command.getName() + "_" + mySide.getName(), mySide.getDeviceIndex());
         sendInTransaction(transaction, command);
         transaction.queue();
     }
 
     private void sendInTransaction(TransactionBuilder transaction, G1Communications.CommandHandler command) {
-        LOG.debug("Send command {} on side {}", command.getName(), mySide.getDeviceIndex());
+        LOG.debug("Send command {} on side {}", command.getName(), mySide.getName());
 
         // Write the packet to the BLE txn.
         transaction.write(tx, command.serialize());
@@ -247,7 +247,7 @@ public class G1SideManager {
                 // the lock.
                 if (retry) {
                     LOG.debug("Retry {} command {} on side {}", command.getRetryCount(),
-                             command.getName(), mySide.getDeviceIndex());
+                             command.getName(), mySide.getName());
                     // TODO: This will change the global sequence number of the command, is this
                     //  what the stock app does on retry? Or does it resend with the same one.
                     send(command);
@@ -282,7 +282,7 @@ public class G1SideManager {
         for (G1Communications.CommandHandler commandHandler : commandHandlers) {
             if (commandHandler.responseMatches(payload)) {
                 LOG.debug("Got response payload for command {} on side {}: {}",
-                          commandHandler.getName(), mySide.getDeviceIndex(),
+                          commandHandler.getName(), mySide.getName(),
                           Logging.formatBytes(payload));
                 synchronized (commandHandlers) {
                     commandHandlers.remove(commandHandler);
@@ -305,7 +305,7 @@ public class G1SideManager {
         }
 
         LOG.debug("Unhandled payload on side {}: {}",
-                  mySide.getDeviceIndex(), Logging.formatBytes(payload));
+                  mySide.getName(), Logging.formatBytes(payload));
 
         // Not handled by any handlers.
         return false;
@@ -434,7 +434,7 @@ public class G1SideManager {
                 updateBatteryState(BatteryState.NO_BATTERY, G1Constants.CASE_BATTERY_INDEX);
                 break;
             default:
-                LOG.debug("Device Event on side {}: {}", mySide.getDeviceIndex(),
+                LOG.debug("Device Event on side {}: {}", mySide.getName(),
                           Logging.formatBytes(payload));
                 return false;
         }

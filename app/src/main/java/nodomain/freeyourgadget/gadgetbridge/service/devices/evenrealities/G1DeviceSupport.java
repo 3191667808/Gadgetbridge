@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.Callable;
@@ -48,6 +49,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.ItemWithDetails;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
@@ -57,6 +59,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEQueue;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
+import nodomain.freeyourgadget.gadgetbridge.util.calendar.CalendarEvent;
+import nodomain.freeyourgadget.gadgetbridge.util.calendar.CalendarManager;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 /**
@@ -73,16 +78,20 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
     private final HandlerThread backgroundThread = new HandlerThread("even_g1_background_thread", Process.THREAD_PRIORITY_MORE_FAVORABLE);
     private final Runnable heartBeatRunner;
     private final Runnable displaySettingsPreviewCloserRunner;
+    private final Runnable calendarSyncRunner;
     private Handler backgroundTasksHandler = null;
     private BroadcastReceiver intentReceiver = null;
     private final Object lensSkewLock = new Object();
     private final Object initializationLock = new Object();
+    private final Object calendarLock = new Object();
     private G1SideManager leftSide = null;
     private G1SideManager rightSide = null;
     private long lastHeartBeatTime;
     private long lastHeartBeatDelayTarget;
     private long heartBeatTargetModifier;
     private byte globalSequence;
+
+    private List<CalendarEvent> lastSyncedEvents;
 
     public G1DeviceSupport() {
         this(LOG);
@@ -131,22 +140,23 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
             G1Communications.CommandSetDisplaySettings command =
                     new G1Communications.CommandSetDisplaySettings(getNextSequence(),
                             false /* preview */,
-                            (byte) prefs.getInt(
-                                DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_HEIGHT,
-                                0),
-                            // Depth ranges from 1-9 instead of 0-8, so offset by one to convert from
+                            // Height ranges from 0-8 instead of 1-9, so offset by one to convert from
                             // the slider space.
                             (byte) (prefs.getInt(
-                                DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_DEPTH,
-                                0) + 1));
+                                DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_HEIGHT, 1) - 1),
+                            (byte) prefs.getInt(
+                                DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_DEPTH, 1));
             leftSide.send(command);
             rightSide.send(command);
         };
+
+        this.calendarSyncRunner = this::syncCalendar;
 
         // Non Finals
         this.lastHeartBeatTime = 0;
         this.lastHeartBeatDelayTarget = G1Constants.HEART_BEAT_TARGET_DELAY_MS;
         this.globalSequence = 0;
+        this.lastSyncedEvents = null;
     }
 
     @Override
@@ -248,56 +258,58 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         // The final step of each transaction will be to decide if that particular side is the
         // second side to complete, and if it, that side will be the one responsible for marking
         // the composite device as initialized.
-        builder.run(new Runnable() {
-            @Override
-            public void run() {
-                // There is a race condition of each device marking INITIALIZED. If one device
-                // initialize transaction runs after the other has completely finished, the device
-                // will transition from INITIALIZED back to INITIALIZING. Run this final step in a
-                // synchronized block so that only one of the devices can be the final one. Since
-                // this action always runs after "side.initialize(builder)" in the transaction order
-                // it is not possible for both devices to pass this point before both are marked
-                // initialized.
-                // NOTE: side.getConnectingState() != getDevice().getState().
-                synchronized (initializationLock) {
-                    // This means that both sides have been connected to and basic info has been collected.
-                    if (leftSide != null &&
-                        leftSide.getConnectingState() == GBDevice.State.INITIALIZED &&
-                        rightSide != null &&
-                        rightSide.getConnectingState() == GBDevice.State.INITIALIZED) {
-                        // Set device firmware to prevent the following error when data is saved to
-                        // the database and device firmware has not been set yet.
-                        // java.lang.IllegalArgumentException: the bind value at index 2 is null.
-                        // Must be called before the PostInitialize down below.
-                        getDevice().setFirmwareVersion("N/A");
-                        getDevice().setFirmwareVersion2("N/A");
+        builder.run(() -> {
+            // There is a race condition of each device marking INITIALIZED. If one device
+            // initialize transaction runs after the other has completely finished, the device
+            // will transition from INITIALIZED back to INITIALIZING. Run this final step in a
+            // synchronized block so that only one of the devices can be the final one. Since
+            // this action always runs after "side.initialize(builder)" in the transaction order
+            // it is not possible for both devices to pass this point before both are marked
+            // initialized.
+            // NOTE: side.getConnectingState() != getDevice().getState().
+            synchronized (initializationLock) {
+                // This means that both sides have been connected to and basic info has been collected.
+                if (leftSide != null &&
+                    leftSide.getConnectingState() == GBDevice.State.INITIALIZED &&
+                    rightSide != null &&
+                    rightSide.getConnectingState() == GBDevice.State.INITIALIZED) {
+                    // Set device firmware to prevent the following error when data is saved to
+                    // the database and device firmware has not been set yet.
+                    // java.lang.IllegalArgumentException: the bind value at index 2 is null.
+                    // Must be called before the PostInitialize down below.
+                    getDevice().setFirmwareVersion("N/A");
+                    getDevice().setFirmwareVersion2("N/A");
 
-                        // These next steps require that both sides are ready and they can run very
-                        // slowly which is why they are done post individual initialization and in
-                        // the background. We don't know what thread we are handling the update
-                        // state event on, so to be safe, schedule these as a background task.
-                        backgroundTasksHandler.postDelayed(() -> {
-                            onSetDashboardMode();
-                            onSetTime();
-                            // The glasses will auto disconnect after 30 seconds of no data on the wire.
-                            // Schedule a heartbeat task. If this is not enabled, the glasses will disconnect
-                            // and be useless to the user.
-                            scheduleHeatBeat();
-                            // Sent to the left only and it's own transaction, this is a large piece
-                            // of data and can cause GB to time out the initialization and get stuck
-                            // in a loop.
-                            leftSide.send(new G1Communications.CommandSetAppNotificationSettings(
-                                    leftSide::send, List.of(G1Constants.FIXED_NOTIFICATION_APP_ID),
-                                    false, false, false));
-                        }, 200);
+                    // These next steps require that both sides are ready and they can run very
+                    // slowly which is why they are done post individual initialization and in
+                    // the background. We don't know what thread we are handling the update
+                    // state event on, so to be safe, schedule these as a background task.
+                    backgroundTasksHandler.postDelayed(() -> {
+                        onSetDashboardMode();
+                        onSetTime();
+                        // The glasses will auto disconnect after 30 seconds of no data on the wire.
+                        // Schedule a heartbeat task. If this is not enabled, the glasses will disconnect
+                        // and be useless to the user.
+                        scheduleHeatBeat();
 
-                        // Mark both sub devices as INITIALIZED so that the composite device is
-                        // considered INITIALIZED.
-                        getDevice(G1Constants.Side.LEFT.getDeviceIndex())
-                                .setUpdateState(GBDevice.State.INITIALIZED, getContext());
-                        getDevice(G1Constants.Side.RIGHT.getDeviceIndex())
-                                .setUpdateState(GBDevice.State.INITIALIZED, getContext());
-                    }
+                        // Sent to the left only and it's own transaction, this is a large piece
+                        // of data and can cause GB to time out the initialization and get stuck
+                        // in a loop.
+                        leftSide.send(new G1Communications.CommandSetAppNotificationSettings(
+                                leftSide::send, List.of(G1Constants.FIXED_NOTIFICATION_APP_ID),
+                                false, false, false));
+
+                        // Tell the calendar events to synchronize.
+                        forceNextCalendarSync();
+                        syncCalendar();
+                    }, 200);
+
+                    // Mark both sub devices as INITIALIZED so that the composite device is
+                    // considered INITIALIZED.
+                    getDevice(G1Constants.Side.LEFT.getDeviceIndex())
+                            .setUpdateState(GBDevice.State.INITIALIZED, getContext());
+                    getDevice(G1Constants.Side.RIGHT.getDeviceIndex())
+                            .setUpdateState(GBDevice.State.INITIALIZED, getContext());
                 }
             }
         });
@@ -307,7 +319,20 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
     }
 
     @Override
+    public void disconnect() {
+        super.disconnect();
+        forceNextCalendarSync();
+
+        if (backgroundTasksHandler != null) {
+            // Remove all background tasks.
+            backgroundTasksHandler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    @Override
     public void dispose() {
+        forceNextCalendarSync();
+
         synchronized (ConnectionMonitor) {
             if (backgroundTasksHandler != null) {
                 // Remove all background tasks.
@@ -398,11 +423,23 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         return globalSequence++;
     }
 
+    /**
+     * Lets a caller reserve multiple sequence all in one go.
+     */
+    private synchronized byte[] getNextSequence(byte reservedCount) {
+        byte[] out = new byte[reservedCount];
+        for (byte i = 0; i < reservedCount; i++) {
+            out[i] = (byte)(globalSequence + i);
+        }
+        globalSequence += reservedCount;
+        return out;
+    }
+
     private void scheduleHeatBeat() {
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         long currentMilliseconds = c.getTimeInMillis();
         long lastDelay = currentMilliseconds - lastHeartBeatTime;
-        LOG.info("{}ms since the last heartbeat", lastDelay);
+        LOG.debug("{}ms since the last heartbeat", lastDelay);
 
         // The actual delay can change based on the sleep state of the phone CPU, the base delay
         // should always be enough to keep the glasses connected, however it uses the most amount
@@ -427,7 +464,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         delay = Math.min(delay, G1Constants.HEART_BEAT_TARGET_DELAY_MS);
 
         backgroundTasksHandler.removeCallbacksAndMessages(heartBeatRunner);
-        LOG.info("Starting heartbeat runner delayed by {}ms", delay);
+        LOG.debug("Starting heartbeat runner delayed by {}ms", delay);
         backgroundTasksHandler.postDelayed(heartBeatRunner, delay);
 
         lastHeartBeatTime = currentMilliseconds;
@@ -445,10 +482,10 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         G1Communications.CommandSetDisplaySettings command = new G1Communications.CommandSetDisplaySettings(
                 getNextSequence(),
                 true /* preview */,
-                (byte)prefs.getInt(DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_HEIGHT, 0),
-                // Depth ranges from 1-9 instead of 0-8, so offset by one to convert from
+                // Height ranges from 0-8 instead of 1-9, so offset by one to convert from
                 // the slider space.
-                (byte)(prefs.getInt(DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_DEPTH, 0) + 1));
+                (byte)(prefs.getInt(DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_HEIGHT, 1) - 1),
+                (byte)prefs.getInt(DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_DEPTH, 1));
 
         // Send to both sides.
         leftSide.send(command);
@@ -463,6 +500,93 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
             backgroundTasksHandler.postDelayed(displaySettingsPreviewCloserRunner,
                                                G1Constants.DISPLAY_SETTINGS_PREVIEW_DELAY);
         }
+    }
+
+    private void forceNextCalendarSync() {
+        synchronized(calendarLock) {
+            lastSyncedEvents = null;
+        }
+    }
+
+    private void syncCalendar() {
+        if (!getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_SYNC_CALENDAR, false)) {
+            // Clear the last sync list so that when syncing is re-enabled a sync is forced.
+            lastSyncedEvents = null;
+            return;
+        }
+
+        // Run this on an async thread instead of directly in case was run from the UI thread.
+        backgroundTasksHandler.post(() -> {
+            LOG.info("Even G1 Calendar Sync");
+            List<CalendarEvent> events;
+            synchronized (calendarLock) {
+                // Filter out any events in the past.
+                Calendar now = Calendar.getInstance();
+                CalendarManager
+                        calendarManager  = new CalendarManager(getContext(), getDevice().getAddress());
+                events = calendarManager.getCalendarEventList()
+                                .stream()
+                                .filter(e -> e.isAllDay() ||
+                                             e.getBegin() > (now.getTimeInMillis() - G1Constants.CALENDAR_EVENT_CLEAR_DELAY))
+                                .toList();
+
+                // Schedule a sync at the start of the next event so it can be removed from the screen.
+                // If there are no events, just sync again in the future.
+                long nextSyncTime = (events.isEmpty() ? System.currentTimeMillis() : events.get(0).getBegin()) + G1Constants.CALENDAR_EVENT_CLEAR_DELAY;
+                LOG.info("Next Calendar Sync Time: {}", new Date(nextSyncTime));
+
+                // The delay needs to be relative to the current time.
+                long syncDelay = nextSyncTime - System.currentTimeMillis();
+                if (syncDelay < 0) {
+                    // If the sync time is in the past, something went wrong, in that case, schedule
+                    // the resync for 5 seconds in the future and try again then.
+                    syncDelay = System.currentTimeMillis() + 5000;
+                }
+                backgroundTasksHandler.removeCallbacksAndMessages(calendarSyncRunner);
+                backgroundTasksHandler.postDelayed(calendarSyncRunner, syncDelay);
+
+                // The list of events is the same as the last sync, so nothing to do.
+                // Using .equals() checks the contents of the lists, not the actual instance, so a newly
+                // generated list will will be equal.
+                if (events.equals(lastSyncedEvents)) {
+                    LOG.info("Skipping Calendar Sync, no new events");
+                    return;
+                }
+
+                // Ready sync the current list.
+                lastSyncedEvents = events;
+            }
+
+            boolean use12HourFormat =
+                    getDevicePrefs().getTimeFormat()
+                                    .equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_12H);
+
+            // The same payload is sent to both sides, so only generated it once.
+            byte[] calendarPayload = G1Communications.CommandSetCalendarEvents.generatePayload(use12HourFormat, events);
+
+            // The sequence ids should be same between the left and right, so reserve them now.
+            byte sequenceCount = G1Communications.CommandSetCalendarEvents.getRequiredSequenceCount(calendarPayload);
+            byte[] sequenceIds = getNextSequence(sequenceCount);
+
+            // This block is synchronized. We do not want two calls to overlap, otherwise the lenses
+            // could get skewed with different values.
+            synchronized (lensSkewLock) {
+                G1Communications.CommandHandler leftCommandHandler =
+                        new G1Communications.CommandSetCalendarEvents(sequenceIds, calendarPayload, leftSide::send);
+
+                G1Communications.CommandHandler rightCommandHandler =
+                        new G1Communications.CommandSetCalendarEvents(sequenceIds, calendarPayload, rightSide::send);
+
+                // The commands can be sent in parallel.
+                leftSide.send(leftCommandHandler);
+                rightSide.send(rightCommandHandler);
+
+                if (!leftCommandHandler.waitForResponsePayload() || !rightCommandHandler.waitForResponsePayload()) {
+                    LOG.error("Set calendar events on timed out");
+                    getDevice().setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
+                }
+            }
+        });
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -615,6 +739,21 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
                 // Units or time format updated, update the time and weather on the glasses to match
                 onSetTimeOrWeather();
+                // Fall through to update the calendar with the new format.
+            case GBPrefs.CALENDAR_BLACKLIST:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_EVENTS_AMOUNT:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_CANCELED:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_DECLINED:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_FOCUS_TIME:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_ALL_DAY:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_WORKING_LOCATION:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_SYNC_COLOR_BLACKLIST:
+            case DeviceSettingsPreferenceConst.PREF_CALENDAR_LOOKAHEAD_DAYS:
+            case DeviceSettingsPreferenceConst.PREF_SYNC_CALENDAR:
+            case DeviceSettingsPreferenceConst.PREF_SYNC_BIRTHDAYS:
+                onSetDashboardMode();
+                forceNextCalendarSync();
+                syncCalendar();
                 break;
             default:
                 // Forward to both sides.
@@ -630,7 +769,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         if (leftSide == null || rightSide == null)
             return;
 
-        // In  FW v1.6.0, they flipped this boolean.
+        // In FW v1.6.0, they flipped this boolean.
         boolean use12HourFormat =
                 getDevicePrefs().getTimeFormat()
                           .equals(getDevice().getFirmwareVersion().compareTo("1.6.0") >= 0
@@ -695,30 +834,28 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
     private void onSetDashboardMode() {
         // Run in the background in case the command hangs and this was run from the UI thread.
         backgroundTasksHandler.post(() -> {
+            // TODO: Support more than just calendar.
+            boolean showCalendar = getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_SYNC_CALENDAR, false);
+            byte mode = showCalendar ? G1Constants.DashboardConfig.MODE_DUAL : G1Constants.DashboardConfig.MODE_MINIMAl;
+            byte pane = showCalendar ? G1Constants.DashboardConfig.PANE_CALENDAR : G1Constants.DashboardConfig.PANE_EMPTY;
+
             // This block is synchronized. We do not want two calls to overlap, otherwise the lenses
             // could get skewed with different values.
             synchronized (lensSkewLock) {
                 // Send to the left synchronously, then once a response is received, send the right.
                 // The glasses will ignore the command on the right lens if it arrives before the
                 // left.
-                // TODO: Pull these values from the settings and build a UI to configure it.
                 byte sequence = getNextSequence();
                 G1Communications.CommandHandler leftCommandHandler =
-                        new G1Communications.CommandSetDashboardModeSettings(
-                                sequence,
-                                G1Constants.DashboardConfig.MODE_MINIMAl,
-                                G1Constants.DashboardConfig.PANE_EMPTY);
+                        new G1Communications.CommandSetDashboardModeSettings(sequence, mode, pane);
 
                 leftSide.send(leftCommandHandler);
                 if (!leftCommandHandler.waitForResponsePayload()) {
-                    LOG.error("Set dashboard on right lens timed out");
+                    LOG.error("Set dashboard on left lens timed out");
                     getDevice().setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
                 }
 
-                rightSide.send(new G1Communications.CommandSetDashboardModeSettings(
-                        sequence,
-                        G1Constants.DashboardConfig.MODE_MINIMAl,
-                        G1Constants.DashboardConfig.PANE_EMPTY));
+                rightSide.send(new G1Communications.CommandSetDashboardModeSettings(sequence, mode, pane));
             }
         });
     }
@@ -754,4 +891,17 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
     public void onDeleteNotification(int id) {
         leftSide.send(new G1Communications.CommandSendClearNotification(id));
     }
+
+    @Override
+    public void onAddCalendarEvent(CalendarEventSpec calendarEventSpec) {
+        // Always sync all events.
+        syncCalendar();
+    }
+
+    @Override
+    public void onDeleteCalendarEvent(byte type, long id) {
+        // Always sync all events.
+        syncCalendar();
+    }
+
 }
