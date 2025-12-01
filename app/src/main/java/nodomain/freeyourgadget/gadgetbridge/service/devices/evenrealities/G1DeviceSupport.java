@@ -108,10 +108,10 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         this.heartBeatRunner = () -> {
             if (isConnected()) {
                 // We can send any command as a heart beat. The official app uses this one.
-                G1Communications.CommandGetSilentModeSettings leftCommand =
-                        new G1Communications.CommandGetSilentModeSettings(b -> { return true;});
-                G1Communications.CommandGetSilentModeSettings rightCommand =
-                        new G1Communications.CommandGetSilentModeSettings(b -> { return true;});
+                G1Communications.CommandSilentModeGet leftCommand =
+                        new G1Communications.CommandSilentModeGet(b -> { return true;});
+                G1Communications.CommandSilentModeGet rightCommand =
+                        new G1Communications.CommandSilentModeGet(b -> { return true;});
                 leftSide.send(leftCommand);
                 rightSide.send(rightCommand);
 
@@ -137,14 +137,14 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
 
         this.displaySettingsPreviewCloserRunner = () -> {
             DevicePrefs prefs = getDevicePrefs();
-            G1Communications.CommandSetDisplaySettings command =
-                    new G1Communications.CommandSetDisplaySettings(getNextSequence(),
-                            false /* preview */,
-                            // Height ranges from 0-8 instead of 1-9, so offset by one to convert from
-                            // the slider space.
-                            (byte) (prefs.getInt(
+            G1Communications.CommandHardwareDisplaySet command =
+                    new G1Communications.CommandHardwareDisplaySet(getNextSequence(),
+                                                                   false /* preview */,
+                                                                   // Height ranges from 0-8 instead of 1-9, so offset by one to convert from
+                                                                   // the slider space.
+                                                                   (byte) (prefs.getInt(
                                 DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_HEIGHT, 1) - 1),
-                            (byte) prefs.getInt(
+                                                                   (byte) prefs.getInt(
                                 DeviceSettingsPreferenceConst.PREF_EVEN_REALITIES_SCREEN_DEPTH, 1));
             leftSide.send(command);
             rightSide.send(command);
@@ -295,7 +295,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                         // Sent to the left only and it's own transaction, this is a large piece
                         // of data and can cause GB to time out the initialization and get stuck
                         // in a loop.
-                        leftSide.send(new G1Communications.CommandSetAppNotificationSettings(
+                        leftSide.send(new G1Communications.CommandNotificationAppListSet(
                                 leftSide::send, List.of(G1Constants.FIXED_NOTIFICATION_APP_ID),
                                 false, false, false));
 
@@ -479,7 +479,8 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         backgroundTasksHandler.removeCallbacksAndMessages(displaySettingsPreviewCloserRunner);
 
         // The glasses expect the setting to be sent with the preview mode set to true.
-        G1Communications.CommandSetDisplaySettings command = new G1Communications.CommandSetDisplaySettings(
+        G1Communications.CommandHardwareDisplaySet
+                command = new G1Communications.CommandHardwareDisplaySet(
                 getNextSequence(),
                 true /* preview */,
                 // Height ranges from 0-8 instead of 1-9, so offset by one to convert from
@@ -562,20 +563,20 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                                     .equals(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_12H);
 
             // The same payload is sent to both sides, so only generated it once.
-            byte[] calendarPayload = G1Communications.CommandSetCalendarEvents.generatePayload(use12HourFormat, events);
+            byte[] calendarPayload = G1Communications.CommandDashboardCalendarSet.generatePayload(use12HourFormat, events);
 
             // The sequence ids should be same between the left and right, so reserve them now.
-            byte sequenceCount = G1Communications.CommandSetCalendarEvents.getRequiredSequenceCount(calendarPayload);
+            byte sequenceCount = G1Communications.CommandDashboardCalendarSet.getRequiredSequenceCount(calendarPayload);
             byte[] sequenceIds = getNextSequence(sequenceCount);
 
             // This block is synchronized. We do not want two calls to overlap, otherwise the lenses
             // could get skewed with different values.
             synchronized (lensSkewLock) {
-                G1Communications.CommandHandler leftCommandHandler =
-                        new G1Communications.CommandSetCalendarEvents(sequenceIds, calendarPayload, leftSide::send);
+                G1CommandHandler leftCommandHandler =
+                        new G1Communications.CommandDashboardCalendarSet(sequenceIds, calendarPayload, leftSide::send);
 
-                G1Communications.CommandHandler rightCommandHandler =
-                        new G1Communications.CommandSetCalendarEvents(sequenceIds, calendarPayload, rightSide::send);
+                G1CommandHandler rightCommandHandler =
+                        new G1Communications.CommandDashboardCalendarSet(sequenceIds, calendarPayload, rightSide::send);
 
                 // The commands can be sent in parallel.
                 leftSide.send(leftCommandHandler);
@@ -670,7 +671,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         if (getDevice(G1Constants.Side.LEFT.getDeviceIndex()) != null) {
             String leftAddress = getDevice(G1Constants.Side.LEFT.getDeviceIndex()).getAddress();
             if (address.equals(leftAddress) && leftSide != null) {
-                leftSide.send(new G1Communications.CommandSendMtu((byte)Math.min(G1Constants.MTU, mtu)));
+                leftSide.send(new G1Communications.CommandMtuSet((byte)Math.min(G1Constants.MTU, mtu)));
             }
         }
 
@@ -678,7 +679,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
             String rightAddress =
                     getDevice(G1Constants.Side.RIGHT.getDeviceIndex()).getAddress();
             if (address.equals(rightAddress) && rightSide != null) {
-                rightSide.send(new G1Communications.CommandSendMtu((byte)Math.min(G1Constants.MTU, mtu)));
+                rightSide.send(new G1Communications.CommandMtuSet((byte)Math.min(G1Constants.MTU, mtu)));
             }
         }
     }
@@ -799,10 +800,10 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                 // Send the left the time synchronously, then once a response is received, send the right.
                 // The glasses will ignore the command on the right lens if it arrives before the left.
                 byte sequence = getNextSequence();
-                G1Communications.CommandHandler leftCommandHandler =
-                        new G1Communications.CommandSetTimeAndWeather(sequence, timeMilliseconds,
-                                                                      use12HourFormat,  weather,
-                                                                      useFahrenheit);
+                G1CommandHandler leftCommandHandler =
+                        new G1Communications.CommandDashboardWeatherAndTimeSet(sequence, timeMilliseconds,
+                                                                               use12HourFormat, weather,
+                                                                               useFahrenheit);
                 leftSide.send(leftCommandHandler);
                 if (!leftCommandHandler.waitForResponsePayload()) {
                     LOG.error("Set time on left lens timed out");
@@ -810,9 +811,9 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                 }
 
                 rightSide.send(
-                        new G1Communications.CommandSetTimeAndWeather(sequence, timeMilliseconds,
-                                                                      use12HourFormat,  weather,
-                                                                      useFahrenheit));
+                        new G1Communications.CommandDashboardWeatherAndTimeSet(sequence, timeMilliseconds,
+                                                                               use12HourFormat, weather,
+                                                                               useFahrenheit));
             }
         });
     }
@@ -836,8 +837,8 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         backgroundTasksHandler.post(() -> {
             // TODO: Support more than just calendar.
             boolean showCalendar = getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_SYNC_CALENDAR, false);
-            byte mode = showCalendar ? G1Constants.DashboardConfig.MODE_DUAL : G1Constants.DashboardConfig.MODE_MINIMAl;
-            byte pane = showCalendar ? G1Constants.DashboardConfig.PANE_CALENDAR : G1Constants.DashboardConfig.PANE_EMPTY;
+            byte mode = showCalendar ? G1Constants.DashboardMode.DUAL : G1Constants.DashboardMode.MINIMAl;
+            byte pane = showCalendar ? G1Constants.DashboardPaneMode.CALENDAR : G1Constants.DashboardPaneMode.EMPTY;
 
             // This block is synchronized. We do not want two calls to overlap, otherwise the lenses
             // could get skewed with different values.
@@ -846,8 +847,8 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                 // The glasses will ignore the command on the right lens if it arrives before the
                 // left.
                 byte sequence = getNextSequence();
-                G1Communications.CommandHandler leftCommandHandler =
-                        new G1Communications.CommandSetDashboardModeSettings(sequence, mode, pane);
+                G1CommandHandler leftCommandHandler =
+                        new G1Communications.CommandDashboardModeSet(sequence, mode, pane);
 
                 leftSide.send(leftCommandHandler);
                 if (!leftCommandHandler.waitForResponsePayload()) {
@@ -855,7 +856,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                     getDevice().setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
                 }
 
-                rightSide.send(new G1Communications.CommandSetDashboardModeSettings(sequence, mode, pane));
+                rightSide.send(new G1Communications.CommandDashboardModeSet(sequence, mode, pane));
             }
         });
     }
@@ -863,8 +864,8 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
     @Override
     public void onReset(int flags) {
         if (flags == GBDeviceProtocol.RESET_FLAGS_REBOOT) {
-            leftSide.send(new G1Communications.CommandSendReset());
-            rightSide.send(new G1Communications.CommandSendReset());
+            leftSide.send(new G1Communications.CommandSystemRebootControl());
+            rightSide.send(new G1Communications.CommandSystemRebootControl());
         }
     }
 
@@ -884,12 +885,12 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         // G1Constants.java for more information.
         notificationSpec.sourceAppId = G1Constants.FIXED_NOTIFICATION_APP_ID.first;
         // Notifications are only sent to the left side.
-        leftSide.send(new G1Communications.CommandSendNotification(leftSide::send, notificationSpec));
+        leftSide.send(new G1Communications.CommandNotificationSendControl(leftSide::send, notificationSpec));
     }
 
     @Override
     public void onDeleteNotification(int id) {
-        leftSide.send(new G1Communications.CommandSendClearNotification(id));
+        leftSide.send(new G1Communications.CommandNotificationClearControl(id));
     }
 
     @Override
