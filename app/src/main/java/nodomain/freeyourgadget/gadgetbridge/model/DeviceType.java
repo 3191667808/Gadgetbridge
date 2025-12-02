@@ -52,8 +52,10 @@ import nodomain.freeyourgadget.gadgetbridge.devices.coospo.CoospoHW9Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.cycling_sensor.coordinator.CyclingSensorCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.divoom.PixooCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.domyos.DomyosT540Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunAirPro3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunAirPro4Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunAirSCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunFreePro3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.evenrealities.G1DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.femometer.FemometerVinca2DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProDeviceCoordinator;
@@ -950,7 +952,9 @@ public enum DeviceType {
     ADVAN_WATCH_SE1_AI(AdvanWatchSE1AICoordinator.class),
     B_AND_W_P_SERIES(BandWPSeriesDeviceCoordinator.class),
     EARFUN_AIR_S(EarFunAirSCoordinator.class),
+    EARFUN_AIR_PRO_3(EarFunAirPro3Coordinator.class),
     EARFUN_AIR_PRO_4(EarFunAirPro4Coordinator.class),
+    EARFUN_FREE_PRO_3(EarFunFreePro3Coordinator.class),
     SCANNABLE(ScannableDeviceCoordinator.class),
     CYCLING_SENSOR(CyclingSensorCoordinator.class),
     BLE_GATT_CLIENT(BleGattClientCoordinator.class),
