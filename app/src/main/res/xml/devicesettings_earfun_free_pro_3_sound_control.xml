@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Sound Control Settings for EarFun Free Pro 3 (TW400)
+
+    Features from TW400Config.java:
+    - Ambient sound control (Off/ANC/Ambient Sound)
+    - ANC modes: Default, Mode1, Mode2, Mode3 (grid selection)
+    - Ambient sound modes: Default (auto), Total (full pass-through)
+    - Wind noise cancellation
+    - Microphone mode settings
+    - Voice prompt volume control
+-->
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ListPreference
+        android:defaultValue="0"
+        android:entries="@array/earfun_ambient_sound_control_names"
+        android:entryValues="@array/earfun_ambient_sound_control_values"
+        android:icon="@drawable/ic_hearing"
+        android:key="pref_earfun_ambient_sound_control"
+        app:useSimpleSummaryProvider="true"
+        android:title="@string/pref_header_sony_ambient_sound_control" />
+
+    <ListPreference
+        android:defaultValue="0"
+        android:entries="@array/earfun_free_pro_3_ambient_mode_names"
+        android:entryValues="@array/earfun_free_pro_3_ambient_mode_values"
+        android:icon="@drawable/ic_hearing"
+        android:key="pref_earfun_transparency_mode"
+        app:useSimpleSummaryProvider="true"
+        android:title="@string/earfun_ambient_mode" />
+
+    <ListPreference
+        android:defaultValue="0"
+        android:entries="@array/earfun_free_pro_3_anc_mode_names"
+        android:entryValues="@array/earfun_free_pro_3_anc_mode_values"
+        android:icon="@drawable/ic_hearing"
+        android:key="pref_earfun_anc_mode"
+        app:useSimpleSummaryProvider="true"
+        android:title="@string/earfun_anc_mode" />
+
+    <ListPreference
+        android:defaultValue="0"
+        android:entries="@array/earfun_microphone_mode_names"
+        android:entryValues="@array/earfun_microphone_mode_values"
+        android:icon="@drawable/ic_microphone"
+        android:key="pref_earfun_microphone_mode"
+        app:useSimpleSummaryProvider="true"
+        android:title="@string/earfun_microphone_mode" />
+    <Preference
+        android:key="pref_earfun_microphone_mode_hint"
+        android:selectable="false"
+        android:summary="@string/earfun_microphone_mode_hint" />
+
+    <SeekBarPreference
+        android:defaultValue="0"
+        android:icon="@drawable/ic_volume_up"
+        android:key="pref_earfun_voice_prompt_volume"
+        android:max="4"
+        android:title="@string/earfun_voice_prompt_volume"
+        app:min="0"
+        app:showSeekBarValue="true" />
+
+</androidx.preference.PreferenceScreen>
