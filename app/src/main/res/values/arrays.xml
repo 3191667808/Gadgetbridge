@@ -4273,8 +4273,8 @@
     </string-array>
 
     <string-array name="earfun_free_pro_3_ambient_mode_names">
-        <item>@string/pref_default</item>
-        <item>@string/pref_title_equalizer_natural</item>
+        <item>@string/earfun_ambient_mode_natural</item>
+        <item>@string/earfun_ambient_mode_fully_transparent</item>
     </string-array>
 
     <string-array name="earfun_free_pro_3_ambient_mode_values">
@@ -4283,10 +4283,10 @@
     </string-array>
 
     <string-array name="earfun_free_pro_3_anc_mode_names">
-        <item>@string/pref_default</item>
-        <item>Mode 1</item>
-        <item>Mode 2</item>
-        <item>Mode 3</item>
+        <item>@string/earfun_anc_mode_default</item>
+        <item>@string/earfun_anc_mode_ears_1</item>
+        <item>@string/earfun_anc_mode_ears_2</item>
+        <item>@string/earfun_anc_mode_ears_3</item>
     </string-array>
 
     <string-array name="earfun_free_pro_3_anc_mode_values">
