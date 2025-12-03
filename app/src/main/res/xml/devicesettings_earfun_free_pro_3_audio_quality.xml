@@ -29,8 +29,8 @@
 
     <ListPreference
         android:defaultValue="0"
-        android:entries="@array/earfun_audio_codec_names"
-        android:entryValues="@array/earfun_audio_codec_values"
+        android:entries="@array/earfun_qcc3072_audio_codec_names"
+        android:entryValues="@array/earfun_qcc3072_audio_codec_values"
         android:icon="@drawable/ic_equalizer"
         android:key="pref_earfun_audio_codec"
         app:useSimpleSummaryProvider="true"

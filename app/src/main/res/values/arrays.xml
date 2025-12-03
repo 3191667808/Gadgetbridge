@@ -4168,6 +4168,20 @@
         <item>8</item>
     </string-array>
 
+    <string-array name="earfun_qcc3072_audio_codec_names">
+        <item>@string/pref_title_stable_connection</item>
+        <item>aptX</item>
+        <item>aptX Adaptive</item>
+        <item>aptX Adaptive Lossless</item>
+    </string-array>
+
+    <string-array name="earfun_qcc3072_audio_codec_values">
+        <item>0</item>
+        <item>1</item>
+        <item>3</item>
+        <item>19</item>
+    </string-array>
+
     <string-array name="earfun_advanced_audio_mode_names">
         <item>Google Fast Pair</item>
         <item>LE Audio</item>
