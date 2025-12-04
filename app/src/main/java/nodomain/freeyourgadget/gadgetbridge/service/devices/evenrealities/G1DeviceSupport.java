@@ -81,6 +81,7 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
     private G1SideManager rightSide = null;
     private long lastHeartBeatTime;
     private long lastHeartBeatDelayTarget;
+    private long heartBeatTargetModifier;
     private byte globalSequence;
 
     public G1DeviceSupport() {
@@ -412,7 +413,11 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
         // rely on the reconnection logic to connect back. After reconnection, the base delay will
         // be used and the correct system added delay will be determined.
         long systemAddedTime = lastDelay - lastHeartBeatDelayTarget;
-        long delay = G1Constants.HEART_BEAT_TARGET_DELAY_MS;
+
+        // Anytime we disconnect due to the heartbeat not being fast enough, make the heartbeat more
+        // and more aggressive, so subtract the modifier here.
+        long delay = G1Constants.HEART_BEAT_TARGET_DELAY_MS - heartBeatTargetModifier;
+        LOG.info("{}ms since the last heartbeat, system delay {}ms, modified target {}ms", lastDelay, systemAddedTime, delay);
         if (systemAddedTime > 0) {
             delay -= systemAddedTime;
         }
@@ -507,9 +512,18 @@ public class G1DeviceSupport extends AbstractBTLEMultiDeviceSupport {
                     if (leftDevice != null) leftDevice.setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
                     if (rightDevice != null) rightDevice.setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
 
-                    // Reset the last heartbeat time to the epoch so it looks like the last one was a
-                    // very long time ago.
-                    lastHeartBeatTime = 0;
+                    // Anytime we disconnect due to the heartbeat not being fast enough, make the
+                    // target modifier to the heartbeat more and more aggressive.
+                    Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                    long currentMilliseconds = c.getTimeInMillis();
+                    long timeSinceLastHeartBeat = currentMilliseconds - lastHeartBeatTime;
+                    if (status == /* GATT_CONN_TERMINATE_PEER_USER */ 0x13 && lastHeartBeatDelayTarget < timeSinceLastHeartBeat) {
+                        long missedBy = timeSinceLastHeartBeat - lastHeartBeatDelayTarget;
+                        heartBeatTargetModifier = Math.min(heartBeatTargetModifier + missedBy,
+                                                           G1Constants.HEART_BEAT_MAX_DELAY_MODIFIER_MS);
+                        LOG.info("Heartbeat not fast enough by {}ms, new modifier {}ms", missedBy,
+                                 heartBeatTargetModifier);
+                    }
                 }
             }
         }

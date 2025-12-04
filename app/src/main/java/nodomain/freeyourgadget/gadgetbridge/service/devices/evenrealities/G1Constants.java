@@ -28,8 +28,9 @@ public class G1Constants {
     // expensive from a battery budget than just sending the heartbeat message.
     public static final int HEART_BEAT_BASE_DELAY_MS = 8000;
     public static final int HEART_BEAT_TARGET_DELAY_MS = 25000;
+    public static final int HEART_BEAT_MAX_DELAY_MODIFIER_MS = 10000;
     public static final int DEFAULT_COMMAND_TIMEOUT_MS = 5000;
-    public static final int DISPLAY_SETTINGS_PREVIEW_DELAY = 3000;
+    public static final int DISPLAY_SETTINGS_PREVIEW_DELAY = 5000;
     public static final int DEFAULT_RETRY_COUNT = 5;
     public static final int CASE_BATTERY_INDEX = 2;
     public static final String INTENT_TOGGLE_SILENT_MODE = "nodomain.freeyourgadget.gadgetbridge.evenrealities.silent_mode";
