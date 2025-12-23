@@ -11,23 +11,27 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
-import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.HeartRate;
 
 public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthActivitySample> {
     private static final Logger LOG = LoggerFactory.getLogger(KeephealthSampleProvider.class);
+
+    private final GenericHeartRateSampleProvider heartRateProvider;
+
     public KeephealthSampleProvider(GBDevice device, DaoSession session) {
         super(device, session);
+        this.heartRateProvider = new GenericHeartRateSampleProvider(device, session);
     }
 
     @Override
@@ -112,7 +116,20 @@ public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthA
             sampleByTs.put(sample.getTimestamp(), sample);
         }
 
-        overlayHeartRate(sampleByTs, timestamp_from, timestamp_to);
+        List<GenericHeartRateSample> hrSamples = this.heartRateProvider.getAllSamples(timestamp_from * 1000L, timestamp_to * 1000L);
+        for (GenericHeartRateSample hrSample : hrSamples) {
+            int timestamp = (int) (hrSample.getTimestamp() / 1000L);
+            if (sampleByTs.containsKey(timestamp)) {
+                Objects.requireNonNull(sampleByTs.get(timestamp)).setHeartRate(hrSample.getHeartRate());
+            } else {
+                KeephealthActivitySample activitySample = new KeephealthActivitySample();
+                activitySample.setProvider(this);
+                activitySample.setTimestamp(timestamp);
+                activitySample.setHeartRate(hrSample.getHeartRate());
+                samples.add(activitySample);
+                sampleByTs.put(activitySample.getTimestamp(), activitySample);
+            }
+        }
 
         final List<KeephealthActivitySample> finalSamples = new ArrayList<>(sampleByTs.values());
         Collections.sort(finalSamples, (a, b) -> Integer.compare(a.getTimestamp(), b.getTimestamp()));
@@ -124,74 +141,4 @@ public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthA
         return finalSamples;
     }
 
-    private void overlayHeartRate(final Map<Integer, KeephealthActivitySample> sampleByTs, final int timestamp_from, final int timestamp_to) {
-        final KeephealthHeartRateSampleProvider heartRateSampleProvider = new KeephealthHeartRateSampleProvider(getDevice(), getSession());
-        final List<KeephealthHeartRateSample> hrSamples = heartRateSampleProvider.getAllSamples(timestamp_from * 1000L, timestamp_to * 1000L);
-
-        // build anchor map (seconds)
-        final Map<Integer, Integer> hrByAnchor = new HashMap<>();
-        for (KeephealthHeartRateSample s : hrSamples) {
-//            LOG.debug("hrTimestamp {}", s.getTimestamp());
-            hrByAnchor.put((int) (s.getTimestamp() / 1000), s.getHeartRate());
-        }
-
-        // interpolate hr using weighted average
-        // 00:00 -- steps <-- 00:00 -- hr000
-        // 00:10 -- steps <-- (hr000 + (2 * hr015)) / 3
-        //                    00:15 -- hr015
-        // 00:20 -- steps <-- ((2 * hr015) + hr030) / 3
-        // 00:30 -- steps <-- 00:30 -- hr030
-        // 00:40 -- steps <-- (hr030 + (2 * hr045)) / 3
-        //                    00:45 -- hr045
-        // 00:50 -- steps <-- ((2 * hr045) + hr100) / 3
-        // 01:00 -- steps <-- 01:00 -- hr100
-
-        int start = (timestamp_from / 60) * 60;
-        int end = (timestamp_to / 60) * 60;
-        int startMin = (start / 60) % 60;
-        if (startMin % 10 != 0) start += (10 - (startMin % 10)) * 60;
-
-        for (int ts = start; ts <= end; ts += 10 * 60) {
-            KeephealthActivitySample sample = sampleByTs.computeIfAbsent(ts, k -> {
-                KeephealthActivitySample n = new KeephealthActivitySample();
-                n.setTimestamp(k);
-                n.setProvider(this);
-                return n;
-            });
-
-            int m = (ts / 60) % 60;
-            Integer hr = null;
-            switch (m) {
-                case 0, 30 -> {
-                    Integer v = hrByAnchor.get(ts);
-                    if (v != null && v != 0) hr = v;
-                    //LOG.debug("Anchor ts={} hr={}", ts, v);
-                }
-                case 10 -> {
-                    Integer a = hrByAnchor.get(ts - 10 * 60), b = hrByAnchor.get(ts + 5 * 60);
-                    //LOG.debug("10-min ts={} a={} b={}", ts, a, b);
-                    if (a != null && b != null && a != 0 && b != 0) hr = (a + 2 * b) / 3;
-                }
-                case 20 -> {
-                    Integer a = hrByAnchor.get(ts - 5 * 60), b = hrByAnchor.get(ts + 10 * 60);
-                    //LOG.debug("20-min ts={} a={} b={}", ts, a, b);
-                    if (a != null && b != null && a != 0 && b != 0) hr = (2 * a + b) / 3;
-                }
-                case 40 -> {
-                    Integer a = hrByAnchor.get(ts - 10 * 60), b = hrByAnchor.get(ts + 5 * 60);
-                    //LOG.debug("40-min ts={} a={} b={}", ts, a, b);
-                    if (a != null && b != null && a != 0 && b != 0) hr = (a + 2 * b) / 3;
-                }
-                case 50 -> {
-                    Integer a = hrByAnchor.get(ts - 5 * 60), b = hrByAnchor.get(ts + 10 * 60);
-                    //LOG.debug("50-min ts={} a={} b={}", ts, a, b);
-                    if (a != null && b != null && a != 0 && b != 0) hr = (2 * a + b) / 3;
-                }
-                default -> LOG.debug("Skipping non-10-min ts={} m={}", ts, m);
-            }
-
-            sample.setHeartRate(hr != null ? hr : ActivitySample.NOT_MEASURED);
-            sampleByTs.put(ts, sample);
-        }
-    }
 }

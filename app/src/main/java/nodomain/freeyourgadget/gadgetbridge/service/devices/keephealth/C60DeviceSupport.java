@@ -30,15 +30,15 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthBloodPressureSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthBloodPressureSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthHeartRateSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
@@ -542,11 +542,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private void handleHeartrate(byte[] data) {
         if (data[3] == 0) {
             LOG.debug("Current heartrate data: " + GB.hexdump(data));
-//            ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
-//            int totalSteps    = bb.getInt(4);
-//            int totalCalories = bb.getInt(8);
-//            int totalDistance = bb.getInt(12);
-//            GB.toast("totalSteps: " +  totalSteps + " | totalCalories: " + totalCalories + " | totalDistance: " + totalDistance, Toast.LENGTH_LONG, GB.INFO);
         } else if (data[3] == 1) {
             if (data[4] == 5) {
                 LOG.debug("No history heartrate data for this date");
@@ -566,15 +561,15 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 int samplesPerDay = 1440 / interval;
 
                 // allocate arrays
-                List<KeephealthHeartRateSample> samples = new ArrayList<>();
-                List<KeephealthSpo2Sample> spo2Samples = new ArrayList<>();
+                List<GenericHeartRateSample> samples = new ArrayList<>();
+                List<GenericSpo2Sample> spo2Samples = new ArrayList<>();
                 List<KeephealthBloodPressureSample> bpSamples = new ArrayList<>();
 
                 try (DBHandler db = GBApplication.acquireDB()) {
                     Long userId = DBHelper.getUser(db.getDaoSession()).getId();
                     Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
-                    KeephealthHeartRateSampleProvider sampleProvider = new KeephealthHeartRateSampleProvider(getDevice(), db.getDaoSession());
-                    KeephealthSpo2SampleProvider spo2SampleProvider = new KeephealthSpo2SampleProvider(getDevice(), db.getDaoSession());
+                    GenericHeartRateSampleProvider sampleProvider = new GenericHeartRateSampleProvider(getDevice(), db.getDaoSession());
+                    GenericSpo2SampleProvider spo2SampleProvider = new GenericSpo2SampleProvider(getDevice(), db.getDaoSession());
                     KeephealthBloodPressureSampleProvider bpSampleProvider = new KeephealthBloodPressureSampleProvider(getDevice(), db.getDaoSession());
 
                     Calendar cal = Calendar.getInstance();
@@ -595,11 +590,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         long timestamp = buildTimestamp(year, month, day, hour, minute);
 
                         // create sample
-                        KeephealthHeartRateSample sample = new KeephealthHeartRateSample(timestamp, deviceId);
+                        GenericHeartRateSample sample = new GenericHeartRateSample(timestamp, deviceId);
                         sample.setHeartRate(hr);
                         samples.add(sample);
 
-                        KeephealthSpo2Sample spo2Sample = new KeephealthSpo2Sample(timestamp, deviceId);
+                        GenericSpo2Sample spo2Sample = new GenericSpo2Sample(timestamp, deviceId);
                         spo2Sample.setSpo2(oxy);
                         spo2Samples.add(spo2Sample);
 
