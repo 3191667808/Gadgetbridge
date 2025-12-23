@@ -91,19 +91,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
 
     @Override
     public String[] getSupportedLanguageSettings(GBDevice device) {
-        return new String[]{
-                "en_US",
-                "zh_CN",
-                "ru_RU",
-                "fr_FR",
-                "es_ES",
-                "de_DE",
-                "ja_JP",
-                "pl_PL",
-                "it_IT",
-                "zh_TW",
-                "nl_NL"
-        };
+        return C60Constants.LANGUAGES.keySet().toArray(new String[0]);
     }
 
     @Override

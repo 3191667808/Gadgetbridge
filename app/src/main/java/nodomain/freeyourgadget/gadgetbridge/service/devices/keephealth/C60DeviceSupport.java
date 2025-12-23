@@ -55,20 +55,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
 
     private final byte[] CMD_GET_DEVICE_DATA = { 0x01, 0x00, 0x00, (byte) 0xb0 };
-    private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, 0x74 };
+
+
     private final byte[] CMD_GET_DEVICE_STATE = { 0x02, 0x00, 0x00, 0x06 };
-    private final byte[] CMD_GET_CURRENT_STEPS = { 0x20, 0x01, 0x00, 0x00, 0x70 };
-    private final byte[] CMD_GET_CURRENT_HEARTRATE = { 0x21, 0x01, 0x00, 0x00, (byte) 0xc6 };
-    private final byte[] CMD_GET_CURRENT_BODYTEMP = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
-//    private final byte[] CMD_SET_DEVICE_STATE = { // TODO build based on settings
-//            (byte) 0x02, (byte) 0x10, (byte) 0x00, (byte) 0x64, (byte) 0x05,
-//            (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
-//            (byte) 0x00, (byte) 0x00, (byte) 0xFF, (byte) 0x00, (byte) 0x00,
-//            (byte) 0x00, (byte) 0x00, (byte) 0x02, (byte) 0x00, (byte) 0x58
-//    };
     private final byte[] CMD_SET_DEVICE_STATE = {
             (byte) 0x02, (byte) 0x10, (byte) 0x00
     };
+
+    private final byte[] CMD_SET_USER_INFO = {
+            (byte) 0x03, (byte) 0x07, (byte) 0x00
+    };
+
+    // TODO find more about
+    // two fragment response
+    private final byte[] CMD_GET_ALARM = { 0x05, 0x00, 0x08, (byte) 0x80 };
+
+    private final byte[] CMD_GET_INACTIVITY = {
+            (byte) 0x06, (byte) 0x00, (byte) 0x00, (byte) 0x5e
+    };
+    private final byte[] CMD_SET_INACTIVITY = {
+            (byte) 0x06, (byte) 0x05, (byte) 0x00
+    };
+
+    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 };
+    private final byte[] CMD_SET_TARGET_DATA = { 0x07, 0x0e, 0x00 };
 
     private final byte[] CMD_GET_DO_NOT_DISTURB = {
             (byte) 0x08, (byte) 0x00, (byte) 0x00, (byte) 0x0a
@@ -77,37 +87,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             (byte) 0x08, (byte) 0x10, (byte) 0x00
     };
 
-    private final byte[] CMD_GET_INACTIVITY = {
-            (byte) 0x06, (byte) 0x00, (byte) 0x00, (byte) 0x5e
-    };
+    // TODO find more about
+    private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 };
 
-    private final byte[] CMD_SET_INACTIVITY = {
-            (byte) 0x06, (byte) 0x05, (byte) 0x00
-    };
+    private final byte[] CMD_GET_CURRENT_STEPS = { 0x20, 0x01, 0x00, 0x00, 0x70 };
+    private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
 
-    private final byte[] CMD_SET_USER_INFO = { // TODO build based on settings
-            (byte) 0x03, (byte) 0x07, (byte) 0x00, (byte) 0x00, (byte) 0x14,
-            (byte) 0xAA, (byte) 0x00, (byte) 0x58, (byte) 0x02, (byte) 0x46,
-            (byte) 0x4A
-    };
-    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 };
-    private final byte[] CMD_SET_TARGET_DATA = { 0x07, 0x0e, 0x00 };
+
+    private final byte[] CMD_GET_CURRENT_HEARTRATE = { 0x21, 0x01, 0x00, 0x00, (byte) 0xc6 };
+
+    // TODO find more about
+    // Obtain blood pressure and blood oxygen data
+    private final byte[] CMD_GET_OXYGEN = { 0x21, 0x01, 0x00, 0x07, (byte) 0x20 };
+    // TODO find more about
+    // Obtaining automatic heart rate sampling data
+    private final byte[] CMD_GET_HEARTRATE_SAMPLING = { 0x21, 0x01, 0x00, 0x08, (byte) 0x76 };
+    // Step count and sleep history data, 15 fragment response
+    private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
+
+    private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, 0x74 };
+
+    private final byte[] CMD_GET_CURRENT_BODYTEMP = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
+
     private final byte[] CMD_GET_HYDRATION = { 0x2e, 0x01, 0x00, 0x01, (byte) 0x7a };
     private final byte[] CMD_SET_HYDRATION = { 0x2e, 0x17, 0x00 };
-    private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 }; // TODO find more about
-
-    // Obtain blood pressure and blood oxygen data
-    private final byte[] CMD_GET_OXYGEN = { 0x21, 0x01, 0x00, 0x07, (byte) 0x20 }; // TODO find more about
-
-    // Obtaining automatic heart rate sampling data
-    private final byte[] CMD_GET_HEARTRATE_SAMPLING = { 0x21, 0x01, 0x00, 0x08, (byte) 0x76 }; // TODO find more about
-
-    // two fragment response
-    private final byte[] CMD_GET_ALARM = { 0x05, 0x00, 0x08, (byte) 0x80 }; // TODO find more about
-
-    // Step count and sleep history data, 15 fragment response
-    private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
-    private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
 
     private byte[] currentDeviceSettings = null;
     private byte[] currentDndSettings = null;
@@ -117,10 +120,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> responseTimeoutFuture;
-    private final long RESPONSE_TIMEOUT_MS = 10_000; // choose e.g. 10s or whatever you need
 
     private synchronized void startResponseTimeout() {
         cancelResponseTimeout();
+        long RESPONSE_TIMEOUT_MS = 10_000;
         responseTimeoutFuture = scheduler.schedule(() -> {
             LOG.warn("Response timeout fired, finishing fetch");
             fetchRecordedDataFinished();
@@ -377,19 +380,15 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_HYDRATION_REMINDER_END:
                 configPacket = setHydrationCommand(prefs);
                 break;
+            case ActivityUser.PREF_USER_GENDER:
+            case ActivityUser.PREF_USER_DATE_OF_BIRTH:
+            case ActivityUser.PREF_USER_HEIGHT_CM:
+            case ActivityUser.PREF_USER_WEIGHT_KG:
+            case ActivityUser.PREF_USER_STEP_LENGTH_CM:
+                configPacket = setUserInfoCommand(prefs);
+                break;
             default:
-                try {
-                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getString(config, "default"));
-                } catch (Exception e){}
-                try {
-                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getBoolean(config, false));
-                } catch (Exception e){}
-                try {
-                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getFloat(config, 0.0f));
-                } catch (Exception e){}
-                try {
-                    LOG.debug("Unknown pref: {}, value: {}", config, prefs.getInt(config, 0));
-                } catch (Exception e){}
+                LOG.debug("Unknown pref: {}", config);
         }
 
         if (configPacket == null) { return; }
@@ -415,9 +414,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) 0);
         buf.put((byte) 0);
         buf.put((byte) 0xc0);
-//            buf.put(getChecksum(buf.array()));
-        // 10 08 00 00 00 00 00 01 00 00 00 c0
-        sendCommand("Find Me", buf.array());
     }
 
     private void sendWrite(String taskName, byte[] contents) {
@@ -434,15 +430,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             } else {
                 builder.write(characteristic, contents);
             }
-            builder.queue();
-        }
-    }
-
-    private void sendCommand(String taskName, byte[] contents) {
-        TransactionBuilder builder = createTransactionBuilder(taskName);
-        BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
-        if (characteristic != null) {
-            builder.write(characteristic, contents);
             builder.queue();
         }
     }
@@ -517,7 +504,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 KeephealthActivitySample[] activitySample = new KeephealthActivitySample[samplesPerDay];
 
                 try (DBHandler db = GBApplication.acquireDB()) {
-                    Long userId = DBHelper.getUser(db.getDaoSession()).getId();
                     Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
                     KeephealthSampleProvider sampleProvider = new KeephealthSampleProvider(getDevice(), db.getDaoSession());
 
@@ -537,9 +523,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             activitySample[sampleIndex].setRawKind(sleepStatus);
                             LOG.debug("sample {} time {}:{} sleepStatus {}", sampleIndex, hour, minute, sleepStatus);
                         } else {
-                            int steps = value;
-                            activitySample[sampleIndex].setSteps(steps);
-                            LOG.debug("sample {} time {}:{} steps {}", sampleIndex, hour, minute, steps);
+                            activitySample[sampleIndex].setSteps(value);
+                            LOG.debug("sample {} time {}:{} steps {}", sampleIndex, hour, minute, value);
                         }
                     }
 
@@ -687,9 +672,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void handleTargetData(byte[] data) {
         if (data.length == 9) {
-            Prefs prefs = getDevicePrefs();
-            SharedPreferences sharedPrefs = prefs.getPreferences();
-            // TODO ?
+            // TODO should i do something with it?
+            LOG.debug("Received target data");
         }
     }
 
@@ -868,6 +852,29 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_BODYTEMP);
         return this;
     }
+
+    public byte[] setUserInfoCommand(Prefs prefs) {
+        byte length = 11;
+        ActivityUser activityUser = new ActivityUser();
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_SET_USER_INFO);
+        byte gender = (byte) (activityUser.getGender() == ActivityUser.GENDER_FEMALE ? 0x01 : 0x00);
+        buf.put(gender);
+        byte years = (byte) activityUser.getAge();
+        buf.put(years);
+        int heightCm = activityUser.getHeightCm();
+        buf.put((byte) (heightCm & 0xFF));
+        buf.put((byte) ((heightCm >> 8) & 0xFF));
+        int weightKg = activityUser.getWeightKg() * 10;
+        buf.put((byte) (weightKg & 0xFF));
+        buf.put((byte) ((weightKg >> 8) & 0xFF));
+        int stepCm = activityUser.getStepLengthCm();
+        buf.put((byte) stepCm);
+        buf.put(getChecksum(buf.array()));
+        return buf.array();
+    }
+
     public byte[] setDeviceStateCommand(Prefs prefs) {
         byte length = 20;
         ByteBuffer buf = ByteBuffer.allocate(length);
@@ -1048,11 +1055,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put(getChecksum(buf.array()));
         return buf.array();
     }
-
-//    public C60DeviceSupport setDeviceState(TransactionBuilder builder) {
-//        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_DEVICE_STATE);
-//        return this;
-//    }
 
     public C60DeviceSupport setUserInfo(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_USER_INFO);
