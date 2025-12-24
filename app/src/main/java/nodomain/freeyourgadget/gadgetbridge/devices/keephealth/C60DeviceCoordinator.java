@@ -137,6 +137,11 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     }
 
     @Override
+    public boolean supportsActiveCalories(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public int getAlarmSlotCount(@NonNull GBDevice device) {
         // TODO implement
         return 0;

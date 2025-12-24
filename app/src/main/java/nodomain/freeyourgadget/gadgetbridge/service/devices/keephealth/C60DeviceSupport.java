@@ -488,6 +488,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.debug("No history steps data for this date");
             } else {
                 LOG.debug("History steps data: " + GB.hexdump(data));
+                ActivityUser activityUser = new ActivityUser();
+                int weightKg = activityUser.getWeightKg();
+                int stepCm = activityUser.getStepLengthCm();
+
                 ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
 
                 // Header (9 bytes)
@@ -523,8 +527,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             activitySample[sampleIndex].setRawKind(sleepStatus);
                             LOG.debug("sample {} time {}:{} sleepStatus {}", sampleIndex, hour, minute, sleepStatus);
                         } else {
+                            int activeCalories = (int) (((stepCm * weightKg * value) * 0.78) / 100);
+                            int distanceCm = value * stepCm;
                             activitySample[sampleIndex].setSteps(value);
-                            LOG.debug("sample {} time {}:{} steps {}", sampleIndex, hour, minute, value);
+                            activitySample[sampleIndex].setActiveCalories(activeCalories);
+                            activitySample[sampleIndex].setDistanceCm(distanceCm);
+                            LOG.debug("sample {} time {}:{} steps {} activeCalories {} distanceCm {}", sampleIndex, hour, minute, value, activeCalories, distanceCm);
                         }
                     }
 

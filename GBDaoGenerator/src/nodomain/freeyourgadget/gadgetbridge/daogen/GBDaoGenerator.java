@@ -1284,8 +1284,8 @@ public class GBDaoGenerator {
         addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
         activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
-        activitySample.addIntProperty("distance");
-        activitySample.addIntProperty("calories");
+        activitySample.addIntProperty("distanceCm").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("activeCalories").notNull().codeBeforeGetterAndSetter(OVERRIDE);
         addHeartRateProperties(activitySample);
         return activitySample;
     }

@@ -65,10 +65,11 @@ public class KeephealthSampleProvider extends AbstractSampleProvider<KeephealthA
             case 2: // LIGHT_SLEEP
                 return ActivityKind.LIGHT_SLEEP;
             case 3: // DEEP_SLEEP
-            case 5: // deep sleep in vendor app, but might be some other thing
                 return ActivityKind.DEEP_SLEEP;
             case 4: // awake
                 return ActivityKind.AWAKE_SLEEP;
+            case 5: // deep sleep in vendor app, but in code its rem
+                return ActivityKind.REM_SLEEP;
             default:
                 return ActivityKind.UNKNOWN;
         }
