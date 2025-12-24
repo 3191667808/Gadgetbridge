@@ -35,10 +35,12 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.KeephealthTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthBloodPressureSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
@@ -103,11 +105,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // Obtaining automatic heart rate sampling data
     private final byte[] CMD_GET_HEARTRATE_SAMPLING = { 0x21, 0x01, 0x00, 0x08, (byte) 0x76 };
     // Step count and sleep history data, 15 fragment response
-    private final byte[] CMD_GET_CURRENT_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
+    private final byte[] CMD_GET_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
 
     private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, 0x74 };
 
-    private final byte[] CMD_GET_CURRENT_BODYTEMP = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
+    private final byte[] CMD_GET_CURRENT_TEMPERATURE = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
+    private final byte[] CMD_GET_HISTORY_TEMPERATURE = { 0x2c, 0x05, 0x00, 0x01 };
 
     private final byte[] CMD_GET_HYDRATION = { 0x2e, 0x01, 0x00, 0x01, (byte) 0x7a };
     private final byte[] CMD_SET_HYDRATION = { 0x2e, 0x17, 0x00 };
@@ -262,6 +265,21 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         startResponseTimeout();
     }
 
+    private void fetchHistoryTemperature() {
+        getDevice().setBusyTask(R.string.busy_task_fetch_temperature, getContext());
+        getDevice().sendDeviceUpdateIntent(getContext());
+        syncingDay = Calendar.getInstance();
+        syncingDay.add(Calendar.DAY_OF_MONTH, 0 - daysAgo);
+        syncingDay.set(Calendar.HOUR_OF_DAY, 0);
+        syncingDay.set(Calendar.MINUTE, 0);
+        syncingDay.set(Calendar.SECOND, 0);
+        syncingDay.set(Calendar.MILLISECOND, 0);
+        byte[] tempHistoryRequest = getTemperatureHistoryCommand(syncingDay);
+        LOG.info("Fetch historical temperature data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(tempHistoryRequest));
+        sendWrite("temperatureHistoryRequest", tempHistoryRequest);
+        startResponseTimeout();
+    }
+
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] responseValue) {
         super.onCharacteristicChanged(gatt, characteristic, responseValue);
 
@@ -315,6 +333,19 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         if (daysAgo < 7) {
                             daysAgo++;
                             fetchHistoryHR();
+                        } else {
+                            daysAgo = 0;
+                            fetchHistoryTemperature();
+                        }
+                    }
+                } else if (cmdPrefix == CMD_GET_HISTORY_TEMPERATURE[0]) {
+                    handleTemperature(value);
+                    getDevice().unsetBusyTask();
+                    getDevice().sendDeviceUpdateIntent(getContext());
+                    if (!getDevice().isBusy()) {
+                        if (daysAgo < 7) {
+                            daysAgo++;
+                            fetchHistoryTemperature();
                         } else {
                             daysAgo = 0;
                             fetchRecordedDataFinished();
@@ -628,6 +659,68 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private void handleTemperature(byte[] data) {
+        LOG.debug("Some temperature data: " + GB.hexdump(data));
+        if (data[3] == 0) {
+            LOG.debug("Current temperature data: " + GB.hexdump(data));
+        } else if (data[3] == 1) {
+            if (data[4] == 5) {
+                LOG.debug("No history temperature data for this date");
+            } else {
+                LOG.debug("History temp data: " + GB.hexdump(data));
+                ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+
+                // Header (9 bytes)
+                byte header0 = buf.get();                  // [0]
+                short length = buf.getShort();             // [1..2]
+                byte subtype = buf.get();                  // [3]
+                int year = buf.getShort() & 0xFFFF;        // [4..5]
+                int month = buf.get() & 0xFF;              // [6]
+                int day = buf.get() & 0xFF;                // [7]
+                int interval = buf.get() & 0xFF;           // [8] minutes per sample
+
+                int samplesPerDay = 1440 / interval;
+
+                // allocate arrays
+                List<KeephealthTemperatureSample> samples = new ArrayList<>();
+
+                try (DBHandler db = GBApplication.acquireDB()) {
+                    Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
+                    KeephealthTemperatureSampleProvider sampleProvider = new KeephealthTemperatureSampleProvider(getDevice(), db.getDaoSession());
+
+                    Calendar cal = Calendar.getInstance();
+                    cal.clear();
+                    cal.set(year, month - 1, day, 0, 0, 0);
+
+                    for (int sampleIndex = 0; sampleIndex < samplesPerDay && buf.remaining() >= 4; sampleIndex++) {
+                        float temp = (buf.getShort() & 0xFFFF) / 100f;
+
+                        int hour = sampleIndex / (60 / interval);
+                        int minute = (sampleIndex % (60 / interval)) * interval;
+                        cal.set(Calendar.HOUR_OF_DAY, hour);
+                        cal.set(Calendar.MINUTE, minute);
+                        cal.set(Calendar.SECOND, 0);
+                        long timestamp = buildTimestamp(year, month, day, hour, minute);
+
+                        // create sample
+                        KeephealthTemperatureSample sample = new KeephealthTemperatureSample(timestamp, deviceId);
+                        sample.setTemperature(temp);
+                        samples.add(sample);
+
+                        LOG.debug("sample {} time {}:{} timestamp: {} temp {}", sampleIndex, hour, minute, timestamp, temp);
+                    }
+
+                    sampleProvider.addSamples(samples);
+                } catch (Exception e) {
+                    LOG.error("Error acquiring database", e);
+                }
+            }
+        } else {
+            LOG.debug("Cmd arg: " + GB.hexdump(new byte[]{data[3]}));
+            LOG.debug("other heartrate data: " + GB.hexdump(data));
+        }
+    }
+
     private void handleDoNotDisturb(byte[] data) {
         byte[] dndPrefix = {(byte)0x88, 0x10, 0x00};
 
@@ -834,7 +927,23 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         ByteBuffer buf = ByteBuffer.allocate(length);
         buf.order(ByteOrder.LITTLE_ENDIAN);
 
-        buf.put(CMD_GET_CURRENT_HISTORY_HEARTRATE);
+        buf.put(CMD_GET_HISTORY_HEARTRATE);
+        int year = calendar.get(Calendar.YEAR);
+        int high = (year >> 8) & 0xFF;
+        int low = year & 0xFF;
+        buf.put((byte) low);
+        buf.put((byte) high);
+        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
+        buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
+        buf.put(getChecksum(buf.array()));
+        return buf.array();
+    }
+
+    public byte[] getTemperatureHistoryCommand(Calendar calendar) {
+        byte length = 9;
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(CMD_GET_HISTORY_TEMPERATURE);
         int year = calendar.get(Calendar.YEAR);
         int high = (year >> 8) & 0xFF;
         int low = year & 0xFF;
@@ -852,7 +961,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public C60DeviceSupport getBodytemp(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_BODYTEMP);
+        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_TEMPERATURE);
         return this;
     }
 

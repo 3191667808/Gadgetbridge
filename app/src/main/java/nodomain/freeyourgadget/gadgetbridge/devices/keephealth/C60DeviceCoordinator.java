@@ -33,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
@@ -122,8 +123,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
 
     @Override
     public boolean supportsTemperatureMeasurement(@NonNull final GBDevice device) {
-        // TODO implement
-        return false;
+        return true;
     }
 
     @Override
@@ -158,6 +158,14 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
             DaoSession session
     ) {
         return new GenericSpo2SampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends KeephealthTemperatureSample> getTemperatureSampleProvider(
+            GBDevice device,
+            DaoSession session
+    ) {
+        return new KeephealthTemperatureSampleProvider(device, session);
     }
 
     @Override
