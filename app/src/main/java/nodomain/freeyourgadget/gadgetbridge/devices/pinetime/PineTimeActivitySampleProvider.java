@@ -74,6 +74,22 @@ public class PineTimeActivitySampleProvider extends AbstractSampleProvider<PineT
         return rawIntensity;
     }
 
+    @Override
+    protected List<PineTimeActivitySample> getGBActivitySamples(final int timestamp_from, final int timestamp_to) {
+        return downsample(super.getGBActivitySamples(timestamp_from, timestamp_to));
+    }
+
+    @Override
+    protected List<PineTimeActivitySample> getGBActivitySamplesHighRes(final int timestamp_from, final int timestamp_to) {
+        // We persist high-res by default
+        return super.getGBActivitySamples(timestamp_from, timestamp_to);
+    }
+
+    @Override
+    public boolean hasHighResData() {
+        return true;
+    }
+
     /**
      * Factory method to creates an empty sample of the correct type for this sample provider
      *

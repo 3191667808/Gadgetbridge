@@ -36,7 +36,6 @@ import java.util.Set;
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.QueryBuilder;
-import de.greenrobot.dao.query.WhereCondition;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -49,12 +48,12 @@ import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 /**
  * Base class for all sample providers. A Sample provider is device specific and provides
  * access to the device specific samples. There are both read and write operations.
+ *
  * @param <T> the sample type
  */
 public abstract class AbstractSampleProvider<T extends AbstractActivitySample> implements SampleProvider<T> {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractSampleProvider.class);
 
-    private static final WhereCondition[] NO_CONDITIONS = new WhereCondition[0];
     private final DaoSession mSession;
     private final GBDevice mDevice;
 
@@ -174,8 +173,9 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
 
     /**
      * Get the activity samples between two timestamps (inclusive). Exactly one every minute.
+     *
      * @param timestamp_from Start timestamp
-     * @param timestamp_to End timestamp
+     * @param timestamp_to   End timestamp
      * @return Exactly one sample for every minute
      */
     protected List<T> getGBActivitySamples(int timestamp_from, int timestamp_to) {
@@ -188,8 +188,8 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         }
         Property deviceProperty = getDeviceIdentifierSampleProperty();
         qb.where(deviceProperty.eq(dbDevice.getId()), timestampProperty.ge(timestamp_from))
-            .where(timestampProperty.le(timestamp_to))
-            .orderAsc(timestampProperty);
+                .where(timestampProperty.le(timestamp_to))
+                .orderAsc(timestampProperty);
         List<T> samples = qb.build().list();
         for (T sample : samples) {
             sample.setProvider(this);
@@ -204,8 +204,9 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
      * available.
      * It assumes {@link #getGBActivitySamples(int, int)} returns the highest resolution data unless
      * this is overwritten.
+     *
      * @param timestamp_from Start timestamp
-     * @param timestamp_to End timestamp
+     * @param timestamp_to   End timestamp
      * @return All the samples between start and end timestamp (inclusive)
      */
     protected List<T> getGBActivitySamplesHighRes(int timestamp_from, int timestamp_to) {
@@ -234,7 +235,7 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         return filteredSamples;
     }
 
-    public abstract AbstractDao<T,?> getSampleDao();
+    public abstract AbstractDao<T, ?> getSampleDao();
 
     @Nullable
     protected abstract Property getRawKindSampleProperty();
@@ -332,6 +333,70 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         final LocalDate d2 = LocalDate.of(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH));
 
         return d1.equals(d2);
+    }
+
+    protected List<T> downsample(final List<T> samples) {
+        final List<T> result = new ArrayList<>();
+
+        T current = null;
+        int minuteTs = -1;
+
+        int stepSum = 0;
+        int caloriesSum = 0;
+        int distanceSum = 0;
+        int hrSum = 0;
+        int hrCount = 0;
+
+        for (final T s : samples) {
+            final int tsMinute = (s.getTimestamp() / 60) * 60;
+
+            if (current == null || tsMinute != minuteTs) {
+                if (current != null) {
+                    current.setSteps(stepSum);
+                    current.setHeartRate(Math.round(hrSum / (float) hrCount));
+                    current.setActiveCalories(caloriesSum);
+                    current.setDistanceCm(distanceSum);
+                    result.add(current);
+                }
+
+                current = createActivitySample();
+                current.setTimestamp(tsMinute);
+                current.setDeviceId(s.getDeviceId());
+                current.setUserId(s.getUserId());
+                current.setRawKind(s.getRawKind());
+
+                minuteTs = tsMinute;
+                stepSum = 0;
+                hrSum = 0;
+                hrCount = 0;
+                caloriesSum = 0;
+                distanceSum = 0;
+            }
+
+            if (s.getSteps() > 0) {
+                stepSum += s.getSteps();
+            }
+            if (s.getHeartRate() > 0) {
+                hrSum += s.getHeartRate();
+                hrCount++;
+            }
+            if (s.getActiveCalories() > 0) {
+                caloriesSum += s.getActiveCalories();
+            }
+            if (s.getDistanceCm() > 0) {
+                distanceSum += s.getDistanceCm();
+            }
+        }
+
+        if (current != null) {
+            current.setSteps(stepSum);
+            current.setHeartRate(Math.round(hrSum / (float) hrCount));
+            current.setActiveCalories(caloriesSum);
+            current.setDistanceCm(distanceSum);
+            result.add(current);
+        }
+
+        return result;
     }
 
     protected List<T> fillGaps(final List<T> samples, final int timestamp_from, final int timestamp_to) {
