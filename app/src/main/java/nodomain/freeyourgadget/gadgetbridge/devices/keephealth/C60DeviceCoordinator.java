@@ -33,7 +33,9 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthActivitySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthBloodPressureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthTemperatureSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthTemperatureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
@@ -174,6 +176,8 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
         map.put(session.getKeephealthActivitySampleDao(), KeephealthActivitySampleDao.Properties.DeviceId);
         map.put(session.getGenericHeartRateSampleDao(), GenericHeartRateSampleDao.Properties.DeviceId);
         map.put(session.getGenericSpo2SampleDao(), GenericSpo2SampleDao.Properties.DeviceId);
+        map.put(session.getKeephealthTemperatureSampleDao(), KeephealthTemperatureSampleDao.Properties.DeviceId);
+        map.put(session.getKeephealthBloodPressureSampleDao(), KeephealthBloodPressureSampleDao.Properties.DeviceId);
         return map;
     }
 }
