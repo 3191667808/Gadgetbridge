@@ -44,6 +44,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthTemperatureSample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
+import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
@@ -380,6 +381,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
             case DeviceSettingsPreferenceConst.PREF_LANGUAGE:
             case DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED:
+            case DeviceSettingsPreferenceConst.PREF_NOTIFICATION_ENABLE:
                 configPacket = setDeviceStateCommand(prefs);
                 break;
             case DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO:
@@ -445,6 +447,74 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) 0);
         buf.put((byte) 0);
         buf.put((byte) 0xc0);
+    }
+
+    @Override
+    public void onNotification(NotificationSpec notificationSpec) {
+        var builder = createTransactionBuilder("send notification");
+        String titleStr = notificationSpec.title;
+        String bodyStr = notificationSpec.body;
+
+        // 0x00 - call, 0x01 - sms, 0x09 - email
+        byte[] setType = {0x0A, 0x02, 0x00, 0x00, 0x01, 0x00};
+        setType[5] = getChecksum(setType);
+
+        byte[] titleStrBytes = titleStr.getBytes();
+        ByteBuffer titleBuf = ByteBuffer.allocate(titleStrBytes.length + 5);
+        titleBuf.order(ByteOrder.LITTLE_ENDIAN);
+        titleBuf.put((byte) 0x0A);
+        titleBuf.putShort((short) (titleStrBytes.length + 1));
+        titleBuf.put((byte) 0x01);
+        titleBuf.put(titleStrBytes);
+        byte checksum = getChecksum(titleBuf.array());
+        titleBuf.put(checksum);
+
+        byte[] bodyStrBytes = bodyStr.getBytes();
+        ByteBuffer bodyBuf = ByteBuffer.allocate(bodyStrBytes.length + 5);
+        bodyBuf.order(ByteOrder.LITTLE_ENDIAN);
+        bodyBuf.put((byte) 0x0A)
+                .putShort((short) (bodyStrBytes.length + 1))
+                .put((byte) 0x02)
+                .put(bodyStrBytes);
+        byte checksumBody = getChecksum(bodyBuf.array());
+        bodyBuf.put(checksumBody);
+
+        byte[] end = {0x0A, 0x01, 0x00, 0x03, (byte) 0x0E};
+
+        int wait = 100;
+        LOG.debug("sending type: {}", GB.hexdump(setType));
+        builder.write(
+                C60Constants.CHARACTERISTIC_WRITE,
+                setType
+        );
+        builder.wait(wait);
+
+        LOG.debug("sending title: {}", GB.hexdump(titleBuf.array()));
+        byte[] titleBytes = titleBuf.array();
+        sendInChunks(builder, titleBytes, wait);
+
+        LOG.debug("sending body: {}", GB.hexdump(bodyBuf.array()));
+        byte[] bodyBytes = bodyBuf.array();
+        sendInChunks(builder, bodyBytes, wait);
+
+        LOG.debug("sending end: {}", GB.hexdump(end));
+        builder.write(
+                C60Constants.CHARACTERISTIC_WRITE,
+                end
+        );
+        builder.queue();
+    }
+
+    private static void sendInChunks(TransactionBuilder builder, byte[] data, int wait) {
+        int offset = 0;
+        while (offset < data.length) {
+            int len = Math.min(20, data.length - offset);
+            byte[] chunk = Arrays.copyOfRange(data, offset, offset + len);
+            LOG.debug("sending chunk (offset {} len {}): {}", offset, len, GB.hexdump(chunk));
+            builder.write(C60Constants.CHARACTERISTIC_WRITE, chunk);
+            builder.wait(wait);
+            offset += len;
+        }
     }
 
     private void sendWrite(String taskName, byte[] contents) {
@@ -1014,6 +1084,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         // set liftwrist byte
         byte stateByte = (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED, true)) ? (byte) 0x01 : 0x00;
         buf.put(9, stateByte);
+
+        // set notifications byte
+        byte notificationsByte = (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_NOTIFICATION_ENABLE, false)) ? (byte) 0x01 : 0x00;
+        buf.put(11, notificationsByte);
 
         buf.put(getChecksum(buf.array()));
         this.currentDeviceSettings = trimData(buf.array());

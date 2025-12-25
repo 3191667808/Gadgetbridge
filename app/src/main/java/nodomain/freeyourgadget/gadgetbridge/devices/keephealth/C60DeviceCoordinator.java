@@ -89,6 +89,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
                 R.xml.devicesettings_hydration_reminder_sheduled,
                 R.xml.devicesettings_inactivity_sheduled,
                 R.xml.devicesettings_goal_notification,
+                R.xml.devicesettings_notifications_enable,
         };
     }
 
