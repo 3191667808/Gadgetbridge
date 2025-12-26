@@ -62,17 +62,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private final int CHUNK_SIZE = 20;
 
-    private final byte[] CMD_GET_DEVICE_DATA = { 0x01, 0x00, 0x00, (byte) 0xb0 };
+    private final byte CMD_DEVICE_DATA = 0x01;
 
+    private final byte CMD_DEVICE_STATE = 0x02;
 
-    private final byte[] CMD_GET_DEVICE_STATE = { 0x02, 0x00, 0x00, 0x06 };
-    private final byte[] CMD_SET_DEVICE_STATE = {
-            (byte) 0x02, (byte) 0x10, (byte) 0x00
-    };
+    private final byte CMD_USER_INFO = 0x03;
 
-    private final byte[] CMD_SET_USER_INFO = {
-            (byte) 0x03, (byte) 0x07, (byte) 0x00
-    };
+    private final byte CMD_DATETIME = 0x04;
 
     // TODO find more about
     // two fragment response
@@ -98,15 +94,15 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // TODO find more about
     private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 };
 
-    private final byte CMD_SEND_NOTIFICATION = 0x0A;
-    private final byte CMD_SEND_NOTIFICATION_ARG_TYPE = 0x00;
-    private final byte CMD_SEND_NOTIFICATION_ARG_TITLE = 0x01;
-    private final byte CMD_SEND_NOTIFICATION_ARG_BODY = 0x02;
-    private final byte CMD_SEND_NOTIFICATION_ARG_END = 0x03;
+    private final byte CMD_NOTIFICATION = 0x0A;
+    private final byte CMD_NOTIFICATION_ARG_TYPE = 0x00;
+    private final byte CMD_NOTIFICATION_ARG_TITLE = 0x01;
+    private final byte CMD_NOTIFICATION_ARG_BODY = 0x02;
+    private final byte CMD_NOTIFICATION_ARG_END = 0x03;
 
-    private final byte[] CMD_GET_CURRENT_STEPS = { 0x20, 0x01, 0x00, 0x00, 0x70 };
-    private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
-
+    private final byte CMD_STEPS = 0x20;
+    private final byte CMD_STEPS_ARG_CURRENT = 0x00;
+    private final byte CMD_STEPS_ARG_HISTORY = 0x01;
 
     private final byte[] CMD_GET_CURRENT_HEARTRATE = { 0x21, 0x01, 0x00, 0x00, (byte) 0xc6 };
 
@@ -116,39 +112,46 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // TODO find more about
     // Obtaining automatic heart rate sampling data
     private final byte[] CMD_GET_HEARTRATE_SAMPLING = { 0x21, 0x01, 0x00, 0x08, (byte) 0x76 };
-    // Step count and sleep history data, 15 fragment response
-    private final byte[] CMD_GET_HISTORY_HEARTRATE = { 0x21, 0x05, 0x00, 0x01 };
+
+    private final byte CMD_HEARTRATE = 0x21;
+    private final byte CMD_HEARTRATE_ARG_CURRENT = 0x00;
+    private final byte CMD_HEARTRATE_ARG_HISTORY = 0x01;
 
     private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, 0x74 };
 
     private final byte[] CMD_GET_CURRENT_TEMPERATURE = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
-    private final byte[] CMD_GET_HISTORY_TEMPERATURE = { 0x2c, 0x05, 0x00, 0x01 };
+
+    private final byte CMD_TEMPERATURE = 0x2c;
+    private final byte CMD_TEMPERATURE_ARG_HISTORY = 0x01;
 
     private final byte[] CMD_GET_HYDRATION = { 0x2e, 0x01, 0x00, 0x01, (byte) 0x7a };
     private final byte[] CMD_SET_HYDRATION = { 0x2e, 0x17, 0x00 };
 
+    // FIXME this variables should be removed and build all data from settings when all values are known
     private byte[] currentDeviceSettings = null;
     private byte[] currentDndSettings = null;
 
     private int daysAgo;
     private Calendar syncingDay;
 
+    private String notificationTitle = null;
+    private String notificationBody = null;
+    private KeepHealthNotificationType notificationType = null;
+
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> responseTimeoutFuture;
+    private int responseRetryCount = 0;
 
-    private synchronized void startResponseTimeout() {
+    private void startResponseTimeout(Runnable onTimeout, long timeoutMs) {
         cancelResponseTimeout();
-        long RESPONSE_TIMEOUT_MS = 10_000;
-        responseTimeoutFuture = scheduler.schedule(() -> {
-            LOG.warn("Response timeout fired, finishing fetch");
-            fetchRecordedDataFinished();
-        }, RESPONSE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        responseTimeoutFuture = scheduler.schedule(onTimeout, timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     private synchronized void cancelResponseTimeout() {
         if (responseTimeoutFuture != null) {
             responseTimeoutFuture.cancel(true);
             responseTimeoutFuture = null;
+            responseRetryCount = 0;
         }
     }
 
@@ -172,6 +175,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getDevice().setFirmwareVersion2("N/A");
 
         int wait = 100;
+        builder.wait(wait);
         getDeviceData(builder);
         builder.wait(wait);
         getBatteryData(builder);
@@ -259,7 +263,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte[] activityHistoryRequest = getStepsHistoryCommand(syncingDay);
         LOG.info("Fetch historical activity data request sent: {}", StringUtils.bytesToHex(activityHistoryRequest));
         sendWrite("activityHistoryRequest", activityHistoryRequest);
-        startResponseTimeout();
+        startResponseTimeout(() -> {
+            LOG.warn("fetchHistoryActivity response timeout fired, finishing fetch");
+            // TODO better handling, repeat command? try 3 times then exit, same for HR and temperature too
+            GB.toast((R.string.busy_task_fetch_activity_data + " " + R.string.work_info_status_failed), Toast.LENGTH_LONG, GB.ERROR);
+            fetchRecordedDataFinished();
+        }, 10_000);
     }
 
     private void fetchHistoryHR() {
@@ -274,7 +283,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte[] hrHistoryRequest = getHeartrateHistoryCommand(syncingDay);
         LOG.info("Fetch historical HR data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(hrHistoryRequest));
         sendWrite("hrHistoryRequest", hrHistoryRequest);
-        startResponseTimeout();
+        startResponseTimeout(() -> {
+            LOG.warn("fetchHistoryHR response timeout fired, finishing fetch");
+            GB.toast((R.string.busy_task_fetch_hr_data + " " + R.string.work_info_status_failed), Toast.LENGTH_LONG, GB.ERROR);
+            fetchRecordedDataFinished();
+        }, 10_000);
     }
 
     private void fetchHistoryTemperature() {
@@ -289,7 +302,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte[] tempHistoryRequest = getTemperatureHistoryCommand(syncingDay);
         LOG.info("Fetch historical temperature data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(tempHistoryRequest));
         sendWrite("temperatureHistoryRequest", tempHistoryRequest);
-        startResponseTimeout();
+        startResponseTimeout(() -> {
+            LOG.warn("fetchHistoryTemperature response timeout fired, finishing fetch");
+            GB.toast((R.string.busy_task_fetch_temperature + " " + R.string.work_info_status_failed), Toast.LENGTH_LONG, GB.ERROR);
+            fetchRecordedDataFinished();
+        }, 10_000);
     }
 
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] responseValue) {
@@ -318,13 +335,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // get cmd based on response first byte - 0x80
                 byte cmdPrefix = (byte) (value[0] - (byte) 0x80);
                 LOG.info("Expected CMD prefix: {}", GB.hexdump(new byte[]{cmdPrefix}));
-                if (cmdPrefix == CMD_GET_DEVICE_DATA[0]) {
+                if (cmdPrefix == CMD_DEVICE_DATA) {
                     handleDeviceData(value);
                 } else if (cmdPrefix == CMD_GET_CURRENT_BATTERY[0]) {
                     handleBatteryInfo(value);
-                } else if (cmdPrefix == CMD_GET_DEVICE_STATE[0]) {
+                } else if (cmdPrefix == CMD_DEVICE_STATE) {
                     handleDeviceState(value);
-                } else if (cmdPrefix == CMD_GET_CURRENT_STEPS[0]) {
+                } else if (cmdPrefix == CMD_STEPS) {
                     handleSteps(value);
                     getDevice().unsetBusyTask();
                     getDevice().sendDeviceUpdateIntent(getContext());
@@ -337,7 +354,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             fetchHistoryHR();
                         }
                     }
-                } else if (cmdPrefix == CMD_GET_CURRENT_HEARTRATE[0]) {
+                } else if (cmdPrefix == CMD_HEARTRATE) {
                     handleHeartrate(value);
                     getDevice().unsetBusyTask();
                     getDevice().sendDeviceUpdateIntent(getContext());
@@ -350,7 +367,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             fetchHistoryTemperature();
                         }
                     }
-                } else if (cmdPrefix == CMD_GET_HISTORY_TEMPERATURE[0]) {
+                } else if (cmdPrefix == CMD_TEMPERATURE) {
                     handleTemperature(value);
                     getDevice().unsetBusyTask();
                     getDevice().sendDeviceUpdateIntent(getContext());
@@ -371,6 +388,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleTargetData(value);
                 } else if (cmdPrefix == CMD_GET_HYDRATION[0]) {
                     handleHydration(value);
+                }  else if (cmdPrefix == CMD_NOTIFICATION) {
+                    handleNotificationResponse(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
@@ -463,8 +482,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onSetCallState(CallSpec callSpec) {
         if (callSpec.command == CallSpec.CALL_INCOMING) {
-            var builder = createTransactionBuilder("send notification");
-
             String callerStr;
             if (!StringUtils.isNullOrEmpty(callSpec.name) && !StringUtils.isNullOrEmpty(callSpec.number)) {
                 callerStr = callSpec.name + ": " + callSpec.number;
@@ -476,72 +493,117 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 callerStr = "?";
             }
 
-            sendNotification(
-                    builder,
-                    callerStr,
-                    null,
-                    KeepHealthNotificationType.CALL
-            );
-            builder.queue();
+            notificationTitle = callerStr;
+            notificationBody = null;
+            notificationType = KeepHealthNotificationType.CALL;
+
+            sendNotification();
         }
     }
 
     @Override
     public void onNotification(NotificationSpec notificationSpec) {
-        var builder = createTransactionBuilder("send notification");
+
         String titleStr = notificationSpec.title;
         String bodyStr = notificationSpec.body;
+        notificationTitle = titleStr;
+        notificationBody = bodyStr;
+        notificationType = KeepHealthNotificationType.fromNotificationType(notificationSpec.type);
 
-        sendNotification(
-                builder,
-                titleStr,
-                bodyStr,
-                KeepHealthNotificationType.fromNotificationType(notificationSpec.type));
-        builder.queue();
+        sendNotification();
     }
 
-    private void sendNotification(TransactionBuilder builder, String title, @Nullable String body, KeepHealthNotificationType type) {
-        int wait = 100;
+    private void sendNotification() {
+        sendNotification(CMD_NOTIFICATION_ARG_TYPE);
+    }
 
-        byte[] setTypeCommand = buildCommand(
-                CMD_SEND_NOTIFICATION,
-                new byte[]{CMD_SEND_NOTIFICATION_ARG_TYPE, type.getCode()}
-        );
-        LOG.debug("write type: {}", GB.hexdump(setTypeCommand));
-        writeInChunks(builder, setTypeCommand, wait);
-
-        byte[] titleBytes = title.getBytes();
-        byte[] titleData = getByteBuffer(1 + titleBytes.length)
-                .put(CMD_SEND_NOTIFICATION_ARG_TITLE)
-                .put(titleBytes)
-                .array();
-        byte[] setTitleCommand = buildCommand(
-                CMD_SEND_NOTIFICATION,
-                titleData
-        );
-        LOG.debug("write title: {}", GB.hexdump(setTitleCommand));
-        writeInChunks(builder, setTitleCommand, wait);
-
-        if (body != null) {
-            byte[] bodyBytes = body.getBytes();
+    private void sendNotification(byte stage) {
+        long timeout = 500;
+        TransactionBuilder builder = createTransactionBuilder("send notification");
+        if (stage == CMD_NOTIFICATION_ARG_TYPE) {
+            byte[] setTypeCommand = buildCommand(
+                    CMD_NOTIFICATION,
+                    new byte[]{CMD_NOTIFICATION_ARG_TYPE, notificationType.getCode()}
+            );
+            LOG.debug("write type: {}", GB.hexdump(setTypeCommand));
+            sendWriteBuilder(builder, setTypeCommand);
+            startResponseTimeout(() -> {
+                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TYPE response timeout fired");
+                responseRetryCount++;
+                if (responseRetryCount > 3) {
+                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TYPE response timeout fired 3 times exit");
+                    return;
+                }
+                sendNotification(CMD_NOTIFICATION_ARG_TYPE);
+            }, timeout);
+        } else if (stage == CMD_NOTIFICATION_ARG_TITLE) {
+            byte[] titleBytes = notificationTitle.getBytes();
+            byte[] titleData = getByteBuffer(1 + titleBytes.length)
+                    .put(CMD_NOTIFICATION_ARG_TITLE)
+                    .put(titleBytes, 0, Math.min(32, titleBytes.length))
+                    .array();
+            byte[] setTitleCommand = buildCommand(
+                    CMD_NOTIFICATION,
+                    titleData
+            );
+            LOG.debug("write title: {}", GB.hexdump(setTitleCommand));
+            sendWriteBuilder(builder, setTitleCommand);
+            startResponseTimeout(() -> {
+                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TITLE response timeout fired");
+                responseRetryCount++;
+                if (responseRetryCount > 3) {
+                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TITLE response timeout fired 3 times exit");
+                    return;
+                }
+                sendNotification(CMD_NOTIFICATION_ARG_TITLE);
+            }, timeout);
+        } else if (stage == CMD_NOTIFICATION_ARG_BODY) {
+            if (notificationBody == null) { notificationBody = ""; }
+            byte[] bodyBytes = notificationBody.getBytes();
             byte[] bodyData = getByteBuffer(1 + bodyBytes.length)
-                    .put(CMD_SEND_NOTIFICATION_ARG_BODY)
-                    .put(titleBytes)
+                    .put(CMD_NOTIFICATION_ARG_BODY)
+                    .put(bodyBytes, 0, Math.min(128, bodyBytes.length))
                     .array();
             byte[] setBodyCommand = buildCommand(
-                    CMD_SEND_NOTIFICATION,
+                    CMD_NOTIFICATION,
                     bodyData
             );
-            LOG.debug("write body: {}", GB.hexdump(setTitleCommand));
-            writeInChunks(builder, setBodyCommand, wait);
+            LOG.debug("write body: {}", GB.hexdump(setBodyCommand));
+            sendWriteBuilder(builder, setBodyCommand);
+            startResponseTimeout(() -> {
+                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_BODY response timeout fired");
+                responseRetryCount++;
+                if (responseRetryCount > 3) {
+                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_BODY response timeout fired 3 times exit");
+                    return;
+                }
+                sendNotification(CMD_NOTIFICATION_ARG_BODY);
+            }, timeout);
+        } else if (stage == CMD_NOTIFICATION_ARG_END) {
+            byte[] setEndCommand = buildCommand(
+                    CMD_NOTIFICATION,
+                    CMD_NOTIFICATION_ARG_END
+            );
+            LOG.debug("write end: {}", GB.hexdump(setEndCommand));
+            sendWriteBuilder(builder, setEndCommand);
+            startResponseTimeout(() -> {
+                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_END response timeout fired");
+                responseRetryCount++;
+                if (responseRetryCount > 3) {
+                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_END response timeout fired 3 times exit");
+                    return;
+                }
+                sendNotification(CMD_NOTIFICATION_ARG_END);
+            }, timeout);
         }
+    }
 
-        byte[] setEndCommand = buildCommand(
-                CMD_SEND_NOTIFICATION,
-                new byte[]{CMD_SEND_NOTIFICATION_ARG_END}
-        );
-        LOG.debug("write type: {}", GB.hexdump(setEndCommand));
-        writeInChunks(builder, setEndCommand, wait);
+    private byte[] buildCommand(byte cmd) {
+        return buildCommand(cmd, new byte[]{});
+    }
+
+    private byte[] buildCommand(byte cmd, byte data) {
+        return buildCommand(cmd, new byte[]{data});
     }
 
     private byte[] buildCommand(byte cmd, byte[] data) {
@@ -555,22 +617,16 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return buf.array();
     }
 
-    private void writeInChunks(TransactionBuilder builder, byte[] data, int wait) {
-        int offset = 0;
-        while (offset < data.length) {
-            int len = Math.min(CHUNK_SIZE, data.length - offset);
-            byte[] chunk = Arrays.copyOfRange(data, offset, offset + len);
-            LOG.debug("sending chunk (offset {} len {}): {}", offset, len, GB.hexdump(chunk));
-            builder.write(C60Constants.CHARACTERISTIC_WRITE, chunk);
-            if (wait > 0) {
-                builder.wait(wait);
-            }
-            offset += len;
+    private void writeInBuilder(TransactionBuilder builder, byte[] data, int wait) {
+        BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
+        builder.writeChunkedData(characteristic, data, CHUNK_SIZE);
+        if (wait > 0) {
+            builder.wait(wait);
         }
     }
 
-    private void writeInChunks(TransactionBuilder builder, byte[] data) {
-        writeInChunks(builder, data, 0);
+    private void writeInBuilder(TransactionBuilder builder, byte[] data) {
+        writeInBuilder(builder, data, 0);
     }
 
     private void sendWrite(String taskName, byte[] contents) {
@@ -579,11 +635,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void sendWriteBuilder(TransactionBuilder builder, byte[] contents) {
-        BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
-        if (characteristic != null) {
-            writeInChunks(builder, contents);
-            builder.queue();
-        }
+        writeInBuilder(builder, contents);
+        builder.queue();
     }
 
     private void handleBatteryInfo(byte[] info) {
@@ -910,6 +963,21 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private void handleNotificationResponse(byte[] data) {
+        LOG.debug("handleNotificationResponse: arg - {}, code - {}", data[3], data[4]);
+        if (data[4] == 0) {
+            if (data[3] == CMD_NOTIFICATION_ARG_TYPE) {
+                sendNotification(CMD_NOTIFICATION_ARG_TITLE);
+            } else if (data[3] == CMD_NOTIFICATION_ARG_TITLE) {
+                sendNotification(CMD_NOTIFICATION_ARG_BODY);
+            } else if (data[3] == CMD_NOTIFICATION_ARG_BODY) {
+                sendNotification(CMD_NOTIFICATION_ARG_END);
+            } else if (data[3] == CMD_NOTIFICATION_ARG_END) {
+                cancelResponseTimeout();
+            }
+        }
+    }
+
     private long buildTimestamp(int year, int month, int day, int hour, int minute) {
         Calendar cal = Calendar.getInstance();
         cal.clear();
@@ -917,34 +985,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return cal.getTimeInMillis();
     }
 
-
-    private byte[] encodeSetCurrentTime() {
-        byte length = 12;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-
-        buf.put((byte) 4);
-        buf.put((byte) 8);
-        buf.put((byte) 0);
-        final Calendar calendar = Calendar.getInstance();
-        int year = calendar.get(Calendar.YEAR);
-        int high = (year >> 8) & 0xFF;
-        int low = year & 0xFF;
-        buf.put((byte) low);
-        buf.put((byte) high);
-        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
-        buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
-        buf.put((byte) calendar.get(Calendar.HOUR_OF_DAY));
-        buf.put((byte) calendar.get(Calendar.MINUTE));
-        buf.put((byte) calendar.get(Calendar.SECOND));
-        buf.put((byte) 0);
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
-    }
-
-    public C60DeviceSupport getDeviceData(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DEVICE_DATA);
-        return this;
+    public void getDeviceData(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_DEVICE_DATA)
+        );
     }
 
     public C60DeviceSupport getBatteryData(TransactionBuilder builder) {
@@ -952,14 +997,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return this;
     }
 
-    public C60DeviceSupport setTime(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, encodeSetCurrentTime());
-        return this;
+    public void setTime(TransactionBuilder builder) {
+        final Calendar calendar = Calendar.getInstance();
+        ByteBuffer buf = getByteBuffer(8)
+                .putShort((short) calendar.get(Calendar.YEAR))
+                .put((byte) (calendar.get(Calendar.MONTH) + 1))
+                .put((byte) calendar.get(Calendar.DAY_OF_MONTH))
+                .put((byte) calendar.get(Calendar.HOUR_OF_DAY))
+                .put((byte) calendar.get(Calendar.MINUTE))
+                .put((byte) calendar.get(Calendar.SECOND))
+                .put((byte) 0);
+        writeInBuilder(
+                builder,
+                buildCommand(
+                        CMD_DATETIME,
+                        buf.array()
+                )
+        );
     }
 
-    public C60DeviceSupport getDeviceState(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DEVICE_STATE);
-        return this;
+    public void getDeviceState(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_DEVICE_STATE)
+        );
     }
 
     public C60DeviceSupport getDndState(TransactionBuilder builder) {
@@ -971,109 +1032,47 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return this;
     }
 
-    public C60DeviceSupport getSteps(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_STEPS);
-        return this;
-    }
-
-    public C60DeviceSupport getStepsHistory(TransactionBuilder builder) {
-        // TODO implement automatic history loading till "a0 02 00 01 05 ca" response
-        // probably means no data for that date
-        // for now just load last 4 days manually
-        Calendar calendar = Calendar.getInstance();
-        getStepsHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getStepsHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getStepsHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getStepsHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getStepsHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        return this;
-    }
-    public C60DeviceSupport getStepsHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, getStepsHistoryCommand(calendar));
-        return this;
+    public void getSteps(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_STEPS, CMD_STEPS_ARG_CURRENT)
+        );
     }
 
     public byte[] getStepsHistoryCommand(Calendar calendar) {
-        byte length = 9;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_GET_CURRENT_HISTORY_STEP);
-        int year = calendar.get(Calendar.YEAR);
-        int high = (year >> 8) & 0xFF;
-        int low = year & 0xFF;
-        buf.put((byte) low);
-        buf.put((byte) high);
-        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
-        buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
-    }
-
-
-    public C60DeviceSupport getHeartrateHistory(TransactionBuilder builder) {
-        Calendar calendar = Calendar.getInstance();
-        getHeartrateHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getHeartrateHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getHeartrateHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getHeartrateHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        calendar.add(Calendar.DAY_OF_MONTH, -1);
-        getHeartrateHistoryByCalendar(builder, calendar);
-        builder.wait(500);
-        return this;
-    }
-
-    public C60DeviceSupport getHeartrateHistoryByCalendar(TransactionBuilder builder, Calendar calendar) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, getHeartrateHistoryCommand(calendar));
-        return this;
+        ByteBuffer buf = getByteBuffer(5)
+            .put(CMD_STEPS_ARG_HISTORY)
+            .putShort((short) calendar.get(Calendar.YEAR))
+            .put((byte) (calendar.get(Calendar.MONTH) + 1))
+            .put((byte) calendar.get(Calendar.DAY_OF_MONTH));
+        return buildCommand(
+            CMD_STEPS,
+            buf.array()
+        );
     }
 
     public byte[] getHeartrateHistoryCommand(Calendar calendar) {
-        byte length = 9;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-
-        buf.put(CMD_GET_HISTORY_HEARTRATE);
-        int year = calendar.get(Calendar.YEAR);
-        int high = (year >> 8) & 0xFF;
-        int low = year & 0xFF;
-        buf.put((byte) low);
-        buf.put((byte) high);
-        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
-        buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
+        ByteBuffer buf = getByteBuffer(5)
+                .put(CMD_HEARTRATE_ARG_HISTORY)
+                .putShort((short) calendar.get(Calendar.YEAR))
+                .put((byte) (calendar.get(Calendar.MONTH) + 1))
+                .put((byte) calendar.get(Calendar.DAY_OF_MONTH));
+        return buildCommand(
+                CMD_HEARTRATE,
+                buf.array()
+        );
     }
 
     public byte[] getTemperatureHistoryCommand(Calendar calendar) {
-        byte length = 9;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_GET_HISTORY_TEMPERATURE);
-        int year = calendar.get(Calendar.YEAR);
-        int high = (year >> 8) & 0xFF;
-        int low = year & 0xFF;
-        buf.put((byte) low);
-        buf.put((byte) high);
-        buf.put((byte) (calendar.get(Calendar.MONTH) + 1));
-        buf.put((byte) calendar.get(Calendar.DAY_OF_MONTH));
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
+        ByteBuffer buf = getByteBuffer(5)
+                .put(CMD_TEMPERATURE_ARG_HISTORY)
+                .putShort((short) calendar.get(Calendar.YEAR))
+                .put((byte) (calendar.get(Calendar.MONTH) + 1))
+                .put((byte) calendar.get(Calendar.DAY_OF_MONTH));
+        return buildCommand(
+                CMD_TEMPERATURE,
+                buf.array()
+        );
     }
 
     public C60DeviceSupport getHeartrate(TransactionBuilder builder) {
@@ -1087,38 +1086,33 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public byte[] setUserInfoCommand(Prefs prefs) {
-        byte length = 11;
         ActivityUser activityUser = new ActivityUser();
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_USER_INFO);
+        ByteBuffer buf = getByteBuffer(7);
         byte gender = (byte) (activityUser.getGender() == ActivityUser.GENDER_FEMALE ? 0x01 : 0x00);
         buf.put(gender);
         byte years = (byte) activityUser.getAge();
         buf.put(years);
-        int heightCm = activityUser.getHeightCm();
-        buf.put((byte) (heightCm & 0xFF));
-        buf.put((byte) ((heightCm >> 8) & 0xFF));
-        int weightKg = activityUser.getWeightKg() * 10;
-        buf.put((byte) (weightKg & 0xFF));
-        buf.put((byte) ((weightKg >> 8) & 0xFF));
+        int heightCm = Math.max(40, Math.min(230, activityUser.getHeightCm())); // limits from vendor app
+        buf.putShort((short) heightCm);
+        int weightKg = Math.max(5, Math.min(300, activityUser.getWeightKg())) * 10; // limits from vendor app
+        buf.putShort((short) weightKg);
         int stepCm = activityUser.getStepLengthCm();
         buf.put((byte) stepCm);
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
+        return buildCommand(
+                CMD_USER_INFO,
+                buf.array()
+        );
     }
 
     public byte[] setDeviceStateCommand(Prefs prefs) {
-        byte length = 20;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_DEVICE_STATE);
-        buf.put(this.currentDeviceSettings);
+        ByteBuffer buf = getByteBuffer(this.currentDeviceSettings);
 
         // set language byte
         Integer langIdObj = C60Constants.LANGUAGES.getOrDefault(prefs.getString(DeviceSettingsPreferenceConst.PREF_LANGUAGE, "en_US"), 0);
         int langId = (langIdObj != null) ? langIdObj : 0;
-        buf.put(6, (byte) langId);
+        buf.put(3, (byte) langId);
+
+        // TODO 4 - Units, 0 - metric, 1 - imperial
 
         // set timeformat byte
         byte timeformatByte;
@@ -1130,19 +1124,24 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         } else {
             timeformatByte = (byte) (DateFormat.is24HourFormat(GBApplication.getContext()) ? 0x00 : 0x01);
         }
-        buf.put(8, timeformatByte);
+        buf.put(5, timeformatByte);
 
         // set liftwrist byte
         byte stateByte = (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED, true)) ? (byte) 0x01 : 0x00;
-        buf.put(9, stateByte);
+        buf.put(6, stateByte);
 
         // set notifications byte
         byte notificationsByte = (prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_NOTIFICATION_ENABLE, false)) ? (byte) 0x01 : 0x00;
-        buf.put(11, notificationsByte);
+        buf.put(8, notificationsByte);
 
-        buf.put(getChecksum(buf.array()));
-        this.currentDeviceSettings = trimData(buf.array());
-        return buf.array();
+        // TODO 10 - Units, 0 - C, 1 - F
+        // TODO 11 - Water unit, 0 - ml, 1 - oz uk, 2 - oz us
+
+        this.currentDeviceSettings = buf.array();
+        return buildCommand(
+                CMD_DEVICE_STATE,
+                buf.array()
+        );
     }
 
     public byte[] setDoNotDisturbCommand(Prefs prefs) {
@@ -1293,10 +1292,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return buf.array();
     }
 
-    public C60DeviceSupport setUserInfo(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_USER_INFO);
-        return this;
-    }
+//    public C60DeviceSupport setUserInfo(TransactionBuilder builder) {
+//        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_USER_INFO);
+//        return this;
+//    }
 
     public C60DeviceSupport getTargetData(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_TARGET_DATA);
@@ -1358,6 +1357,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private ByteBuffer getByteBuffer(int length) {
         return ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    private ByteBuffer getByteBuffer(byte[] data) {
+        return ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
     }
 
     // UNUSED might be used later
