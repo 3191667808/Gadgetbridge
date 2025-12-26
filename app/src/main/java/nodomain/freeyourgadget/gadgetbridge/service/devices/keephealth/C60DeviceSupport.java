@@ -60,6 +60,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private ByteBuffer cmdBuff = null;
     private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
 
+    private final int CHUNK_SIZE = 20;
+
     private final byte[] CMD_GET_DEVICE_DATA = { 0x01, 0x00, 0x00, (byte) 0xb0 };
 
 
@@ -501,89 +503,85 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private void sendNotification(TransactionBuilder builder, String title, @Nullable String body, KeepHealthNotificationType type) {
         int wait = 100;
 
-        ByteBuffer typeBuf = ByteBuffer.allocate(6);
-        typeBuf.order(ByteOrder.LITTLE_ENDIAN);
-        typeBuf.put(CMD_SEND_NOTIFICATION);
-        typeBuf.putShort((short) 2);
-        typeBuf.put((byte) 0x00);
-        typeBuf.put(type.getCode());
-        typeBuf.put(getChecksum(typeBuf.array()));
-
-        LOG.debug("sending type: {}", GB.hexdump(typeBuf.array()));
-        builder.write(
-                C60Constants.CHARACTERISTIC_WRITE,
-                typeBuf.array()
+        byte[] setTypeCommand = buildCommand(
+                CMD_SEND_NOTIFICATION,
+                new byte[]{CMD_SEND_NOTIFICATION_ARG_TYPE, type.getCode()}
         );
-        builder.wait(wait);
+        LOG.debug("write type: {}", GB.hexdump(setTypeCommand));
+        writeInChunks(builder, setTypeCommand, wait);
 
-        byte[] titleStrBytes = title.getBytes();
-        ByteBuffer titleBuf = ByteBuffer.allocate(titleStrBytes.length + 5);
-        titleBuf.order(ByteOrder.LITTLE_ENDIAN);
-        titleBuf.put(CMD_SEND_NOTIFICATION);
-        titleBuf.putShort((short) (titleStrBytes.length + 1));
-        titleBuf.put(CMD_SEND_NOTIFICATION_ARG_TITLE);
-        titleBuf.put(titleStrBytes);
-        titleBuf.put(getChecksum(titleBuf.array()));
-
-        LOG.debug("sending title: {}", GB.hexdump(titleBuf.array()));
-        byte[] titleBytes = titleBuf.array();
-        sendInChunks(builder, titleBytes, wait);
+        byte[] titleBytes = title.getBytes();
+        byte[] titleData = getByteBuffer(1 + titleBytes.length)
+                .put(CMD_SEND_NOTIFICATION_ARG_TITLE)
+                .put(titleBytes)
+                .array();
+        byte[] setTitleCommand = buildCommand(
+                CMD_SEND_NOTIFICATION,
+                titleData
+        );
+        LOG.debug("write title: {}", GB.hexdump(setTitleCommand));
+        writeInChunks(builder, setTitleCommand, wait);
 
         if (body != null) {
-            byte[] bodyStrBytes = body.getBytes();
-            ByteBuffer bodyBuf = ByteBuffer.allocate(bodyStrBytes.length + 5);
-            bodyBuf.order(ByteOrder.LITTLE_ENDIAN);
-            bodyBuf.put(CMD_SEND_NOTIFICATION)
-                    .putShort((short) (bodyStrBytes.length + 1))
+            byte[] bodyBytes = body.getBytes();
+            byte[] bodyData = getByteBuffer(1 + bodyBytes.length)
                     .put(CMD_SEND_NOTIFICATION_ARG_BODY)
-                    .put(bodyStrBytes);
-            bodyBuf.put(getChecksum(bodyBuf.array()));
-
-            LOG.debug("sending body: {}", GB.hexdump(bodyBuf.array()));
-            byte[] bodyBytes = bodyBuf.array();
-            sendInChunks(builder, bodyBytes, wait);
+                    .put(titleBytes)
+                    .array();
+            byte[] setBodyCommand = buildCommand(
+                    CMD_SEND_NOTIFICATION,
+                    bodyData
+            );
+            LOG.debug("write body: {}", GB.hexdump(setTitleCommand));
+            writeInChunks(builder, setBodyCommand, wait);
         }
 
-        ByteBuffer endBuf = ByteBuffer.allocate(5);
-        endBuf.order(ByteOrder.LITTLE_ENDIAN);
-        endBuf.put(CMD_SEND_NOTIFICATION);
-        endBuf.putShort((short) 1);
-        endBuf.put(CMD_SEND_NOTIFICATION_ARG_END);
-        endBuf.put(getChecksum(endBuf.array()));
-
-        LOG.debug("sending end: {}", GB.hexdump(endBuf.array()));
-        builder.write(
-                C60Constants.CHARACTERISTIC_WRITE,
-                endBuf.array()
+        byte[] setEndCommand = buildCommand(
+                CMD_SEND_NOTIFICATION,
+                new byte[]{CMD_SEND_NOTIFICATION_ARG_END}
         );
+        LOG.debug("write type: {}", GB.hexdump(setEndCommand));
+        writeInChunks(builder, setEndCommand, wait);
     }
 
-    private static void sendInChunks(TransactionBuilder builder, byte[] data, int wait) {
+    private byte[] buildCommand(byte cmd, byte[] data) {
+        // +4, 1 cmd, 2 length, 1 checksum
+        ByteBuffer buf = ByteBuffer.allocate(data.length + 4);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(cmd);
+        buf.putShort((short) (data.length));
+        buf.put(data);
+        buf.put(getChecksum(buf.array()));
+        return buf.array();
+    }
+
+    private void writeInChunks(TransactionBuilder builder, byte[] data, int wait) {
         int offset = 0;
         while (offset < data.length) {
-            int len = Math.min(20, data.length - offset);
+            int len = Math.min(CHUNK_SIZE, data.length - offset);
             byte[] chunk = Arrays.copyOfRange(data, offset, offset + len);
             LOG.debug("sending chunk (offset {} len {}): {}", offset, len, GB.hexdump(chunk));
             builder.write(C60Constants.CHARACTERISTIC_WRITE, chunk);
-            builder.wait(wait);
+            if (wait > 0) {
+                builder.wait(wait);
+            }
             offset += len;
         }
     }
 
+    private void writeInChunks(TransactionBuilder builder, byte[] data) {
+        writeInChunks(builder, data, 0);
+    }
+
     private void sendWrite(String taskName, byte[] contents) {
-        final int CHUNK_SIZE = 20;
         TransactionBuilder builder = createTransactionBuilder(taskName);
+        sendWriteBuilder(builder, contents);
+    }
+
+    private void sendWriteBuilder(TransactionBuilder builder, byte[] contents) {
         BluetoothGattCharacteristic characteristic = getCharacteristic(C60Constants.CHARACTERISTIC_WRITE);
         if (characteristic != null) {
-            if (contents.length > CHUNK_SIZE) {
-                for (int offset = 0; offset < contents.length; offset += CHUNK_SIZE) {
-                    int len = Math.min(CHUNK_SIZE, contents.length - offset);
-                    byte[] chunk = Arrays.copyOfRange(contents, offset, offset + len);
-                    builder.write(characteristic, chunk);
-                }
-            } else {
-                builder.write(characteristic, contents);
-            }
+            writeInChunks(builder, contents);
             builder.queue();
         }
     }
@@ -1356,6 +1354,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte[] trimmed = new byte[newLen];
         System.arraycopy(data, 3, trimmed, 0, newLen);
         return trimmed;
+    }
+
+    private ByteBuffer getByteBuffer(int length) {
+        return ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN);
     }
 
     // UNUSED might be used later
