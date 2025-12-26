@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +46,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.KeephealthTemperatureSample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
+import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -92,6 +95,12 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     // TODO find more about
     private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 };
+
+    private final byte CMD_SEND_NOTIFICATION = 0x0A;
+    private final byte CMD_SEND_NOTIFICATION_ARG_TYPE = 0x00;
+    private final byte CMD_SEND_NOTIFICATION_ARG_TITLE = 0x01;
+    private final byte CMD_SEND_NOTIFICATION_ARG_BODY = 0x02;
+    private final byte CMD_SEND_NOTIFICATION_ARG_END = 0x03;
 
     private final byte[] CMD_GET_CURRENT_STEPS = { 0x20, 0x01, 0x00, 0x00, 0x70 };
     private final byte[] CMD_GET_CURRENT_HISTORY_STEP = { 0x20, 0x05, 0x00, 0x01 };
@@ -450,59 +459,103 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
+    public void onSetCallState(CallSpec callSpec) {
+        if (callSpec.command == CallSpec.CALL_INCOMING) {
+            var builder = createTransactionBuilder("send notification");
+
+            String callerStr;
+            if (!StringUtils.isNullOrEmpty(callSpec.name) && !StringUtils.isNullOrEmpty(callSpec.number)) {
+                callerStr = callSpec.name + ": " + callSpec.number;
+            } else if (!StringUtils.isNullOrEmpty(callSpec.name)) {
+                callerStr = callSpec.name;
+            } else if (!StringUtils.isNullOrEmpty(callSpec.number)) {
+                callerStr = callSpec.number;
+            } else {
+                callerStr = "?";
+            }
+
+            sendNotification(
+                    builder,
+                    callerStr,
+                    null,
+                    KeepHealthNotificationType.CALL
+            );
+            builder.queue();
+        }
+    }
+
+    @Override
     public void onNotification(NotificationSpec notificationSpec) {
         var builder = createTransactionBuilder("send notification");
         String titleStr = notificationSpec.title;
         String bodyStr = notificationSpec.body;
 
-        // 0x00 - call, 0x01 - sms, 0x09 - email
-        byte[] setType = {0x0A, 0x02, 0x00, 0x00, 0x01, 0x00};
-        setType[5] = getChecksum(setType);
+        sendNotification(
+                builder,
+                titleStr,
+                bodyStr,
+                KeepHealthNotificationType.fromNotificationType(notificationSpec.type));
+        builder.queue();
+    }
 
-        byte[] titleStrBytes = titleStr.getBytes();
-        ByteBuffer titleBuf = ByteBuffer.allocate(titleStrBytes.length + 5);
-        titleBuf.order(ByteOrder.LITTLE_ENDIAN);
-        titleBuf.put((byte) 0x0A);
-        titleBuf.putShort((short) (titleStrBytes.length + 1));
-        titleBuf.put((byte) 0x01);
-        titleBuf.put(titleStrBytes);
-        byte checksum = getChecksum(titleBuf.array());
-        titleBuf.put(checksum);
-
-        byte[] bodyStrBytes = bodyStr.getBytes();
-        ByteBuffer bodyBuf = ByteBuffer.allocate(bodyStrBytes.length + 5);
-        bodyBuf.order(ByteOrder.LITTLE_ENDIAN);
-        bodyBuf.put((byte) 0x0A)
-                .putShort((short) (bodyStrBytes.length + 1))
-                .put((byte) 0x02)
-                .put(bodyStrBytes);
-        byte checksumBody = getChecksum(bodyBuf.array());
-        bodyBuf.put(checksumBody);
-
-        byte[] end = {0x0A, 0x01, 0x00, 0x03, (byte) 0x0E};
-
+    private void sendNotification(TransactionBuilder builder, String title, @Nullable String body, KeepHealthNotificationType type) {
         int wait = 100;
-        LOG.debug("sending type: {}", GB.hexdump(setType));
+
+        ByteBuffer typeBuf = ByteBuffer.allocate(6);
+        typeBuf.order(ByteOrder.LITTLE_ENDIAN);
+        typeBuf.put(CMD_SEND_NOTIFICATION);
+        typeBuf.putShort((short) 2);
+        typeBuf.put((byte) 0x00);
+        typeBuf.put(type.getCode());
+        typeBuf.put(getChecksum(typeBuf.array()));
+
+        LOG.debug("sending type: {}", GB.hexdump(typeBuf.array()));
         builder.write(
                 C60Constants.CHARACTERISTIC_WRITE,
-                setType
+                typeBuf.array()
         );
         builder.wait(wait);
+
+        byte[] titleStrBytes = title.getBytes();
+        ByteBuffer titleBuf = ByteBuffer.allocate(titleStrBytes.length + 5);
+        titleBuf.order(ByteOrder.LITTLE_ENDIAN);
+        titleBuf.put(CMD_SEND_NOTIFICATION);
+        titleBuf.putShort((short) (titleStrBytes.length + 1));
+        titleBuf.put(CMD_SEND_NOTIFICATION_ARG_TITLE);
+        titleBuf.put(titleStrBytes);
+        titleBuf.put(getChecksum(titleBuf.array()));
 
         LOG.debug("sending title: {}", GB.hexdump(titleBuf.array()));
         byte[] titleBytes = titleBuf.array();
         sendInChunks(builder, titleBytes, wait);
 
-        LOG.debug("sending body: {}", GB.hexdump(bodyBuf.array()));
-        byte[] bodyBytes = bodyBuf.array();
-        sendInChunks(builder, bodyBytes, wait);
+        if (body != null) {
+            byte[] bodyStrBytes = body.getBytes();
+            ByteBuffer bodyBuf = ByteBuffer.allocate(bodyStrBytes.length + 5);
+            bodyBuf.order(ByteOrder.LITTLE_ENDIAN);
+            bodyBuf.put(CMD_SEND_NOTIFICATION)
+                    .putShort((short) (bodyStrBytes.length + 1))
+                    .put(CMD_SEND_NOTIFICATION_ARG_BODY)
+                    .put(bodyStrBytes);
+            bodyBuf.put(getChecksum(bodyBuf.array()));
 
-        LOG.debug("sending end: {}", GB.hexdump(end));
+            LOG.debug("sending body: {}", GB.hexdump(bodyBuf.array()));
+            byte[] bodyBytes = bodyBuf.array();
+            sendInChunks(builder, bodyBytes, wait);
+        }
+
+        ByteBuffer endBuf = ByteBuffer.allocate(5);
+        endBuf.order(ByteOrder.LITTLE_ENDIAN);
+        endBuf.put(CMD_SEND_NOTIFICATION);
+        endBuf.putShort((short) 1);
+        endBuf.put(CMD_SEND_NOTIFICATION_ARG_END);
+        endBuf.put(getChecksum(endBuf.array()));
+
+        LOG.debug("sending end: {}", GB.hexdump(endBuf.array()));
         builder.write(
                 C60Constants.CHARACTERISTIC_WRITE,
-                end
+                endBuf.array()
         );
-        builder.queue();
     }
 
     private static void sendInChunks(TransactionBuilder builder, byte[] data, int wait) {
