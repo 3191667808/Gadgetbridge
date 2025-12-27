@@ -136,16 +136,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private int daysAgo;
     private Calendar syncingDay;
 
-    private String notificationTitle = null;
-    private String notificationBody = null;
-    private KeepHealthNotificationType notificationType = null;
-
     private final ConcurrentMap<Byte, ScheduledExecutorService> schedulers = new ConcurrentHashMap<>();
     private final ConcurrentMap<Byte, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
     private final ConcurrentMap<Byte, Integer> retryCounts = new ConcurrentHashMap<>();
 
-    private boolean sendingNotification = false;
-    private final List<NotificationItem> notificationQueue = new ArrayList<>();
+    private final NotificationQueue notificationQueue = new NotificationQueue();
 
 
     private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, @Nullable Runnable afterFail, long timeoutMs) {
@@ -177,6 +172,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             // remove retry count for this cmdByte
             retryCounts.remove(cmdByte);
             if (afterFail != null) {
+                LOG.debug("{} firing afterFail", GB.hexdump(new byte[]{cmdByte}));
                 afterFail.run();
             }
             return null;
@@ -214,6 +210,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
+        notificationQueue.empty();
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(C60Constants.CHARACTERISTIC_READ, true);
 //        builder.notify(C60Constants.READ_ECG, true);
@@ -540,23 +537,17 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 callerStr = "?";
             }
 
-            notificationTitle = callerStr;
-            notificationBody = null;
-            notificationType = KeepHealthNotificationType.CALL;
-
+            notificationQueue.addToQueue(new NotificationItem(callerStr, null, KeepHealthNotificationType.CALL));
             sendNotification();
         }
     }
 
     @Override
     public void onNotification(NotificationSpec notificationSpec) {
-
         String titleStr = notificationSpec.title;
         String bodyStr = notificationSpec.body;
-        notificationTitle = titleStr;
-        notificationBody = bodyStr;
-        notificationType = KeepHealthNotificationType.fromNotificationType(notificationSpec.type);
-        notificationQueue.add(new NotificationItem(titleStr, bodyStr, notificationType));
+        KeepHealthNotificationType type = KeepHealthNotificationType.fromNotificationType(notificationSpec.type);
+        notificationQueue.addToQueue(new NotificationItem(titleStr, bodyStr, type));
         LOG.debug("notificationQueue: {}", notificationQueue);
         sendNotification();
     }
@@ -566,28 +557,24 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void sendNotification(byte stage) {
-        if (sendingNotification && stage == CMD_NOTIFICATION_ARG_TYPE) return;
-        sendingNotification = true;
+        if (notificationQueue.isRunning() && stage == CMD_NOTIFICATION_ARG_TYPE) return;
+        notificationQueue.setRunning(true);
         long timeout = 1000;
-//        TransactionBuilder builder = createTransactionBuilder("send notification");
         String builder = "send notification";
         if (stage == CMD_NOTIFICATION_ARG_TYPE) {
             byte[] setTypeCommand = buildCommand(
                     CMD_NOTIFICATION,
-                    new byte[]{CMD_NOTIFICATION_ARG_TYPE, notificationQueue.get(0).type.getCode()}
+                    new byte[]{CMD_NOTIFICATION_ARG_TYPE, notificationQueue.get().type.getCode()}
             );
             LOG.debug("write type: {}", GB.hexdump(setTypeCommand));
             startResponseTimeout(
                     CMD_NOTIFICATION,
                     () -> sendWrite(builder, setTypeCommand),
-                    () -> {
-                        sendingNotification = false;
-                        notificationQueue.remove(0);
-                    },
+                    notificationQueue::finish,
                     timeout
             );
         } else if (stage == CMD_NOTIFICATION_ARG_TITLE) {
-            byte[] titleBytes = notificationQueue.get(0).title.getBytes();
+            byte[] titleBytes = notificationQueue.get().title.getBytes();
             byte[] titleData = getByteBuffer(1 + titleBytes.length)
                     .put(CMD_NOTIFICATION_ARG_TITLE)
                     .put(titleBytes, 0, Math.min(32, titleBytes.length))
@@ -600,14 +587,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             startResponseTimeout(
                     CMD_NOTIFICATION,
                     () -> sendWrite(builder, setTitleCommand),
-                    () -> {
-                        sendingNotification = false;
-                        notificationQueue.remove(0);
-                    },
+                    notificationQueue::finish,
                     timeout
             );
         } else if (stage == CMD_NOTIFICATION_ARG_BODY) {
-            String notificationBodyString = notificationQueue.get(0).body;
+            String notificationBodyString = notificationQueue.get().body;
             if (notificationBodyString == null) { notificationBodyString = ""; }
             byte[] bodyBytes = notificationBodyString.getBytes();
             byte[] bodyData = getByteBuffer(1 + bodyBytes.length)
@@ -622,10 +606,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             startResponseTimeout(
                     CMD_NOTIFICATION,
                     () -> sendWrite(builder, setBodyCommand),
-                    () -> {
-                        sendingNotification = false;
-                        notificationQueue.remove(0);
-                    },
+                    notificationQueue::finish,
                     timeout
             );
         } else if (stage == CMD_NOTIFICATION_ARG_END) {
@@ -637,10 +618,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             startResponseTimeout(
                     CMD_NOTIFICATION,
                     () -> sendWrite(builder, setEndCommand),
-                    () -> {
-                        sendingNotification = false;
-                        notificationQueue.remove(0);
-                    },
+                    notificationQueue::finish,
                     timeout
             );
         }
@@ -1021,12 +999,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             } else if (data[3] == CMD_NOTIFICATION_ARG_BODY) {
                 sendNotification(CMD_NOTIFICATION_ARG_END);
             } else if (data[3] == CMD_NOTIFICATION_ARG_END) {
-                sendingNotification = false;
+                notificationQueue.finish();
                 if (!notificationQueue.isEmpty()) {
-                    notificationQueue.remove(0);
-                    if (!notificationQueue.isEmpty()) {
-                        sendNotification();
-                    }
+                    sendNotification();
                 }
             }
         }
