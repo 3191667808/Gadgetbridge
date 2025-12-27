@@ -76,22 +76,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // two fragment response
     private final byte[] CMD_GET_ALARM = { 0x05, 0x00, 0x08, (byte) 0x80 };
 
-    private final byte[] CMD_GET_INACTIVITY = {
-            (byte) 0x06, (byte) 0x00, (byte) 0x00, (byte) 0x5e
-    };
-    private final byte[] CMD_SET_INACTIVITY = {
-            (byte) 0x06, (byte) 0x05, (byte) 0x00
-    };
+    private final byte CMD_INACTIVITY = 0x06;
 
-    private final byte[] CMD_GET_TARGET_DATA = { 0x07, 0x00, 0x00, (byte) 0xb4 };
-    private final byte[] CMD_SET_TARGET_DATA = { 0x07, 0x0e, 0x00 };
+    private final byte CMD_TARGET_DATA = 0x07;
 
-    private final byte[] CMD_GET_DO_NOT_DISTURB = {
-            (byte) 0x08, (byte) 0x00, (byte) 0x00, (byte) 0x0a
-    };
-    private final byte[] CMD_SET_DO_NOT_DISTURB = {
-            (byte) 0x08, (byte) 0x10, (byte) 0x00
-    };
+    private final byte CMD_DO_NOT_DISTURB = 0x08;
 
     // TODO find more about
     private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 };
@@ -119,15 +108,15 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte CMD_HEARTRATE_ARG_CURRENT = 0x00;
     private final byte CMD_HEARTRATE_ARG_HISTORY = 0x01;
 
-    private final byte[] CMD_GET_CURRENT_BATTERY = { 0x27, 0x00, 0x00, 0x74 };
-
-    private final byte[] CMD_GET_CURRENT_TEMPERATURE = { 0x2c, 0x01, 0x00, 0x00, (byte) 0x78 };
+    private final byte CMD_BATTERY = 0x27;
 
     private final byte CMD_TEMPERATURE = 0x2c;
     private final byte CMD_TEMPERATURE_ARG_HISTORY = 0x01;
 
-    private final byte[] CMD_GET_HYDRATION = { 0x2e, 0x01, 0x00, 0x01, (byte) 0x7a };
-    private final byte[] CMD_SET_HYDRATION = { 0x2e, 0x17, 0x00 };
+    private final byte CMD_HYDRATION = 0x2e;
+
+    private final byte CMD_HYDRATION_ARG_GET_REMINDER = 0x01;
+    private final byte CMD_HYDRATION_ARG_SET_REMINDER = 0x02;
 
     // FIXME this variables should be removed and build all data from settings when all values are known
     private byte[] currentDeviceSettings = null;
@@ -160,7 +149,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         // compute and check retry count
         int attempt = retryCounts.compute(cmdByte, (k, v) -> (v == null) ? 1 : v + 1);
-        LOG.debug("{} current attempt: {}", GB.hexdump(new byte[]{cmdByte}), attempt);
 
         if (attempt > 3) {
             LOG.debug("{} response timeout already fired 3 times, will not schedule further", GB.hexdump(new byte[]{cmdByte}));
@@ -177,6 +165,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
             return null;
         }
+        LOG.debug("{} current attempt: {}", GB.hexdump(new byte[]{cmdByte}), attempt);
 
         sendAction.run();
         ScheduledFuture<?> future = scheduler.schedule(() -> {
@@ -381,7 +370,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 cancelResponseTimeout(cmdPrefix);
                 if (cmdPrefix == CMD_DEVICE_DATA) {
                     handleDeviceData(value);
-                } else if (cmdPrefix == CMD_GET_CURRENT_BATTERY[0]) {
+                } else if (cmdPrefix == CMD_BATTERY) {
                     handleBatteryInfo(value);
                 } else if (cmdPrefix == CMD_DEVICE_STATE) {
                     handleDeviceState(value);
@@ -424,13 +413,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             fetchRecordedDataFinished();
                         }
                     }
-                } else if (cmdPrefix == CMD_GET_DO_NOT_DISTURB[0]) {
+                } else if (cmdPrefix == CMD_DO_NOT_DISTURB) {
                     handleDoNotDisturb(value);
-                } else if (cmdPrefix == CMD_GET_INACTIVITY[0]) {
+                } else if (cmdPrefix == CMD_INACTIVITY) {
                     handleInactivity(value);
-                } else if (cmdPrefix == CMD_GET_TARGET_DATA[0]) {
+                } else if (cmdPrefix == CMD_TARGET_DATA) {
                     handleTargetData(value);
-                } else if (cmdPrefix == CMD_GET_HYDRATION[0]) {
+                } else if (cmdPrefix == CMD_HYDRATION) {
                     handleHydration(value);
                 }  else if (cmdPrefix == CMD_NOTIFICATION) {
                     handleNotificationResponse(value);
@@ -559,7 +548,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private void sendNotification(byte stage) {
         if (notificationQueue.isRunning() && stage == CMD_NOTIFICATION_ARG_TYPE) return;
         notificationQueue.setRunning(true);
-        long timeout = 1000;
+        long timeout = 2000;
         String builder = "send notification";
         if (stage == CMD_NOTIFICATION_ARG_TYPE) {
             byte[] setTypeCommand = buildCommand(
@@ -1021,9 +1010,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         );
     }
 
-    public C60DeviceSupport getBatteryData(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_BATTERY);
-        return this;
+    public void getBatteryData(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_BATTERY)
+        );
     }
 
     public void setTime(TransactionBuilder builder) {
@@ -1052,13 +1043,17 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         );
     }
 
-    public C60DeviceSupport getDndState(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_DO_NOT_DISTURB);
-        return this;
+    public void getDndState(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_DO_NOT_DISTURB)
+        );
     }
-    public C60DeviceSupport getInactivityState(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_INACTIVITY);
-        return this;
+    public void getInactivityState(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_INACTIVITY)
+        );
     }
 
     public void getSteps(TransactionBuilder builder) {
@@ -1106,11 +1101,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     public C60DeviceSupport getHeartrate(TransactionBuilder builder) {
         builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_HEARTRATE);
-        return this;
-    }
-
-    public C60DeviceSupport getBodytemp(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_CURRENT_TEMPERATURE);
         return this;
     }
 
@@ -1174,31 +1164,27 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public byte[] setDoNotDisturbCommand(Prefs prefs) {
-        byte length = 20;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_DO_NOT_DISTURB);
-        buf.put(this.currentDndSettings);
+        ByteBuffer buf = getByteBuffer(this.currentDndSettings);
+
         byte enabled = (prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO, DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_OFF).equals(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_SCHEDULED))
                 ? (byte) 0xff : (byte) 0x00;
-        buf.put(3, enabled); // 3
+        buf.put(0, enabled);
         LocalTime time;
         time = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, "00:00");
-        buf.put(4, (byte) time.getHour());   // 4
-        buf.put(5, (byte) time.getMinute()); // 5
+        buf.put(1, (byte) time.getHour());
+        buf.put(2, (byte) time.getMinute());
         time = prefs.getLocalTime(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, "00:00");
-        buf.put(6, (byte) time.getHour());   // 6
-        buf.put(7, (byte) time.getMinute()); // 7
-        buf.put(getChecksum(buf.array()));
-        this.currentDndSettings = trimData(buf.array());
-        return buf.array();
+        buf.put(3, (byte) time.getHour());
+        buf.put(4, (byte) time.getMinute());
+        this.currentDndSettings = buf.array();
+        return buildCommand(
+                CMD_DO_NOT_DISTURB,
+                buf.array()
+        );
     }
 
     public byte[] setInactivityCommand(Prefs prefs) {
-        byte length = 9;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_INACTIVITY);
+        ByteBuffer buf = getByteBuffer(5);
 
         // enable flag
         byte enable = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, false) ? (byte)0x01 : (byte)0x00;
@@ -1233,8 +1219,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         int thresholdUnits = Math.max(0, Math.min(255, thresholdMinutes / 5));
         buf.put((byte) thresholdUnits);
 
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
+        return buildCommand(
+                CMD_INACTIVITY,
+                buf.array()
+        );
     }
 
     public byte[] setGoalCommand(Prefs prefs) {
@@ -1243,10 +1231,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         int calories = activityUser.getCaloriesBurntGoal();
         int distance = activityUser.getDistanceGoalMeters() / 1000;  // ZeTime only accepts km goals
 
-        byte length = 18;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_TARGET_DATA);
+        ByteBuffer buf = getByteBuffer(14);
+
         buf.put((byte) 0x00); // sleep on/off
         buf.put((byte) 0x00); // sleep goal?
 
@@ -1268,18 +1254,16 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) ((distance >>> 8) & 0xFF));
         buf.put((byte) ((distance >>> 16) & 0xFF));
 
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
+        return buildCommand(
+                CMD_TARGET_DATA,
+                buf.array()
+        );
     }
 
     public byte[] setHydrationCommand(Prefs prefs) {
-        byte length = 27;
-        ByteBuffer buf = ByteBuffer.allocate(length);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_SET_HYDRATION);
+        ByteBuffer buf = getByteBuffer(23);
+        buf.put(CMD_HYDRATION_ARG_SET_REMINDER);
 
-        // hardcoded
-        buf.put((byte) 0x02);
         // enabled ?
         buf.put(prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HYDRATION_SWITCH, false) ? (byte) 0xff : 0x00);
         buf.put((byte) 0x01);
@@ -1317,23 +1301,24 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
             counter++;
         }
 
-        buf.put(getChecksum(buf.array()));
-        return buf.array();
+        return buildCommand(
+                CMD_HYDRATION,
+                buf.array()
+        );
     }
 
-//    public C60DeviceSupport setUserInfo(TransactionBuilder builder) {
-//        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_SET_USER_INFO);
-//        return this;
-//    }
-
-    public C60DeviceSupport getTargetData(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_TARGET_DATA);
-        return this;
+    public void getTargetData(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_TARGET_DATA)
+        );
     }
 
-    public C60DeviceSupport getHydration(TransactionBuilder builder) {
-        builder.write(C60Constants.CHARACTERISTIC_WRITE, CMD_GET_HYDRATION);
-        return this;
+    public void getHydration(TransactionBuilder builder) {
+        writeInBuilder(
+                builder,
+                buildCommand(CMD_HYDRATION, CMD_HYDRATION_ARG_GET_REMINDER)
+        );
     }
 
     public C60DeviceSupport getNotice(TransactionBuilder builder) {
