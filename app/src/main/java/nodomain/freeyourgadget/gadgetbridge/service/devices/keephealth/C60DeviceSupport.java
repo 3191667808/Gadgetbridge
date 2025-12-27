@@ -74,7 +74,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     // TODO find more about
     // two fragment response
-    private final byte[] CMD_GET_ALARM = { 0x05, 0x00, 0x08, (byte) 0x80 };
+    private final byte[] CMD_GET_ALARM = {0x05, 0x00, 0x08, (byte) 0x80};
 
     private final byte CMD_INACTIVITY = 0x06;
 
@@ -83,7 +83,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte CMD_DO_NOT_DISTURB = 0x08;
 
     // TODO find more about
-    private final byte[] CMD_GET_NOTICE = { 0x09, 0x00, 0x00, (byte) 0x60 };
+    private final byte[] CMD_GET_NOTICE = {0x09, 0x00, 0x00, (byte) 0x60};
 
     private final byte CMD_NOTIFICATION = 0x0A;
     private final byte CMD_NOTIFICATION_ARG_TYPE = 0x00;
@@ -95,14 +95,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte CMD_STEPS_ARG_CURRENT = 0x00;
     private final byte CMD_STEPS_ARG_HISTORY = 0x01;
 
-    private final byte[] CMD_GET_CURRENT_HEARTRATE = { 0x21, 0x01, 0x00, 0x00, (byte) 0xc6 };
+    private final byte[] CMD_GET_CURRENT_HEARTRATE = {0x21, 0x01, 0x00, 0x00, (byte) 0xc6};
 
     // TODO find more about
     // Obtain blood pressure and blood oxygen data
-    private final byte[] CMD_GET_OXYGEN = { 0x21, 0x01, 0x00, 0x07, (byte) 0x20 };
+    private final byte[] CMD_GET_OXYGEN = {0x21, 0x01, 0x00, 0x07, (byte) 0x20};
     // TODO find more about
     // Obtaining automatic heart rate sampling data
-    private final byte[] CMD_GET_HEARTRATE_SAMPLING = { 0x21, 0x01, 0x00, 0x08, (byte) 0x76 };
+    private final byte[] CMD_GET_HEARTRATE_SAMPLING = {0x21, 0x01, 0x00, 0x08, (byte) 0x76};
 
     private final byte CMD_HEARTRATE = 0x21;
     private final byte CMD_HEARTRATE_ARG_CURRENT = 0x00;
@@ -131,12 +131,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private final NotificationQueue notificationQueue = new NotificationQueue();
 
-
     private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, @Nullable Runnable afterFail, long timeoutMs) {
+        return startResponseTimeout(cmdByte, sendAction, afterFail, timeoutMs, false);
+    }
+    private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, @Nullable Runnable afterFail, long timeoutMs, boolean resetCount) {
         LOG.debug("pending {}", pending);
-        if (pending.getOrDefault(cmdByte, null) != null) {
-            return null;
-        }
+//        if (pending.getOrDefault(cmdByte, null) != null) {
+//            return null;
+//        }
         // create or reuse scheduler
         ScheduledExecutorService scheduler = schedulers.computeIfAbsent(cmdByte, k ->
                 Executors.newSingleThreadScheduledExecutor(r -> {
@@ -146,6 +148,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     return t;
                 })
         );
+
+        if (resetCount) {
+            LOG.debug("{} startResponseTimeout retryCounts.remove", GB.hexdump(new byte[]{cmdByte}));
+            retryCounts.remove(cmdByte);
+        }
 
         // compute and check retry count
         int attempt = retryCounts.compute(cmdByte, (k, v) -> (v == null) ? 1 : v + 1);
@@ -185,6 +192,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         ScheduledFuture<?> future = pending.remove(cmdByte);
         if (future != null) {
             future.cancel(true);
+            LOG.debug("{} cancelResponseTimeout retryCounts.remove", GB.hexdump(new byte[]{cmdByte}));
             retryCounts.remove(cmdByte);
         }
     }
@@ -421,7 +429,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleTargetData(value);
                 } else if (cmdPrefix == CMD_HYDRATION) {
                     handleHydration(value);
-                }  else if (cmdPrefix == CMD_NOTIFICATION) {
+                } else if (cmdPrefix == CMD_NOTIFICATION) {
                     handleNotificationResponse(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
@@ -489,7 +497,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         if (configPacket == null) { return; }
         LOG.debug("send config: {} - {}", config, StringUtils.bytesToHex(configPacket));
-        sendWrite("onSendConfigurationRequest", configPacket);
+        byte[] finalConfigPacket = configPacket;
+        startResponseTimeout(
+                configPacket[0],
+                () -> sendWrite("onSendConfigurationRequest", finalConfigPacket),
+                () -> GB.toast(getContext().getString(R.string.save_configuration)  + " " + getContext().getString(R.string.work_info_status_failed), Toast.LENGTH_SHORT, GB.ERROR),
+                5000,
+                true
+        );
     }
 
     @Override
@@ -678,6 +693,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void handleDeviceState(byte[] info) {
         LOG.debug("Device State: " + GB.hexdump(info));
+        if (info.length == 5 && info[3] == 0x00) {
+            GB.toast(getContext().getString(R.string.save_configuration)  + " " + getContext().getString(R.string.ok), Toast.LENGTH_SHORT, GB.INFO);
+        }
         if (info.length == 20) {
             this.currentDeviceSettings = trimData(info);
             Prefs prefs = getDevicePrefs();
@@ -932,6 +950,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleInactivity(byte[] data) {
+        if (data.length == 5 && data[3] == 0x00) {
+            GB.toast(getContext().getString(R.string.save_configuration)  + " " + getContext().getString(R.string.ok), Toast.LENGTH_SHORT, GB.INFO);
+        }
         if (data.length == 9) {
             Prefs prefs = getDevicePrefs();
             SharedPreferences sharedPrefs = prefs.getPreferences();
@@ -956,6 +977,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleTargetData(byte[] data) {
+        if (data.length == 5 && data[3] == 0x00) {
+            GB.toast(getContext().getString(R.string.save_configuration)  + " " + getContext().getString(R.string.ok), Toast.LENGTH_SHORT, GB.INFO);
+        }
         if (data.length == 9) {
             // TODO should i do something with it?
             LOG.debug("Received target data");
@@ -963,6 +987,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleHydration(byte[] data) {
+        if (data.length == 6 && data[3] == 0x02 && data[4] == 0x00) {
+            GB.toast(getContext().getString(R.string.save_configuration)  + " " + getContext().getString(R.string.ok), Toast.LENGTH_SHORT, GB.INFO);
+        }
         if (data.length == 27) {
             Prefs prefs = getDevicePrefs();
             SharedPreferences sharedPrefs = prefs.getPreferences();
