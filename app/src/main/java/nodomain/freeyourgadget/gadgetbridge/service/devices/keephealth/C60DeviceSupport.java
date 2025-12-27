@@ -21,6 +21,8 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -138,20 +140,63 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private String notificationBody = null;
     private KeepHealthNotificationType notificationType = null;
 
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private ScheduledFuture<?> responseTimeoutFuture;
-    private int responseRetryCount = 0;
+    private final ConcurrentMap<Byte, ScheduledExecutorService> schedulers = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Byte, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Byte, Integer> retryCounts = new ConcurrentHashMap<>();
 
-    private void startResponseTimeout(Runnable onTimeout, long timeoutMs) {
-        cancelResponseTimeout();
-        responseTimeoutFuture = scheduler.schedule(onTimeout, timeoutMs, TimeUnit.MILLISECONDS);
+
+    private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, long timeoutMs) {
+        // cancel any existing pending timeout
+        cancelResponseTimeout(cmdByte);
+
+        // create or reuse scheduler
+        ScheduledExecutorService scheduler = schedulers.computeIfAbsent(cmdByte, k ->
+                Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r);
+                    t.setDaemon(true);
+                    t.setName("resp-timeout-" + k);
+                    return t;
+                })
+        );
+
+        // compute and check retry count
+        int attempt = retryCounts.compute(cmdByte, (k, v) -> (v == null) ? 1 : v + 1);
+
+        if (attempt > 3) {
+            LOG.warn("{} response timeout fired 3 times, will not schedule further timeouts", GB.hexdump(new byte[]{cmdByte}));
+            // shut down scheduler for this cmdByte to free resources
+            ScheduledExecutorService s = schedulers.remove(cmdByte);
+            if (s != null) s.shutdownNow();
+            return null;
+        }
+
+        sendAction.run();
+        ScheduledFuture<?> future = scheduler.schedule(() -> {
+            try {
+                LOG.warn("response timeout fired for {}, attempt {}", GB.hexdump(new byte[]{cmdByte}), attempt);
+                if (retryCounts.getOrDefault(cmdByte, 0) < 3) {
+                    startResponseTimeout(cmdByte, sendAction, timeoutMs);
+                }
+            }
+            finally {
+                ScheduledFuture<?> expired = pending.remove(cmdByte);
+                if (expired != null) {
+                    expired.cancel(true);
+                }
+            }
+        }, timeoutMs, TimeUnit.MILLISECONDS);
+
+        pending.put(cmdByte, future);
+        return future;
     }
 
-    private synchronized void cancelResponseTimeout() {
-        if (responseTimeoutFuture != null) {
-            responseTimeoutFuture.cancel(true);
-            responseTimeoutFuture = null;
-            responseRetryCount = 0;
+    private void cancelResponseTimeout(Byte cmdByte) {
+        ScheduledFuture<?> future = pending.remove(cmdByte);
+        if (future != null) {
+            future.cancel(true);
+            if (future.isDone()) {
+                retryCounts.remove(cmdByte);
+            }
         }
     }
 
@@ -243,7 +288,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void fetchRecordedDataFinished() {
-        cancelResponseTimeout();
         GB.updateTransferNotification(null, "", false, 100, getContext());
         LOG.info("Sync finished!");
         getDevice().unsetBusyTask();
@@ -262,13 +306,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         syncingDay.set(Calendar.MILLISECOND, 0);
         byte[] activityHistoryRequest = getStepsHistoryCommand(syncingDay);
         LOG.info("Fetch historical activity data request sent: {}", StringUtils.bytesToHex(activityHistoryRequest));
-        sendWrite("activityHistoryRequest", activityHistoryRequest);
-        startResponseTimeout(() -> {
-            LOG.warn("fetchHistoryActivity response timeout fired, finishing fetch");
-            // TODO better handling, repeat command? try 3 times then exit, same for HR and temperature too
-            GB.toast((R.string.busy_task_fetch_activity_data + " " + R.string.work_info_status_failed), Toast.LENGTH_LONG, GB.ERROR);
-            fetchRecordedDataFinished();
-        }, 10_000);
+        startResponseTimeout(
+                activityHistoryRequest[0],
+                () -> sendWrite("activityHistoryRequest", activityHistoryRequest),
+                10_000
+        );
     }
 
     private void fetchHistoryHR() {
@@ -282,12 +324,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         syncingDay.set(Calendar.MILLISECOND, 0);
         byte[] hrHistoryRequest = getHeartrateHistoryCommand(syncingDay);
         LOG.info("Fetch historical HR data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(hrHistoryRequest));
-        sendWrite("hrHistoryRequest", hrHistoryRequest);
-        startResponseTimeout(() -> {
-            LOG.warn("fetchHistoryHR response timeout fired, finishing fetch");
-            GB.toast((R.string.busy_task_fetch_hr_data + " " + R.string.work_info_status_failed), Toast.LENGTH_LONG, GB.ERROR);
-            fetchRecordedDataFinished();
-        }, 10_000);
+        startResponseTimeout(
+                hrHistoryRequest[0],
+                () -> sendWrite("hrHistoryRequest", hrHistoryRequest),
+                10_000
+        );
     }
 
     private void fetchHistoryTemperature() {
@@ -301,12 +342,10 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         syncingDay.set(Calendar.MILLISECOND, 0);
         byte[] tempHistoryRequest = getTemperatureHistoryCommand(syncingDay);
         LOG.info("Fetch historical temperature data request sent ({}): {}", DateTimeUtils.formatIso8601(syncingDay.getTime()), StringUtils.bytesToHex(tempHistoryRequest));
-        sendWrite("temperatureHistoryRequest", tempHistoryRequest);
-        startResponseTimeout(() -> {
-            LOG.warn("fetchHistoryTemperature response timeout fired, finishing fetch");
-            GB.toast((R.string.busy_task_fetch_temperature + " " + R.string.work_info_status_failed), Toast.LENGTH_LONG, GB.ERROR);
-            fetchRecordedDataFinished();
-        }, 10_000);
+        startResponseTimeout(tempHistoryRequest[0],
+                () -> sendWrite("temperatureHistoryRequest", tempHistoryRequest),
+                10_000
+        );
     }
 
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] responseValue) {
@@ -335,6 +374,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // get cmd based on response first byte - 0x80
                 byte cmdPrefix = (byte) (value[0] - (byte) 0x80);
                 LOG.info("Expected CMD prefix: {}", GB.hexdump(new byte[]{cmdPrefix}));
+                cancelResponseTimeout(cmdPrefix);
                 if (cmdPrefix == CMD_DEVICE_DATA) {
                     handleDeviceData(value);
                 } else if (cmdPrefix == CMD_GET_CURRENT_BATTERY[0]) {
@@ -518,24 +558,20 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void sendNotification(byte stage) {
-        long timeout = 500;
-        TransactionBuilder builder = createTransactionBuilder("send notification");
+        long timeout = 1000;
+//        TransactionBuilder builder = createTransactionBuilder("send notification");
+        String builder = "send notification";
         if (stage == CMD_NOTIFICATION_ARG_TYPE) {
             byte[] setTypeCommand = buildCommand(
                     CMD_NOTIFICATION,
                     new byte[]{CMD_NOTIFICATION_ARG_TYPE, notificationType.getCode()}
             );
             LOG.debug("write type: {}", GB.hexdump(setTypeCommand));
-            sendWriteBuilder(builder, setTypeCommand);
-            startResponseTimeout(() -> {
-                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TYPE response timeout fired");
-                responseRetryCount++;
-                if (responseRetryCount > 3) {
-                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TYPE response timeout fired 3 times exit");
-                    return;
-                }
-                sendNotification(CMD_NOTIFICATION_ARG_TYPE);
-            }, timeout);
+            startResponseTimeout(
+                    CMD_NOTIFICATION,
+                    () -> sendWrite(builder, setTypeCommand),
+                    timeout
+            );
         } else if (stage == CMD_NOTIFICATION_ARG_TITLE) {
             byte[] titleBytes = notificationTitle.getBytes();
             byte[] titleData = getByteBuffer(1 + titleBytes.length)
@@ -547,16 +583,11 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     titleData
             );
             LOG.debug("write title: {}", GB.hexdump(setTitleCommand));
-            sendWriteBuilder(builder, setTitleCommand);
-            startResponseTimeout(() -> {
-                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TITLE response timeout fired");
-                responseRetryCount++;
-                if (responseRetryCount > 3) {
-                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_TITLE response timeout fired 3 times exit");
-                    return;
-                }
-                sendNotification(CMD_NOTIFICATION_ARG_TITLE);
-            }, timeout);
+            startResponseTimeout(
+                    CMD_NOTIFICATION,
+                    () -> sendWrite(builder, setTitleCommand),
+                    timeout
+            );
         } else if (stage == CMD_NOTIFICATION_ARG_BODY) {
             if (notificationBody == null) { notificationBody = ""; }
             byte[] bodyBytes = notificationBody.getBytes();
@@ -569,32 +600,22 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     bodyData
             );
             LOG.debug("write body: {}", GB.hexdump(setBodyCommand));
-            sendWriteBuilder(builder, setBodyCommand);
-            startResponseTimeout(() -> {
-                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_BODY response timeout fired");
-                responseRetryCount++;
-                if (responseRetryCount > 3) {
-                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_BODY response timeout fired 3 times exit");
-                    return;
-                }
-                sendNotification(CMD_NOTIFICATION_ARG_BODY);
-            }, timeout);
+            startResponseTimeout(
+                    CMD_NOTIFICATION,
+                    () -> sendWrite(builder, setBodyCommand),
+                    timeout
+            );
         } else if (stage == CMD_NOTIFICATION_ARG_END) {
             byte[] setEndCommand = buildCommand(
                     CMD_NOTIFICATION,
                     CMD_NOTIFICATION_ARG_END
             );
             LOG.debug("write end: {}", GB.hexdump(setEndCommand));
-            sendWriteBuilder(builder, setEndCommand);
-            startResponseTimeout(() -> {
-                LOG.warn("sendNotification CMD_NOTIFICATION_ARG_END response timeout fired");
-                responseRetryCount++;
-                if (responseRetryCount > 3) {
-                    LOG.warn("sendNotification CMD_NOTIFICATION_ARG_END response timeout fired 3 times exit");
-                    return;
-                }
-                sendNotification(CMD_NOTIFICATION_ARG_END);
-            }, timeout);
+            startResponseTimeout(
+                    CMD_NOTIFICATION,
+                    () -> sendWrite(builder, setEndCommand),
+                    timeout
+            );
         }
     }
 
@@ -972,8 +993,6 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 sendNotification(CMD_NOTIFICATION_ARG_BODY);
             } else if (data[3] == CMD_NOTIFICATION_ARG_BODY) {
                 sendNotification(CMD_NOTIFICATION_ARG_END);
-            } else if (data[3] == CMD_NOTIFICATION_ARG_END) {
-                cancelResponseTimeout();
             }
         }
     }
