@@ -1135,4 +1135,10 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     public Set<BarcodeFormat> getSupportedBarcodeFormats(@NonNull final GBDevice device) {
         return Collections.emptySet();
     }
+
+    @Override
+    public int getReconnectionDelay() {
+        // 2 seconds.
+        return 2000;
+    }
 }
