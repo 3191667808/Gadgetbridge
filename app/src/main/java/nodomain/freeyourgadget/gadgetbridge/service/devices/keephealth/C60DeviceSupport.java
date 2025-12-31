@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60Constants;
@@ -91,6 +92,13 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final byte CMD_NOTIFICATION_ARG_BODY = 0x02;
     private final byte CMD_NOTIFICATION_ARG_END = 0x03;
 
+
+    private final byte CMD_PHONE_CONTROL = 0x10;
+    private final byte[] CMD_PHONE_CONTROL_ARG_CAMERA_OPEN = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    private final byte[] CMD_PHONE_CONTROL_ARG_CAMERA_TAKE_PHOTO = {0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00};
+    private final byte[] CMD_PHONE_CONTROL_ARG_CAMERA_CLOSE = {0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+
     private final byte CMD_STEPS = 0x20;
     private final byte CMD_STEPS_ARG_CURRENT = 0x00;
     private final byte CMD_STEPS_ARG_HISTORY = 0x01;
@@ -133,6 +141,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, @Nullable Runnable afterFail, long timeoutMs) {
         return startResponseTimeout(cmdByte, sendAction, afterFail, timeoutMs, false);
+    }
+    private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, long timeoutMs) {
+        return startResponseTimeout(cmdByte, sendAction, null, timeoutMs, false);
     }
     private ScheduledFuture<?> startResponseTimeout(Byte cmdByte, Runnable sendAction, @Nullable Runnable afterFail, long timeoutMs, boolean resetCount) {
         LOG.debug("pending {}", pending);
@@ -371,6 +382,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         if (cmdBuff.remaining() == 0) {
             byte[] value = cmdBuff.array();
+            // when received all data delete buffer
+            cmdBuff = null;
             if (responseChecksumValid(value)) {
                 // get cmd based on response first byte - 0x80
                 byte cmdPrefix = (byte) (value[0] - (byte) 0x80);
@@ -431,14 +444,14 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleHydration(value);
                 } else if (cmdPrefix == CMD_NOTIFICATION) {
                     handleNotificationResponse(value);
+                } else if (cmdPrefix == CMD_PHONE_CONTROL) {
+                    handlePhoneControl(value);
                 } else {
                     LOG.info("Unhandled data: {}", GB.hexdump(value));
                 }
             } else {
                 LOG.info("Received data have invalid checksum: {}", GB.hexdump(value));
             }
-            // when received all data delete buffer
-            cmdBuff = null;
         }
 
         return false;
@@ -554,6 +567,30 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         notificationQueue.addToQueue(new NotificationItem(titleStr, bodyStr, type));
         LOG.debug("notificationQueue: {}", notificationQueue);
         sendNotification();
+    }
+
+    public void onCameraStatusChange(
+            GBDeviceEventCameraRemote.Event event,
+            String filename
+    ) {
+        int timeout = 1000;
+        byte[] payload;
+        switch (event) {
+            case OPEN_CAMERA:
+                payload = CMD_PHONE_CONTROL_ARG_CAMERA_OPEN;
+                break;
+            case CLOSE_CAMERA:
+                payload = CMD_PHONE_CONTROL_ARG_CAMERA_CLOSE;
+                break;
+            default:
+                LOG.warn("Unknown camera status change {}", event);
+                return;
+        }
+        byte[] setCommand = buildCommand(
+                CMD_PHONE_CONTROL,
+                payload
+        );
+        sendWrite("open camera", setCommand);
     }
 
     private void sendNotification() {
@@ -1020,6 +1057,20 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     sendNotification();
                 }
             }
+        }
+    }
+
+    private void handlePhoneControl(byte[] data) {
+        byte[] trimmedData = trimData(data);
+        LOG.debug("handlePhoneControl: payload - {}", GB.hexdump(trimmedData));
+        if (trimmedData[2] == 0x02) {
+            GBDeviceEventCameraRemote cameraEvent = new GBDeviceEventCameraRemote();
+            cameraEvent.event = GBDeviceEventCameraRemote.Event.TAKE_PICTURE;
+            evaluateGBDeviceEvent(cameraEvent);
+        } else if (trimmedData[2] == 0x03) {
+            GBDeviceEventCameraRemote cameraEvent = new GBDeviceEventCameraRemote();
+            cameraEvent.event = GBDeviceEventCameraRemote.Event.CLOSE_CAMERA;
+            evaluateGBDeviceEvent(cameraEvent);
         }
     }
 

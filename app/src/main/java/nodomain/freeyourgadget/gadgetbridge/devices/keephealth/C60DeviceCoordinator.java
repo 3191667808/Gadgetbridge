@@ -16,16 +16,24 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.keephealth;
 
+import android.content.Context;
+import android.content.Intent;
+
 import androidx.annotation.NonNull;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.CameraActivity;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCardAction;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -96,6 +104,38 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     @Override
     public String[] getSupportedLanguageSettings(GBDevice device) {
         return C60Constants.LANGUAGES.keySet().toArray(new String[0]);
+    }
+
+    @Override
+    public List<DeviceCardAction> getCustomActions() {
+        if (!CameraActivity.supportsCamera()) {
+            return Collections.emptyList();
+        }
+
+        DeviceCardAction action = new DeviceCardAction() {
+            @Override
+            public int getIcon(GBDevice device) {
+                return R.drawable.ic_camera_remote;
+            }
+
+            @Override
+            public String getDescription(GBDevice device, Context context) {
+                return context.getString(R.string.open_camera);
+            }
+
+            @Override
+            public void onClick(GBDevice device, Context context) {
+                Intent cameraIntent = new Intent(context, CameraActivity.class);
+                cameraIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                cameraIntent.putExtra(
+                        CameraActivity.intentExtraEvent,
+                        GBDeviceEventCameraRemote.eventToInt(GBDeviceEventCameraRemote.Event.OPEN_CAMERA)
+                );
+                context.startActivity(cameraIntent);
+            }
+        };
+
+        return Collections.singletonList(action);
     }
 
     @Override
