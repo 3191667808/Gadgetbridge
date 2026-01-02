@@ -51,6 +51,12 @@
     <uses-permission android:name="me.hackerchick.catima.READ_CARDS"/>
     <uses-permission android:name="me.hackerchick.catima.debug.READ_CARDS"/>
 
+    <!-- Make sure we don't get the INTERNET permission even when a depencency requires it -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
+    <!-- Internet Helper -->
+    <uses-permission android:name="nodomain.freeyourgadget.internethelper.INTERNET"/>
+
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
@@ -208,6 +214,10 @@
             android:label="@string/sleepasandroid_settings"
             android:parentActivityName=".activities.SettingsActivity" />
         <activity
+            android:name=".activities.InternetHelperPreferencesActivity"
+            android:label="@string/prefs_internet_helper_title"
+            android:parentActivityName=".activities.SettingsActivity" />
+        <activity
             android:name=".activities.AboutUserPreferencesActivity"
             android:label="@string/activity_prefs_about_you"
             android:parentActivityName=".activities.AboutUserPreferencesActivity" />
@@ -265,6 +275,10 @@
             android:launchMode="singleTop"
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
+            android:name=".activities.appmanager.RebbleAppStoreActivity"
+            android:label="@string/activity_title_rebble_app_store"
+            android:parentActivityName=".activities.appmanager.AppManagerActivity" />
+        <activity
             android:name=".activities.musicmanager.MusicManagerActivity"
             android:label="@string/title_activity_musicmanager"
             android:parentActivityName=".activities.SettingsActivity" />
@@ -273,8 +287,8 @@
             android:label="@string/title_activity_notification_management"
             android:parentActivityName=".activities.SettingsActivity" />
         <activity
-            android:name=".activities.CalBlacklistActivity"
-            android:label="@string/title_activity_calblacklist"
+            android:name=".activities.CalendarSelectionActivity"
+            android:label="@string/pref_title_calendar_sync_choose"
             android:parentActivityName=".activities.SettingsActivity" />
         <activity
             android:name=".devices.vesc.VescControlActivity"
@@ -591,6 +605,12 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".service.devices.pebble.webview.PebbleJsService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="connectedDevice" />
+
         <receiver
             android:name=".externalevents.GenericWeatherReceiver"
             android:enabled="true"
@@ -644,10 +664,14 @@
             dialog when changing orientation
         -->
         <activity
-            android:name=".activities.DebugActivity"
+            android:name=".activities.debug.DebugActivityV2"
             android:label="@string/title_activity_debug"
             android:parentActivityName=".activities.ControlCenterv2"
-            android:screenOrientation="portrait"
+            android:windowSoftInputMode="stateHidden" />
+        <activity
+            android:name=".activities.debug.preferences.PreferenceManagerActivity"
+            android:label="@string/menuitem_settings"
+            android:parentActivityName=".activities.debug.DebugActivityV2"
             android:windowSoftInputMode="stateHidden" />
         <activity
             android:name=".activities.AboutActivity"
@@ -679,7 +703,6 @@
             android:label="@string/activity_filter_filter_title"
             android:parentActivityName=".activities.workouts.WorkoutListActivity"
             android:excludeFromRecents="true"/>
-
         <activity
             android:name=".activities.DataManagementActivity"
             android:label="@string/title_activity_db_management"
@@ -875,10 +898,7 @@
 
         <activity
             android:name=".activities.ExternalPebbleJSActivity"
-            android:allowTaskReparenting="true"
-            android:clearTaskOnLaunch="true"
             android:label="@string/app_configure"
-            android:launchMode="singleTask"
             android:parentActivityName=".activities.appmanager.AppManagerActivity"
             android:exported="true">
             <meta-data
@@ -964,7 +984,7 @@
             android:exported="true" />
 
         <activity
-            android:name=".devices.marstek.SolarEquipmentStatusActivity"
+            android:name=".devices.SolarEquipmentStatusActivity"
             android:label="Solar Equipment Status"
             android:exported="true" />
 

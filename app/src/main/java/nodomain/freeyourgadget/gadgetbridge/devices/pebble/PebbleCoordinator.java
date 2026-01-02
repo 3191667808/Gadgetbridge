@@ -38,6 +38,7 @@ import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.appmanager.AppManagerActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.appmanager.RebbleAppStoreActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
@@ -141,6 +142,11 @@ public class PebbleCoordinator extends AbstractBLClassicDeviceCoordinator {
     }
 
     @Override
+    public Class<? extends Activity> getAppStoreActivity(final GBDevice device) {
+        return RebbleAppStoreActivity.class;
+    }
+
+    @Override
     public File getAppCacheDir() throws IOException {
         return PebbleUtils.getPbwCacheDir();
     }
@@ -199,6 +205,9 @@ public class PebbleCoordinator extends AbstractBLClassicDeviceCoordinator {
     public DeviceSpecificSettings getDeviceSpecificSettings(final GBDevice device) {
         final DeviceSpecificSettings deviceSpecificSettings = new DeviceSpecificSettings();
 
+        final List<Integer> generic = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.GENERIC);
+        generic.add(R.xml.devicesettings_pebble_generic);
+
         final List<Integer> notifications = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS);
         notifications.add(R.xml.devicesettings_autoremove_notifications);
         notifications.add(R.xml.devicesettings_pebble_calls_notifications);
@@ -229,7 +238,6 @@ public class PebbleCoordinator extends AbstractBLClassicDeviceCoordinator {
     public Class<? extends DeviceSupport> getDeviceSupportClass(final GBDevice device) {
         return PebbleSupport.class;
     }
-
 
     @Override
     @StringRes

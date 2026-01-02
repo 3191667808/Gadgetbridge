@@ -30,17 +30,16 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiActivitySampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiHrvSummarySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiHrvValueSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHeartRateSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvSummarySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvValueSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiSleepSessionSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiSleepStageSampleDao;
@@ -67,7 +66,6 @@ public abstract class AbstractYawellRingCoordinator extends AbstractBLEDeviceCoo
             put(session.getColmiStressSampleDao(), ColmiStressSampleDao.Properties.DeviceId);
             put(session.getColmiSleepSessionSampleDao(), ColmiSleepSessionSampleDao.Properties.DeviceId);
             put(session.getColmiSleepStageSampleDao(), ColmiSleepStageSampleDao.Properties.DeviceId);
-            put(session.getColmiHrvSummarySampleDao(), ColmiHrvSummarySampleDao.Properties.DeviceId);
             put(session.getColmiHrvValueSampleDao(), ColmiHrvValueSampleDao.Properties.DeviceId);
         }};
     }
@@ -179,7 +177,7 @@ public abstract class AbstractYawellRingCoordinator extends AbstractBLEDeviceCoo
 
     @Override
     public TimeSampleProvider<? extends HrvSummarySample> getHrvSummarySampleProvider(GBDevice device, DaoSession session) {
-        return new ColmiHrvSummarySampleProvider(device, session);
+        return new ComputedHrvSummarySampleProvider(getHrvValueSampleProvider(device, session), device, session);
     }
 
     @Override

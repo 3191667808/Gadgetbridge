@@ -150,6 +150,7 @@ public interface DeviceCoordinator {
         BIKE_COMPUTER,
         SMART_CLOCK,
         THERMOMETER,
+        PV_EQUIPMENT,
     }
 
     /**
@@ -617,6 +618,13 @@ public interface DeviceCoordinator {
     Class<? extends Activity> getWatchfaceDesignerActivity(GBDevice device);
 
     /**
+     * Returns the Activity class that will be used to download apps/watchfaces.
+     *
+     * @return
+     */
+    Class<? extends Activity> getAppStoreActivity(GBDevice device);
+
+    /**
      * Returns the device app cache directory.
      */
     File getAppCacheDir() throws IOException;
@@ -803,6 +811,12 @@ public interface DeviceCoordinator {
      * @return int[]
      */
     int[] getSupportedDeviceSpecificAuthenticationSettings();
+
+    /**
+     * Returns device specific experimental settings. This screen is only shown when the global experimental settings
+     * is enabled.
+     */
+    int[] getSupportedDeviceSpecificExperimentalSettings(final GBDevice device);
 
     /**
      * Indicates which device specific settings the device supports (not per device type or family, but unique per device).

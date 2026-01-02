@@ -20,7 +20,23 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge;
 
-import android.annotation.TargetApi;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.AMAZFITBIP;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.AMAZFITCOR;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.AMAZFITCOR2;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.FITPRO;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.GALAXY_BUDS;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.LEFUN;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND2;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND2_HRX;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND3;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.PEBBLE;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.TLW64;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.WATCHXPLUS;
+import static nodomain.freeyourgadget.gadgetbridge.util.GB.NOTIFICATION_CHANNEL_HIGH_PRIORITY_ID;
+import static nodomain.freeyourgadget.gadgetbridge.util.GB.NOTIFICATION_ID_ERROR;
+
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.Application;
@@ -57,6 +73,10 @@ import androidx.annotation.VisibleForTesting;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import org.apache.commons.lang3.StringUtils;
+import org.json.JSONObject;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -100,30 +120,12 @@ import nodomain.freeyourgadget.gadgetbridge.util.BondingUtil;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
+import nodomain.freeyourgadget.gadgetbridge.util.InternetHelperSingleton;
 import nodomain.freeyourgadget.gadgetbridge.util.LimitedQueue;
+import nodomain.freeyourgadget.gadgetbridge.util.PermissionsUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.backup.PeriodicZipExporter;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
-
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.AMAZFITBIP;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.AMAZFITCOR;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.AMAZFITCOR2;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.FITPRO;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.GALAXY_BUDS;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.LEFUN;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND2;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND2_HRX;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.MIBAND3;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.PEBBLE;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.TLW64;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceType.WATCHXPLUS;
-import static nodomain.freeyourgadget.gadgetbridge.util.GB.NOTIFICATION_CHANNEL_HIGH_PRIORITY_ID;
-import static nodomain.freeyourgadget.gadgetbridge.util.GB.NOTIFICATION_ID_ERROR;
-
-import org.apache.commons.lang3.StringUtils;
-import org.json.JSONObject;
-import org.slf4j.LoggerFactory;
 
 /**
  * Main Application class that initializes and provides access to certain things like
@@ -139,7 +141,7 @@ public class GBApplication extends Application {
     private static final Lock dbLock = new ReentrantLock();
     private static DeviceService deviceService;
     private static SharedPreferences sharedPrefs;
-    private static final String PREFS_VERSION = "shared_preferences_version";
+    public static final String PREFS_VERSION = "shared_preferences_version";
     //if preferences have to be migrated, increment the following and add the migration logic in migratePrefs below; see http://stackoverflow.com/questions/16397848/how-can-i-migrate-android-preferences-with-a-new-version
     private static final int CURRENT_PREFS_VERSION = 54;
 
@@ -209,6 +211,14 @@ public class GBApplication extends Application {
         final Intent quitIntent = new Intent(GBApplication.ACTION_QUIT);
         LocalBroadcastManager.getInstance(context).sendBroadcast(quitIntent);
         GBApplication.deviceService().quit();
+
+        if (lockHandler != null) {
+            try {
+                lockHandler.closeDb();
+            } catch (final Exception e) {
+                GB.log("Failed to close DB before restart", GB.ERROR, e);
+            }
+        }
 
         final Intent startActivity = new Intent(context, ControlCenterv2.class);
         final PendingIntent pendingIntent = PendingIntent.getActivity(
@@ -2271,6 +2281,14 @@ public class GBApplication extends Application {
         Resources.Theme theme = context.getTheme();
         theme.resolveAttribute(android.R.attr.windowBackground, typedValue, true);
         return typedValue.data;
+    }
+
+    public static boolean hasDirectInternetAccess() {
+        return PermissionsUtils.checkPermission(getContext(), Manifest.permission.INTERNET);
+    }
+
+    public static boolean hasInternetAccess() {
+        return hasDirectInternetAccess() || InternetHelperSingleton.INSTANCE.ensureInternetHelperBound();
     }
 
     public static GBPrefs getPrefs() {

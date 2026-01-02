@@ -99,6 +99,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.WorkoutListActivity;
@@ -607,7 +608,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                                                      new MaterialAlertDialogBuilder(context)
                                                              .setCancelable(true)
                                                              .setTitle(context.getString(R.string.controlcenter_find_device))
-                                                             .setMessage(context.getString(R.string.find_lost_device_message, device.getName()))
+                                                             .setMessage(context.getString(R.string.find_lost_device_message, device.getAliasOrName()))
                                                              .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                                                                  @Override
                                                                  public void onClick(DialogInterface dialog, int which) {
@@ -916,6 +917,9 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
         final boolean detailsShown = expandedDeviceAddress.equals(device.getAddress());
         boolean showInfoIcon = device.hasDeviceInfos() && !device.isBusy();
 
+        if (BuildConfig.DEBUG) {
+            menu.getMenu().findItem(R.id.controlcenter_device_submenu_test_new_function).setVisible(deviceConnected);
+        }
         menu.getMenu().findItem(R.id.controlcenter_device_submenu_connect).setVisible(!deviceConnected);
         menu.getMenu().findItem(R.id.controlcenter_device_submenu_disconnect).setVisible(deviceConnected);
         menu.getMenu().findItem(R.id.controlcenter_device_submenu_show_details).setEnabled(showInfoIcon);
@@ -938,6 +942,12 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                         GBApplication.deviceService(device).disconnect();
                     }
                     removeFromLastDeviceAddressesPref(device);
+                    return true;
+                } else if (itemId == R.id.controlcenter_device_submenu_test_new_function) {
+                    if (device.isInitialized()) {
+                        GBApplication.deviceService(device).onTestNewFunction();
+                        showTransientSnackbar(R.string.controlcenter_test_new_function);
+                    }
                     return true;
                 } else if (itemId == R.id.controlcenter_device_submenu_set_alias) {
                     showSetAliasDialog(device);
@@ -982,7 +992,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
     private void showRemoveDeviceDialog(final GBDevice device) {
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(context)
                 .setCancelable(true)
-                .setTitle(context.getString(R.string.controlcenter_delete_device_name, device.getName()))
+                .setTitle(context.getString(R.string.controlcenter_delete_device_name, device.getAliasOrName()))
                 .setMessage(R.string.controlcenter_delete_device_dialogmessage)
                 .setPositiveButton(R.string.Delete,
                         (dialog, which) -> removeDevice(device, true))

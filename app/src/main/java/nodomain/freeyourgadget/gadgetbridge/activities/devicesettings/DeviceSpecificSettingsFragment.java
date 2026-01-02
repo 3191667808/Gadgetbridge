@@ -73,7 +73,7 @@ import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractPreferenceFragment;
-import nodomain.freeyourgadget.gadgetbridge.activities.CalBlacklistActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.CalendarSelectionActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.ConfigureContacts;
 import nodomain.freeyourgadget.gadgetbridge.activities.ConfigureWorldClocks;
 import nodomain.freeyourgadget.gadgetbridge.activities.NotificationsAppIconUploadActivity;
@@ -93,6 +93,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
+import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.GBSimpleSummaryProvider;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.MinMaxTextWatcher;
@@ -842,6 +843,8 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_MEDIA_PLAYBACK_MODE);
         addPreferenceHandlerFor(PREF_SHOKZ_EQUALIZER_BLUETOOTH);
         addPreferenceHandlerFor(PREF_SHOKZ_EQUALIZER_MP3);
+        addPreferenceHandlerFor(PREF_SOS_CONTACT_NAME);
+        addPreferenceHandlerFor(PREF_SOS_CONTACT_NUMBER);
 
         addPreferenceHandlerFor(PREF_SHOKZ_CONTROLS_LONG_PRESS_MULTI_FUNCTION);
         addPreferenceHandlerFor(PREF_SHOKZ_CONTROLS_SIMULTANEOUS_VOLUME_UP_DOWN);
@@ -953,6 +956,7 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_GPS_SATELLITE_SEARCH);
         addPreferenceHandlerFor(PREF_AGPS_EXPIRY_REMINDER_ENABLED);
         addPreferenceHandlerFor(PREF_AGPS_EXPIRY_REMINDER_TIME);
+        addPreferenceHandlerFor(PREF_ALWAYS_ON_DISPLAY);
         addPreferenceHandlerFor(PREF_ALWAYS_ON_DISPLAY_FOLLOW_WATCHFACE);
         addPreferenceHandlerFor(PREF_ALWAYS_ON_DISPLAY_STYLE);
         addPreferenceHandlerFor(PREF_WEARDIRECTION);
@@ -1001,7 +1005,11 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor("lock");
 
         addPreferenceHandlerFor(PREF_BATTERY_MINIMUM_CHARGE);
+        addPreferenceHandlerFor(PREF_BATTERY_MAXIMUM_CHARGE);
         addPreferenceHandlerFor(PREF_BATTERY_ALLOW_PASS_THROUGH);
+        addPreferenceHandlerFor(PREF_BATTERY_ALLOW_BYPASS);
+        addPreferenceHandlerFor(PREF_OUTPUT_POWER_GRID);
+        addPreferenceHandlerFor(PREF_OFFGRID_MODE);
 
         addPreferenceHandlerFor(PREF_DISPLAY_ENABLED);
         addPreferenceHandlerFor(PREF_DISPLAY_ENABLED_ALL_DAY);
@@ -1012,6 +1020,11 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_CALENDAR_MAX_TITLE_LENGTH);
         addPreferenceHandlerFor(PREF_CALENDAR_MAX_DESC_LENGTH);
         addPreferenceHandlerFor(PREF_CALENDAR_TARGET_APP);
+        addPreferenceHandlerFor(PREF_CALENDAR_SYNC_CANCELED);
+        addPreferenceHandlerFor(PREF_CALENDAR_SYNC_DECLINED);
+        addPreferenceHandlerFor(PREF_CALENDAR_SYNC_FOCUS_TIME);
+        addPreferenceHandlerFor(PREF_CALENDAR_SYNC_ALL_DAY);
+        addPreferenceHandlerFor(PREF_CALENDAR_SYNC_WORKING_LOCATION);
 
         addPreferenceHandlerFor(PREF_ATC_BLE_OEPL_MODEL);
         addPreferenceHandlerFor(PREF_ATC_BLE_OEPL_BLE_ADV_INTERVAL);
@@ -1267,15 +1280,13 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
             });
         }
 
-        final Preference calendarBlacklist = findPreference("blacklist_calendars");
+        final Preference calendarBlacklist = findPreference(GBPrefs.CALENDAR_BLACKLIST);
         if (calendarBlacklist != null) {
-            calendarBlacklist.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                public boolean onPreferenceClick(Preference preference) {
-                    Intent intent = new Intent(getContext(), CalBlacklistActivity.class);
-                    intent.putExtra(GBDevice.EXTRA_DEVICE, device);
-                    startActivity(intent);
-                    return true;
-                }
+            calendarBlacklist.setOnPreferenceClickListener(preference -> {
+                Intent intent = new Intent(getContext(), CalendarSelectionActivity.class);
+                intent.putExtra(GBDevice.EXTRA_DEVICE, device);
+                startActivity(intent);
+                return true;
             });
         }
 
@@ -1362,12 +1373,19 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         setInputTypeFor(PREF_CALENDAR_SYNC_EVENTS_AMOUNT, InputType.TYPE_CLASS_NUMBER);
         setInputTypeFor(PREF_CALENDAR_MAX_TITLE_LENGTH, InputType.TYPE_CLASS_NUMBER);
         setInputTypeFor(PREF_CALENDAR_MAX_DESC_LENGTH, InputType.TYPE_CLASS_NUMBER);
-        setNumericInputTypeWithRangeFor(DeviceSettingsPreferenceConst.PREF_BATTERY_DISCHARGE_INTERVAL1_WATT, 80, 800, false);
-        setNumericInputTypeWithRangeFor(DeviceSettingsPreferenceConst.PREF_BATTERY_DISCHARGE_INTERVAL2_WATT, 80, 800, false);
-        setNumericInputTypeWithRangeFor(DeviceSettingsPreferenceConst.PREF_BATTERY_DISCHARGE_INTERVAL3_WATT, 80, 800, false);
-        setNumericInputTypeWithRangeFor(DeviceSettingsPreferenceConst.PREF_BATTERY_DISCHARGE_INTERVAL4_WATT, 80, 800, false);
-        setNumericInputTypeWithRangeFor(DeviceSettingsPreferenceConst.PREF_BATTERY_DISCHARGE_INTERVAL5_WATT, 80, 800, false);
+
+        setNumericInputTypeWithRangeFor(PREF_BATTERY_DISCHARGE_INTERVAL1_WATT, 80, 800, false);
+        setNumericInputTypeWithRangeFor(PREF_BATTERY_DISCHARGE_INTERVAL2_WATT, 80, 800, false);
+        setNumericInputTypeWithRangeFor(PREF_BATTERY_DISCHARGE_INTERVAL3_WATT, 80, 800, false);
+        setNumericInputTypeWithRangeFor(PREF_BATTERY_DISCHARGE_INTERVAL4_WATT, 80, 800, false);
+        setNumericInputTypeWithRangeFor(PREF_BATTERY_DISCHARGE_INTERVAL5_WATT, 80, 800, false);
+        setNumericInputTypeWithRangeFor(PREF_OUTPUT_POWER_GRID, 0, 2400, false);
         setNumericInputTypeWithRangeFor(PREF_BATTERY_MINIMUM_CHARGE, 0, 100, false);
+        setNumericInputTypeWithRangeFor(PREF_BATTERY_MAXIMUM_CHARGE, 0, 100, false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL1_PEAK_W, 0,1000,false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL2_PEAK_W, 0,1000,false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL3_PEAK_W, 0,1000,false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL4_PEAK_W, 0,1000,false);
 
         new PasswordCapabilityImpl().registerPreferences(getContext(), coordinator.getPasswordCapability(), this);
         new HeartRateCapability().registerPreferences(getContext(), coordinator.getHeartRateMeasurementIntervals(), this);
@@ -1595,11 +1613,24 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
                     );
                 }
             }
-            if(BuildConfig.DEBUG) {
+            if (BuildConfig.DEBUG) {
                 deviceSpecificSettings.addRootScreen(
                         DeviceSpecificSettingsScreen.DEVELOPER,
                         R.xml.devicesettings_stress_test
                 );
+            }
+            if (GBApplication.getPrefs().experimentalSettings()) {
+                final int[] experimentalSettings = coordinator.getSupportedDeviceSpecificExperimentalSettings(device);
+                if (experimentalSettings != null && experimentalSettings.length > 0) {
+                    deviceSpecificSettings.addRootScreen(
+                            DeviceSpecificSettingsScreen.EXPERIMENTAL,
+                            R.xml.devicesettings_experimental_warning
+                    );
+                    deviceSpecificSettings.addRootScreen(
+                            DeviceSpecificSettingsScreen.EXPERIMENTAL,
+                            experimentalSettings
+                    );
+                }
             }
         }
 

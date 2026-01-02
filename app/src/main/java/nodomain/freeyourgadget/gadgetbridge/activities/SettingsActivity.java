@@ -66,8 +66,6 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.ChartsPreferencesA
 import nodomain.freeyourgadget.gadgetbridge.activities.discovery.DiscoveryPairingPreferenceActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.maps.MapsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.TimeChangeReceiver;
-import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
-import nodomain.freeyourgadget.gadgetbridge.model.weather.WeatherCacheManager;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
@@ -98,6 +96,8 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             open(MapsSettingsActivity.class, result);
         } else if (result.getResourceFile() == R.xml.automations_settings) {
             open(AutomationsSettingsActivity.class, result);
+        } else if (result.getResourceFile() == R.xml.internethelper_preferences) {
+            open(InternetHelperPreferencesActivity.class, result);
         } else {
             super.onSearchResultClicked(result);
         }
@@ -121,6 +121,8 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             index(R.xml.notifications_preferences, R.string.pref_header_notifications);
             index(R.xml.map_settings, R.string.maps_settings);
             index(R.xml.automations_settings, R.string.pref_header_automations);
+            if (!GBApplication.hasDirectInternetAccess())
+                index(R.xml.internethelper_preferences, R.string.prefs_internet_helper_title);
 
             setInputTypeFor("rtl_max_line_length", InputType.TYPE_CLASS_NUMBER);
             setInputTypeFor("location_latitude", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED | InputType.TYPE_NUMBER_FLAG_DECIMAL);
@@ -180,17 +182,6 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                     pref.setEnabled(false);
                     pref.setSummary(R.string.pref_write_logfiles_not_available);
                 }
-            }
-
-            pref = findPreference("cache_weather");
-            if (pref != null) {
-                pref.setOnPreferenceChangeListener((preference, newVal) -> {
-                    boolean doEnable = Boolean.TRUE.equals(newVal);
-
-                    Weather.initializeCache(new WeatherCacheManager(requireContext().getCacheDir(), doEnable));
-
-                    return true;
-                });
             }
 
             pref = findPreference("language");
@@ -357,6 +348,19 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                     startActivity(enableIntent);
                     return true;
                 });
+            }
+
+            pref = findPreference("pref_category_internethelper");
+            if (pref != null) {
+                if (GBApplication.hasDirectInternetAccess()) {
+                    pref.setVisible(false);
+                } else {
+                    pref.setOnPreferenceClickListener(preference -> {
+                        Intent enableIntent = new Intent(requireContext(), InternetHelperPreferencesActivity.class);
+                        startActivity(enableIntent);
+                        return true;
+                    });
+                }
             }
 
             pref = findPreference("pref_category_notifications");

@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.format.DateUtils;
 import android.view.View;
 
@@ -83,6 +84,8 @@ public abstract class AbstractChartFragment<D extends ChartsData> extends Abstra
         }
     };
 
+    private final Handler loadingHandler = new Handler();
+
     private boolean mChartDirty = true;
     private AsyncTask refreshTask;
 
@@ -140,6 +143,7 @@ public abstract class AbstractChartFragment<D extends ChartsData> extends Abstra
 
     @Override
     public void onDestroy() {
+        loadingHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
         LocalBroadcastManager.getInstance(requireActivity()).unregisterReceiver(mReceiver);
     }
@@ -333,6 +337,8 @@ public abstract class AbstractChartFragment<D extends ChartsData> extends Abstra
         ChartsHost chartsHost = getChartsHost();
         if (chartsHost != null) {
             if (chartsHost.getDevice() != null) {
+                // Delay the loading slightly to prevent quick flashes on fast loading
+                loadingHandler.postDelayed(() -> chartsHost.setLoading(true), 300L);
                 mChartDirty = false;
                 if (refreshTask != null && refreshTask.getStatus() != AsyncTask.Status.FINISHED) {
                     refreshTask.cancel(true);
@@ -372,6 +378,10 @@ public abstract class AbstractChartFragment<D extends ChartsData> extends Abstra
                 LOG.info("Not rendering charts because activity is not available anymore");
                 return;
             }
+
+            loadingHandler.removeCallbacksAndMessages(null);
+            getChartsHost().setLoading(false);
+
             if (getTaskError() != null) {
                 // Async task failed - we will have no data, so avoid NPE crashes
                 // a log + toast were already displayed by the DBAccess class

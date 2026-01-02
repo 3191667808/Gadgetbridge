@@ -43,7 +43,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public final class BtBRQueue {
-    private static final Logger LOG = LoggerFactory.getLogger(BtBRQueue.class);
+    private final Logger LOG;
+    private static final AtomicLong QUEUE_COUNTER = new AtomicLong(0L);
     private static final AtomicLong THREAD_COUNTER = new AtomicLong(0L);
     public static final int HANDLER_SUBJECT_CONNECT = 0;
     public static final int HANDLER_SUBJECT_PERFORM_TRANSACTION = 1;
@@ -58,6 +59,7 @@ public final class BtBRQueue {
 
     private final Context mContext;
     private final int mBufferSize;
+    private final int mConnectDelayMillis;
 
     private final Handler mWriteHandler;
     private final HandlerThread mWriteHandlerThread = new HandlerThread("BtBRQueue_write_" + THREAD_COUNTER.getAndIncrement(), Process.THREAD_PRIORITY_BACKGROUND);
@@ -68,7 +70,7 @@ public final class BtBRQueue {
         return new Thread("BtBRQueue_read_" + THREAD_COUNTER.getAndIncrement()) {
             @Override
             public void run() {
-                LOG.debug("started thread {}", getName());
+                LOG.debug("started thread {} for {}", getName(), mGbDevice.getAddress());
                 final byte[] buffer = new byte[mBufferSize];
                 int nRead;
 
@@ -114,21 +116,31 @@ public final class BtBRQueue {
         };
     }
 
-    public BtBRQueue(BluetoothAdapter btAdapter, GBDevice gbDevice, Context context, SocketCallback socketCallback, @NonNull UUID supportedService, int bufferSize) {
+    public BtBRQueue(BluetoothAdapter btAdapter,
+                     GBDevice gbDevice,
+                     Context context,
+                     SocketCallback socketCallback,
+                     @NonNull UUID supportedService,
+                     int bufferSize,
+                     int connectDelayMillis) {
+        LOG = LoggerFactory.getLogger(BtBRQueue.class.getName() + "(" + QUEUE_COUNTER.getAndIncrement() + ")");
+
         mBtAdapter = btAdapter;
         mGbDevice = gbDevice;
         mContext = context;
         mCallback = socketCallback;
         mService = supportedService;
         mBufferSize = bufferSize;
+        mConnectDelayMillis = connectDelayMillis;
         mDisposed = new AtomicBoolean(false);
 
         mWriteHandlerThread.start();
 
         new Handler(mWriteHandlerThread.getLooper()).post(()
-                -> LOG.debug("started thread {}", Thread.currentThread().getName()));
+                -> LOG.debug("started thread {} for {}", Thread.currentThread().getName(), gbDevice.getAddress()));
 
-        LOG.debug("Write handler thread is prepared, creating write handler");
+        LOG.debug("Write handler thread for {} is prepared, creating write handler", gbDevice.getAddress());
+
         mWriteHandler = new Handler(mWriteHandlerThread.getLooper()) {
             @SuppressLint("MissingPermission")
             @Override
@@ -145,7 +157,18 @@ public final class BtBRQueue {
                             return;
                         }
 
+                        if (mConnectDelayMillis > 0) {
+                            LOG.debug("Waiting {} ms before connecting to RFCOMM socket", mConnectDelayMillis);
+                            try {
+                                Thread.sleep(mConnectDelayMillis);
+                            } catch (final InterruptedException e) {
+                                LOG.error("Interrupted while waiting for connect", e);
+                            }
+                        }
+
                         try {
+                            LOG.debug("Connecting to RFCOMM socket for {}", mGbDevice.getName());
+
                             mBtSocket.connect();
 
                             LOG.info("Connected to RFCOMM socket for {}", mGbDevice.getName());

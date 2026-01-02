@@ -98,8 +98,8 @@ android {
         minSdk = 23
 
         // Note: always bump BOTH versionCode and versionName!
-        versionName "0.87.1"
-        versionCode 242
+        versionName "0.88.0"
+        versionCode 243
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "boolean", "INTERNET_ACCESS", "false"
@@ -139,6 +139,7 @@ android {
 
     sourceSets {
         main {
+            java.srcDirs += "build/generated/sources/gbdao"
             res.srcDirs += "build/generated/res/changelog"
         }
     }
@@ -219,18 +220,18 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
-    implementation "androidx.camera:camera-core:1.5.1"
-    implementation "androidx.camera:camera-camera2:1.5.1"
-    implementation 'androidx.camera:camera-view:1.5.1'
-    implementation 'androidx.camera:camera-lifecycle:1.5.1'
+    implementation "androidx.camera:camera-core:1.5.2"
+    implementation "androidx.camera:camera-camera2:1.5.2"
+    implementation 'androidx.camera:camera-view:1.5.2'
+    implementation 'androidx.camera:camera-lifecycle:1.5.2'
 
     testImplementation "junit:junit:4.13.2"
-    testImplementation "org.mockito:mockito-core:5.20.0"
+    testImplementation "org.mockito:mockito-core:5.21.0"
     testImplementation "org.robolectric:robolectric:4.16"
     testImplementation "org.hamcrest:hamcrest-library:3.0"
 
     implementation 'androidx.core:core-ktx:1.17.0'
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.2.21"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.3.0"
 
     implementation "androidx.appcompat:appcompat:1.7.1"
     implementation "androidx.preference:preference-ktx:1.2.1"
@@ -239,7 +240,7 @@ dependencies {
     implementation "androidx.legacy:legacy-support-v4:1.0.0"
     implementation "androidx.gridlayout:gridlayout:1.1.0"
     implementation "androidx.palette:palette-ktx:1.0.0"
-    implementation "androidx.activity:activity-ktx:1.12.0"
+    implementation "androidx.activity:activity-ktx:1.12.2"
     implementation "androidx.fragment:fragment-ktx:1.8.9"
     implementation "androidx.viewpager2:viewpager2:1.1.0"
     implementation "androidx.work:work-runtime-ktx:2.11.0"
@@ -266,8 +267,8 @@ dependencies {
     implementation 'com.github.wax911.android-emojify:contract:1.9.7'
     implementation 'com.github.wax911.android-emojify:emojify:1.9.7'
     implementation 'com.github.wax911.android-emojify:gson:1.9.7'
-    implementation 'com.google.protobuf:protobuf-javalite:4.33.1'
-    implementation 'com.android.volley:volley:1.2.1'
+    implementation 'com.google.protobuf:protobuf-javalite:4.33.2'
+    implementation 'com.squareup.okhttp3:okhttp:5.3.2'
     implementation 'org.msgpack:msgpack-core:0.9.10'
     implementation 'com.github.ByteHamster:SearchPreference:2.7.3'
 
@@ -285,7 +286,7 @@ dependencies {
     //implementation 'org.bouncycastle:bcprov-jdk18on:1.76'
 
     // Android SDK bundles org.json, but we need an actual implementation to replace the stubs in tests
-    testImplementation 'org.json:json:20250517'
+    testImplementation 'org.json:json:20251224'
 
     // Needed for Armenian transliteration
     implementation 'org.ahocorasick:ahocorasick:0.6.3'
@@ -310,7 +311,7 @@ tasks.clean.dependsOn(tasks.cleanGenerated)
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:4.33.1'
+        artifact = 'com.google.protobuf:protoc:4.33.2'
     }
     generateProtoTasks {
         all().each { final task ->

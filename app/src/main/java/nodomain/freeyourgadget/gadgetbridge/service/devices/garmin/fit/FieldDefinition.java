@@ -1,14 +1,18 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit;
 
+import androidx.annotation.NonNull;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.GarminByteBufferReader;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.baseTypes.BaseType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions.FieldDefinitionTimestamp;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.MessageWriter;
+import nodomain.freeyourgadget.gadgetbridge.util.GBToStringBuilder;
 
 public class FieldDefinition implements FieldInterface {
     protected static final Logger LOG = LoggerFactory.getLogger(FieldDefinition.class);
@@ -99,5 +103,41 @@ public class FieldDefinition implements FieldInterface {
     @Override
     public void invalidate(ByteBuffer byteBuffer) {
         baseType.invalidate(byteBuffer);
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        final GBToStringBuilder tsb = new GBToStringBuilder(this);
+        tsb.append("baseType", baseType);
+        if (scale != 1) {
+            tsb.append("scale", scale);
+        }
+        if (offset != 0) {
+            tsb.append("offset", offset);
+        }
+        if (size != 1) {
+            tsb.append("size", size);
+        }
+        return tsb.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+
+        FieldDefinition that = (FieldDefinition) o;
+        return scale == that.scale && offset == that.offset && number == that.number && size == that.size && baseType == that.baseType && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hashCode(baseType);
+        result = 31 * result + scale;
+        result = 31 * result + offset;
+        result = 31 * result + number;
+        result = 31 * result + size;
+        result = 31 * result + Objects.hashCode(name);
+        return result;
     }
 }

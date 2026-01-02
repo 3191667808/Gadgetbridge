@@ -28,15 +28,19 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("Amazfit GTS 4 mini New", DeviceType.AMAZFITGTS4MININEW); // #5472
             put("Xiaomi Band 9 Active AB01", DeviceType.MIBAND9ACTIVE);
             put("vívoactive 6", DeviceType.GARMIN_VIVOACTIVE_6);
+            put("CMF Buds 2", DeviceType.NOTHING_CMF_BUDS_2); // #5579
             put("HC96", DeviceType.HC96);
             put("P8", DeviceType.WASPOS); // from wasp-os source
             put("P8DFU", DeviceType.WASPOS); // from wasp-os source
             put("P80", DeviceType.COLMI_P80);
             put("BT103(ID-AB01)", DeviceType.OUKITEL_BT103);
             put("P66D(ID-AB01)", DeviceType.DOTN_P66D);
+            put("R1(ID-10B5)", DeviceType.R1); // #5621
             put("IMIKI FRAME 2", DeviceType.IMIKI_FRAME_2);
             put("HAYLOU Watch 2 Pro", DeviceType.HAYLOU_WATCH_2_PRO);
             put("Y66(ID-AB01)", DeviceType.Y66);
+            put("D3(ID-417F)", DeviceType.D3);
+            put("S10", DeviceType.QECNATO_S10);
             put("S52", DeviceType.S52);
             put("R11C_B200", DeviceType.YAWELL_R11);
             put("R11_B200", DeviceType.YAWELL_R11);
@@ -52,6 +56,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("Venu X1", DeviceType.GARMIN_VENU_X1);
             put("Redmi Watch 5 163A", DeviceType.REDMIWATCH5);
             put("Descent Mk3 43mm", DeviceType.GARMIN_DESCENT_MK3);
+            put("Descent G2", DeviceType.GARMIN_DESCENT_G2);
             put("Active 2 NFC (Round)-4B84", DeviceType.AMAZFITACTIVE2NFC);
             put("Redmi Buds 6 Pro", DeviceType.REDMIBUDS6PRO);
             put("Xiaomi Watch S4 AB01", DeviceType.XIAOMI_WATCH_S4);
@@ -65,6 +70,8 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("fenix 6S Pro Solar", DeviceType.GARMIN_FENIX_6S_PRO_SOLAR); // #5568
             put("R50Pro", DeviceType.R50PRO);
             put("R11_0500", DeviceType.YAWELL_R11); // #4711
+            put("Edge 130", DeviceType.GARMIN_EDGE_130); // matrix
+            put("Edge 840", DeviceType.GARMIN_EDGE_840); // matrix
             put("Lily 2 Active", DeviceType.GARMIN_LILY_2_ACTIVE);
             put("Instinct 3 - 45mm", DeviceType.GARMIN_INSTINCT_3); // #4923
             put("Instinct E - 45mm", DeviceType.GARMIN_INSTINCT_E); // #4526
@@ -95,6 +102,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("IMP-2027", DeviceType.VIVITAR_HR_BP_MONITOR_ACTIVITY_TRACKER); // #3925
             put("CMF Buds Pro 2", DeviceType.NOTHING_CMF_BUDS_PRO_2); // #3924
             put("CMF Watch Pro 2-0DCA", DeviceType.NOTHING_CMF_WATCH_PRO_2); // #3899
+            put("CMF Watch 3 Pro-D286", DeviceType.NOTHING_CMF_WATCH_PRO_3); // #5596
             put("vívomove Trend", DeviceType.GARMIN_VIVOMOVE_TREND); // #3875
             put("fenix 5", DeviceType.GARMIN_FENIX_5); // #3869
             put("Forerunner 255S", DeviceType.GARMIN_FORERUNNER_255S); // #3841
@@ -155,6 +163,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("M4-4711", DeviceType.FITPRO);
             put("C20", DeviceType.C20); // #4070
             put("C 20", DeviceType.C20); // #5495
+            put("OV-Touch2.6_LE", DeviceType.OVTOUCH26); // #5628
         }};
 
         for (Map.Entry<String, DeviceType> e : bluetoothNameToExpectedType.entrySet()) {

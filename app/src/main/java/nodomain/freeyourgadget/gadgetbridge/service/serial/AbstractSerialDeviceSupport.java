@@ -51,7 +51,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.AbstractDeviceSupport;
  * <p/>
  * This implementation implements all methods of {@link EventHandler}, calls the {@link GBDeviceProtocol device protocol}
  * to create the device specific message for the respective events and sends them to the device via {@link #sendToDevice(byte[])}.
+ * @deprecated Use {@link nodomain.freeyourgadget.gadgetbridge.service.btbr.AbstractBTBRDeviceSupport}
  */
+@Deprecated
 public abstract class AbstractSerialDeviceSupport extends AbstractDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractSerialDeviceSupport.class);
 
@@ -109,8 +111,9 @@ public abstract class AbstractSerialDeviceSupport extends AbstractDeviceSupport 
      */
     public synchronized GBDeviceIoThread getDeviceIOThread() {
         if (gbDeviceIOThread == null || !gbDeviceIOThread.isAlive()) {
-            LOG.debug("Creating new IO thread");
-            gbDeviceIOThread = createDeviceIOThread();
+            LOG.debug("Creating new IO thread for {}", gbDevice.getAddress());
+            final Thread thread = (gbDeviceIOThread = createDeviceIOThread());
+            LOG.debug("New IO thread: {}", thread.getName());
         }
         return gbDeviceIOThread;
     }

@@ -102,7 +102,7 @@
     <string name="debugactivity_really_factoryreset_title">Really factory reset?</string>
     <string name="debugactivity_really_factoryreset">Doing a factory reset will delete all data from the connected device (if supported). Xiaomi/Huami devices also change Bluetooth MAC address, so they appear as a new devices to Gadgetbridge.</string>
     <string name="debugactivity_confirm_remove_device_preferences_title">Remove device preferences?</string>
-    <string name="debugactivity_confirm_remove_device_preferences">This will reset the device preferences for all connected devices. Are you sure?</string>
+    <string name="debugactivity_confirm_remove_device_preferences">This will reset the device preferences for this device. Are you sure?</string>
     <!-- Strings related to AppManager -->
     <string name="title_activity_appmanager">App Manager</string>
     <string name="appmanager_cached_watchapps_watchfaces">Apps in cache</string>
@@ -134,8 +134,6 @@
     <string name="whitelist_all_for_notifications">Whitelist all for notifications</string>
     <string name="check_all_applications">Check all applications</string>
     <string name="uncheck_all_applications">Uncheck all applications</string>
-    <!-- Strings related to CalBlacklist -->
-    <string name="title_activity_calblacklist">Blacklisted Calendars</string>
     <!-- Strings related to FwAppInstaller -->
     <string name="title_activity_file_installer">File installer</string>
     <string name="title_activity_fw_app_insaller">FW/App installer</string>
@@ -447,8 +445,21 @@
     <string name="pref_summary_device_intents">Allow Bangle.js watch apps to send Android Intents, and allow other apps on Android (like Tasker) to send data to Bangle.js with the com.banglejs.uart.tx Intent. Needs permission to display over other apps to work in the background.</string>
     <string name="pref_summary_sync_calendar">Enables calendar alerts, even when disconnected</string>
     <string name="pref_title_sync_caldendar">Sync calendar events</string>
+    <string name="pref_summary_calendar_sync_choose">Choose which calendars and color labels to sync to the device</string>
+    <string name="pref_title_calendar_sync_choose">Calendars to sync</string>
+    <string name="pref_title_calendar_sync_colors">Event colors to sync</string>
     <string name="pref_summary_sync_birthdays">Sync contact birthdays alongside calendar events</string>
     <string name="pref_title_sync_birthdays">Sync birthdays</string>
+    <string name="pref_summary_calendar_sync_canceled">Calendar events that are cancelled will be synced to the device</string>
+    <string name="pref_title_calendar_sync_canceled">Sync canceled events</string>
+    <string name="pref_summary_calendar_sync_declined">Calendar events that you have declined will be synced to the device</string>
+    <string name="pref_title_calendar_sync_declined">Sync declined events</string>
+    <string name="pref_summary_calendar_sync_focus_time">Calendar events that are tagged as \"Focus Time\" will be synced to the device</string>
+    <string name="pref_title_calendar_sync_focus_time">Sync focus time events</string>
+    <string name="pref_summary_calendar_sync_all_day">Calendar events that are marked as  \"All Day\" will be synced to the device</string>
+    <string name="pref_title_calendar_sync_all_day">Sync all day events</string>
+    <string name="pref_summary_calendar_sync_working_location">Calendar events that are special \"Working Locations\" will be synced to the device</string>
+    <string name="pref_title_calendar_sync_working_location">Sync working location events</string>
     <string name="pref_summary_relax_firmware_checks">Relax firmware checks</string>
     <string name="pref_title_relax_firmware_checks">Enable this if you want to flash a firmware not intended for your device (at your own risk)</string>
     <string name="pref_title_vibration_strength">Vibration strength</string>
@@ -721,7 +732,7 @@
     <string name="miband_pairing_using_dummy_userdata">No valid user data given, using dummy user data for now.</string>
     <string name="miband_pairing_tap_hint">When your Mi Band vibrates and blinks, tap it a few times in a row.</string>
     <string name="appinstaller_install">Install</string>
-    <string name="discovery_connected_devices_hint">Make your device discoverable. Currently connected devices will likely not be discovered. Activate location (e.g. GPS) on Android 6+. Disable Privacy Guard for Gadgetbridge, because it may crash and reboot your phone. If no device is found after a few minutes, try again after rebooting your mobile device.</string>
+    <string name="discovery_connected_devices_hint">Make your device discoverable. Currently connected devices will likely not be discovered. Activate location (e.g. GPS). Disable Privacy Guard for Gadgetbridge, because it may crash and reboot your phone. If no device is found after a few minutes, try again after rebooting your mobile device.</string>
     <string name="discovery_need_to_enter_authkey">This device needs a secret auth key, long press on the device to enter it. More information on the website.</string>
     <string name="discovery_entered_invalid_authkey">The secret auth key you entered is invalid! Long press on the device to edit.</string>
     <string name="discovery_note">Note:</string>
@@ -739,6 +750,8 @@
     <string name="title_activity_sleepmonitor">Sleep monitor</string>
     <string name="pref_write_logfiles">Write log files</string>
     <string name="pref_cache_weather">Cache weather information</string>
+    <string name="pref_experimental_settings_title">Experimental settings</string>
+    <string name="pref_experimental_settings_summary">Experimental settings might be unstable or not work as expected. Proceed at your own risk.</string>
     <string name="pref_cache_weather_summary">Weather information will be cached across application restarts.</string>
     <string name="pref_write_logfiles_not_available">File logging initialization failed, writing log files is currently not available. Restart the application to attempt to initialize the log files again.</string>
     <string name="initializing">Initializing</string>
@@ -1343,7 +1356,6 @@
     <string name="action_db_management">Data management</string>
     <string name="title_activity_db_management">Data management</string>
     <string name="activity_db_management_import_export_explanation">The export/import operations use the following path (see below) to a directory on your device. This directory is accessible to other Android apps and your computer. Do note, that this directory and all containing files are deleted if you uninstall Gadgetbridge. The data includes:\n Export_preference - global settings\n Export_preference_MAC - device specific settings\n Gadgetbridge - device and activity database\n Gadgetbridge_date - database exported on a date\n *.gpx - GPS recordings\n *.log - log files\nExpect to find your exported files (or place the files you want to import) there:</string>
-    <string name="activity_db_management_merge_old_title">Legacy database delete</string>
     <string name="dbmanagementactivvity_cannot_access_export_path">Cannot access export path. Please contact the developers.</string>
     <string name="dbmanagementactivity_exported_to">Exported to: %1$s</string>
     <string name="dbmanagementactivity_error_exporting_db">Error exporting DB: %1$s</string>
@@ -1381,6 +1393,8 @@
     <string name="Delete">Delete</string>
     <string name="delete_device_and_retain_files">Keep Files</string>
     <string name="ok">OK</string>
+    <string name="save">Save</string>
+    <string name="done">Done</string>
     <string name="dismiss">Dismiss</string>
     <string name="notifications_dismiss_all">Dismiss All</string>
     <string name="start">Start</string>
@@ -1389,10 +1403,6 @@
     <string name="set">Set</string>
     <string name="activity_data_management_directory_content_title">Export/Import directory content</string>
     <string name="activity_DB_ShowContentButton">Show Export/Import directory content</string>
-    <string name="activity_db_management_clean_export_directory_label">Delete files in Export/Import directory</string>
-    <string name="activity_DB_clean_export_directory_warning_title">Delete files in the Export/Import directory?</string>
-    <string name="activity_DB_clean_export_directory_warning_message">Really delete files in the Export/Import directory?</string>
-    <string name="activity_db_management_clean_export_directory_text">Exported files in the Export/Import directory are accessible by any app on your device. You might like to remove these files after synchronisation or backup. Make sure to have a backup before deleting them. GPX files, sub-directories and auto-exported database file (if exist) will not be deleted. The path to the Export/Import directory is:</string>
     <string name="dbmanagementactivity_export_finished">Deletion finished</string>
     <!-- Strings related to Vibration Activity -->
     <string name="title_activity_vibration">Vibration</string>
@@ -1861,6 +1871,7 @@
     <string name="devicetype_amazfit_gtr4" translatable="false">Amazfit GTR 4</string>
     <string name="devicetype_amazfit_trex_2" translatable="false">Amazfit T-Rex 2</string>
     <string name="devicetype_amazfit_trex_3" translatable="false">Amazfit T-Rex 3</string>
+    <string name="devicetype_amazfit_active_max" translatable="false">Amazfit Active Max</string>
     <string name="devicetype_amazfit_trex_3_pro_44mm" translatable="false">Amazfit T-Rex 3 Pro (44mm)</string>
     <string name="devicetype_amazfit_trex_3_pro_48mm" translatable="false">Amazfit T-Rex 3 Pro (48mm)</string>
     <string name="devicetype_amazfit_trex_ultra" translatable="false">Amazfit T-Rex Ultra</string>
@@ -1906,8 +1917,10 @@
     <string name="devicetype_garmin_venu_3s" translatable="false">Garmin Venu 3S</string>
     <string name="devicetype_garmin_venu_4" translatable="false">Garmin Venu 4</string>
     <string name="devicetype_garmin_venu_x1" translatable="false">Garmin Venu X1</string>
+    <string name="devicetype_garmin_edge_130" translatable="false">Garmin Edge 130</string>
     <string name="devicetype_garmin_edge_130_plus" translatable="false">Garmin Edge 130 Plus</string>
     <string name="devicetype_garmin_edge_540" translatable="false">Garmin Edge 540</string>
+    <string name="devicetype_garmin_edge_840" translatable="false">Garmin Edge 840</string>
     <string name="devicetype_garmin_edge_explore" translatable="false">Garmin Edge Explore</string>
     <string name="devicetype_garmin_edge_explore_2" translatable="false">Garmin Edge Explore 2</string>
     <string name="devicetype_garmin_etrex_se" translatable="false">Garmin eTrex SE</string>
@@ -1938,7 +1951,8 @@
     <string name="devicetype_garmin_fenix_8" translatable="false">Garmin Fenix 8</string>
     <string name="devicetype_garmin_quatix_8" translatable="false">Garmin Quatix 8</string>
     <string name="devicetype_garmin_descent_mk3" translatable="false">Garmin Descent Mk3</string>
-    <string name="devicetype_garmin_inReach_mini_2" translatable="false">inReach Mini 2</string>
+    <string name="devicetype_garmin_descent_g2" translatable="false">Garmin Descent G2</string>
+    <string name="devicetype_garmin_inReach_mini_2" translatable="false">Garmin inReach Mini 2</string>
     <string name="devicetype_garmin_instinct" translatable="false">Garmin Instinct</string>
     <string name="devicetype_garmin_instinct_solar" translatable="false">Garmin Instinct Solar</string>
     <string name="devicetype_garmin_instinct_2" translatable="false">Garmin Instinct 2</string>
@@ -1972,6 +1986,7 @@
     <string name="devicetype_garmin_forerunner_645_music" translatable="false">Garmin Forerunner 645 Music</string>
     <string name="devicetype_garmin_forerunner_735xt" translatable="false">Garmin Forerunner 735XT</string>
     <string name="devicetype_garmin_forerunner_745" translatable="false">Garmin Forerunner 745</string>
+    <string name="devicetype_garmin_forerunner_920" translatable="false">Garmin Forerunner 920</string>
     <string name="devicetype_garmin_forerunner_945" translatable="false">Garmin Forerunner 945</string>
     <string name="devicetype_garmin_forerunner_955" translatable="false">Garmin Forerunner 955</string>
     <string name="devicetype_garmin_forerunner_965" translatable="false">Garmin Forerunner 965</string>
@@ -2021,13 +2036,14 @@
     <string name="devicetype_mijia_xmwsdj04" translatable="false">Mijia Temperature and Humidity Sensor 2 (E-ink)</string>
     <string name="devicetype_mijia_mho_c303" translatable="false">Mijia MHO-C303</string>
     <string name="devicetype_makibes_hr3" translatable="false">Makibes HR3</string>
+    <string name="devicetype_ovtouch_26" translatable="false">Overmax Touch 2.6</string>
     <string name="devicetype_banglejs" translatable="false">Bangle.js</string>
     <string name="devicetype_tlw64" translatable="false">TLW64</string>
     <string name="devicetype_pinetime_jf" translatable="false">PineTime (JF Firmware)</string>
     <string name="devicetype_polarh9" translatable="false">Polar H9</string>
     <string name="devicetype_polarh10" translatable="false">Polar H10</string>
     <string name="devicetype_sonyswr12" translatable="false">Sony SWR12</string>
-    <string name="devicetype_waspos" translatable="false">Wasp-os</string>
+    <string name="devicetype_waspos" translatable="false">Wasp-OS</string>
     <string name="devicetype_smaq2oss" translatable="false">SMA-Q2 OSS</string>
     <string name="devicetype_fitpro" translatable="false">FitPro</string>
     <string name="devicetype_colacao21" translatable="false">ColaCao 2021</string>
@@ -2180,6 +2196,7 @@
     <string name="devicetype_coospo_hw807" translatable="false">Coospo HW807</string>
     <string name="devicetype_garmin_hrm_200" translatable="false">Garmin HRM 200</string>
     <string name="devicetype_coospo_h9z" translatable="false">Coospo H9Z</string>
+    <string name="devicetype_solarflow">SolarFlow</string>
     <!-- Menus on the smart device -->
     <string name="menuitem_nothing">Nothing</string>
     <string name="menuitem_status">Status</string>
@@ -2320,7 +2337,6 @@
     <string name="preferences_rtl_settings">Right To Left Support</string>
     <string name="share_log">Share log</string>
     <string name="share_log_warning">Please keep in mind Gadgetbridge logs files that may contain lots of personal info, including but not limited to health data, unique identifiers (such as a device\'s MAC address), music preferences, etc. Consider editing the file and removing this info before sending the file to a public issue report.</string>
-    <string name="share_log_not_enabled_message">You must first enable logging in the Settings - Write log files</string>
     <string name="warning">Warning!</string>
     <string name="note">Note</string>
     <string name="no_data">No data</string>
@@ -2994,9 +3010,11 @@
     <string name="devicetype_nothingear2" translatable="false">Nothing Ear (2)</string>
     <string name="devicetype_nothing_ear_a" translatable="false">Nothing Ear (a)</string>
     <string name="devicetype_nothingearstick" translatable="false">Nothing Ear (Stick)</string>
+    <string name="devicetype_nothing_cmf_buds_2" translatable="false">CMF Buds 2</string>
     <string name="devicetype_nothing_cmf_buds_pro_2" translatable="false">CMF Buds Pro 2</string>
     <string name="devicetype_nothing_cmf_watch_pro" translatable="false">CMF Watch Pro</string>
     <string name="devicetype_nothing_cmf_watch_pro_2" translatable="false">CMF Watch Pro 2</string>
+    <string name="devicetype_nothing_cmf_watch_pro_3" translatable="false">CMF Watch Pro 3</string>
     <string name="devicetype_oppo_enco_air" translatable="false">Oppo Enco Air</string>
     <string name="devicetype_oppo_enco_air2" translatable="false">Oppo Enco Air2</string>
     <string name="devicetype_oppo_enco_buds2" translatable="false">Oppo Enco Buds2</string>
@@ -3009,6 +3027,7 @@
     <string name="devicetype_galaxybuds_pro" translatable="false">Galaxy Buds Pro</string>
     <string name="devicetype_galaxybuds_2" translatable="false">Galaxy Buds2</string>
     <string name="devicetype_galaxybuds_2_pro" translatable="false">Galaxy Buds2 Pro</string>
+    <string name="devicetype_galaxybuds_3_pro" translatable="false">Galaxy Buds3 Pro</string>
     <string name="nothing_prefs_inear_summary">Play/pause the music depending if you wear the earbuds</string>
     <string name="nothing_prefs_inear_title">In-Ear detection</string>
     <string name="prefs_in_ear_detection_summary">Play calls through your earbuds when they are in your ears</string>
@@ -3064,7 +3083,20 @@
     <string name="prefs_right">Right</string>
     <string name="prefs_switch_control_left">Switch control left</string>
     <string name="prefs_switch_control_right">Switch control right</string>
+    <string name="prefs_pinch_and_hold_action">Pinch and hold action</string>
+    <string name="prefs_noise_modes_to_cycle">Noise modes to cycle</string>
     <string name="prefs_galaxy_touch_options">Touch Options</string>
+    <string name="prefs_media_controls">Media controls</string>
+    <string name="prefs_media_controls_summary">Pinch • Swipe up and down</string>
+    <string name="prefs_pinch_and_hold_controls">Pinch and hold controls</string>
+    <string name="prefs_call_controls">Call controls</string>
+    <string name="prefs_answer_call_or_end_call">Answer call or end call</string>
+    <string name="prefs_answer_call_summary">Pinch</string>
+    <string name="prefs_decline_call">Decline call</string>
+    <string name="prefs_decline_call_summary">Pinch and hold</string>
+    <string name="prefs_earbud_lights_controls">Earbud lights controls</string>
+    <string name="prefs_earbud_lights_fade">Fade in and out</string>
+    <string name="prefs_earbud_lights_steady">Steady</string>
     <string name="battery_i">Battery %d</string>
     <string name="battery_case">Battery case</string>
     <string name="left_earbud">Left earbud</string>
@@ -3469,6 +3501,7 @@
 
     <string name="info_no_devices_connected">No devices connected</string>
     <string name="info_connected_count">%d devices connected</string>
+    <string name="controlcenter_test_new_function">Test new function</string>
     <string name="controlcenter_set_parent_folder">Set parent folder</string>
     <string name="controlcenter_set_preferences">Set preferences</string>
     <string name="controlcenter_toggle_details">Toggle details</string>
@@ -3508,7 +3541,7 @@
     <string name="weekly_total">Weekly total</string>
     <string name="prefs_hourly_chime">Hourly chime</string>
     <string name="prefs_hourly_chime_summary">The watch will beep once an hour</string>
-    <string name="devicetype_flipper_zero" translatable="false">Flipper zero</string>
+    <string name="devicetype_flipper_zero" translatable="false">Flipper Zero</string>
     <string name="activity_prefs_allow_bluetooth_intent_api">Bluetooth Intent API</string>
     <string name="activity_prefs_summary_allow_bluetooth_intent_api">Allow controlling Bluetooth connection via Intent API</string>
     <string name="intent_api_allow_activity_sync_title">Allow activity sync trigger</string>
@@ -3912,6 +3945,7 @@
 
     <!-- Camera strings -->
     <string name="open_camera">Open Camera</string>
+    <string name="camera_switch">Switch Camera</string>
     <string name="toast_camera_permission_required">Camera permission is required for this function.</string>
     <string name="toast_camera_support_required">Camera support is required for this function.</string>
     <string name="toast_camera_photo_taken">Photo has been taken and saved at: %s</string>
@@ -3951,6 +3985,8 @@
     <string name="battery_percentage_str">%1$s%%</string>
     <string name="pref_import_activity_files_title">Import activity files</string>
     <string name="pref_import_activity_files_summary">Manually import activity files from the phone storage</string>
+    <string name="pref_reprocess_activity_files_title">Reprocess activity files</string>
+    <string name="pref_reprocess_activity_files_summary">Reprocess all activity files from the phone storage</string>
     <string name="pref_fetch_unknown_files_title">Fetch unknown files</string>
     <string name="pref_fetch_unknown_files_summary">Fetch unknown activity files from the watch. They will not be processed, but will be saved in the phone.</string>
     <string name="pref_install_unsupported_files_title">Install unsupported files</string>
@@ -4110,10 +4146,12 @@
     <string name="discharge_interval_4">Discharge interval 4</string>
     <string name="discharge_interval_5">Discharge interval 5</string>
     <string name="power_w">Power in W</string>
+    <string name="output_power_grid">Output power to grid in W</string>
     <string name="manual_discharge_summary">when disabled, this assumes intelligent discharge controlled by an external power meter (not supported by Gadgetbridge)</string>
     <string name="manual_discharge">Manual discharge intervals</string>
     <string name="summary_battery_discharge_intervals_set">Send configuration below to device</string>
     <string name="battery_minimum_charge">Minimum battery charge in %</string>
+    <string name="battery_maximum_charge">Maximum battery charge in %</string>
     <string name="battery_allow_pass_though_summary">When enabled, the battery can be charged while discharging</string>
     <string name="battery_allow_pass_through">Allow battery pass-through</string>
     <string name="canned_replies_not_empty">There should be at least one canned reply.</string>
@@ -4329,9 +4367,12 @@
     <string name="devicetype_imiki_frame_2" translatable="false">IMIKI Frame 2</string>
     <string name="devicetype_oukitel_bt103" translatable="false">Oukitel BT103</string>
     <string name="devicetype_y66" translatable="false">Y66</string>
+    <string name="devicetype_d3" translatable="false">D3</string>
     <string name="devicetype_s52" translatable="false">S52</string>
+    <string name="devicetype_r1" translatable="false">R1</string>
     <string name="devicetype_haylou_watch_2_pro" translatable="false">Haylou Watch 2 Pro</string>
     <string name="devicetype_dotn_p66d" translatable="false">Dotn P66D</string>
+    <string name="devicetype_qecnato_s10" translatable="false">Qecnato S10</string>
     <string name="pref_title_time_interval">Time interval</string>
     <string name="pref_summary_time_interval">Restrict to specific intervals</string>
     <string name="prefs_key_enable_deprecated_notificationcollectormonitor_title">Enable the deprecated Notification Collector Monitor Service</string>
@@ -4435,4 +4476,55 @@
     <string name="movement_evaluation">Movement Evaluation</string>
     <string name="pref_notifications_pictures_enable">Send notification pictures</string>
     <string name="pref_notifications_pictures_enable_summary">Send notification pictures for current device</string>
+    <string name="activity_title_rebble_app_store">Rebble app store</string>
+    <string name="prefs_internet_helper_title">Internet helper</string>
+    <string name="prefs_internet_helper_summary">Configure the URLs that are allowed to be requested through the internet helper add-on app</string>
+    <string name="internet_helper_pref_app_req_title">Add-on app required</string>
+    <string name="internet_helper_pref_app_req_summary">This feature requires the installation of an add-on app. Tap here to go to the download page.</string>
+    <string name="internet_helper_pref_intercept_supported_title">Intercept supported requests</string>
+    <string name="internet_helper_pref_intercept_supported_summary">Some internet requests can be intercepted and responded to locally without sending anything to the internet.</string>
+    <string name="internet_helper_pref_allowed_connections">Allowed connections</string>
+    <string name="internet_helper_pref_pebble_app_store_title">Pebble app store</string>
+    <string name="internet_helper_pref_pebble_app_store_summary">Access the Pebble app store for app installations and updates</string>
+    <string name="internet_helper_pref_pebble_background_js_title">Requests from Pebble apps</string>
+    <string name="internet_helper_pref_pebble_background_js_summary">Allow Pebble watch apps and watchfaces to access the internet</string>
+    <string name="internet_helper_pref_pebble_app_config_title">Pebble app configuration pages</string>
+    <string name="internet_helper_pref_pebble_app_config_summary">Allow access to webpages that are needed for configuring apps and watchfaces</string>
+    <string name="internet_helper_pref_bangle_app_loader_title">Bangle app loader</string>
+    <string name="internet_helper_pref_bangle_app_loader_summary">Access the Bangle app loader website</string>
+    <string name="rebble_appstore_download_failed_wrong_content_type">Download failed, wrong content-type: %1$s</string>
+    <string name="rebble_appstore_download_failed">Download failed: %1$s</string>
+    <string name="rebble_appstore_fetch_app_info_failed_content_type">Fetching app info failed, wrong content-type: %1$s</string>
+    <string name="rebble_appstore_fetching_download_file_failed">Fetching download file failed: %1$s</string>
+    <string name="internet_helper_permission_title">Internet helper add-on</string>
+    <string name="internet_helper_permission_summary">Permit access to the Gadgetbridge-internethelper add-on app</string>
+    <string name="notification_channel_pebble_js_runner">Pebble JS runner</string>
+    <string name="notification_pebble_js_service_title">Pebble JavaScript service</string>
+    <string name="notification_pebble_js_service_text">Running Pebble app/watchface JavaScript</string>
+    <string name="internet_helper_banglejs_permission_missing_title">Permission missing</string>
+    <string name="internet_helper_banglejs_permission_missing_text">Access to the Bangle.js app loader is currently not allowed by your settings. Please go to the internet helper settings in the external integrations settings to enable it.</string>
+    <string name="eco">Eco</string>
+    <string name="prefs_title_offgrid_mode">Off-grid mode</string>
+    <string name="solar_panel1_peak_w">Solar panel 1 peak W</string>
+    <string name="solar_panel2_peak_w">Solar panel 2 peak W</string>
+    <string name="solar_panel3_peak_w">Solar panel 3 peak W</string>
+    <string name="solar_panel4_peak_w">Solar panel 4 peak W</string>
+    <string name="all_manufacturers">All manufacturers</string>
+    <string name="device_manufacturer">Manufacturer</string>
+    <string name="debug_selected_device">Debug device</string>
+    <string name="device_mac_address">MAC address</string>
+    <string name="database">Database</string>
+    <string name="file_export">Export</string>
+    <string name="file_import">Import</string>
+    <string name="global_preferences">Global preferences</string>
+    <string name="export_success">Export successful</string>
+    <string name="import_success">Import successful</string>
+    <string name="reset_fields">Reset fields</string>
+    <string name="are_you_sure">Are you sure?</string>
+    <string name="dangerous_actions">Dangerous actions</string>
+    <string name="debug_other_actions">Other actions</string>
+    <string name="prefs_title_battery_allow_bypass_mode">Allow battery bypass</string>
+    <string name="pref_title_pebble_search_app_updates">Search for app updates</string>
+    <string name="pref_summary_pebble_search_app_updates">Automatically search for watch app and watchface updates when opening the app manager</string>
+    <string name="pref_sos_contact_title">SOS contact</string>
 </resources>

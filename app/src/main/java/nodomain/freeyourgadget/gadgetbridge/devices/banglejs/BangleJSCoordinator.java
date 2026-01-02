@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
-import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
@@ -168,12 +168,12 @@ public class BangleJSCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsAppsManagement(final GBDevice device) {
-        return BuildConfig.INTERNET_ACCESS;
+        return GBApplication.hasInternetAccess();
     }
 
     @Override
     public Class<? extends Activity> getAppsManagementActivity(final GBDevice device) {
-        return BuildConfig.INTERNET_ACCESS ? AppsManagementActivity.class : null;
+        return supportsAppsManagement(device) ? AppsManagementActivity.class : null;
     }
 
     @Override
@@ -232,7 +232,7 @@ public class BangleJSCoordinator extends AbstractBLEDeviceCoordinator {
 
         settings.add(R.xml.devicesettings_header_connection);
         settings.add(R.xml.devicesettings_high_mtu);
-        if (BuildConfig.INTERNET_ACCESS)
+        if (GBApplication.hasInternetAccess())
             settings.add(R.xml.devicesettings_device_internet_access);
 
         settings.add(R.xml.devicesettings_banglejs_activity);

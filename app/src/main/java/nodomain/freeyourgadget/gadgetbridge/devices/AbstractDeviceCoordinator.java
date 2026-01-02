@@ -580,6 +580,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         return null;
     }
 
+    @Nullable
+    @Override
+    public Class<? extends Activity> getAppStoreActivity(final GBDevice device) {
+        return null;
+    }
+
     @Override
     public int getBondingStyle() {
         return BONDING_STYLE_ASK;
@@ -955,6 +961,15 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     public int[] getSupportedDeviceSpecificAuthenticationSettings() {
         return new int[0];
+    }
+
+    @Override
+    public int[] getSupportedDeviceSpecificExperimentalSettings(final GBDevice device) {
+        return new int[0];
+    }
+
+    public boolean experimentalSettingEnabled(final GBDevice device, final String key) {
+        return GBApplication.getPrefs().experimentalSettings() && GBApplication.getDevicePrefs(device).getBoolean(key, false);
     }
 
     @Nullable

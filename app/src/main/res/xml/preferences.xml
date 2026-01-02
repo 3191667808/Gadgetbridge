@@ -337,6 +337,12 @@
                 app:iconSpaceReserved="false"
                 app:useSimpleSummaryProvider="true" />
         </PreferenceScreen>
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_language"
+            android:key="pref_category_internethelper"
+            android:title="@string/prefs_internet_helper_title"
+            android:summary="@string/prefs_internet_helper_summary" />
     </PreferenceScreen>
 
     <Preference
@@ -363,13 +369,6 @@
             android:layout="@layout/preference_checkbox"
             android:summary="@string/pref_crash_notification_summary"
             android:title="@string/pref_crash_notification_title"
-            app:iconSpaceReserved="false" />
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="cache_weather"
-            android:layout="@layout/preference_checkbox"
-            android:summary="@string/pref_cache_weather_summary"
-            android:title="@string/pref_cache_weather"
             app:iconSpaceReserved="false" />
 
         <PreferenceScreen
@@ -463,6 +462,14 @@
                     app:iconSpaceReserved="false" />
             </PreferenceCategory>
         </PreferenceScreen>
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="experimental_settings"
+            android:layout="@layout/preference_checkbox"
+            android:summary="@string/pref_experimental_settings_summary"
+            android:title="@string/pref_experimental_settings_title"
+            app:iconSpaceReserved="false" />
     </PreferenceScreen>
 
     <PreferenceScreen

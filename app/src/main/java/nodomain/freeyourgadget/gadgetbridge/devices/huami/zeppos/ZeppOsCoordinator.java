@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.appmanager.AppManagerActivity;
@@ -278,7 +279,7 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
 
     @Override
     public boolean supportsAppsManagement(@NonNull final GBDevice device) {
-        return experimentalFeatures(device);
+        return experimentalSettingEnabled(device, "zepp_os_experimental_app_management");
     }
 
     @Override
@@ -388,6 +389,11 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
         );
     }
 
+    @Override
+    public int[] getSupportedDeviceSpecificExperimentalSettings(final GBDevice device) {
+        return new int[]{R.xml.devicesettings_zeppos_experimental};
+    }
+
     /**
      * Returns a superset of all settings supported by Zepp OS Devices. Unsupported settings are removed
      * by {@link ZeppOsSettingsCustomizer}.
@@ -439,7 +445,7 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
             display.add(R.xml.devicesettings_liftwrist_display_sensitivity_with_smart);
             display.add(R.xml.devicesettings_password);
             display.add(R.xml.devicesettings_huami2021_watchface);
-            display.add(R.xml.devicesettings_always_on_display);
+            display.add(R.xml.devicesettings_always_on_display_mode);
             display.add(R.xml.devicesettings_screen_timeout);
             if (supportsAutoBrightness(device)) {
                 display.add(R.xml.devicesettings_screen_brightness_withauto);
@@ -544,6 +550,9 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
         }
         developer.add(R.xml.devicesettings_keep_activity_data_on_device);
         developer.add(R.xml.devicesettings_huami2021_fetch_operation_time_unit);
+        if (BuildConfig.DEBUG) {
+            developer.add(R.xml.devicesettings_zeppos_request_all_configs);
+        }
 
         return deviceSpecificSettings;
     }
@@ -659,7 +668,7 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
     }
 
     public boolean supportsAssistant(final GBDevice device) {
-        return experimentalFeatures(device) && ZeppOsAssistantService.isSupported(getPrefs(device));
+        return experimentalSettingEnabled(device, "zepp_os_experimental_assistant") && ZeppOsAssistantService.isSupported(getPrefs(device));
     }
 
     public boolean supportsMaps(final GBDevice device) {
@@ -685,10 +694,6 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
         return getPrefs(device)
                 .getStringSet(ZeppOsFileTransferImpl.PREF_SUPPORTED_SERVICES, Collections.emptySet())
                 .contains(service);
-    }
-
-    public static boolean experimentalFeatures(final GBDevice device) {
-        return getPrefs(device).getBoolean("zepp_os_experimental_features", false);
     }
 
     @Override

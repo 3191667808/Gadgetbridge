@@ -28,6 +28,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -87,6 +88,8 @@ public class ActivityChartsActivity extends AbstractGBActivity implements Charts
     public static final String EXTRA_ACTIONBAR_TITLE = "actionbarTitle";
     public static final String EXTRA_TIMESTAMP = "timestamp";
     public static final String EXTRA_MODE = "mode";
+
+    private ProgressBar mLoadingProgressBar;
 
     private TextView mDateControl;
 
@@ -214,6 +217,7 @@ public class ActivityChartsActivity extends AbstractGBActivity implements Charts
             }
         }
 
+        mLoadingProgressBar = findViewById(R.id.loading_progressbar);
         dateBar = findViewById(R.id.charts_date_bar);
         mDateControl = findViewById(R.id.charts_text_date);
         mDateControl.setOnClickListener(v -> {
@@ -379,6 +383,11 @@ public class ActivityChartsActivity extends AbstractGBActivity implements Charts
     }
 
     @Override
+    public void setLoading(boolean loading) {
+        mLoadingProgressBar.setVisibility(loading ? View.VISIBLE : View.INVISIBLE);
+    }
+
+    @Override
     public ViewGroup getDateBar() {
         return dateBar;
     }
@@ -527,7 +536,7 @@ public class ActivityChartsActivity extends AbstractGBActivity implements Charts
                 case "hrvstatus":
                     return new HRVStatusFragment();
                 case "bodyenergy":
-                    return new BodyEnergyFragment();
+                    return BodyEnergyCollectionFragment.newInstance(enabledTabsList.size() == 1);
                 case "vo2max":
                     return new VO2MaxFragment();
                 case "load":
@@ -543,7 +552,7 @@ public class ActivityChartsActivity extends AbstractGBActivity implements Charts
                 case "livestats":
                     return new LiveActivityFragment();
                 case "spo2":
-                    return new Spo2ChartFragment();
+                    return Spo2CollectionFragment.newInstance(enabledTabsList.size() == 1);
                 case "temperature":
                     return coordinator.supportsContinuousTemperature(getDevice())? new TemperatureDailyFragment(): new TemperatureChartFragment();
                 case "cycling":

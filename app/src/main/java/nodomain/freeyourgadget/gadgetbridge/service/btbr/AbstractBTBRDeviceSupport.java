@@ -22,7 +22,6 @@ import android.os.ParcelUuid;
 
 import org.slf4j.Logger;
 
-import java.io.IOException;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.Logging;
@@ -67,8 +66,7 @@ public abstract class AbstractBTBRDeviceSupport extends AbstractDeviceSupport im
             final UUID supportedService = getSupportedService();
             if (supportedService == null) {
                 // Before throwing the exception, list the available UUIDs
-                final BluetoothDevice btDevice = getBluetoothAdapter().getRemoteDevice(gbDevice.getAddress());
-                @SuppressLint("MissingPermission") final ParcelUuid[] uuids = btDevice.getUuids();
+                final ParcelUuid[] uuids = getBluetoothDeviceUuids();
                 if (uuids == null || uuids.length == 0) {
                     logger.warn("Device provided no UUIDs to connect to: {}", gbDevice);
                 } else {
@@ -85,10 +83,24 @@ public abstract class AbstractBTBRDeviceSupport extends AbstractDeviceSupport im
             }
 
             if (mQueue == null) {
-                mQueue = new BtBRQueue(getBluetoothAdapter(), getDevice(), getContext(), this, supportedService, getBufferSize());
+                mQueue = new BtBRQueue(
+                        getBluetoothAdapter(),
+                        getDevice(),
+                        getContext(),
+                        this,
+                        supportedService,
+                        getBufferSize(),
+                        getConnectDelayMillis()
+                );
             }
             return mQueue.connect();
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    protected ParcelUuid[] getBluetoothDeviceUuids() {
+        final BluetoothDevice btDevice = getBluetoothAdapter().getRemoteDevice(gbDevice.getAddress());
+        return btDevice.getUuids();
     }
 
     public void disconnect() {
@@ -151,6 +163,14 @@ public abstract class AbstractBTBRDeviceSupport extends AbstractDeviceSupport im
 
     protected int getBufferSize() {
         return mBufferSize;
+    }
+
+    /**
+     * Some devices fail to connect to the btrfcomm socket if we connect too fast. Increase this delay
+     * to wait a few milliseconds.
+     */
+    protected int getConnectDelayMillis() {
+        return 0;
     }
 
     /**

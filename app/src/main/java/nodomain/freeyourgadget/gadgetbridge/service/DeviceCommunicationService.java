@@ -23,10 +23,16 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service;
 
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_STRESS_TEST_CONNECT_COUNT;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_STRESS_TEST_CONNECT_PARALLEL;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_STRESS_TEST_DISPOSE;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.*;
+
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.Service;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -77,6 +83,7 @@ import nodomain.freeyourgadget.gadgetbridge.externalevents.CMWeatherReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CalendarReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.DeviceSettingsReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.GenericWeatherReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.HrvCacheInvalidationReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.IntentApiReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.KeyMissingReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.LineageOsWeatherReceiver;
@@ -115,11 +122,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.language.LanguageUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.language.Transliterator;
-
-import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_STRESS_TEST_CONNECT_COUNT;
-import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_STRESS_TEST_CONNECT_PARALLEL;
-import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_STRESS_TEST_DISPOSE;
-import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.*;
 
 public class DeviceCommunicationService extends Service implements SharedPreferences.OnSharedPreferenceChangeListener {
     public static class DeviceStruct{
@@ -269,6 +271,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     private AutoConnectIntervalReceiver mAutoConnectInvervalReceiver = null;
 
     private VolumeChangeReceiver mVolumeChangeReceiver = null;
+    private HrvCacheInvalidationReceiver mHrvCacheInvalidationReceiver = null;
 
     private final List<CalendarReceiver> mCalendarReceiver = new ArrayList<>();
     private CMWeatherReceiver mCMWeatherReceiver = null;
@@ -541,6 +544,9 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
         mKeyMissingReceiver = new KeyMissingReceiver();
         ContextCompat.registerReceiver(this, mKeyMissingReceiver, new IntentFilter(KeyMissingReceiver.ACTION_KEY_MISSING), ContextCompat.RECEIVER_EXPORTED);
+
+        mHrvCacheInvalidationReceiver = new HrvCacheInvalidationReceiver();
+        mHrvCacheInvalidationReceiver.registerReceiver(this);
     }
 
     @Override
@@ -746,7 +752,15 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                         throw e;
                     }
                 } else {
-                    GB.toast(this, getString(R.string.cannot_connect, "Can't create device support"), Toast.LENGTH_SHORT, GB.ERROR);
+                    // no device found, check transport availability and warn
+                    final BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+                    if (adapter == null) {
+                        GB.toast(this, getString(R.string.bluetooth_is_not_supported_), Toast.LENGTH_SHORT, GB.WARN);
+                    } else if (!adapter.isEnabled()) {
+                        GB.toast(this, getString(R.string.bluetooth_is_disabled_), Toast.LENGTH_SHORT, GB.WARN);
+                    } else {
+                        GB.toast(this, getString(R.string.cannot_connect, "Can't create device support"), Toast.LENGTH_SHORT, GB.ERROR);
+                    }
                 }
             } catch (Exception e) {
                 LOG.warn("exception in connectToDevice for {}", deviceAddress, e);
@@ -771,11 +785,11 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             return START_STICKY;
         }
 
-        LOG.debug("Service startcommand: " + action);
-
         // when we get past this, we should have valid mDeviceSupport and mGBDevice instances
 
         GBDevice targetDevice = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+
+        LOG.debug("Service startcommand: {}{}", action, targetDevice != null ? " (" + targetDevice.getAddress() + ")" : "");
 
         Prefs prefs = getPrefs();
         switch (action) {
@@ -955,6 +969,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             case ACTION_ADD_CALENDAREVENT: {
                 CalendarEventSpec calendarEventSpec = new CalendarEventSpec();
                 calendarEventSpec.id = intentCopy.getLongExtra(EXTRA_CALENDAREVENT_ID, -1);
+                calendarEventSpec.eventId = intentCopy.getLongExtra(EXTRA_CALENDAREVENT_ID, -1);
                 calendarEventSpec.type = intentCopy.getByteExtra(EXTRA_CALENDAREVENT_TYPE, (byte) -1);
                 calendarEventSpec.timestamp = intentCopy.getIntExtra(EXTRA_CALENDAREVENT_TIMESTAMP, -1);
                 calendarEventSpec.durationInSeconds = intentCopy.getIntExtra(EXTRA_CALENDAREVENT_DURATION, -1);
@@ -964,7 +979,10 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 calendarEventSpec.description = intentCopy.getStringExtra(EXTRA_CALENDAREVENT_DESCRIPTION);
                 calendarEventSpec.location = intentCopy.getStringExtra(EXTRA_CALENDAREVENT_LOCATION);
                 calendarEventSpec.calName = intentCopy.getStringExtra(EXTRA_CALENDAREVENT_CALNAME);
+                calendarEventSpec.calendarColor = intentCopy.getIntExtra(EXTRA_CALENDAREVENT_CALENDAR_COLOR, 0);
                 calendarEventSpec.color = intentCopy.getIntExtra(EXTRA_CALENDAREVENT_COLOR, 0);
+                calendarEventSpec.status = intentCopy.getIntExtra(EXTRA_CALENDAREVENT_STATUS, 0);
+                calendarEventSpec.attendingStatus = intentCopy.getIntExtra(EXTRA_CALENDAREVENT_ATTENDING_STATUS, 0);
                 deviceSupport.onAddCalendarEvent(calendarEventSpec);
                 break;
             }
@@ -1598,6 +1616,11 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         unregisterReceiver(bluetoothCommandReceiver);
         unregisterReceiver(deviceSettingsReceiver);
         unregisterReceiver(intentApiReceiver);
+
+        if (mHrvCacheInvalidationReceiver != null) {
+            mHrvCacheInvalidationReceiver.unregisterReceiver();
+            mHrvCacheInvalidationReceiver = null;
+        }
     }
 
     @Override

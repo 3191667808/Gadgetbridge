@@ -89,6 +89,12 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_CALENDAR_MAX_TITLE_LENGTH = "calendar_sync_event_title_length";
     public static final String PREF_CALENDAR_MAX_DESC_LENGTH = "calendar_sync_event_desc_length";
     public static final String PREF_CALENDAR_TARGET_APP = "calendar_sync_target_app";
+    public static final String PREF_CALENDAR_SYNC_CANCELED = "calendar_sync_canceled";
+    public static final String PREF_CALENDAR_SYNC_DECLINED = "calendar_sync_declined";
+    public static final String PREF_CALENDAR_SYNC_FOCUS_TIME = "calendar_sync_focus_time";
+    public static final String PREF_CALENDAR_SYNC_ALL_DAY = "calendar_sync_all_day";
+    public static final String PREF_CALENDAR_SYNC_WORKING_LOCATION = "calendar_sync_working_location";
+    public static final String PREF_CALENDAR_SYNC_COLOR_BLACKLIST = "calendar_sync_color_blacklist";
     public static final String PREF_TIME_SYNC = "time_sync";
     public static final String PREF_WEIGHT_SCALE_UNIT = "pref_weight_scale_unit";
     public static final String PREF_USE_CUSTOM_DEVICEICON = "use_custom_deviceicon";
@@ -152,6 +158,7 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_DISPLAY_ON_LIFT_END = "display_on_lift_end";
     public static final String PREF_DISPLAY_ON_LIFT_SENSITIVITY = "display_on_lift_sensitivity";
 
+    public static final String PREF_ALWAYS_ON_DISPLAY = "always_on_display";
     public static final String PREF_ALWAYS_ON_DISPLAY_MODE = "always_on_display_mode";
     public static final String PREF_ALWAYS_ON_DISPLAY_START = "always_on_display_start";
     public static final String PREF_ALWAYS_ON_DISPLAY_END = "always_on_display_end";
@@ -304,6 +311,8 @@ public class DeviceSettingsPreferenceConst {
 
     public static final String PREF_WORLD_CLOCKS = "pref_world_clocks";
     public static final String PREF_CONTACTS = "pref_contacts";
+    public static final String PREF_SOS_CONTACT_NAME = "sos_contact_name";
+    public static final String PREF_SOS_CONTACT_NUMBER = "sos_contact_number";
     public static final String PREF_WIDGETS = "pref_widgets";
 
     public static final String PREF_MUSIC_MANAGEMENT = "pref_music_management";
@@ -400,7 +409,26 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_GALAXY_BUDS_PRO_AMBIENT_SOUND_TONE ="pref_galaxy_buds_pro_ambient_sound_tone";
     public static final String PREFS_NOISE_CONTROL_WITH_ONE_EARBUD ="pref_galaxy_buds_noise_controls_with_one_earbud";
     public static final String PREF_GALAXY_BUDS_PRO_ANC_LEVEL="pref_galaxy_buds_pro_anc_level";
+    public static final String PREF_GALAXY_BUDS_3_PRO_ANC_LEVEL="pref_galaxy_buds_3_pro_anc_level";
     public static final String PREFS_GALAXY_BUDS_SEAMLESS_CONNECTION="prefs_galaxy_buds_seamless_connection";
+
+    // Galaxy Buds3 Pro specific
+    public static final String PREF_GALAXY_BUDS_3_PRO_MEDIA_CONTROLS="pref_galaxy_buds_3_pro_media_controls";
+    public static final String PREF_GALAXY_BUDS_3_PRO_ANSWER_CALL="pref_galaxy_buds_3_pro_answer_call";
+    public static final String PREF_GALAXY_BUDS_3_PRO_DECLINE_CALL="pref_galaxy_buds_3_pro_decline_call";
+    public static final String PREF_GALAXY_BUDS_3_PRO_EARBUD_LIGHTS="pref_galaxy_buds_3_pro_earbud_lights";
+    
+    // Galaxy Buds3 Pro checkbox-based noise control switching (left earbud)
+    public static final String PREF_GALAXY_BUDS_TOUCH_LEFT_SWITCH_ANC="pref_galaxy_buds_touch_left_switch_anc";
+    public static final String PREF_GALAXY_BUDS_TOUCH_LEFT_SWITCH_AMBIENT="pref_galaxy_buds_touch_left_switch_ambient";
+    public static final String PREF_GALAXY_BUDS_TOUCH_LEFT_SWITCH_ADAPTIVE="pref_galaxy_buds_touch_left_switch_adaptive";
+    public static final String PREF_GALAXY_BUDS_TOUCH_LEFT_SWITCH_OFF="pref_galaxy_buds_touch_left_switch_off";
+    
+    // Galaxy Buds3 Pro checkbox-based noise control switching (right earbud)
+    public static final String PREF_GALAXY_BUDS_TOUCH_RIGHT_SWITCH_ANC="pref_galaxy_buds_touch_right_switch_anc";
+    public static final String PREF_GALAXY_BUDS_TOUCH_RIGHT_SWITCH_AMBIENT="pref_galaxy_buds_touch_right_switch_ambient";
+    public static final String PREF_GALAXY_BUDS_TOUCH_RIGHT_SWITCH_ADAPTIVE="pref_galaxy_buds_touch_right_switch_adaptive";
+    public static final String PREF_GALAXY_BUDS_TOUCH_RIGHT_SWITCH_OFF="pref_galaxy_buds_touch_right_switch_off";
 
     public static final String PREF_REDMI_BUDS_5_PRO_AMBIENT_SOUND_CONTROL="pref_redmi_buds_5_pro_ambient_sound_control";
     public static final String PREF_REDMI_BUDS_5_PRO_NOISE_CANCELLING_STRENGTH="pref_redmi_buds_5_pro_noise_cancelling_strength";
@@ -658,7 +686,15 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_BATTERY_DISCHARGE_INTERVALS_SET = "battery_discharge_intervals_set";
     public static final String PREF_BATTERY_DISCHARGE_MANUAL = "battery_discharge_manual";
     public static final String PREF_BATTERY_MINIMUM_CHARGE = "battery_minimum_charge";
+    public static final String PREF_BATTERY_MAXIMUM_CHARGE = "battery_maximum_charge";
     public static final String PREF_BATTERY_ALLOW_PASS_THROUGH = "battery_allow_pass_through";
+    public static final String PREF_BATTERY_ALLOW_BYPASS = "battery_allow_bypass";
+    public static final String PREF_OUTPUT_POWER_GRID = "output_power_grid";
+    public static final String PREF_OFFGRID_MODE = "offgrid_mode";
+    public static final String PREF_SOLAR_PANEL1_PEAK_W = "solar_panel1_peak_w";
+    public static final String PREF_SOLAR_PANEL2_PEAK_W = "solar_panel2_peak_w";
+    public static final String PREF_SOLAR_PANEL3_PEAK_W = "solar_panel3_peak_w";
+    public static final String PREF_SOLAR_PANEL4_PEAK_W = "solar_panel4_peak_w";
 
     public static final String PREF_DISPLAY_ENABLED = "display_enabled";
     public static final String PREF_DISPLAY_ENABLED_ALL_DAY = "display_all_day";

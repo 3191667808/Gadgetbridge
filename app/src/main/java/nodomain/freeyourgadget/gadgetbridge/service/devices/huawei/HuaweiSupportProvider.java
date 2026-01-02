@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
+import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.DeleteQuery;
 import de.greenrobot.dao.query.QueryBuilder;
 import kotlin.Triple;
@@ -72,10 +73,12 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinatorSupp
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinatorSupplier.HuaweiDeviceType;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCrypto;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiDictTypes;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiEcgFileParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiEmotionsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiGpsParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiHrvValueSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPdrParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSequenceDataFileParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepApneaSampleProvider;
@@ -97,6 +100,10 @@ import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEmotionsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiHrvValueSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepApneaSample;
@@ -1491,6 +1498,7 @@ public class HuaweiSupportProvider {
 
         int sleepStart = 0;
         int stepStart = 0;
+        int ecgStart = 0;
         final int end = (int) (System.currentTimeMillis() / 1000);
 
         SharedPreferences sharedPreferences = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
@@ -1498,6 +1506,7 @@ public class HuaweiSupportProvider {
         if (prefLastSyncTime != 0) {
             sleepStart = (int) (prefLastSyncTime / 1000);
             stepStart = (int) (prefLastSyncTime / 1000);
+            ecgStart = (int) (prefLastSyncTime / 1000);
 
             // Reset for next calls
             sharedPreferences.edit().putLong("lastSyncTimeMillis", 0).apply();
@@ -1510,6 +1519,24 @@ public class HuaweiSupportProvider {
                 HuaweiSleepStatsSampleProvider sleepStatsSampleProvider = new HuaweiSleepStatsSampleProvider(gbDevice, db.getDaoSession());
                 int sleepStart2 = (int) (sleepStatsSampleProvider.getLastSleepFetchTimestamp() / 1000L);
                 sleepStart = Math.max(sleepStart, sleepStart2);
+
+                QueryBuilder<HuaweiEcgSummarySample> qb = db.getDaoSession().getHuaweiEcgSummarySampleDao().queryBuilder();
+                Device dbDevice = DBHelper.findDevice(gbDevice, db.getDaoSession());
+                if (dbDevice != null) {
+                    final Property deviceProperty = HuaweiEcgSummarySampleDao.Properties.DeviceId;
+                    final Property timestampProperty = HuaweiEcgSummarySampleDao.Properties.EndTimestamp;
+
+                    qb.where(deviceProperty.eq(dbDevice.getId()))
+                            .orderDesc(timestampProperty)
+                            .limit(1);
+
+                    List<HuaweiEcgSummarySample> samples = qb.build().list();
+                    if (!samples.isEmpty()) {
+                        HuaweiEcgSummarySample sample = samples.get(0);
+                        ecgStart = (int) (sample.getEndTimestamp() / 1000);
+                    }
+                }
+
             } catch (Exception e) {
                 LOG.warn("Exception for getting start times, using 01/01/2000 - 00:00:00.");
             }
@@ -1519,6 +1546,10 @@ public class HuaweiSupportProvider {
                 sleepStart = 946684800;
             if (stepStart == 0)
                 stepStart = 946684800;
+
+            // To avoid of downloading of very big file and OOM error set ECG start time to step start time.
+            if(ecgStart == 0)
+                ecgStart = stepStart;
         }
         final GetSleepDataCountRequest getSleepDataCountRequest;
         if (isBLE()) {
@@ -1536,10 +1567,11 @@ public class HuaweiSupportProvider {
         final GetFitnessTotalsRequest getFitnessTotalsRequest = new GetFitnessTotalsRequest(this);
 
         final int start = sleepStart;
+        final int ecgSyncStart = ecgStart;
         getFitnessTotalsRequest.setFinalizeReq(new RequestCallback() {
             @Override
             public void call() {
-                if (!(downloadTruSleepData(start, end) && downloadStressData(start, end)))
+                if (!(downloadTruSleepData(start, end) && downloadStressData(start, end) && downloadEcgData(ecgSyncStart, end)))
                     syncState.stopActivitySync();
             }
 
@@ -2121,6 +2153,57 @@ public class HuaweiSupportProvider {
         }
     }
 
+    public void addEcgData(HuaweiEcgFileParser.EcgData data) {
+        try (DBHandler db = GBApplication.acquireDB()) {
+            Long userId = DBHelper.getUser(db.getDaoSession()).getId();
+            Long deviceId = DBHelper.getDevice(gbDevice, db.getDaoSession()).getId();
+
+            // Avoid duplicates
+            QueryBuilder<HuaweiEcgSummarySample> qb = db.getDaoSession().getHuaweiEcgSummarySampleDao().queryBuilder().where(
+                    HuaweiEcgSummarySampleDao.Properties.UserId.eq(userId),
+                    HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId),
+                    HuaweiEcgSummarySampleDao.Properties.StartTimestamp.eq(data.getStartTime())
+            );
+            List<HuaweiEcgSummarySample> results = qb.build().list();
+            Long ecgId = null;
+            if (!results.isEmpty())
+                ecgId = results.get(0).getEcgId();
+
+            HuaweiEcgSummarySample summarySample = new HuaweiEcgSummarySample(
+                    ecgId,
+                    deviceId,
+                    userId,
+                    data.getStartTime(),
+                    data.getEndTime(),
+                    data.getAppVersion(),
+                    data.getAverageHeartRate(),
+                    data.getArrhythmiaType(),
+                    data.getUserSymptoms()
+            );
+
+            db.getDaoSession().getHuaweiEcgSummarySampleDao().insertOrReplace(summarySample);
+
+            // We should completely replace values. Delete all and insert again.
+            final DeleteQuery<HuaweiEcgDataSample> tableDeleteQuery = db.getDaoSession().getHuaweiEcgDataSampleDao().queryBuilder()
+                    .where(HuaweiEcgDataSampleDao.Properties.EcgId.eq(summarySample.getEcgId()))
+                    .buildDelete();
+            tableDeleteQuery.executeDeleteWithoutDetachingEntities();
+
+            int sampleRate = (int) (data.getEcgData().size() / ((data.getEndTime() - data.getStartTime())/ 1000));
+            int delta = 0;
+            List<HuaweiEcgDataSample> res = new ArrayList<>();
+            for (Float d: data.getEcgData()) {
+                HuaweiEcgDataSample dataSample = new HuaweiEcgDataSample(summarySample.getEcgId(), delta, d);
+                res.add(dataSample);
+                delta += sampleRate;
+            }
+            db.getDaoSession().getHuaweiEcgDataSampleDao().insertInTx(res);
+
+        } catch (Exception e) {
+            LOG.error("Failed to add ECG data to database", e);
+        }
+    }
+
     public void addTotalFitnessData(int steps, int calories, int distance) {
         LOG.debug("FITNESS total steps: {}", steps);
         LOG.debug("FITNESS total calories: {}", calories); // TODO: May actually be kilocalories
@@ -2217,7 +2300,7 @@ public class HuaweiSupportProvider {
 
             // We should completely replace values. Delete all and insert again.
             final DeleteQuery<HuaweiWorkoutSummaryAdditionalValuesSample> tableDeleteQuery = db.getDaoSession().getHuaweiWorkoutSummaryAdditionalValuesSampleDao().queryBuilder()
-                    .where(HuaweiWorkoutSummaryAdditionalValuesSampleDao.Properties.WorkoutId.eq(workoutId))
+                    .where(HuaweiWorkoutSummaryAdditionalValuesSampleDao.Properties.WorkoutId.eq(summarySample.getWorkoutId()))
                     .buildDelete();
             tableDeleteQuery.executeDeleteWithoutDetachingEntities();
 
@@ -3321,6 +3404,49 @@ public class HuaweiSupportProvider {
         return true;
     }
 
+    public boolean downloadEcgData(int start, int end) {
+        if (!getHuaweiCoordinator().supportsECG())
+            return false;
+
+        syncState.setEcgSync(true);
+
+        huaweiFileDownloadManager.addToQueue(HuaweiFileDownloadManager.FileRequest.ecgAnalysisFileRequest(
+                start,
+                end,
+                new HuaweiFileDownloadManager.FileDownloadCallback() {
+                    @Override
+                    public void downloadComplete(HuaweiFileDownloadManager.FileRequest fileRequest) {
+                        if (fileRequest.getData().length != 0) {
+                            LOG.debug("Parsing ECG file");
+
+                            HuaweiEcgFileParser.EcgFileData results = null;
+                            try {
+                                results = HuaweiEcgFileParser.parseEcgFile(fileRequest.getData());
+                            } catch (HuaweiEcgFileParser.EcgParseException e) {
+                                LOG.error("Error parse ECG file", e);
+                            }
+                            LOG.info("ECG result: {}", results);
+                            if (results != null && !results.getEcgDataList().isEmpty()) {
+                                for(HuaweiEcgFileParser.EcgData dt: results.getEcgDataList()) {
+                                    addEcgData(dt);
+                                }
+                            }
+                        } else {
+                            LOG.debug("ECG file is empty");
+                        }
+                        syncState.setEcgSync(false);
+                    }
+
+                    @Override
+                    public void downloadException(HuaweiFileDownloadManager.HuaweiFileDownloadException e) {
+                        super.downloadException(e);
+                        syncState.setEcgSync(false);
+                    }
+                }
+        ), true);
+        return true;
+    }
+
     public void nextWorkoutSync(List<Workout.WorkoutCount.Response.WorkoutNumbers> remainder, RequestCallback finalizeReq) {
         if (!remainder.isEmpty()) {
             GetWorkoutTotalsRequest nextRequest = new GetWorkoutTotalsRequest(
@@ -3340,9 +3466,37 @@ public class HuaweiSupportProvider {
         }
     }
 
-
     public void endOfWorkoutSync() {
         this.syncState.stopWorkoutSync();
+    }
+
+    public void downloadWorkoutPdrFiles(short workoutId, Long databaseId) {
+        if(!getHuaweiCoordinator().isSupportsGpsNewSync())
+            return;
+        huaweiFileDownloadManager.addToQueue(HuaweiFileDownloadManager.FileRequest.workoutPdrFileRequest(
+                workoutId,
+                databaseId,
+                new HuaweiFileDownloadManager.FileDownloadCallback() {
+                    @Override
+                    public void downloadComplete(HuaweiFileDownloadManager.FileRequest fileRequest) {
+                        if (fileRequest.getData().length == 0) {
+                            LOG.debug("PDR file empty");
+                            return;
+                        }
+
+                        LOG.debug("Parsing PDR file");
+                        HuaweiPdrParser.PdrPoint[] points = HuaweiPdrParser.parseHuaweiPdr(fileRequest.getData());
+                        LOG.info("Points: ", points);
+                        //TODO: postprocess and combine with Gps data
+                    }
+
+                    @Override
+                    public void downloadException(HuaweiFileDownloadManager.HuaweiFileDownloadException e) {
+                        super.downloadException(e);
+                        LOG.debug("Error download PDR file");
+                    }
+                }
+        ), true);
     }
 
     public void downloadWorkoutGpsFiles(short workoutId, Long databaseId, Runnable extraCallbackAction) {

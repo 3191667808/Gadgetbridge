@@ -188,6 +188,10 @@ abstract class GloryFitCoordinator : AbstractBLEDeviceCoordinator() {
         )
     }
 
+    override fun getSupportedDeviceSpecificExperimentalSettings(device: GBDevice): IntArray? {
+        return intArrayOf(R.xml.devicesettings_sos_contact)
+    }
+
     override fun getDeviceSpecificSettings(device: GBDevice): DeviceSpecificSettings {
         val deviceSpecificSettings = DeviceSpecificSettings()
 
@@ -196,6 +200,7 @@ abstract class GloryFitCoordinator : AbstractBLEDeviceCoordinator() {
 
         val display = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.DISPLAY)
         display.add(R.xml.devicesettings_liftwrist_display_noshed)
+        display.add(R.xml.devicesettings_screen_timeout)
 
         val health = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.HEALTH)
         health.add(R.xml.devicesettings_heartrate_automatic_enable)

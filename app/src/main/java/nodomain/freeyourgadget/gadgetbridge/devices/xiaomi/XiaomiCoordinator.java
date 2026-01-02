@@ -313,6 +313,11 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsActiveCalories(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public boolean supportsSleepRespiratoryRate(@NonNull GBDevice device) {
         // TODO it does
         return false;
@@ -530,6 +535,7 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
         //
         deviceSpecificSettings.addRootScreen(
                 DeviceSpecificSettingsScreen.DEVELOPER,
+                R.xml.devicesettings_reprocess_activity_files,
                 R.xml.devicesettings_keep_activity_data_on_device
         );
 
