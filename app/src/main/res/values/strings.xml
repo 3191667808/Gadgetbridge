@@ -4419,7 +4419,6 @@
     <string name="gree_pair_clipboard">Device name: %1$s\nMac address: %2$s\nBind key: %3$s</string>
     <string name="earfun_transparency_mode">Transparency mode</string>
     <string name="earfun_ambient_mode">Ambient Sound Mode</string>
-    <string name="earfun_ambient_mode_natural">Natural</string>
     <string name="earfun_ambient_mode_fully_transparent">Fully Transparent</string>
     <string name="earfun_anc_mode">ANC mode</string>
     <string name="earfun_anc_mode_strong">Strong ANC</string>
@@ -4427,7 +4426,6 @@
     <string name="earfun_anc_mode_ai_environment_adaptive">AI Environment Adaptive ANC</string>
     <string name="earfun_anc_mode_ai_ear_adaptive">AI Ear Adaptive ANC</string>
     <string name="earfun_anc_mode_wind_noise_cancelling">Wind Noise Cancelling</string>
-    <string name="earfun_anc_mode_default">Default</string>
     <string name="earfun_anc_mode_ears_1">Ears 1</string>
     <string name="earfun_anc_mode_ears_2">Ears 2</string>
     <string name="earfun_anc_mode_ears_3">Ears 3</string>
