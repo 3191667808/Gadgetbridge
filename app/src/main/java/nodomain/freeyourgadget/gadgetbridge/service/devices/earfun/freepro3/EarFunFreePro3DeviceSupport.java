@@ -1,7 +1,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.earfun.freepro3;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.earfun.EarFunDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
 /**
  * Device support implementation for EarFun Free Pro 3 (TW400)
@@ -9,7 +8,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 public class EarFunFreePro3DeviceSupport extends EarFunDeviceSupport {
 
     @Override
-    protected GBDeviceProtocol createDeviceProtocol() {
+    protected EarFunFreePro3Protocol createDeviceProtocol() {
         return new EarFunFreePro3Protocol(getDevice());
     }
 }
