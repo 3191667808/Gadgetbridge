@@ -1,4 +1,4 @@
-/*  Copyright (C) 2026 José Rebelo
+/*  Copyright (C) 2026 Jos Rebelo
 
     This file is part of Gadgetbridge.
 
@@ -141,3 +141,4 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         )
     }
 }
+
