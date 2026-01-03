@@ -29,6 +29,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncException
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.ZoneOffset
@@ -47,9 +48,7 @@ internal object TemperatureSyncer : HealthConnectSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>
     ): SyncerStatistics {
         val deviceName = gbDevice.aliasOrName
@@ -70,23 +69,23 @@ internal object TemperatureSyncer : HealthConnectSyncer {
             GBApplication.acquireDB().use { db ->
                 val provider = gbDevice.deviceCoordinator.getTemperatureSampleProvider(gbDevice, db.daoSession)
                 if (provider == null) {
-                    LOG.warn("TemperatureSampleProvider not found for device '$deviceName'. Skipping Temperature sync for slice $sliceStartBoundary to $sliceEndBoundary.")
+                    LOG.warn("TemperatureSampleProvider not found for device '$deviceName'. Skipping Temperature sync for slice $slice.")
                     return@use emptyList()
                 }
-                provider.getAllSamples(sliceStartBoundary.toEpochMilli(), sliceEndBoundary.toEpochMilli())
+                provider.getAllSamples(slice.startBoundary.toEpochMilli(), slice.endBoundary.toEpochMilli())
             }
         } catch (e: Exception) {
-            throw SyncException("Error fetching temperature samples for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.", e)
+            throw SyncException("Error fetching temperature samples for device '$deviceName' for slice $slice.", e)
         }
 
         if (samples.isEmpty()) {
-            LOG.info("No temperature samples found for device '$deviceName' in slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No temperature samples found for device '$deviceName' in slice $slice.")
             return SyncerStatistics(recordsSynced = 0, recordsSkipped = 0, recordType = "Temperature")
         }
 
         val bodySamples = samples.filter { it.temperatureType == TemperatureSample.TYPE_BODY }
         val skinSamples = samples.filter { it.temperatureType == TemperatureSample.TYPE_SKIN }
-        LOG.info("Found ${samples.size} temperature samples for '$deviceName': ${bodySamples.size} body, ${skinSamples.size} skin, in slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Found ${samples.size} temperature samples for '$deviceName': ${bodySamples.size} body, ${skinSamples.size} skin, in slice $slice.")
 
         val recordsToInsert = mutableListOf<Record>()
 
@@ -104,11 +103,11 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     continue
                 }
                 val timestamp = Instant.ofEpochMilli(sample.timestamp)
-                if (!timestamp.isBefore(sliceStartBoundary) && timestamp.isBefore(sliceEndBoundary)) {
+                if (slice.contains(timestamp)) {
                     recordsToInsert.add(
                         BodyTemperatureRecord(
                             time = timestamp,
-                            zoneOffset = offset,
+                            zoneOffset = slice.offset,
                             temperature = Temperature.celsius(sampleTemp),
                             measurementLocation = sample.temperatureLocation,
                             metadata = metadata
@@ -116,12 +115,11 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     )
                 } else {
                     LOG.debug(
-                        "Skipping Body Temperature sample for device '{}' at {} (value: {}°C) as it's outside slice {} - {}.",
+                        "Skipping Body Temperature sample for device '{}' at {} (value: {}°C) as it's outside slice {}.",
                         deviceName,
                         timestamp,
                         sample.temperature,
-                        sliceStartBoundary,
-                        sliceEndBoundary
+                        slice
                     )
                 }
             }
@@ -139,13 +137,12 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                 LOG.info("Creating new SkinBaselineHelper for device '$deviceName' ($deviceAddress).")
                 SkinBaselineHelper(deviceAddress)
             }
-            val baselineForCurrentRecord = baselineHelper.getBaselineForDay(sliceStartBoundary, gbDevice)
+            val baselineForCurrentRecord = baselineHelper.getBaselineForDay(slice.startBoundary, gbDevice)
 
             val validSkinSamplesInSlice = skinSamples.filter {
                 val ts = Instant.ofEpochMilli(it.timestamp)
                 val tempC = it.temperature.toDouble()
-                (tempC in MIN_PLAUSIBLE_SKIN_TEMP_C..MAX_PLAUSIBLE_SKIN_TEMP_C) &&
-                        (!ts.isBefore(sliceStartBoundary) && ts.isBefore(sliceEndBoundary))
+                (tempC in MIN_PLAUSIBLE_SKIN_TEMP_C..MAX_PLAUSIBLE_SKIN_TEMP_C) && slice.contains(ts)
             }.sortedBy { it.timestamp }
 
             if (validSkinSamplesInSlice.isNotEmpty()) {
@@ -178,9 +175,9 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     recordsToInsert.add(
                         SkinTemperatureRecord(
                             startTime = recordStartTime,
-                            startZoneOffset = offset,
+                            startZoneOffset = slice.offset,
                             endTime = recordEndTime,
-                            endZoneOffset = offset,
+                            endZoneOffset = slice.offset,
                             deltas = deltas,
                             baseline = Temperature.celsius(baselineForCurrentRecord),
                             metadata = metadata
@@ -188,24 +185,24 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     )
                 }
             } else {
-                LOG.info("No valid skin temperature samples (plausible and within slice) found for '$deviceName' in slice $sliceStartBoundary - $sliceEndBoundary.")
+                LOG.info("No valid skin temperature samples (plausible and within slice) found for '$deviceName' in slice $slice.")
             }
         } else if (skinSamples.isNotEmpty()) {
             LOG.info("Skipping SkinTemperatureRecord sync for ${skinSamples.size} samples for '$deviceName'; specific permission not granted.")
         }
 
         if (recordsToInsert.isEmpty()) {
-            LOG.info("No temperature records (Body/Skin) to insert for '$deviceName' in slice $sliceStartBoundary to $sliceEndBoundary after filtering and permission checks.")
+            LOG.info("No temperature records (Body/Skin) to insert for '$deviceName' in slice $slice after filtering and permission checks.")
             return SyncerStatistics(recordsSynced = 0, recordsSkipped = 0, recordType = "Temperature")
         }
 
-        LOG.info("Attempting to insert ${recordsToInsert.size} TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Attempting to insert ${recordsToInsert.size} TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice $slice.")
         HealthConnectUtils.insertRecords(recordsToInsert, healthConnectClient)
 
         totalRecordsSynced += recordsToInsert.size
 
-        LOG.info("Successfully inserted TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
-        LOG.info("Temperature sync completed for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary. Total synced: $totalRecordsSynced")
+        LOG.info("Successfully inserted TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice $slice.")
+        LOG.info("Temperature sync completed for device '$deviceName' for slice $slice. Total synced: $totalRecordsSynced")
         return SyncerStatistics(recordsSynced = totalRecordsSynced, recordsSkipped = totalRecordsSkipped, recordType = "Temperature")
     }
 

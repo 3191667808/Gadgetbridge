@@ -342,9 +342,11 @@ class HealthConnectUtils {
                         break
                     }
 
-                    LOG.info("$HC_SYNC_TAG Processing slice for {}({}): {} to {}", gbDevice.aliasOrName, dataType.name, currentSliceStartTs, currentSliceEndTs)
-                    val startTimeFormatted = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault()).format(currentSliceStartTs)
-                    val endTimeFormatted = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault()).format(currentSliceEndTs)
+                    val slice = SyncSlice(currentSliceStartTs, currentSliceEndTs, offset)
+
+                    LOG.info("$HC_SYNC_TAG Processing slice for {}({}): {}", gbDevice.aliasOrName, dataType.name, slice)
+                    val startTimeFormatted = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault()).format(slice.startBoundary)
+                    val endTimeFormatted = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault()).format(slice.endBoundary)
                     val summary = context.getString(
                         R.string.health_connect_syncing_device_datatype,
                         gbDevice.aliasOrName,
@@ -355,7 +357,7 @@ class HealthConnectUtils {
 
                     updateSyncStatus(summary, true, summaryCallback, mainHandler)
 
-                    val queryStartTs = currentSliceStartTs.minusSeconds(lookBackInSeconds)
+                    val queryStartTs = slice.startBoundary.minusSeconds(lookBackInSeconds)
                     LOG.info("$HC_SYNC_TAG Querying Gadgetbridge DB for {}({}) from {} to {}", gbDevice.aliasOrName, dataType.name, queryStartTs, currentSliceEndTs)
 
                     // Fetch activityBasedSamples under their own lock if needed for the current dataType
@@ -375,9 +377,7 @@ class HealthConnectUtils {
                             healthConnectClient = healthConnectClient,
                             gbDevice = gbDevice,
                             metadata = metadata,
-                            offset = offset,
-                            currentSliceStartTs = currentSliceStartTs,
-                            currentSliceEndTs = currentSliceEndTs,
+                            slice = slice,
                             grantedPermissions = grantedPermissions,
                             activityBasedSamples = activityBasedSamples,
                             context = context
@@ -533,8 +533,8 @@ class HealthConnectUtils {
 
             val firstTs = getFirstSampleTimestamp(deviceCoordinator, gbDevice, db, dataType)
             if (firstTs != null) {
-                CompanionLogger.info("$HC_SYNC_TAG Using first sample timestamp for {}({}): {}", gbDevice.aliasOrName, dataType.name, firstTs)
-                return firstTs
+                CompanionLogger.info("$HC_SYNC_TAG Using first sample timestamp minus 1 second for {}({}): {}", gbDevice.aliasOrName, dataType.name, firstTs)
+                return firstTs.minusSeconds(1)
             }
 
             return null
@@ -545,9 +545,7 @@ class HealthConnectUtils {
             healthConnectClient: HealthConnectClient,
             gbDevice: GBDevice,
             metadata: Metadata,
-            offset: java.time.ZoneOffset,
-            currentSliceStartTs: Instant,
-            currentSliceEndTs: Instant,
+            slice: SyncSlice,
             grantedPermissions: Set<String>,
             activityBasedSamples: List<ActivitySample>?,
             context: Context
@@ -559,54 +557,47 @@ class HealthConnectUtils {
                     // Sync activity samples (steps, heart rate) if available
                     if (!activityBasedSamples.isNullOrEmpty()) {
                         sliceStats.add(StepsSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples
+                            healthConnectClient, gbDevice, metadata, slice,
+                            grantedPermissions, activityBasedSamples
                         ))
                         sliceStats.add(HeartRateSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples
+                            healthConnectClient, gbDevice, metadata, slice,
+                            grantedPermissions, activityBasedSamples
                         ))
                     }
                 }
                 HealthConnectPermissionManager.HealthConnectDataType.SLEEP -> {
                     if (!activityBasedSamples.isNullOrEmpty()) {
                         sliceStats.add(SleepSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples, context
+                            healthConnectClient, gbDevice, metadata, slice,
+                            grantedPermissions, activityBasedSamples, context
                         ))
                     }
                 }
                 HealthConnectPermissionManager.HealthConnectDataType.VO2MAX -> sliceStats.add(Vo2MaxSyncer.sync(
-                    healthConnectClient, gbDevice, metadata, offset,
-                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                    healthConnectClient, gbDevice, metadata, slice, grantedPermissions
                 ))
                 HealthConnectPermissionManager.HealthConnectDataType.HRV -> sliceStats.add(HrvSyncer.sync(
-                    healthConnectClient, gbDevice, metadata, offset,
-                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                    healthConnectClient, gbDevice, metadata, slice, grantedPermissions
                 ))
                 HealthConnectPermissionManager.HealthConnectDataType.WEIGHT -> sliceStats.add(WeightSyncer.sync(
-                    healthConnectClient, gbDevice, metadata, offset,
-                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                    healthConnectClient, gbDevice, metadata, slice, grantedPermissions
                 ))
                 HealthConnectPermissionManager.HealthConnectDataType.SPO2 -> sliceStats.add(Spo2Syncer.sync(
-                    healthConnectClient, gbDevice, metadata, offset,
-                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                    healthConnectClient, gbDevice, metadata, slice, grantedPermissions
                 ))
                 HealthConnectPermissionManager.HealthConnectDataType.TEMPERATURE -> sliceStats.add(TemperatureSyncer.sync(
-                    healthConnectClient, gbDevice, metadata, offset,
-                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                    healthConnectClient, gbDevice, metadata, slice, grantedPermissions
                 ))
                 HealthConnectPermissionManager.HealthConnectDataType.RESPIRATORY_RATE -> sliceStats.add(RespiratoryRateSyncer.sync(
-                    healthConnectClient, gbDevice, metadata, offset,
-                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                    healthConnectClient, gbDevice, metadata, slice, grantedPermissions
                 ))
                 HealthConnectPermissionManager.HealthConnectDataType.WORKOUTS -> {
                     // Sync explicitly recorded workouts from BaseActivitySummary
                     val coordinator = gbDevice.deviceCoordinator
                     if (coordinator.supportsActivityTracks(gbDevice)) {
                         sliceStats.add(RecordedWorkoutSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, context
+                            healthConnectClient, gbDevice, metadata, slice, grantedPermissions, context
                         ))
                     }
                 }

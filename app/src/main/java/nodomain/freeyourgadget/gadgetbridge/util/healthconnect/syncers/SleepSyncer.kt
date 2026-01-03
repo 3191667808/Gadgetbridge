@@ -26,9 +26,9 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 import org.slf4j.LoggerFactory
 import java.time.Instant
-import java.time.ZoneOffset
 
 private val LOG = LoggerFactory.getLogger("SleepSyncer")
 
@@ -38,9 +38,7 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>,
         deviceSamples: List<ActivitySample>,
         context: Context
@@ -55,7 +53,7 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
         }
 
         if (deviceSamples.isEmpty()) {
-            LOG.info("No device samples provided for sleep analysis for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No device samples provided for sleep analysis for device '$deviceName' for slice $slice.")
             return SyncerStatistics(recordType = "Sleep")
         }
 
@@ -65,20 +63,18 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
         val allIdentifiedSessions = sleepAnalysis.calculateSleepSessions(sortedDeviceSamples)
 
         if (allIdentifiedSessions.isEmpty()) {
-            LOG.info("No sleep sessions identified by SleepAnalysis for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No sleep sessions identified by SleepAnalysis for device '$deviceName' for slice $slice.")
             return SyncerStatistics(recordType = "Sleep")
         }
 
-        LOG.info("SleepAnalysis identified ${allIdentifiedSessions.size} sleep sessions for device '$deviceName'. Filtering by slice: $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("SleepAnalysis identified ${allIdentifiedSessions.size} sleep sessions for device '$deviceName'. Filtering by slice: $slice.")
 
         // Convert all sessions to records, filtering out invalid ones
         val sleepSessionRecordList = allIdentifiedSessions.mapNotNull { analysisSession ->
             sleepSessionToRecord(
                 analysisSession = analysisSession,
                 sortedDeviceSamples = sortedDeviceSamples,
-                sliceStartBoundary = sliceStartBoundary,
-                sliceEndBoundary = sliceEndBoundary,
-                offset = offset,
+                slice = slice,
                 metadata = metadata,
                 context = context,
                 deviceName = deviceName
@@ -91,16 +87,16 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
             LOG.info("Skipped $skippedCount sleep session(s) for device '$deviceName' (outside slice, no samples, no valid stages, or invalid timings).")
         }
 
-        LOG.info("Finished processing ${sleepSessionRecordList.size} valid sleep session(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Finished processing ${sleepSessionRecordList.size} valid sleep session(s) for device '$deviceName' for slice $slice.")
 
         if (sleepSessionRecordList.isEmpty()) {
-            LOG.info("No valid SleepSessionRecord(s) created for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No valid SleepSessionRecord(s) created for device '$deviceName' for slice $slice.")
             return SyncerStatistics(recordType = "Sleep", recordsSkipped = skippedCount)
         }
 
-        LOG.info("Attempting to insert ${sleepSessionRecordList.size} SleepSessionRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Attempting to insert ${sleepSessionRecordList.size} SleepSessionRecord(s) for device '$deviceName' for slice $slice.")
         HealthConnectUtils.insertRecords(sleepSessionRecordList, healthConnectClient)
-        LOG.info("Successfully inserted SleepSessionRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Successfully inserted SleepSessionRecord(s) for device '$deviceName' for slice $slice.")
         return SyncerStatistics(recordsSynced = sleepSessionRecordList.size, recordsSkipped = skippedCount, recordType = "Sleep")
     }
 
@@ -111,9 +107,7 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
     private fun sleepSessionToRecord(
         analysisSession: SleepAnalysis.SleepSession,
         sortedDeviceSamples: List<ActivitySample>,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
-        offset: ZoneOffset,
+        slice: SyncSlice,
         metadata: Metadata,
         context: Context,
         deviceName: String
@@ -123,14 +117,13 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
         val sessionBoundaryEndInclusive = analysisSession.sleepEnd.toInstant()
 
         // Check if session overlaps with the current slice
-        if (!sessionBoundaryStart.isBefore(sliceEndBoundary) || !sessionBoundaryEndInclusive.isAfter(sliceStartBoundary)) {
+        if (!slice.contains(sessionBoundaryStart)) {
             LOG.debug(
-                "Skipping sleep session (identified by SleepAnalysis) for device '{}' (Timeframe: {} to {}) as it does not overlap with current slice ({} to {}).",
+                "Skipping sleep session (identified by SleepAnalysis) for device '{}' (Timeframe: {} to {}) as it does not overlap with current slice ({}).",
                 deviceName,
                 sessionBoundaryStart,
                 sessionBoundaryEndInclusive,
-                sliceStartBoundary,
-                sliceEndBoundary
+                slice
             )
             return null
         }
@@ -155,7 +148,7 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
         val nominalSessionStart = samplesForThisSession.first().timestamp.toLong().let { Instant.ofEpochSecond(it) }
         val nominalSessionEnd = samplesForThisSession.last().timestamp.toLong().let { Instant.ofEpochSecond(it) }
 
-        LOG.info("Processing sleep session (identified by SleepAnalysis) for device '$deviceName' (Nominal sample range: $nominalSessionStart to $nominalSessionEnd) as it overlaps with slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Processing sleep session (identified by SleepAnalysis) for device '$deviceName' (Nominal sample range: $nominalSessionStart to $nominalSessionEnd) as it overlaps with slice $slice.")
 
         // Build sleep stages from samples
         val stages = buildSleepStages(samplesForThisSession, deviceName)
@@ -177,9 +170,9 @@ internal object SleepSyncer : ContextualActivitySampleSyncer {
 
         return SleepSessionRecord(
             startTime = recordFinalStartTime,
-            startZoneOffset = offset,
+            startZoneOffset = slice.offset,
             endTime = recordFinalEndTime,
-            endZoneOffset = offset,
+            endZoneOffset = slice.offset,
             title = context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.health_connect_sleep_session_title, deviceName),
             notes = context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.health_connect_sleep_session_notes, deviceName),
             stages = stages,

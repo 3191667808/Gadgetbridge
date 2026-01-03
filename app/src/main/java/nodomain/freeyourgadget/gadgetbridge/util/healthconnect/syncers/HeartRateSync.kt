@@ -22,15 +22,13 @@ import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
-import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
-import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 import org.slf4j.LoggerFactory
 import java.time.Instant
-import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
 private val LOG = LoggerFactory.getLogger("HeartRateSyncer")
@@ -40,9 +38,7 @@ internal object HeartRateSyncer : ActivitySampleSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>,
         deviceSamples: List<ActivitySample>
     ): SyncerStatistics {
@@ -63,11 +59,11 @@ internal object HeartRateSyncer : ActivitySampleSyncer {
             .sortedBy { it.timestamp }
 
         if (validHRSamples.isEmpty()) {
-            LOG.info("No valid heart rate samples found for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No valid heart rate samples found for device '$deviceName' for slice $slice.")
             return SyncerStatistics(recordType = "HeartRate")
         }
 
-        LOG.info("Processing ${validHRSamples.size} valid heart rate samples for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Processing ${validHRSamples.size} valid heart rate samples for device '$deviceName' for slice $slice.")
 
         val heartRateRecordList = mutableListOf<Record>()
         val currentHcSamples = mutableListOf<HeartRateRecord.Sample>()
@@ -77,14 +73,14 @@ internal object HeartRateSyncer : ActivitySampleSyncer {
         for (gbSample in validHRSamples) {
             val currentSampleTimestamp = Instant.ofEpochSecond(gbSample.timestamp.toLong())
 
-            // Ensure sample is strictly within the slice [sliceStartBoundary, sliceEndBoundary)
-            if (currentSampleTimestamp.isBefore(sliceStartBoundary) || !currentSampleTimestamp.isBefore(sliceEndBoundary)) {
+            // Ensure sample is strictly within the slice
+            if (!slice.contains(currentSampleTimestamp)) {
                 skippedCount++
                 continue
             }
 
             previousSampleTimestamp?.let { prevTs ->
-                val newDay = ZonedDateTime.ofInstant(prevTs, offset).toLocalDate() != ZonedDateTime.ofInstant(currentSampleTimestamp, offset).toLocalDate()
+                val newDay = ZonedDateTime.ofInstant(prevTs, slice.offset).toLocalDate() != ZonedDateTime.ofInstant(currentSampleTimestamp, slice.offset).toLocalDate()
                 val gapTooLong = currentSampleTimestamp.epochSecond - prevTs.epochSecond > 15 * 60 // 15 min gap
                 val samplesFull = currentHcSamples.size >= HealthConnectUtils.MAX_SAMPLES_PER_HEART_RATE_RECORD // Use a defined constant
 
@@ -105,7 +101,7 @@ internal object HeartRateSyncer : ActivitySampleSyncer {
                                 recordEndTime,
                                 currentHcSamples.size
                             )
-                            heartRateRecordList.add(HeartRateRecord(recordStartTime, offset, recordEndTime, offset, ArrayList(currentHcSamples), metadata))
+                            heartRateRecordList.add(HeartRateRecord(recordStartTime, slice.offset, recordEndTime, slice.offset, ArrayList(currentHcSamples), metadata))
                         } else {
                              LOG.warn("Skipping HeartRateRecord for device '$deviceName' from $recordStartTime to $recordEndTime due to invalid duration even after adjustment.")
                         }
@@ -132,23 +128,23 @@ internal object HeartRateSyncer : ActivitySampleSyncer {
                     recordEndTime,
                     currentHcSamples.size
                 )
-                heartRateRecordList.add(HeartRateRecord(recordStartTime, offset, recordEndTime, offset, ArrayList(currentHcSamples), metadata))
+                heartRateRecordList.add(HeartRateRecord(recordStartTime, slice.offset, recordEndTime, slice.offset, ArrayList(currentHcSamples), metadata))
             } else {
                 LOG.warn("Skipping final HeartRateRecord for device '$deviceName' from $recordStartTime to $recordEndTime due to invalid duration even after adjustment.")
             }
         }
 
         if (heartRateRecordList.isEmpty()) {
-            LOG.info("No valid HeartRateRecord(s) created for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary after processing ${validHRSamples.size} samples.")
+            LOG.info("No valid HeartRateRecord(s) created for device '$deviceName' for slice $slice after processing ${validHRSamples.size} samples.")
             return SyncerStatistics(recordsSkipped = skippedCount, recordType = "HeartRate")
         }
 
-        LOG.info("Attempting to insert ${heartRateRecordList.size} HeartRateRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Attempting to insert ${heartRateRecordList.size} HeartRateRecord(s) for device '$deviceName' for slice $slice.")
         for (chunk in heartRateRecordList.chunked(HealthConnectUtils.CHUNK_SIZE)) {
             HealthConnectUtils.insertRecords(chunk, healthConnectClient)
         }
 
-        LOG.info("Successfully inserted ${heartRateRecordList.size} HeartRateRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Successfully inserted ${heartRateRecordList.size} HeartRateRecord(s) for device '$deviceName' for slice $slice.")
         return SyncerStatistics(recordsSynced = heartRateRecordList.size, recordsSkipped = skippedCount, recordType = "HeartRate")
     }
 }

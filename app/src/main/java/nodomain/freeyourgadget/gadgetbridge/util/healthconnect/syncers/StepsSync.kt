@@ -24,9 +24,9 @@ import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 import org.slf4j.LoggerFactory
 import java.time.Instant
-import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 
 private val LOG = LoggerFactory.getLogger("StepsSyncer")
@@ -36,9 +36,7 @@ internal object StepsSyncer : ActivitySampleSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>,
         deviceSamples: List<ActivitySample>
     ): SyncerStatistics {
@@ -55,11 +53,11 @@ internal object StepsSyncer : ActivitySampleSyncer {
         val relevantSamples = deviceSamples.filter { it.steps > 0 }.sortedBy { it.timestamp }
 
         if (relevantSamples.isEmpty()) {
-            LOG.info("No relevant step samples (>0) for device '$deviceName' in the provided deviceSamples for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No relevant step samples (>0) for device '$deviceName' in the provided deviceSamples for slice $slice.")
             return SyncerStatistics(recordType = "Steps")
         }
 
-        LOG.info("Processing ${relevantSamples.size} samples for steps for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Processing ${relevantSamples.size} samples for steps for device '$deviceName' for slice $slice.")
 
         val stepsRecordList = mutableListOf<Record>()
         var skippedCount = 0
@@ -69,19 +67,18 @@ internal object StepsSyncer : ActivitySampleSyncer {
                 val endTs = Instant.ofEpochSecond(currentSample.timestamp.toLong())
                 val startTs = endTs.minus(1, ChronoUnit.MINUTES)
 
-                // Ensure the record's interval [startTs, endTs) overlaps with the slice [sliceStartBoundary, sliceEndBoundary)
-                if (endTs.isAfter(sliceStartBoundary) && startTs.isBefore(sliceEndBoundary)) {
-                    stepsRecordList.add(StepsRecord(startTs, offset, endTs, offset, stepsInMinute, metadata))
+                // Ensure the record's start timestamp belongs to the slice
+                if (slice.contains(startTs)) {
+                    stepsRecordList.add(StepsRecord(startTs, slice.offset, endTs, slice.offset, stepsInMinute, metadata))
                 } else {
                     skippedCount++
                     LOG.debug(
-                        "Skipping steps for device '{}' for sample at {} (interval {} to {}) as its interval is outside the slice {} - {}.",
+                        "Skipping steps for device '{}' for sample at {} (interval {} to {}) as its interval is outside the slice slice {}.",
                         deviceName,
                         endTs,
                         startTs,
                         endTs,
-                        sliceStartBoundary,
-                        sliceEndBoundary
+                        slice
                     )
                 }
             }
@@ -89,17 +86,17 @@ internal object StepsSyncer : ActivitySampleSyncer {
 
         // 3. No Valid Records to Insert
         if (stepsRecordList.isEmpty()) {
-            LOG.info("No valid StepsRecord created for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary after processing ${relevantSamples.size} samples.")
+            LOG.info("No valid StepsRecord created for device '$deviceName' for slice $slice after processing ${relevantSamples.size} samples.")
             return SyncerStatistics(recordsSkipped = skippedCount, recordType = "Steps")
         }
 
         // 4. Insertion (with chunking)
-        LOG.info("Attempting to insert ${stepsRecordList.size} StepsRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Attempting to insert ${stepsRecordList.size} StepsRecord(s) for device '$deviceName' for slice $slice.")
         for (chunk in stepsRecordList.chunked(HealthConnectUtils.CHUNK_SIZE)) {
             HealthConnectUtils.insertRecords(chunk, healthConnectClient)
         }
 
-        LOG.info("Successfully inserted ${stepsRecordList.size} StepsRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Successfully inserted ${stepsRecordList.size} StepsRecord(s) for device '$deviceName' for slice $slice.")
         return SyncerStatistics(recordsSynced = stepsRecordList.size, recordsSkipped = skippedCount, recordType = "Steps")
     }
 }

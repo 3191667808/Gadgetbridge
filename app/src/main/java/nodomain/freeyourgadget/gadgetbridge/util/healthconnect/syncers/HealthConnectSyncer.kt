@@ -21,8 +21,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
-import java.time.Instant
-import java.time.ZoneOffset
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 
 /**
  * Statistics returned by a syncer after processing a slice.
@@ -45,9 +44,7 @@ internal sealed interface HealthConnectSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>
     ): SyncerStatistics
 }
@@ -61,9 +58,7 @@ internal interface ActivitySampleSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>,
         deviceSamples: List<ActivitySample>
     ): SyncerStatistics
@@ -78,9 +73,7 @@ internal interface ContextualActivitySampleSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>,
         deviceSamples: List<ActivitySample>,
         context: Context

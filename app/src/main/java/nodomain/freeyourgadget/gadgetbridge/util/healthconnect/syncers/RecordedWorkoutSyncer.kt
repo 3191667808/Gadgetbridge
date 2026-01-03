@@ -49,6 +49,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.time.Instant
@@ -69,9 +70,7 @@ internal object RecordedWorkoutSyncer {
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>,
         context: Context
     ): SyncerStatistics {
@@ -88,14 +87,14 @@ internal object RecordedWorkoutSyncer {
         }
 
         // Query BaseActivitySummary from database
-        val workouts = queryWorkoutsFromDatabase(gbDevice, sliceStartBoundary, sliceEndBoundary)
+        val workouts = queryWorkoutsFromDatabase(gbDevice, slice)
 
         if (workouts.isEmpty()) {
-            LOG.info("No workouts found in database for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No workouts found in database for device '$deviceName' for slice $slice.")
             return SyncerStatistics(recordType = "Workout")
         }
 
-        LOG.info("Found ${workouts.size} workout(s) from BaseActivitySummary for device '$deviceName' in slice: $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Found ${workouts.size} workout(s) from BaseActivitySummary for device '$deviceName' in slice: $slice.")
 
         var workoutsProcessedInThisSlice = 0
         val workoutRecordList = mutableListOf<Record>()
@@ -139,7 +138,7 @@ internal object RecordedWorkoutSyncer {
                         activityPoints,
                         workoutStartInstant,
                         workoutEndInstant,
-                        offset,
+                        slice.offset,
                         metadata,
                         grantedPermissions,
                         recordsToInsert,
@@ -160,7 +159,7 @@ internal object RecordedWorkoutSyncer {
                         workout,
                         workoutStartInstant,
                         workoutEndInstant,
-                        offset,
+                        slice.offset,
                         metadata,
                         grantedPermissions,
                         recordsToInsert,
@@ -186,25 +185,24 @@ internal object RecordedWorkoutSyncer {
         }
 
         if (workoutsProcessedInThisSlice == 0 && workouts.isNotEmpty()) {
-            LOG.info("No workouts were processed for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary (e.g., all invalid).")
+            LOG.info("No workouts were processed for device '$deviceName' for slice $slice (e.g., all invalid).")
         } else if (workoutsProcessedInThisSlice > 0) {
-            LOG.info("Finished processing $workoutsProcessedInThisSlice workout(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("Finished processing $workoutsProcessedInThisSlice workout(s) for device '$deviceName' for slice $slice.")
         }
 
         if (workoutRecordList.isEmpty()) {
-            LOG.info("No valid ExerciseSessionRecord(s) created for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No valid ExerciseSessionRecord(s) created for device '$deviceName' for slice $slice.")
             return SyncerStatistics(recordType = "Workout")
         }
 
-        LOG.info("Successfully inserted ${workoutRecordList.size} ExerciseSessionRecord(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Successfully inserted ${workoutRecordList.size} ExerciseSessionRecord(s) for device '$deviceName' for slice $slice.")
         return SyncerStatistics(recordsSynced = workoutRecordList.size, recordType = "Workout")
     }
 
 
     private fun queryWorkoutsFromDatabase(
         gbDevice: GBDevice,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant
+        slice: SyncSlice,
     ): List<BaseActivitySummary> {
         val db: DBHandler = GBApplication.acquireDB()
         try {
@@ -214,8 +212,8 @@ internal object RecordedWorkoutSyncer {
                 return emptyList()
             }
 
-            val startDate = Date.from(sliceStartBoundary)
-            val endDate = Date.from(sliceEndBoundary)
+            val startDate = Date.from(slice.startBoundary)
+            val endDate = Date.from(slice.endBoundary)
 
             return db.daoSession.baseActivitySummaryDao.queryBuilder()
                 .where(

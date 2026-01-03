@@ -27,6 +27,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.TimeSample
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncException
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncSlice
 import org.slf4j.Logger
 import java.time.Instant
 import java.time.ZoneOffset
@@ -59,9 +60,7 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         healthConnectClient: HealthConnectClient,
         gbDevice: GBDevice,
         metadata: Metadata,
-        offset: ZoneOffset,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
+        slice: SyncSlice,
         grantedPermissions: Set<String>
     ): SyncerStatistics {
         val deviceName = gbDevice.aliasOrName
@@ -81,17 +80,17 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
                     logger.info("$recordTypeName sample provider not available for device '$deviceName'.")
                     return SyncerStatistics(recordType = recordTypeName)
                 }
-                provider.getAllSamples(sliceStartBoundary.toEpochMilli(), sliceEndBoundary.toEpochMilli())
+                provider.getAllSamples(slice.startBoundary.toEpochMilli(), slice.endBoundary.toEpochMilli())
             }
         } catch (e: Exception) {
             throw SyncException(
-                "Error fetching $recordTypeName samples for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.",
+                "Error fetching $recordTypeName samples for device '$deviceName' for slice $slice.",
                 e
             )
         }
 
         if (samples.isEmpty()) {
-            logger.info("No $recordTypeName samples found by provider for device '$deviceName' in slice $sliceStartBoundary to $sliceEndBoundary.")
+            logger.info("No $recordTypeName samples found by provider for device '$deviceName' in slice $slice.")
             return SyncerStatistics(recordType = recordTypeName)
         }
 
@@ -102,12 +101,11 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
 
         val recordsToInsert = samples.filter {
             val timestamp = Instant.ofEpochMilli(it.timestamp)
-            if (timestamp.isBefore(sliceStartBoundary) || !timestamp.isBefore(sliceEndBoundary)) {
+            if (!slice.contains(timestamp)) {
                 logger.debug(
-                    "Skipping sample for at {} as it's outside the slice {} - {}.",
+                    "Skipping sample for at {} as it's outside the slice {}.",
                     timestamp,
-                    sliceStartBoundary,
-                    sliceEndBoundary
+                    slice
                 )
                 return@filter false
             }
@@ -115,7 +113,7 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         }.mapNotNull {
             convertSample(
                 it,
-                offset,
+                slice.offset,
                 metadata,
                 deviceName
             ) ?: run {
@@ -125,15 +123,15 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         }
 
         if (recordsToInsert.isEmpty()) {
-            logger.info("No valid $recordTypeName records to insert for device '$deviceName' in slice $sliceStartBoundary to $sliceEndBoundary after processing samples.")
+            logger.info("No valid $recordTypeName records to insert for device '$deviceName' in slice $slice after processing samples.")
             return SyncerStatistics(recordsSkipped = skippedCount, recordType = recordTypeName)
         }
 
         // Insert records
-        logger.info("Attempting to insert ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        logger.info("Attempting to insert ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $slice.")
         HealthConnectUtils.insertRecords(recordsToInsert, healthConnectClient)
 
-        logger.info("Successfully inserted ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        logger.info("Successfully inserted ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $slice.")
         return SyncerStatistics(
             recordsSynced = recordsToInsert.size,
             recordsSkipped = skippedCount,
