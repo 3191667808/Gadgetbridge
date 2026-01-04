@@ -3341,24 +3341,37 @@ public class HuaweiSupportProvider {
                         try (DBHandler db = GBApplication.acquireDB()) {
                             track.setUser(DBHelper.getUser(db.getDaoSession()));
                             track.setDevice(DBHelper.getDevice(gbDevice, db.getDaoSession()));
+
+                            for (HuaweiGpsParser.GpsPoint point : points) {
+                                GPSCoordinate coordinate;
+                                HuaweiWorkoutDataSample workoutSample = db.getDaoSession().getHuaweiWorkoutDataSampleDao().queryBuilder()
+                                        .where(HuaweiWorkoutDataSampleDao.Properties.Timestamp.eq(point.timestamp))
+                                        .unique();
+                                if (point.altitudeSupported)
+                                    coordinate = new GPSCoordinate(point.longitude, point.latitude, point.altitude);
+                                else if (workoutSample != null && workoutSample.getAltitude() != null) {
+                                    double databaseAltitude = workoutSample.getAltitude().doubleValue() / 10d;
+                                    coordinate = new GPSCoordinate(point.longitude, point.latitude, databaseAltitude);
+                                } else
+                                    coordinate = new GPSCoordinate(point.longitude, point.latitude);
+
+
+                                ActivityPoint activityPoint = new ActivityPoint();
+                                activityPoint.setTime(DateTimeUtils.parseTimeStamp(point.timestamp));
+                                activityPoint.setLocation(coordinate);
+
+                                if(workoutSample != null) {
+                                    activityPoint.setHeartRate(Byte.toUnsignedInt(workoutSample.getHeartRate()));
+                                };
+
+                                track.addTrackPoint(activityPoint);
+                            }
                         } catch (Exception e) {
-                            LOG.error("Cannot acquire DB, set user, or set device for Activity track, continuing anyway");
+                            GB.toast(context, "Cannot acquire DB or process GPS points", Toast.LENGTH_SHORT, GB.ERROR, e);
+                            LOG.error("Cannot acquire DB or process GPS points", e);
+                            syncState.stopWorkoutGpsDownload();
+                            return;
                         }
-
-                        for (HuaweiGpsParser.GpsPoint point : points) {
-                            GPSCoordinate coordinate;
-                            if (point.altitudeSupported)
-                                coordinate = new GPSCoordinate(point.longitude, point.latitude, point.altitude);
-                            else
-                                coordinate = new GPSCoordinate(point.longitude, point.latitude);
-
-                            ActivityPoint activityPoint = new ActivityPoint();
-                            activityPoint.setTime(DateTimeUtils.parseTimeStamp(point.timestamp));
-                            activityPoint.setLocation(coordinate);
-
-                            track.addTrackPoint(activityPoint);
-                        }
-
                         String filename = FileUtils.makeValidFileName("workout_" + fileRequest.getWorkoutId() + "_" + points[0].timestamp + ".gpx");
                         File targetFile;
                         try {

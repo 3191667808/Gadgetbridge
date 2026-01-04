@@ -36,6 +36,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.function.Function;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
@@ -61,6 +62,8 @@ public class GPXExporter implements ActivityTrackExporter {
     private Date date;
     private boolean includeHeartRate = true;
     private boolean includeHeartRateOfNearestSample = true;
+
+    private boolean includeAltitudeOfNearestSample = true;
     private UUID uuid;
 
     private final DecimalFormat doubleFormat;
@@ -175,6 +178,11 @@ public class GPXExporter implements ActivityTrackExporter {
         ser.attribute(null, "lat", formatLocation(location.getLatitude()));
         if (location.hasAltitude()) {
             ser.startTag(NS_GPX_URI, "ele").text(formatDouble(location.getAltitude())).endTag(NS_GPX_URI, "ele");
+        } else if (includeAltitudeOfNearestSample) {
+            ActivityPoint closestPointItem = findClosestSensibleActivityPoint(point.getTime(), trackPoints, (trackPoint) -> trackPoint.getLocation().hasAltitude());
+            if (closestPointItem != null) {
+                ser.startTag(NS_GPX_URI, "ele").text(formatDouble(closestPointItem.getLocation().getAltitude())).endTag(NS_GPX_URI, "ele");
+            }
         }
         Date time = point.getTime();
         if (time != null) {
@@ -212,9 +220,11 @@ public class GPXExporter implements ActivityTrackExporter {
         float speed = point.getSpeed();
         int cadence = point.getCadence();
         int hr = point.getHeartRate();
-        if (!HeartRateUtils.getInstance().isValidHeartRateValue(hr) && includeHeartRateOfNearestSample) {
-
-            ActivityPoint closestPointItem = findClosestSensibleActivityPoint(point.getTime(), trackPoints);
+        HeartRateUtils heartRateUtilsInstance = HeartRateUtils.getInstance();
+        if (!heartRateUtilsInstance.isValidHeartRateValue(hr) && includeHeartRateOfNearestSample) {
+            ActivityPoint closestPointItem = findClosestSensibleActivityPoint(point.getTime(), trackPoints, (pointItem) ->
+                    heartRateUtilsInstance.isValidHeartRateValue(pointItem.getHeartRate())
+            );
             if (closestPointItem != null) {
                 hr = closestPointItem.getHeartRate();
             }
@@ -254,17 +264,15 @@ public class GPXExporter implements ActivityTrackExporter {
         ser.endTag(NS_GPX_URI, "extensions");
     }
 
-    private @Nullable ActivityPoint findClosestSensibleActivityPoint(Date time, Iterable<ActivityPoint> trackPoints) {
+    private @Nullable ActivityPoint findClosestSensibleActivityPoint(Date time, Iterable<ActivityPoint> trackPoints, Function<ActivityPoint, Boolean> pointValidity) {
         if (time == null) {
             return null;
         }
         ActivityPoint closestPointItem = null;
-        HeartRateUtils heartRateUtilsInstance = HeartRateUtils.getInstance();
 
         long lowestDifference = 60 * 2 * 1000; // minimum distance is 2min
         for (ActivityPoint pointItem : trackPoints) {
-            int hrItem = pointItem.getHeartRate();
-            if (heartRateUtilsInstance.isValidHeartRateValue(hrItem)) {
+            if (pointValidity.apply(pointItem)) {
                 Date timeItem = pointItem.getTime();
                 if (timeItem == null) {
                     continue;
