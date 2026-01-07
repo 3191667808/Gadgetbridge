@@ -43,6 +43,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.ServiceDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.fitpro.FitProDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.activities.CameraActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 
 public class FitProDeviceCoordinator extends AbstractBLEDeviceCoordinator {
     private static final Logger LOG = LoggerFactory.getLogger(FitProDeviceCoordinator.class);
@@ -174,5 +176,16 @@ public class FitProDeviceCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.FITNESS_BAND;
+    }
+
+    @Override
+    public DeviceSpecificSettings getDeviceSpecificSettings(final GBDevice device) {
+        final DeviceSpecificSettings deviceSpecificSettings = super.getDeviceSpecificSettings(device);
+
+        if(CameraActivity.supportsCamera()) {
+            deviceSpecificSettings.addRootScreen(R.xml.devicesettings_camera_remote);
+        }
+
+        return deviceSpecificSettings;
     }
 }

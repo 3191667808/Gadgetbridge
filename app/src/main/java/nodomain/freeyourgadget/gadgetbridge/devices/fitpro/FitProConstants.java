@@ -68,7 +68,7 @@ public class FitProConstants {
     public static final byte CMD_NOTIFICATION_MESSAGE = (byte) 0x12;
     public static final byte CMD_NOTIFICATION_CALL = (byte) 0x11;
     public static final byte CMD_WEATHER = (byte) 0x20;
-    public static final byte CMD_CAMERA = (byte) 0xc;
+    public static final byte CMD_CAMERA = (byte) 0xc; //on/off
     public static final byte CMD_HEART_RATE_MEASUREMENT = 0x18; //on/off
     public static final byte CMD_DND = (byte) 0x14;
     public static final byte CMD_INIT1 = 0xa;
@@ -134,9 +134,9 @@ public class FitProConstants {
 
     // group receive data
     public static final byte RX_FIND_PHONE = (byte) 0x01;
-    public static final byte RX_CAMERA1 = (byte) 0x02;
-    public static final byte RX_CAMERA2 = (byte) 0x03;
-    public static final byte RX_CAMERA3 = (byte) 0x04;
+    public static final byte RX_CAMERA1 = (byte) 0x02; // take photo
+    public static final byte RX_CAMERA2 = (byte) 0x03; // enter photo
+    public static final byte RX_CAMERA3 = (byte) 0x04; // exit photo
     public static final byte RX_MEDIA_PLAY_PAUSE = (byte) 0x0b;
     public static final byte RX_MEDIA_FORW = (byte) 0x0c;
     public static final byte RX_MEDIA_BACK = (byte) 0x0a;

@@ -18,6 +18,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.fitpro;
 
 import static nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstants.CMD_ALARM;
+import static nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstants.CMD_CAMERA;
 import static nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstants.CMD_DND;
 import static nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstants.CMD_FIND_BAND;
 import static nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstants.CMD_GET_HW_INFO;
@@ -113,6 +114,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import nodomain.freeyourgadget.gadgetbridge.activities.CameraActivity;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
@@ -123,6 +125,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInf
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
@@ -304,6 +307,7 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
                         case RX_CAMERA2:
                         case RX_CAMERA3:
                             handleCamera(param);
+                            sendAck(data[3], data[1], data[2], data[5]);
                             break;
                         default:
                     }
@@ -522,6 +526,9 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 case DeviceSettingsPreferenceConst.PREF_AUTOHEARTRATE_END:
                     setAutoHeartRate(builder);
                     break;
+                case DeviceSettingsPreferenceConst.PREF_CAMERA_REMOTE:
+                    setCamera(builder);
+                    break;
             }
             builder.queue();
         } catch (IOException e) {
@@ -534,7 +541,8 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
         TransactionBuilder builder = createTransactionBuilder("notification");
         short size = (short) (ByteBuffer.wrap(new byte[]{length_high, length_low}).getShort() + 3);
         byte[] sizeArray = ByteBuffer.allocate(2).putShort(size).array();
-        builder.write(writeCharacteristic, new byte[]{FitProConstants.DATA_HEADER_ACK, 0, 5, command_group, 1, sizeArray[0], sizeArray[1], 1});
+        byte[] byteArray = new byte[]{FitProConstants.DATA_HEADER_ACK, 0, 5, command_group, 1, sizeArray[0], sizeArray[1], 1};
+        builder.write(writeCharacteristic, byteArray);
         builder.queue();
     }
 
@@ -785,7 +793,31 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
      */
     public void handleCamera(byte command) {
-        GB.toast(getContext(), "Camera buttons are detected but not further handled.", Toast.LENGTH_SHORT, GB.INFO);
+        switch (command) {
+            case RX_CAMERA1: // take picture
+            {
+                GBDeviceEventCameraRemote takePictureEvent = new GBDeviceEventCameraRemote();
+                takePictureEvent.event = GBDeviceEventCameraRemote.Event.TAKE_PICTURE;
+                evaluateGBDeviceEvent(takePictureEvent);
+                break;
+            }
+            case RX_CAMERA2: // open cam
+            {
+                GBDeviceEventCameraRemote openCameraEvent = new GBDeviceEventCameraRemote();
+                openCameraEvent.event = GBDeviceEventCameraRemote.Event.OPEN_CAMERA;
+                evaluateGBDeviceEvent(openCameraEvent);
+                break;
+            }
+            case RX_CAMERA3: // close cam
+            {
+                GBDeviceEventCameraRemote takePictureEvent = new GBDeviceEventCameraRemote();
+                takePictureEvent.event = GBDeviceEventCameraRemote.Event.CLOSE_CAMERA;
+                evaluateGBDeviceEvent(takePictureEvent);
+                break;
+            }
+            default:
+                break;
+        }
     }
 
     public void handleFindPhone() {
@@ -817,6 +849,17 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
             enable = VALUE_SET_DEVICE_VIBRATIONS_DISABLE;
         }
         builder.write(writeCharacteristic, craftData(CMD_GROUP_GENERAL, CMD_SET_DEVICE_VIBRATIONS, enable));
+        return this;
+    }
+
+    public FitProDeviceSupport setCamera(TransactionBuilder builder) {
+        LOG.debug("FitPro set enable camera");
+        boolean camera = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).getBoolean(DeviceSettingsPreferenceConst.PREF_CAMERA_REMOTE, false);
+        byte enable = VALUE_ON;
+        if (!camera) {
+            enable = VALUE_OFF;
+        }
+        builder.write(writeCharacteristic, craftData(CMD_GROUP_GENERAL, CMD_CAMERA, enable));
         return this;
     }
 
