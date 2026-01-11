@@ -52,6 +52,7 @@ import java.util.UUID;
 import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.DeleteQuery;
 import de.greenrobot.dao.query.QueryBuilder;
+import de.greenrobot.dao.query.WhereCondition;
 import kotlin.Triple;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -3342,18 +3343,21 @@ public class HuaweiSupportProvider {
                             track.setUser(DBHelper.getUser(db.getDaoSession()));
                             track.setDevice(DBHelper.getDevice(gbDevice, db.getDaoSession()));
 
-                            for (HuaweiGpsParser.GpsPoint point : points) {
+                            for (int i = 0; i < points.length; i++) {
+                                HuaweiGpsParser.GpsPoint point = points[i];
                                 GPSCoordinate coordinate;
+                                WhereCondition eq = i == 0 ? HuaweiWorkoutDataSampleDao.Properties.Timestamp.gt(point.timestamp - 1) : HuaweiWorkoutDataSampleDao.Properties.Timestamp.eq(point.timestamp);
                                 HuaweiWorkoutDataSample workoutSample = db.getDaoSession().getHuaweiWorkoutDataSampleDao().queryBuilder()
-                                        .where(HuaweiWorkoutDataSampleDao.Properties.Timestamp.eq(point.timestamp))
-                                        .unique();
+                                        .where(eq).orderAsc(HuaweiWorkoutDataSampleDao.Properties.Timestamp).limit(1).unique();
                                 if (point.altitudeSupported)
                                     coordinate = new GPSCoordinate(point.longitude, point.latitude, point.altitude);
-                                else if (workoutSample != null && workoutSample.getAltitude() != null) {
-                                    double databaseAltitude = workoutSample.getAltitude().doubleValue() / 10d;
-                                    coordinate = new GPSCoordinate(point.longitude, point.latitude, databaseAltitude);
-                                } else
-                                    coordinate = new GPSCoordinate(point.longitude, point.latitude);
+                                else {
+                                    if (workoutSample != null && workoutSample.getAltitude() != null) {
+                                        double databaseAltitude = workoutSample.getAltitude().doubleValue() / 10d;
+                                        coordinate = new GPSCoordinate(point.longitude, point.latitude, databaseAltitude);
+                                    } else
+                                        coordinate = new GPSCoordinate(point.longitude, point.latitude);
+                                }
 
 
                                 ActivityPoint activityPoint = new ActivityPoint();
