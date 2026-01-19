@@ -3348,7 +3348,7 @@ public class HuaweiSupportProvider {
                                 GPSCoordinate coordinate;
                                 WhereCondition eq = i == 0 ? HuaweiWorkoutDataSampleDao.Properties.Timestamp.gt(point.timestamp - 1) : HuaweiWorkoutDataSampleDao.Properties.Timestamp.eq(point.timestamp);
                                 HuaweiWorkoutDataSample workoutSample = db.getDaoSession().getHuaweiWorkoutDataSampleDao().queryBuilder()
-                                        .where(eq).orderAsc(HuaweiWorkoutDataSampleDao.Properties.Timestamp).limit(1).unique();
+                                        .where(eq, HuaweiWorkoutDataSampleDao.Properties.WorkoutId.eq(fileRequest.getWorkoutId())).orderAsc(HuaweiWorkoutDataSampleDao.Properties.Timestamp).limit(1).unique();
                                 if (point.altitudeSupported)
                                     coordinate = new GPSCoordinate(point.longitude, point.latitude, point.altitude);
                                 else {
