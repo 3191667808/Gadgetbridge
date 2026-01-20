@@ -103,6 +103,8 @@ public class HuamiIcon {
                 return TWITTER;
             case SKYPE:
                 return SKYPE;
+            case VK:
+                return VKONTAKTE;
             case SNAPCHAT:
                 return SNAPCHAT;
             case TELEGRAM:
