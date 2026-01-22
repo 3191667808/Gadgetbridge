@@ -59,6 +59,7 @@ public enum NotificationType {
     PINTEREST,
     YOUTUBE,
     GADGETBRIDGE_TEXT_RECEIVER,
+    GAMES,
     ;
 
 
@@ -119,6 +120,7 @@ public enum NotificationType {
                 return "generic_email";
             case COL_REMINDER:
             case GADGETBRIDGE_TEXT_RECEIVER:
+            case GAMES:
             case UNKNOWN:
             default:
                 return "generic";

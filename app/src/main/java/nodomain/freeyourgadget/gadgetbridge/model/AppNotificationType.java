@@ -207,6 +207,14 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("com.vkmp3mod.android", NotificationType.VK);
         put("ua.itaysonlab.vkx", NotificationType.VK);
 
+        // Games
+        put("com.valvesoftware.android.steam.community", NotificationType.GAMES);
+        put("com.google.android.play.games", NotificationType.GAMES);
+        put("com.scee.psxandroid", NotificationType.GAMES);
+        put("com.microsoft.xboxone.smartglass", NotificationType.GAMES);
+        put("com.nintendo.znca", NotificationType.GAMES);
+        put("com.nianticlabs.pokemongo", NotificationType.GAMES);
+
         // Others
         put("com.tencent.mobileqq", NotificationType.QQ);
         put("com.tumblr", NotificationType.TUMBLR);
