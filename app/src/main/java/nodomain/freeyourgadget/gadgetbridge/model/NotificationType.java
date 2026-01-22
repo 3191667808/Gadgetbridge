@@ -85,6 +85,7 @@ public enum NotificationType {
             case SNAPCHAT:
             case INSTAGRAM:
             case LINKEDIN:
+            case VK:
                 return "generic_social";
             case CONVERSATIONS:
             case FACEBOOK_MESSENGER:
