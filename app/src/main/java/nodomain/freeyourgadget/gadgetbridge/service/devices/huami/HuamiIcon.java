@@ -106,6 +106,8 @@ public class HuamiIcon {
                 return SKYPE;
             case VK:
                 return VKONTAKTE;
+            case GAMES:
+                return POKEMONGO;
             case SNAPCHAT:
                 return SNAPCHAT;
             case TELEGRAM:
