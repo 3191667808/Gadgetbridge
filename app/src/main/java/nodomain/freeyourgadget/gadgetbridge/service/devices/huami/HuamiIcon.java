@@ -102,6 +102,7 @@ public class HuamiIcon {
             case TWITTER:
                 return TWITTER;
             case SKYPE:
+            case DISCORD:
                 return SKYPE;
             case VK:
                 return VKONTAKTE;
@@ -110,7 +111,6 @@ public class HuamiIcon {
             case TELEGRAM:
                 return TELEGRAM;
             case VIBER:
-            case DISCORD:
                 return VIBER;
             case WHATSAPP:
                 return WHATSAPP;
