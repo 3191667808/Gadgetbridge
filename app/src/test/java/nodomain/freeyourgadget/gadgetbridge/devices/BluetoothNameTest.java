@@ -267,6 +267,7 @@ public class BluetoothNameTest extends TestBase {
             put("Bose QC 35 II", DeviceType.BOSE_QC35);
             put("Bose NC 700 Headphones", DeviceType.BOSE_NC700);
             put("LE-Bose NC 700 Headphones", DeviceType.BOSE_NC700);
+            put("F8", DeviceType.F8SCALE); // #5748
         }};
 
         for (Map.Entry<String, DeviceType> e : bluetoothNameToExpectedType.entrySet()) {

@@ -5541,4 +5541,5 @@
     <string name="gpx_include_navigation">Include turn-by-turn navigation</string>
     <string name="gpx_include_navigation_straight">Include \'Continue straight\' instructions</string>
     <string name="gpx_roundabout_exit">Exit %1$d</string>
+    <string name="devicetype_f8">F8</string>
 </resources>

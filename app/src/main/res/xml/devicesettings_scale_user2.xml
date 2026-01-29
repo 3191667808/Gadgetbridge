@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory
+        android:key="user2"
+        android:title="User 2">
+
+        <EditTextPreference
+            android:key="u2_scale_user_alias"
+            android:maxLength="17"
+            android:title="@string/miband_prefs_alias"
+            android:icon="@drawable/ic_badge"
+            app:useSimpleSummaryProvider="true" />
+
+        <nodomain.freeyourgadget.gadgetbridge.util.XDatePreference
+            android:icon="@drawable/ic_calendar_month"
+            android:defaultValue="2000-01-01"
+            android:key="u2_scale_user_date_of_birth"
+            android:title="@string/activity_prefs_date_birth" />
+
+        <ListPreference
+            android:icon="@drawable/ic_wc"
+            android:defaultValue="2"
+            android:entries="@array/gender"
+            android:entryValues="@array/gender_values"
+            android:key="u2_scale_user_gender"
+            android:title="@string/activity_prefs_gender"
+            app:useSimpleSummaryProvider="true" />
+
+        <!--TODO: support localized heights and weights -->
+        <EditTextPreference
+            android:icon="@drawable/ic_height"
+            android:inputType="number"
+            android:key="u2_scale_user_height_cm"
+            android:maxLength="3"
+            android:title="@string/activity_prefs_height_cm"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:icon="@drawable/ic_weight"
+            android:inputType="number"
+            android:key="u2_scale_user_weight_kg"
+            android:maxLength="3"
+            android:title="@string/activity_prefs_weight_kg"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:icon="@drawable/ic_monitor_weight"
+            android:inputType="number"
+            android:key="u2_scale_user_goal_weight_kg"
+            android:maxLength="3"
+            android:title="@string/activity_prefs_target_weight_kg"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
