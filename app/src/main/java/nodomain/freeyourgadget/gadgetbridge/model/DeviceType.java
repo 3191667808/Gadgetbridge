@@ -301,6 +301,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.itag.ITagCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.BFH16DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.TeclastH30.TeclastH30Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.y5.Y5Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.laxasfit.LaxasFitCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.BohemicSmartBraceletDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.LefunDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.lefun.VivitarHrBpMonitorActivityTrackerCoordinator;
@@ -609,6 +610,7 @@ public enum DeviceType {
     FITPRO(FitProDeviceCoordinator.class),
     COLACAO21(ColaCao21Coordinator.class),
     COLACAO23(ColaCao23Coordinator.class),
+    LAXASFIT(LaxasFitCoordinator.class),
     ITAG(ITagCoordinator.class),
     IKEA_IDASEN(IdasenCoordinator.class),
     NUTMINI(NutCoordinator.class),
