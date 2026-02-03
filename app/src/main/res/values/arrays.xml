@@ -5364,4 +5364,16 @@
         <item>@string/health_connect_initial_sync_all</item>
     </string-array>
 
+
+    <string-array name="itag_button_event_names">
+        <item>@string/off</item>
+        <item>@string/menuitem_findphone</item>
+        <item>@string/menuitem_takephoto</item>
+    </string-array>
+    <string-array name="itag_button_event_values">
+        <item>@string/p_off</item>
+        <item>@string/p_menuitem_findphone</item>
+        <item>@string/p_menuitem_takephoto</item>
+    </string-array>
+
 </resources>
