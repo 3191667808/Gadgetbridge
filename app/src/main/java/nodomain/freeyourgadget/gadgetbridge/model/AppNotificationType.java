@@ -71,6 +71,8 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("com.microsoft.teams", NotificationType.CONVERSATIONS);
         put("us.zoom.videomeetings", NotificationType.CONVERSATIONS);
         put("com.nextcloud.talk2", NotificationType.CONVERSATIONS);
+        put("com.cisco.wx2.android", NotificationType.CONVERSATIONS);
+        put("com.google.android.apps.tachyon", NotificationType.CONVERSATIONS);
 
         // Element, ElementX, SchildiChat, FluffyChat
         // (making the last two an extra Notification Type to give them distinct colors is debatable)
