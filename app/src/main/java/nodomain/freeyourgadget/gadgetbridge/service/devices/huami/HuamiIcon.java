@@ -121,6 +121,8 @@ public class HuamiIcon {
                 return ALARM_CLOCK;
             case QQ:
                 return PENGUIN_1;
+            case WEATHER:
+                return WEATHER;
         }
         return APP_11;
     }
@@ -145,6 +147,7 @@ public class HuamiIcon {
             case VKONTAKTE:
             case CHINESE_32:
             case EMAIL:
+            case WEATHER:
                 return true;
         }
 
