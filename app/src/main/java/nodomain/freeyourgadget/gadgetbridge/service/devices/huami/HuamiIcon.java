@@ -98,6 +98,7 @@ public class HuamiIcon {
                 return LINE;
             case WIRE:
             case THREEMA:
+            case ELEMENT:
                 return CHAT_BLUE_13;
             case TWITTER:
                 return TWITTER;
