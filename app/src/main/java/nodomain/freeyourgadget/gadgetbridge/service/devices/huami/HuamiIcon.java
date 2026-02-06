@@ -118,6 +118,8 @@ public class HuamiIcon {
                 return WHATSAPP;
             case GENERIC_ALARM_CLOCK:
                 return ALARM_CLOCK;
+            case QQ:
+                return PENGUIN_1;
         }
         return APP_11;
     }
