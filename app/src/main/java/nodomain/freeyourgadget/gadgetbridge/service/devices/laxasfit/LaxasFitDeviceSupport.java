@@ -788,7 +788,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         result[7] = (byte) ((data.length >> 8) & 0xff);
         result[8] = (byte) (data.length & 0xff);
         System.arraycopy(data, 0, result, 9, data.length);
-
+        // fix message CRC with current content
         return fixCrc(result);
     }
 

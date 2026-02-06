@@ -37,10 +37,12 @@ import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.LaxasFitActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.ServiceDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.laxasfit.LaxasFitDeviceSupport;
@@ -130,6 +132,11 @@ public class LaxasFitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsBloodPressureMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
