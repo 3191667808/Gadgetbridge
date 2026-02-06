@@ -217,6 +217,11 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("com.nintendo.znca", NotificationType.GAMES);
         put("com.nianticlabs.pokemongo", NotificationType.GAMES);
 
+        // Weather
+        put("org.breezyweather", NotificationType.WEATHER);
+        put("com.motorola.timeweatherwidget", NotificationType.WEATHER);
+        put("com.google.android.apps.weather", NotificationType.WEATHER);
+
         // Others
         put("com.tencent.mobileqq", NotificationType.QQ);
         put("com.tumblr", NotificationType.TUMBLR);

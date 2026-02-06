@@ -60,6 +60,7 @@ public enum NotificationType {
     YOUTUBE,
     GADGETBRIDGE_TEXT_RECEIVER,
     GAMES,
+    WEATHER,
     ;
 
 
@@ -121,6 +122,7 @@ public enum NotificationType {
             case COL_REMINDER:
             case GADGETBRIDGE_TEXT_RECEIVER:
             case GAMES:
+            case WEATHER:
             case UNKNOWN:
             default:
                 return "generic";
