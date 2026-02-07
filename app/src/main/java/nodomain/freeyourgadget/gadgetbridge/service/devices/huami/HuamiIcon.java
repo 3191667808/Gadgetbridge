@@ -149,8 +149,8 @@ public class HuamiIcon {
             case EMAIL:
             case WEATHER:
                 return true;
+            default:
+                return false;
         }
-
-        return false;
     }
 }
