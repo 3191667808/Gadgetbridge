@@ -13,7 +13,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
-sealed class F8Message() {
+sealed class F8Message {
     abstract val messageType: Int
 
 
@@ -21,7 +21,7 @@ sealed class F8Message() {
         override val messageType = 0xA1
 
         //This message contains some kind of information about the device, but we don't have enough data points to understand them
-        override fun decode(buffer: ByteBuffer): Any? {
+        override fun decode(buffer: ByteBuffer): Any {
 
             //It might be that the payload structure is different than int, byte, int
             val unkInt = buffer.getInt()
@@ -45,8 +45,8 @@ sealed class F8Message() {
             val stable = buffer.get().toInt() and 0xFF
             val weightRawBytes = buffer.getInt()
             return WeightRecord(
-                time =Instant.now().atZone(ZoneId.systemDefault()).toLocalDateTime(),
-                stabilized = (stable == 3),
+                time = Instant.now().atZone(ZoneId.systemDefault()).toLocalDateTime(),
+                weightKind = if (stable == 3) WeightRecord.WeightKind.stable_measuring_impedances else WeightRecord.WeightKind.unstable,
                 weightKg = (weightRawBytes and 0x3FFFF) / (cfg.rawWeightToGramsCoefficient * 100.0), // The scale always returns the weight in grams, no matter which unit is chosen
                 bfaType = (weightRawBytes shr 24) and 0xFF
             )
@@ -96,8 +96,8 @@ sealed class F8Message() {
         }
 
         return WeightRecord(
-            time =Instant.ofEpochSecond(ts).atZone(ZoneId.systemDefault()).toLocalDateTime(),
-            stabilized = true,
+            time = Instant.ofEpochSecond(ts).atZone(ZoneId.systemDefault()).toLocalDateTime(),
+            weightKind = WeightRecord.WeightKind.full,
             weightKg = (weightRawBytes and 0x3FFFF) / (cfg.rawWeightToGramsCoefficient * 100.0), // The scale always returns the weight in grams, no matter which unit is chosen
             bfaType = (weightRawBytes shr 24) and 0xFF,
             impedances as List<ImpedanceReading>?
@@ -145,7 +145,7 @@ sealed class F8Message() {
             val targetWeight = buffer.getShort().toInt() and 0xFFFF
 
             val userData = UserData(
-                UserBasicData (
+                UserBasicData(
                     index = userIndex,
                     height = height,
                     weightDecagrams = weight,
@@ -194,7 +194,10 @@ sealed class F8Message() {
             buffer.put(userData.userBasicData.height.toByte())
             buffer.putShort(weightInt.toShort())
             buffer.put(ageSex.toByte())
-            buffer.put(UserBasicData.FeatureFlag.toBitmask(userData.userBasicData.getFeatureFlags()).toByte())
+            buffer.put(
+                UserBasicData.FeatureFlag.toBitmask(userData.userBasicData.getFeatureFlags())
+                    .toByte()
+            )
             buffer.putShort(targetWeightInt.toShort())
             return buffer.array()
         }
@@ -226,20 +229,22 @@ sealed class F8Message() {
             }
         }
 
-        fun encodePayload(p: List<UserData> ): ByteArray {
-            val buffer = ByteBuffer.allocate(2+p.size*4).order(ByteOrder.BIG_ENDIAN)
+        fun encodePayload(p: List<UserData>): ByteArray {
+            val buffer = ByteBuffer.allocate(2 + p.size * 4).order(ByteOrder.BIG_ENDIAN)
 
             buffer.put(messageType.toByte())
             buffer.put(p.size.toByte())
             p.forEach {
                 buffer.put(it.userBasicData.height.toByte())
                 buffer.putShort(it.userBasicData.weightDecagrams.toShort())
-                buffer.put(UserBasicData.FeatureFlag.toBitmask(it.userBasicData.getFeatureFlags()).toByte())
+                buffer.put(
+                    UserBasicData.FeatureFlag.toBitmask(it.userBasicData.getFeatureFlags()).toByte()
+                )
             }
             return buffer.array()
         }
 
-            fun encodePayload(p: UserBasicData): ByteArray {
+        fun encodePayload(p: UserBasicData): ByteArray {
             val buffer = ByteBuffer.allocate(6).order(ByteOrder.BIG_ENDIAN)
             buffer.put(messageType.toByte())
             buffer.put(1)
@@ -295,11 +300,20 @@ sealed class PayloadData {
 
 data class WeightRecord(
     val time: LocalDateTime,
-    val stabilized: Boolean,
+    val weightKind: WeightKind,
     val weightKg: Double,
     val bfaType: Int, //unknown, label seen in logs
     val impedances: List<ImpedanceReading>? = null
-)
+) {
+    val timeEpochMillis: Long
+        get() = time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    enum class WeightKind {
+        unstable,
+        stable_measuring_impedances,
+        full
+    }
+}
 
 data class ImpedanceReading(
     val bodySection: BodySection,

@@ -110,7 +110,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(140, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(141, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
         final List<Entity> batterySampleProvidersToGenerate = new LinkedList<>();
@@ -275,6 +275,9 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addCyclingSample(schema, user, device));
         addAudioRecordings(schema, device);
         addPebbleAppstoreIdEntry(schema);
+
+        Entity weightSampleF8 = addWeightSampleF8(schema, user, device);
+        addBioImpedanceSample(schema, user, device, weightSampleF8);
 
         Entity notificationFilter = addNotificationFilters(schema);
 
@@ -2607,6 +2610,39 @@ public class GBDaoGenerator {
         final Configuration config = new Configuration(Configuration.VERSION_2_3_23);
         config.setClassForTemplateLoading(GBDaoGenerator.class, "/");
         return config.getTemplate(name);
+    }
+    private static Entity addWeightSampleF8(Schema schema, Entity user, Entity device) {
+        Entity weightSampleF8 = addEntity(schema, "F8WeightSample");
+
+        weightSampleF8.setJavaDoc("Contains Weight samples of F8 scale (with optional linked multiple Impedance Readings)." +
+                "User data are persisted to allow re-calculations of derived values.");
+
+        addCommonTimeSampleProperties("AbstractWeightSample", weightSampleF8, user, device);
+
+        weightSampleF8.addFloatProperty(SAMPLE_WEIGHT_KG).notNull();
+        weightSampleF8.addIntProperty("bfaType");
+        weightSampleF8.addIntProperty("userIndex");
+        weightSampleF8.addIntProperty("userHeight");
+        weightSampleF8.addIntProperty("userAge");
+        weightSampleF8.addIntProperty("userPersonTypeIdx");
+        weightSampleF8.addIntProperty("userSexIdx");
+        return weightSampleF8;
+    }
+
+    private static Entity addBioImpedanceSample(Schema schema, Entity user, Entity device, Entity weightSampleF8) {
+        Entity bioImpedanceSample = addEntity(schema, "F8BioImpedanceSample");
+
+        bioImpedanceSample.setJavaDoc("Contains BioImpedance samples linked to a F8 Weight Sample record." +
+                "Values are raw as received by the device.");
+
+        addCommonTimeSampleProperties("AbstractTimeSample", bioImpedanceSample, user, device);
+//        Property weightSampleF8RecordId = bioImpedanceSample.addLongProperty("weightSampleF8RecordId").notNull().getProperty();
+
+        bioImpedanceSample.addIntProperty("bodySectionIdx").primaryKey();
+        bioImpedanceSample.addDoubleProperty("frequencyKHz").primaryKey();
+        bioImpedanceSample.addDoubleProperty("rawImpedance");
+
+        return bioImpedanceSample;
     }
 
     private static void generateSampleProvider(final Template template, final Entity entity) throws Exception {
