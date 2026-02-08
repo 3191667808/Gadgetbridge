@@ -5,8 +5,13 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Intent
 import android.widget.Toast
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdateDeviceInfo
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo
+import nodomain.freeyourgadget.gadgetbridge.devices.viatom.F8BioImpedanceSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.viatom.F8WeightSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.entities.F8BioImpedanceSample
+import nodomain.freeyourgadget.gadgetbridge.entities.F8WeightSample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport
@@ -15,6 +20,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfo
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile
+import nodomain.freeyourgadget.gadgetbridge.service.devices.viatom.UserData.Sex
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.withTransaction
 import org.jetbrains.annotations.TestOnly
@@ -24,6 +30,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.LocalDate
 import java.time.Period
+import java.time.ZoneId
 import java.util.UUID
 
 
@@ -32,6 +39,7 @@ open class F8Support : AbstractBTLESingleDeviceSupport(LOG) {
 
     private val packetManager = BlePacketManager()
     private val cfg: ScaleConfig
+    lateinit var activeUser: UserData
 
     enum class WeightUnit {
         KG,
@@ -40,15 +48,16 @@ open class F8Support : AbstractBTLESingleDeviceSupport(LOG) {
         ;
 
         companion object {
-            fun fromGadgetbridgeWeightUnit(gadgetbridgeWU: nodomain.freeyourgadget.gadgetbridge.model.WeightUnit): WeightUnit = when(gadgetbridgeWU) {
-                nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.KILOGRAM -> KG
-                nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.POUND -> LB
-                nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.STONE -> ST_LB
-                nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.JIN -> {
-                    GB.toast("Unsupported weight unit", Toast.LENGTH_LONG, GB.WARN )
-                    KG
+            fun fromGadgetbridgeWeightUnit(gadgetbridgeWU: nodomain.freeyourgadget.gadgetbridge.model.WeightUnit): WeightUnit =
+                when (gadgetbridgeWU) {
+                    nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.KILOGRAM -> KG
+                    nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.POUND -> LB
+                    nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.STONE -> ST_LB
+                    nodomain.freeyourgadget.gadgetbridge.model.WeightUnit.JIN -> {
+                        GB.toast("Unsupported weight unit", Toast.LENGTH_LONG, GB.WARN)
+                        KG
+                    }
                 }
-            }
         }
     }
 
@@ -177,9 +186,52 @@ open class F8Support : AbstractBTLESingleDeviceSupport(LOG) {
                     }
 
                     is WeightRecord -> {
-                        if (ret.stabilized) {
+                        LOG.info("Received unstable Weight Record: {}", ret)
+//vedi il 29/01 intorno a ora di pranzo
+                        if (ret.weightKind == WeightRecord.WeightKind.full) {
                             LOG.info("Received Weight Record: {}", ret)
                             //TODO: persist samples in the database
+
+                            try {
+                                GBApplication.acquireDB().use { db ->
+                                    val f8WeightSampleProvider =
+                                        F8WeightSampleProvider(device, db.daoSession)
+                                    val f8BioImpedanceSampleProvider =
+                                        F8BioImpedanceSampleProvider(device, db.daoSession)
+                                    val userId = DBHelper.getUser(db.daoSession).id
+                                    val deviceId = DBHelper.getDevice(device, db.daoSession).id
+
+                                    val weightSample = F8WeightSample(
+                                        ret.timeEpochMillis,
+                                        deviceId,
+                                        userId,
+                                        ret.weightKg.toFloat(),
+                                        ret.bfaType,
+                                        activeUser.userBasicData.index,
+                                        activeUser.userBasicData.height,
+                                        activeUser.age,
+                                        activeUser.personType.ordinal,
+                                        activeUser.sex.ordinal
+                                    )
+
+                                    f8WeightSampleProvider.addSample(weightSample)
+
+                                    val impedanceSamples = ret.impedances?.map {
+                                        F8BioImpedanceSample(
+                                            ret.timeEpochMillis,
+                                            deviceId,
+                                            userId,
+                                            it.bodySection.ordinal,
+                                            it.frequencyKHz,
+                                            it.rawImpedance
+                                        )
+                                    }.orEmpty()
+
+                                    f8BioImpedanceSampleProvider.addSamples(impedanceSamples)
+                                }
+                            } catch (e: Exception) {
+                                LOG.error("saveWeightInfo - error", e)
+                            }
                         }
                     }
                 }
@@ -218,6 +270,8 @@ open class F8Support : AbstractBTLESingleDeviceSupport(LOG) {
 
     private fun sendUsers() {
 
+        val activeUserIdx = devicePrefs.getInt("active user", 1)
+        LOG.info("Active user id: {}", activeUserIdx)
         val userList = buildList {
             for (i in 1..2) {
                 val user = UserData(
@@ -253,19 +307,25 @@ open class F8Support : AbstractBTLESingleDeviceSupport(LOG) {
                             buildUserDevicePreferenceKey(i, "gender"),
                             ActivityUser.defaultUserGender
                         )
-                    ) UserData.Sex.FEMALE else UserData.Sex.MALE
+                    ) Sex.FEMALE else Sex.MALE
                 )
 
                 add(user)
 
-                val packets =
-                    packetManager.splitDataInPackets(F8Message.UserInfo.encodePayload(user), cfg)
-                withTransaction("send user ${i}") { builder ->
-                    packets.forEach { packet ->
-                        builder.write(
-                            CHARACTERISTICS_WRITE_UUID,
-                            *packet
+                if (activeUserIdx == i) {
+                    activeUser = user
+                    val packets =
+                        packetManager.splitDataInPackets(
+                            F8Message.UserInfo.encodePayload(user),
+                            cfg
                         )
+                    withTransaction("send user ${i}") { builder ->
+                        packets.forEach { packet ->
+                            builder.write(
+                                CHARACTERISTICS_WRITE_UUID,
+                                *packet
+                            )
+                        }
                     }
                 }
             }
