@@ -610,7 +610,7 @@ public enum DeviceType {
     FITPRO(FitProDeviceCoordinator.class),
     COLACAO21(ColaCao21Coordinator.class),
     COLACAO23(ColaCao23Coordinator.class),
-    LAXASFIT(LaxasFitCoordinator.class),
+    LAXASFIT_Q11(LaxasFitCoordinator.class),
     ITAG(ITagCoordinator.class),
     IKEA_IDASEN(IdasenCoordinator.class),
     NUTMINI(NutCoordinator.class),
