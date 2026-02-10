@@ -239,7 +239,6 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     public void handleDeviceInfo(byte[] value) {
         LOG.debug("LaxasFit device info2");
-        //test this 0xCD 0x00 0x11 0x15 0x01 0x02 0x00 0x0C 0x2B 0x27 0x00 0x01 0x33 0xA5 0x02 0x79 0x0A 0x68 0x56 0x06
         if (value.length < 20) {
             return;
         }
@@ -777,7 +776,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public static byte[] craftData(byte command_group, byte command_type, byte command, byte[] data) {
-        //0xCD 0x00 0x09 0x12 0x01 0x01 0x00 0x04 0xA5 0x83 0x73 0xDB
+        //0xDF 0x00 0x09 0x?? 0x12 0x01 0x01 0x00 0x04 0xA5 0x83 0x73 0xDB
         byte[] result = new byte[LaxasFitConstants.DATA_TEMPLATE.length + data.length];
         System.arraycopy(LaxasFitConstants.DATA_TEMPLATE, 0, result, 0, LaxasFitConstants.DATA_TEMPLATE.length);
         result[1] = (byte) (((LaxasFitConstants.DATA_TEMPLATE.length + data.length - 4) >> 8) & 0xff);
