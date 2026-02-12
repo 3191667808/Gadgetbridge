@@ -895,7 +895,8 @@ public enum DeviceType {
     SOLARFLOW(SolarFlowDeviceCoordinator.class),
     SANITAS_SBM_67(SanitasSBM67Coordinator.class),
     SILVERCREST_SBM_67(SilverCrestSBM67Coordinator.class),
-    TEST(TestDeviceCoordinator.class);
+    TEST(TestDeviceCoordinator.class),
+    MATRIX_POWERWATCH_X(UnknownDeviceCoordinator.class);
 
     private DeviceCoordinator coordinator;
 
