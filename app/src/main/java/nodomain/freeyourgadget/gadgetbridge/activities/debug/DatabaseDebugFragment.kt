@@ -6,9 +6,12 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.GBDatabaseManager
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper
 import nodomain.freeyourgadget.gadgetbridge.util.GB
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 class DatabaseDebugFragment : AbstractDebugFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -58,7 +61,7 @@ class DatabaseDebugFragment : AbstractDebugFragment() {
                 tableNames.sortWith(Comparator { o1, o2 -> o1.compareTo(o2, true) })
             }
         } catch (e: Exception) {
-            GB.log("Error accessing database", GB.ERROR, e)
+            LOG.error("Error accessing database", e)
         }
 
         for (tableName in tableNames) {
@@ -83,7 +86,7 @@ class DatabaseDebugFragment : AbstractDebugFragment() {
             .setTitle(R.string.dbmanagementactivity_delete_activity_data_title)
             .setMessage(R.string.dbmanagementactivity_really_delete_entire_db)
             .setPositiveButton(R.string.Delete) { _, _ ->
-                if (GBApplication.deleteActivityDatabase(requireContext())) {
+                if (GBDatabaseManager.deleteActivityDatabase(requireContext())) {
                     GB.toast(
                         requireContext(),
                         getString(R.string.dbmanagementactivity_database_successfully_deleted),
@@ -112,7 +115,7 @@ class DatabaseDebugFragment : AbstractDebugFragment() {
             .setIcon(R.drawable.ic_warning)
             .setMessage(R.string.dbmanagementactivity_delete_old_activitydb_confirmation)
             .setPositiveButton(R.string.Delete) { _, _ ->
-                if (GBApplication.deleteOldActivityDatabase(requireContext())) {
+                if (GBDatabaseManager.deleteOldActivityDatabase(requireContext())) {
                     GB.toast(
                         requireContext(),
                         getString(R.string.dbmanagementactivity_old_activity_db_successfully_deleted),
@@ -141,11 +144,13 @@ class DatabaseDebugFragment : AbstractDebugFragment() {
                 db.database.execSQL("DROP TABLE IF EXISTS TABLE_NAME_TO_DROP_HERE")
             }
         } catch (e: Exception) {
-            GB.log("Error accessing database", GB.ERROR, e)
+            LOG.error("Error accessing database", e)
         }
     }
 
     companion object {
+        private val LOG: Logger = LoggerFactory.getLogger(DatabaseDebugFragment::class.java)
+
         private const val PREF_DEBUG_DATABASE_VERSION = "pref_debug_database_version"
         private const val DANGEROUS_ACTIONS = "dangerous_actions"
         private const val PREF_DEBUG_DELETE_OLD_DATABASE = "pref_debug_delete_old_database"
