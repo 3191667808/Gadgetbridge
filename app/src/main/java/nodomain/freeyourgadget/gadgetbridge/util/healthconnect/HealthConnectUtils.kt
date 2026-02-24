@@ -396,7 +396,18 @@ class HealthConnectUtils {
                             recordsSyncedByType[key] = currentSynced + stat.recordsSynced
                         }
 
-                        timestampToPersistForThisDataType = currentSliceEndTs
+                        val sliceTotalSynced = sliceStats.sumOf { it.recordsSynced }
+
+                        if (shouldAdvanceSyncState(dataType, sliceTotalSynced, timestampToPersistForThisDataType.epochSecond, currentSliceEndTs.epochSecond)) {
+                            timestampToPersistForThisDataType = currentSliceEndTs
+                        } else {
+                            LOG.debug(
+                                "$HC_SYNC_TAG Holding sync state for {}({}) at {} (no records synced in slice {} to {})",
+                                gbDevice.aliasOrName, dataType.name, timestampToPersistForThisDataType,
+                                currentSliceStartTs, currentSliceEndTs
+                            )
+                        }
+
                         currentSliceStartTs = currentSliceEndTs
                     } catch (e: SyncException) {
                         LOG.warn(
@@ -473,6 +484,23 @@ class HealthConnectUtils {
         private const val MAX_RETRIES = 5
         private const val INITIAL_DELAY_MS = 1000L
         private const val HC_SYNC_TAG = "[HC_SYNC]"
+        internal const val MAX_STALENESS_SECONDS: Long = 7 * 24 * 60 * 60
+
+        internal val LATE_ARRIVING_DATA_TYPES = setOf(
+            HealthConnectPermissionManager.HealthConnectDataType.SLEEP,
+            HealthConnectPermissionManager.HealthConnectDataType.WORKOUTS
+        )
+
+        internal fun shouldAdvanceSyncState(
+            dataType: HealthConnectPermissionManager.HealthConnectDataType,
+            sliceTotalSynced: Int,
+            currentPersistedEpoch: Long,
+            sliceEndEpoch: Long
+        ): Boolean {
+            if (dataType !in LATE_ARRIVING_DATA_TYPES) return true
+            if (sliceTotalSynced > 0) return true
+            return sliceEndEpoch - currentPersistedEpoch > MAX_STALENESS_SECONDS
+        }
 
         private fun getSyncTimestampRange(
             context: Context,
