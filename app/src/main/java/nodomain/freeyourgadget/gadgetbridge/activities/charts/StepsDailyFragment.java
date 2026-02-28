@@ -29,8 +29,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.Random;
-import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -97,7 +95,7 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
         return rootView;
     }
 
-        @Override
+    @Override
     public String getTitle() {
         return getString(R.string.steps);
     }
@@ -115,7 +113,7 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
             stepsDay = stepsDayList.get(0);
         }
         List<? extends ActivitySample> samplesOfDay = getSamplesOfDay(db, day, 0, device);
-        List<List<? extends ActivitySample>> historicalData = getHistoricalStepsData(db, device, DAYS_FOR_AVERAGE);
+        List<List<? extends ActivitySample>> historicalData = GBApplication.getPrefs().getBoolean("charts_show_average", true) ? getHistoricalStepsData(db, device, DAYS_FOR_AVERAGE) : new ArrayList<>();
         return new StepsDailyFragment.StepsData(stepsDay, samplesOfDay, historicalData);
     }
 
@@ -145,7 +143,7 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
         distance.setText(valueFormatter.formatValue(stepsData.todayStepsDay.distance, "km"));
 
         List<Entry> averageLineEntries = new ArrayList<>();
-        if (!stepsData.historicalSamples.isEmpty()) {
+        if (GBApplication.getPrefs().getBoolean("charts_show_average", true) && !stepsData.historicalSamples.isEmpty()) {
             averageLineEntries = buildAverageEntries(stepsData.historicalSamples, AVERAGE_BIN_SIZE_MINS);
         }
 
@@ -159,10 +157,8 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
         stepsChart.getLegend().setTextColor(TEXT_COLOR);
         stepsChart.getLegend().setCustom(legendEntries);
 
-        StepsFragment.LOG.warn("average Line Entries has entries: {}", averageLineEntries.size());
         // taken from trentsuzuki's average implementation for body energy
         if (!averageLineEntries.isEmpty() && GBApplication.getPrefs().getBoolean("charts_show_average", true)) {
-            StepsFragment.LOG.warn("Preparing to show average graph");
             final LineDataSet averageLineDataSet = new LineDataSet(averageLineEntries, getString(R.string.body_energy_legend_average));
             averageLineDataSet.setColor(AVERAGE_LINE_COLOR);
             averageLineDataSet.setLineWidth(1.5f);
@@ -239,7 +235,6 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
      */
     private List<List<? extends ActivitySample>> getHistoricalStepsData(final DBHandler db, final GBDevice device, int daysCount) {
         List<List<? extends ActivitySample>> historicalData = new ArrayList<>();
-
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(getTSEnd() * 1000L);
         cal.set(Calendar.HOUR_OF_DAY, 0);
@@ -250,9 +245,6 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
         cal.add(Calendar.DAY_OF_YEAR, -1);
 
         for (int i = 0; i < daysCount; i++) {
-            long dayStart = (int) (cal.getTimeInMillis() / 1000);
-            long dayEnd = dayStart + 24 * 60 * 60 - 1;
-
             List<? extends ActivitySample> daySamples = getSamplesOfDay(db, cal, 0, device);
             StepsFragment.LOG.debug("daySamples for {}/{}/{} has {} entries", cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.MONTH), cal.get(Calendar.YEAR), daySamples.size());
             historicalData.add(daySamples);
@@ -267,6 +259,8 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
     /**
      * Build a binned average body energy curve with an arbitrary bin size.
      * copied from trentsuzuki's implementation for BodyEnergy and adjusted
+     * to also contain resampling to account for uneven distribution of
+     * step samples over the day
      *
      * @param historicDays   list of samples maps (timestamp -> energy)
      * @param binSizeMinutes width of a bin in minutes (must divide 24 hours evenly)
@@ -284,31 +278,67 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
         long[] sum = new long[binsPerDay + 1];
         int[] count = new int[binsPerDay + 1];
 
-        TimeZone tz = TimeZone.getDefault();
-
-        // Sum body energy in bins over the provided history
-        Random rnd = new Random();
+        // Sum steps in bins over the provided history
+        // only adds final values in time slots to bins
         for (List<? extends ActivitySample> day : historicDays) {
             long dailyAccum = 0;
+            int oldbin = 0;
+            if (day.isEmpty()) {
+                for (int bin = 0; bin <= binsPerDay; bin++) {
+                    count[bin]++;
+                }
+                continue;
+            }
             long discarded = 0;
+
+            // fix zero point of time translation to refer to start of day
+            // so the things land in the right bin
+            Calendar cal = Calendar.getInstance();
+            long origTS = day.get(0).getTimestamp();
+            cal.setTimeInMillis(origTS * 1000);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            long calTS = cal.getTimeInMillis() / 1000;
             TimestampTranslation tsTranslation = new TimestampTranslation();
+            tsTranslation.shorten((int) calTS);
+            StepsFragment.LOG.debug("processing day {}/{}/{}, offset is {}, {} in translation", cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.YEAR), calTS, tsTranslation.toOriginalValue(0));
             for (ActivitySample sample : day) {
                 long ts = tsTranslation.shorten(sample.getTimestamp());
                 int bin = (int) ((ts / binSizeSeconds) % binsPerDay);
+                if (bin != oldbin) {
+                    if (bin < oldbin) {
+                        StepsFragment.LOG.error("The Bin index for averaging wrapped around. " + "This should not happen! date is {}/{}/{}", cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.YEAR));
+                        while (oldbin <= binsPerDay) {
+                            StepsFragment.LOG.debug("adding {} steps to bin {} after wrapping", dailyAccum, oldbin);
+                            sum[oldbin] += dailyAccum;
+                            count[oldbin]++;
+                            oldbin++;
+                        }
+                        oldbin = 0;
+                        dailyAccum = 0;
+                    }
+                    while (oldbin < bin) {
+                        StepsFragment.LOG.debug("adding {} steps to bin {}", dailyAccum, oldbin);
+                        sum[oldbin] += dailyAccum;
+                        count[oldbin]++;
+                        oldbin++;
+                    }
+                }
                 if (sample.getSteps() >= 0) {
                     dailyAccum += sample.getSteps();
-                    if (rnd.nextInt(100) == 0) {
-                        StepsFragment.LOG.debug("time is {}, ts is {}, bin is {}", sample.getTimestamp(), ts, bin);
-                        StepsFragment.LOG.debug("sample is in bin {}, this has {} counts, accum is {}", bin, count[bin], dailyAccum);
-                    }
-                    sum[bin] += dailyAccum;
-                    count[bin] += 1;
+                    oldbin = bin;
                 } else {
                     discarded += 1;
                 }
             }
-            sum[binsPerDay] += dailyAccum;
-            count[binsPerDay] += 1;
+            // add final step count to all other bins as well
+            while (oldbin <= binsPerDay) {
+                StepsFragment.LOG.debug("adding {} steps to bin {} at end of day", dailyAccum, oldbin);
+                sum[oldbin] += dailyAccum;
+                count[oldbin]++;
+                oldbin++;
+            }
             StepsFragment.LOG.debug("discarded {} samples due to no steps, {} steps total", discarded, dailyAccum);
         }
 
@@ -321,8 +351,6 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
                 float x = bin * (float) binSizeSeconds + (float) binSizeSeconds / 2.f; // seconds from local midnight
                 float avg = (float) sum[bin] / count[bin];
                 avgEntries.add(new Entry(x, avg));
-            } else {
-                StepsFragment.LOG.debug("bin {} has no entries", bin);
             }
         }
 
@@ -333,7 +361,7 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
 
         for (int i = 0; i < avgEntries.size(); i++) {
             Entry thise = avgEntries.get(i);
-            StepsFragment.LOG.warn("in display loop: x = {}, y = {}", thise.getX(), thise.getY());
+            StepsFragment.LOG.debug("in building average: x = {}, y = {}", thise.getX(), thise.getY());
             int binIndex = i - 1;
             if (binIndex >= 0) {
                 StepsFragment.LOG.debug("bin {} has {} entries with a sum of {}", binIndex, count[binIndex], sum[binIndex]);
