@@ -69,9 +69,9 @@ public class XiaomiDataUploadService extends AbstractXiaomiService {
         switch (cmd.getSubtype()) {
             case CMD_UPLOAD_START:
                 final XiaomiProto.DataUploadAck dataUploadAck = cmd.getDataUpload().getDataUploadAck();
-                LOG.debug("Got upload start, unknown2={}, resumePosition={}", dataUploadAck.getUnknown2(), dataUploadAck.getResumePosition());
+                LOG.debug("Got upload start, errno={}, resumePosition={}", dataUploadAck.getErrno(), dataUploadAck.getResumePosition());
 
-                if (dataUploadAck.getUnknown2() != 0) {
+                if (dataUploadAck.getErrno() != 0) {
                     LOG.warn("Unexpected response");
                     onUploadFinish(false);
                     return;

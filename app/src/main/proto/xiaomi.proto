@@ -51,6 +51,8 @@ message Auth {
 
 message PhoneNonce {
   required bytes nonce = 1;
+  optional string appId = 2;
+  optional bool hasAppId = 3;
 }
 
 message WatchNonce {
@@ -63,16 +65,49 @@ message AuthStep3 {
   required bytes encryptedDeviceInfo = 2;  // AuthDeviceInfo
 }
 
+/*
+device capabilities: 
+2: MiLink support
+4: uploadLog
+16: supportHide in AppSortFragment
+32: 7 day sleep
+64: support MIUI SOS
+256: isDeviceSupportPredict (curse manager)
+1024: supportSwitchWearMode
+2048: vibration mode
+4096: vitality display
+16384: easy pregnancy
+32768: fallDetection / emergency contact
+65536: supports AOD item
+131072: supports todo-list
+262144: support connectNewPhone
+2097152: find device
+4194304: supportZip
+16777216: notification focus manager
+
+DEVICE_CAPABILITY_SUPPORT_TRACK_NAVIGATE
+DEVICE_CAPABILITY_SUPPORT_LOG
+DEVICE_CAPABILITY_SUPPORT_SINGLE_NOTIFY = 33554432
+
+V2:
+1: supported
+4: track navigate
+64: notificationFocusManager
+512: BYD open via NFC
+
+*/
+
 message AuthStep4 {
-  required uint32 unknown1 = 1;
-  optional uint32 unknown2 = 2;
+  required uint32 unknown1 = 1; // success bool?
+  optional uint32 deviceCapability = 2;
+  optional uint32 deviceCapabilityV2 = 3;
 }
 
 message AuthDeviceInfo {
-  required uint32 unknown1 = 1; // 0 - needs to be serialized explicitly
+  required uint32 unknown1 = 1; // 0 - needs to be serialized explicitly; mi-fit-app WearAuthV2.java always hard-codes this to 0 (likely auth protocol version or reserved constant)
   required float phoneApiLevel = 2;
   required string phoneName = 3; // phone model
-  required uint32 unknown3 = 4; // 224
+  required uint32 appCapability = 4; // 224
   required string region = 5; // 2-letter, upper case
 }
 
@@ -517,6 +552,9 @@ message Health {
   // 8, 26
   optional WorkoutStatusWatch workoutStatusWatch = 20;
 
+  // 8, 29
+  optional WorkoutStatusWatchV2 workoutStatusWatchV2 = 24;
+
   // 8, 30
   optional WorkoutOpenWatch workoutOpenWatch = 25;
   optional WorkoutOpenReply workoutOpenReply = 26;
@@ -544,7 +582,7 @@ message UserInfo {
 }
 
 message ActivitySyncRequestToday {
-  optional uint32 unknown1 = 1; // 0 most of the time, sometimes 1
+  optional uint32 unknown1 = 1; // 0 most of the time, sometimes 1; possibly a sync mode flag (0=normal sync, 1=force/full sync)
 }
 
 message SpO2 {
@@ -609,6 +647,7 @@ message VitalityScore {
 
 message WorkoutStatusWatch {
   optional uint32 timestamp = 1; // seconds
+  optional WorkoutStatusWatchSport sportInfo = 2;
   optional uint32 sport = 3;
   optional uint32 status = 4; // 0 started, 1 resumed, 2 paused, 3 finished
   optional bytes activityFileIds = 5;
@@ -616,11 +655,16 @@ message WorkoutStatusWatch {
   optional uint32 unknown10 = 10; // 0
 }
 
+message WorkoutStatusWatchSport {
+  optional uint32 type = 1;
+}
+
 message WorkoutOpenWatch {
   // This is only called when gps is needed?
   // 1 outdoor running, 2 walking, 3 hiking, 4 trekking, 5 trail run, 6 outdoor cycling
   optional uint32 sport = 1;
   optional uint32 unknown2 = 2; // 2
+  optional uint32 mode = 3;
 }
 
 message WorkoutOpenReply {
@@ -630,9 +674,9 @@ message WorkoutOpenReply {
   // 0 * * when phone gps is working fine
   // 0 2 10
   // 0 2 2
-  optional uint32 unknown1 = 1;
+  optional uint32 permission = 1; // GPS permission/status: 0 = phone GPS is working fine, 3 = no GPS permissions at all, 5 = no all-time GPS permission (foreground only)
   optional uint32 unknown2 = 2; // always 2?
-  optional uint32 unknown3 = 3;
+  optional uint32 gpsStatus = 3; // GPS acquisition state: 2 = GPS fix acquired (located), 10 = GPS searching (no fix yet)
 }
 
 message GoalsConfig {
@@ -658,6 +702,17 @@ message WorkoutLocation {
   optional float bearing = 7;
   optional float horizontalAccuracy = 8;
   optional float verticalAccuracy = 9;
+}
+
+message WorkoutStatusWatchV2 {
+  optional uint32 status = 1;    // 0 started, 1 resumed, 2 paused, 3 finished
+  optional uint32 timestamp = 2; // Unix epoch seconds
+  optional WorkoutStatusWatchV2Sport sport = 3;
+  optional uint32 unknown7 = 7;  // observed value 2
+}
+
+message WorkoutStatusWatchV2Sport {
+  optional uint32 type = 1; // sport type (same codes as WorkoutOpenWatch.sport)
 }
 
 message RealTimeStats {
@@ -1015,7 +1070,7 @@ message DataUploadRequest {
 
 message DataUploadAck {
   optional bytes md5sum = 1;
-  optional uint32 unknown2 = 2; // 0
+  optional uint32 errno = 2; // upload response status: 0 = ready for normal upload start; non-zero = unexpected/error condition
   optional uint32 resumePosition = 4;
   optional uint32 chunkSize = 5; // 4096 on Redmi Watch 3 Active, Nonexistent on Mi Band 8
 }

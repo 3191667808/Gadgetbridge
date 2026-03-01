@@ -85,6 +85,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final int CMD_CONFIG_GOAL_NOTIFICATION_SET = 22;
     private static final int CMD_WORKOUT_WATCH_STATUS = 26;
     private static final int CMD_WORKOUT_WATCH_OPEN = 30;
+    private static final int CMD_WORKOUT_WATCH_STATUS_V2 = 29;
     private static final int CMD_CONFIG_VITALITY_SCORE_GET = 35;
     private static final int CMD_CONFIG_VITALITY_SCORE_SET = 36;
     private static final int CMD_WORKOUT_LOCATION = 48;
@@ -663,9 +664,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                             .setSubtype(CMD_WORKOUT_WATCH_OPEN)
                             .setHealth(XiaomiProto.Health.newBuilder().setWorkoutOpenReply(
                                     XiaomiProto.WorkoutOpenReply.newBuilder()
-                                            .setUnknown1(3)
+                                            .setPermission(3)
                                             .setUnknown2(2)
-                                            .setUnknown3(10)
+                                            .setGpsStatus(10)
                             ))
                             .build()
             );
@@ -726,9 +727,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                             .setSubtype(CMD_WORKOUT_WATCH_OPEN)
                             .setHealth(XiaomiProto.Health.newBuilder().setWorkoutOpenReply(
                                     XiaomiProto.WorkoutOpenReply.newBuilder()
-                                            .setUnknown1(0)
+                                            .setPermission(0)
                                             .setUnknown2(2)
-                                            .setUnknown3(2)
+                                            .setGpsStatus(2)
                             ))
                             .build()
             );

@@ -219,7 +219,7 @@ public class XiaomiAuthService extends AbstractXiaomiService {
                 .setUnknown1(0) // TODO ?
                 .setPhoneApiLevel(Build.VERSION.SDK_INT)
                 .setPhoneName(Build.MODEL)
-                .setUnknown3(224) // TODO ?
+                .setAppCapability(224) // TODO ?
                 // TODO region should be actual device region?
                 .setRegion(Locale.getDefault().getLanguage().substring(0, 2).toUpperCase(Locale.ROOT))
                 .build();
