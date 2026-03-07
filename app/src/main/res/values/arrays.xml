@@ -5382,4 +5382,27 @@
         <item>@string/health_connect_initial_sync_all</item>
     </string-array>
 
+    <!-- Marshall speaker settings -->
+    <string-array name="marshall_source_names">
+        <item>@string/marshall_source_bluetooth</item>
+        <item>@string/marshall_source_aux</item>
+    </string-array>
+
+    <string-array name="marshall_source_values">
+        <item>bluetooth</item>
+        <item>aux</item>
+    </string-array>
+
+    <string-array name="marshall_placement_names">
+        <item>@string/marshall_placement_wall</item>
+        <item>@string/marshall_placement_edge</item>
+        <item>@string/marshall_placement_free</item>
+    </string-array>
+
+    <string-array name="marshall_placement_values">
+        <item>wall</item>
+        <item>edge</item>
+        <item>free</item>
+    </string-array>
+
 </resources>

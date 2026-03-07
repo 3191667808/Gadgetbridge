@@ -917,6 +917,13 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_MOONDROP_TOUCH_ANC_MODE_EARBUD);
         addPreferenceHandlerFor(PREF_MOONDROP_TOUCH_ANC_MODE_TRIGGER);
 
+        // Marshall speaker settings
+        addPreferenceHandlerFor(PREF_MARSHALL_VOLUME);
+        addPreferenceHandlerFor(PREF_MARSHALL_BASS);
+        addPreferenceHandlerFor(PREF_MARSHALL_TREBLE);
+        addPreferenceHandlerFor(PREF_MARSHALL_SOURCE);
+        addPreferenceHandlerFor(PREF_MARSHALL_PLACEMENT);
+
         addPreferenceHandlerFor(PREF_MISCALE_WEIGHT_UNIT);
         addPreferenceHandlerFor(PREF_MISCALE_SMALL_OBJECTS);
 
