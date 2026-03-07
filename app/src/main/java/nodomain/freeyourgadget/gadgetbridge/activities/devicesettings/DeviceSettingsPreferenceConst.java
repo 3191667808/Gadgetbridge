@@ -756,4 +756,11 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_ATC_BLE_OEPL_MODEL = "pref_atc_ble_oepl_model";
     public static final String PREF_ATC_BLE_OEPL_BLE_ADV_INTERVAL = "pref_atc_ble_oepl_ble_adv_interval";
     public static final String PREF_ATC_BLE_OEPL_OEPL_PROTOCOL_ENABLE = "pref_atc_ble_oepl_oepl_protocol_enable";
+
+    // Marshall speaker settings
+    public static final String PREF_MARSHALL_VOLUME = "pref_marshall_volume";
+    public static final String PREF_MARSHALL_BASS = "pref_marshall_bass";
+    public static final String PREF_MARSHALL_TREBLE = "pref_marshall_treble";
+    public static final String PREF_MARSHALL_SOURCE = "pref_marshall_source";
+    public static final String PREF_MARSHALL_PLACEMENT = "pref_marshall_placement";
 }
