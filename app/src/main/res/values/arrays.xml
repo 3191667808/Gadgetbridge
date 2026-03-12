@@ -1834,6 +1834,86 @@
         <item>other</item>
     </string-array>
 
+    <!-- Withings ScanWatch screen list (drag-to-reorder) -->
+    <string-array name="pref_withings_scanwatch_screens">
+        <item>@string/withings_scanwatch_screen_date</item>
+        <item>@string/withings_scanwatch_screen_sleep</item>
+        <item>@string/withings_scanwatch_screen_ecg</item>
+        <item>@string/withings_scanwatch_screen_elevation</item>
+        <item>@string/withings_scanwatch_screen_heart_rate</item>
+        <item>@string/withings_scanwatch_screen_spo2</item>
+        <item>@string/withings_scanwatch_screen_calories</item>
+        <item>@string/withings_scanwatch_screen_settings</item>
+        <item>@string/withings_scanwatch_screen_workouts</item>
+        <item>@string/withings_scanwatch_screen_distance</item>
+        <item>@string/withings_scanwatch_screen_steps</item>
+        <item>@string/withings_scanwatch_screen_breathe</item>
+        <item>@string/withings_scanwatch_screen_clock</item>
+    </string-array>
+
+    <string-array name="pref_withings_scanwatch_screens_values">
+        <item>date</item>
+        <item>sleep</item>
+        <item>ecg</item>
+        <item>elevation</item>
+        <item>heart_rate</item>
+        <item>spo2</item>
+        <item>calories</item>
+        <item>settings</item>
+        <item>workouts</item>
+        <item>distance</item>
+        <item>steps</item>
+        <item>breathe</item>
+        <item>clock</item>
+    </string-array>
+
+    <!-- Default order: all 13 screens enabled in the confirmed app order -->
+    <string-array name="pref_withings_scanwatch_screens_default">
+        <item>date</item>
+        <item>sleep</item>
+        <item>ecg</item>
+        <item>elevation</item>
+        <item>heart_rate</item>
+        <item>spo2</item>
+        <item>calories</item>
+        <item>settings</item>
+        <item>workouts</item>
+        <item>distance</item>
+        <item>steps</item>
+        <item>breathe</item>
+        <item>clock</item>
+    </string-array>
+
+    <!-- Long-press crown shortcut options.
+         ECG (1) and SpO2 (2) require the user to have accepted the health terms & conditions
+         in the Withings app before they can be activated via BLE - see ShortcutAction. -->
+    <string-array name="pref_withings_scanwatch_shortcut_entries">
+        <item>@string/withings_scanwatch_shortcut_none</item>
+        <item>@string/withings_scanwatch_shortcut_ecg</item>
+        <item>@string/withings_scanwatch_shortcut_spo2</item>
+        <item>@string/withings_scanwatch_shortcut_workout_start</item>
+        <item>@string/withings_scanwatch_shortcut_workout_selection</item>
+        <item>@string/withings_scanwatch_shortcut_breathe</item>
+        <item>@string/withings_scanwatch_shortcut_stopwatch</item>
+        <item>@string/withings_scanwatch_shortcut_timer</item>
+        <item>@string/withings_scanwatch_shortcut_dnd</item>
+        <item>@string/withings_scanwatch_shortcut_quicklook</item>
+    </string-array>
+    <!-- Values are the string representations of the action bytes (0-9).
+         10 = FINDMYPHONE and 11 = FLASHLIGHT are intentionally omitted (unsupported). -->
+    <string-array name="pref_withings_scanwatch_shortcut_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+    </string-array>
+
     <string-array name="pref_neo_display_items">
         <item>@string/menuitem_pai</item>
         <item>@string/menuitem_dnd</item>

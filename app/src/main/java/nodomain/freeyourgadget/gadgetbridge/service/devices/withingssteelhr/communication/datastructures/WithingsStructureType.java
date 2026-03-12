@@ -68,5 +68,8 @@ public class WithingsStructureType {
     public static final short WORKOUT_SCREEN_LIST = 316;
     public static final short WORKOUT_SCREEN_DATA = 317;
 
+    /** Long-press crown shortcut action (type 0x09A1 = 2465). */
+    public static final short SHORTCUT_ACTION = (short) 0x09A1;  // 2465
+
     private WithingsStructureType() {}
 }

@@ -30,6 +30,18 @@ public class GadgetbridgeUpdate_129 implements DBUpdateScript {
                     + HuaweiWorkoutSummarySampleDao.Properties.RawGpsFileLocation.columnName + "\" TEXT";
             db.execSQL(statement);
         }
+        db.execSQL("CREATE TABLE IF NOT EXISTS \"WITHINGS_SCANWATCH_ACTIVITY_SAMPLE\" (" +
+                "\"TIMESTAMP\" INTEGER NOT NULL," +
+                "\"DEVICE_ID\" INTEGER NOT NULL," +
+                "\"USER_ID\" INTEGER NOT NULL," +
+                "\"DURATION\" INTEGER NOT NULL DEFAULT -1," +
+                "\"RAW_KIND\" INTEGER NOT NULL DEFAULT -1," +
+                "\"STEPS\" INTEGER NOT NULL DEFAULT -1," +
+                "\"DISTANCE\" INTEGER NOT NULL DEFAULT -1," +
+                "\"CALORIES\" INTEGER NOT NULL DEFAULT -1," +
+                "\"HEART_RATE\" INTEGER NOT NULL DEFAULT -1," +
+                "\"RAW_INTENSITY\" INTEGER NOT NULL DEFAULT -1," +
+                "PRIMARY KEY (\"TIMESTAMP\", \"DEVICE_ID\"));");
     }
 
     @Override

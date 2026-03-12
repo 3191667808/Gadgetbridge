@@ -125,7 +125,7 @@ public class DevicesFragment extends Fragment {
         deviceListView.setAdapter(this.mGBDeviceAdapter);
 
         // get activity data asynchronously, this fills the deviceActivityHashMap
-        // and calls refreshPairedDevices() → notifyDataSetChanged
+        // and calls refreshPairedDevices() -> notifyDataSetChanged
         deviceListView.post(new Runnable() {
             @Override
             public void run() {

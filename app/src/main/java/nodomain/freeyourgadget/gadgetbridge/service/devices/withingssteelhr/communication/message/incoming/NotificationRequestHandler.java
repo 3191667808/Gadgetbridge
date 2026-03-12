@@ -29,7 +29,7 @@ import java.util.Map;
 
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.IconHelper;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageMetaData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.SourceAppId;
@@ -42,10 +42,10 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 public class NotificationRequestHandler implements IncomingMessageHandler {
     private static final Logger logger = LoggerFactory.getLogger(NotificationRequestHandler.class);
 
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
     private Map<String, byte[]> appIconCache = new HashMap<>();
 
-    public NotificationRequestHandler(WithingsSteelHRDeviceSupport support) {
+    public NotificationRequestHandler(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

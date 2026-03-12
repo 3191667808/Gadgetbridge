@@ -14,17 +14,20 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation;
+package nodomain.freeyourgadget.gadgetbridge.entities;
 
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
+/**
+ * Common abstract base for Withings device activity samples (Steel HR and Scanwatch).
+ * Provides access to Withings-specific fields shared by all Withings devices:
+ * duration, distance, and calories.
+ */
+public abstract class AbstractWithingsActivitySample extends AbstractActivitySample {
+    public abstract int getDuration();
+    public abstract void setDuration(int duration);
 
-public abstract class AbstractResponseHandler implements ResponseHandler {
-    protected GBDevice device;
-    protected WithingsBaseDeviceSupport support;
+    public abstract int getDistance();
+    public abstract void setDistance(int distance);
 
-    public AbstractResponseHandler(WithingsBaseDeviceSupport support) {
-        this.support = support;
-        this.device = support.getDevice();
-    }
+    public abstract int getCalories();
+    public abstract void setCalories(int calories);
 }

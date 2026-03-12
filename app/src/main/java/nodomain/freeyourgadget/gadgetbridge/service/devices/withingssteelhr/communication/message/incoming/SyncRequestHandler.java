@@ -16,7 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming;
 
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.ExpectedResponse;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessage;
@@ -24,9 +24,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 
 public class SyncRequestHandler implements IncomingMessageHandler {
 
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
 
-    public SyncRequestHandler(WithingsSteelHRDeviceSupport support) {
+    public SyncRequestHandler(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

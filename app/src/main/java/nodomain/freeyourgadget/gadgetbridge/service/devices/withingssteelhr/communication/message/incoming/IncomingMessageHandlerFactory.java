@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.GlyphRequestHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
@@ -31,14 +31,14 @@ public class IncomingMessageHandlerFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(IncomingMessageHandlerFactory.class);
     private static IncomingMessageHandlerFactory instance;
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
     private Map<Short, IncomingMessageHandler> handlers = new HashMap<>();
 
-    private IncomingMessageHandlerFactory(WithingsSteelHRDeviceSupport support) {
+    private IncomingMessageHandlerFactory(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 
-    public static IncomingMessageHandlerFactory getInstance(WithingsSteelHRDeviceSupport support) {
+    public static IncomingMessageHandlerFactory getInstance(WithingsBaseDeviceSupport support) {
         if (instance == null) {
             instance = new IncomingMessageHandlerFactory(support);
         }

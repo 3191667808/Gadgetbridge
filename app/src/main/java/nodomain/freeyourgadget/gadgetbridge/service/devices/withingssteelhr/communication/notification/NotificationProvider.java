@@ -25,17 +25,17 @@ import java.util.Map;
 
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class NotificationProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
     private final Map<Integer, NotificationSpec> pendingNotifications = new HashMap<>();
     private static NotificationProvider instance;
 
-    public static NotificationProvider getInstance(WithingsSteelHRDeviceSupport support) {
+    public static NotificationProvider getInstance(WithingsBaseDeviceSupport support) {
         if (instance == null) {
             instance = new NotificationProvider(support);
         }
@@ -43,7 +43,7 @@ public class NotificationProvider {
         return instance;
     }
 
-    private NotificationProvider(WithingsSteelHRDeviceSupport support) {
+    private NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

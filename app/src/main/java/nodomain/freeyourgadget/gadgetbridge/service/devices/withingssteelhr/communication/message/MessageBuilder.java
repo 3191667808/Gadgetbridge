@@ -24,18 +24,18 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class MessageBuilder {
 
     private static final Logger logger = LoggerFactory.getLogger(MessageBuilder.class);
-    private WithingsSteelHRDeviceSupport support;
+    private WithingsBaseDeviceSupport support;
     private MessageFactory messageFactory;
     private ByteArrayOutputStream pendingMessage;
     private Message message;
 
-    public MessageBuilder(WithingsSteelHRDeviceSupport support, MessageFactory messageFactory) {
+    public MessageBuilder(WithingsBaseDeviceSupport support, MessageFactory messageFactory) {
         this.support = support;
         this.messageFactory = messageFactory;
     }

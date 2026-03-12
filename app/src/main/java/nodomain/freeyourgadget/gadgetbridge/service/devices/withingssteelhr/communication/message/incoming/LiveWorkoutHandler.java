@@ -32,7 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.opentracks.OpenTracksController;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.WithingsActivityType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LiveWorkoutEnd;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LiveWorkoutPauseState;
@@ -48,10 +48,10 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class LiveWorkoutHandler implements IncomingMessageHandler {
     private static final Logger logger = LoggerFactory.getLogger(LiveWorkoutHandler.class);
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
     private BaseActivitySummary baseActivitySummary;
 
-    public LiveWorkoutHandler(WithingsSteelHRDeviceSupport support) {
+    public LiveWorkoutHandler(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

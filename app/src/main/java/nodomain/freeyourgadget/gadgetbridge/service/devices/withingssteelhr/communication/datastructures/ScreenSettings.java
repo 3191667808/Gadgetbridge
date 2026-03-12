@@ -22,7 +22,6 @@ public class ScreenSettings extends WithingsStructure {
 
     private int id;
 
-    // TODO change to an actual unique ID. Must then be changed in User too.
     private int userId = 123456;
     private int yetUnknown1 = 0;
     private int yetUnknown2 = 0;
@@ -37,6 +36,14 @@ public class ScreenSettings extends WithingsStructure {
         this.id = id;
     }
 
+    public int getUserId() {
+        return userId;
+    }
+
+    public void setUserId(int userId) {
+        this.userId = userId;
+    }
+
     public byte getIdOnDevice() {
         return idOnDevice;
     }
@@ -48,6 +55,16 @@ public class ScreenSettings extends WithingsStructure {
     @Override
     public short getLength() {
         return 22;
+    }
+
+    @Override
+    protected void fillFromRawDataAsBuffer(ByteBuffer rawDataBuffer) {
+        this.id = rawDataBuffer.getInt();
+        this.userId = rawDataBuffer.getInt();
+        this.yetUnknown1 = rawDataBuffer.getInt();
+        this.yetUnknown2 = rawDataBuffer.getInt();
+        this.idOnDevice = rawDataBuffer.get();
+        this.yetUnkown3 = rawDataBuffer.get();
     }
 
     @Override

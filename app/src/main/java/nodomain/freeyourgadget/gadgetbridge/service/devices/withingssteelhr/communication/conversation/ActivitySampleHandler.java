@@ -25,10 +25,10 @@ import java.util.List;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.devices.withingssteelhr.WithingsSteelHRSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.entities.WithingsSteelHRActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.ActivityEntry;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.WithingsActivityType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WorkoutType;
@@ -52,7 +52,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     private List<ActivityEntry> activityEntries = new ArrayList<>();
     private List<ActivityEntry> heartrateEntries = new ArrayList<>();
 
-    public ActivitySampleHandler(WithingsSteelHRDeviceSupport support) {
+    public ActivitySampleHandler(WithingsBaseDeviceSupport support) {
         super(support);
     }
 
@@ -200,30 +200,47 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     }
 
     private void saveData() {
-        List<WithingsSteelHRActivitySample> activitySamples = new ArrayList<>();
-        for (ActivityEntry activityEntry : activityEntries) {
-            convertToSampleAndAddToList(activitySamples, activityEntry);
-        }
-        for (ActivityEntry activityEntry : heartrateEntries) {
-            convertToSampleAndAddToList(activitySamples, activityEntry);
-        }
-
-        writeToDB(activitySamples);
-    }
-
-    private void writeToDB(List<WithingsSteelHRActivitySample> activitySamples) {
         try (DBHandler dbHandler = GBApplication.acquireDB()) {
             Long userId = DBHelper.getUser(dbHandler.getDaoSession()).getId();
             Long deviceId = DBHelper.getDevice(device, dbHandler.getDaoSession()).getId();
-            WithingsSteelHRSampleProvider provider = new WithingsSteelHRSampleProvider(device, dbHandler.getDaoSession());
-            for (WithingsSteelHRActivitySample sample : activitySamples) {
-                sample.setDeviceId(deviceId);
-                sample.setUserId(userId);
+            AbstractSampleProvider<? extends AbstractWithingsActivitySample> provider =
+                    support.createSampleProvider(device, dbHandler.getDaoSession());
+
+            List<AbstractWithingsActivitySample> activitySamples = new ArrayList<>();
+            for (ActivityEntry entry : activityEntries) {
+                activitySamples.add(convertToSample(provider, entry, userId, deviceId));
             }
-            provider.addGBActivitySamples(activitySamples);
+            for (ActivityEntry entry : heartrateEntries) {
+                activitySamples.add(convertToSample(provider, entry, userId, deviceId));
+            }
+
+            writeToDB(provider, activitySamples);
         } catch (Exception ex) {
             logger.warn("Error saving activity data: " + ex.getLocalizedMessage());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends AbstractWithingsActivitySample> void writeToDB(
+            AbstractSampleProvider<T> provider, List<AbstractWithingsActivitySample> activitySamples) {
+        provider.addGBActivitySamples((T[]) activitySamples.toArray(new AbstractWithingsActivitySample[0]));
+    }
+
+    private AbstractWithingsActivitySample convertToSample(
+            AbstractSampleProvider<? extends AbstractWithingsActivitySample> provider,
+            ActivityEntry activityEntry, long userId, long deviceId) {
+        AbstractWithingsActivitySample sample = provider.createActivitySample();
+        sample.setTimestamp(activityEntry.getTimestamp());
+        sample.setDuration(activityEntry.getDuration());
+        sample.setHeartRate(activityEntry.getHeartrate());
+        sample.setSteps(activityEntry.getSteps());
+        sample.setRawKind(activityEntry.getRawKind());
+        sample.setCalories(activityEntry.getCalories());
+        sample.setDistance(activityEntry.getDistance());
+        sample.setRawIntensity(activityEntry.getRawIntensity());
+        sample.setDeviceId(deviceId);
+        sample.setUserId(userId);
+        return sample;
     }
 
     private void mergeHeartrateSamplesIntoActivitySammples() {
@@ -252,18 +269,5 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
             heartRateEntry.setDistance(activityEntry.getDistance());
             heartRateEntry.setCalories(activityEntry.getCalories());
         }
-    }
-
-    private void convertToSampleAndAddToList(List<WithingsSteelHRActivitySample> activitySamples, ActivityEntry activityEntry) {
-        WithingsSteelHRActivitySample sample = new WithingsSteelHRActivitySample();
-        sample.setTimestamp(activityEntry.getTimestamp());
-        sample.setDuration(activityEntry.getDuration());
-        sample.setHeartRate(activityEntry.getHeartrate());
-        sample.setSteps(activityEntry.getSteps());
-        sample.setRawKind(activityEntry.getRawKind());
-        sample.setCalories(activityEntry.getCalories());
-        sample.setDistance(activityEntry.getDistance());
-        sample.setRawIntensity(activityEntry.getRawIntensity());
-        activitySamples.add(sample);
     }
 }

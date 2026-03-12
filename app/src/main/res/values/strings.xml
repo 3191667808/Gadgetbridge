@@ -3626,6 +3626,7 @@
     <string name="devicetype_onemore_sonoflow" translatable="false">1MORE SonoFlow</string>
     <string name="devicetype_sony_wena3" translatable="false">Sony Wena 3</string>
     <string name="devicetype_withings_steel_hr" translatable="false">Withings Steel HR</string>
+    <string name="devicetype_withings_scanwatch" translatable="false">Withings Scanwatch</string>
     <string name="pref_button_action_disabled">Disabled</string>
     <string name="pref_media_play">Media Play</string>
     <string name="pref_media_pause">Media Pause</string>
@@ -3878,6 +3879,37 @@
     <string name="withings_calibration_text_activity_target">Finally align the activity hand to 100%. Please be aware that this hand only moves clockwise.</string>
     <string name="withings_bt_calibration_previous">Previous</string>
     <string name="withings_bt_calibration_next">Next</string>
+    <string name="withings_scanwatch_pref_screens_title">Watch screens</string>
+    <string name="withings_scanwatch_pref_screens_summary">Choose which screens appear on the watch and drag to reorder them</string>
+    <string name="withings_scanwatch_screen_date">Date</string>
+    <string name="withings_scanwatch_screen_sleep">Sleep</string>
+    <string name="withings_scanwatch_screen_ecg">ECG</string>
+    <string name="withings_scanwatch_screen_elevation">Elevation</string>
+    <string name="withings_scanwatch_screen_heart_rate">Heart rate</string>
+    <string name="withings_scanwatch_screen_spo2">SpO2 / Blood oxygen</string>
+    <string name="withings_scanwatch_screen_calories">Calories</string>
+    <string name="withings_scanwatch_screen_settings">Settings</string>
+    <string name="withings_scanwatch_screen_workouts">Workouts</string>
+    <string name="withings_scanwatch_screen_distance">Distance</string>
+    <string name="withings_scanwatch_screen_steps">Steps</string>
+    <string name="withings_scanwatch_screen_breathe">Breathe</string>
+    <string name="withings_scanwatch_screen_clock">Clock</string>
+
+    <!-- Shortcut (long-press crown) settings -->
+    <string name="withings_scanwatch_pref_shortcut_title">Long-press crown shortcut</string>
+    <string name="withings_scanwatch_pref_shortcut_summary">Action launched by holding the crown button</string>
+    <string name="withings_scanwatch_shortcut_none">None</string>
+    <string name="withings_scanwatch_shortcut_ecg">ECG measurement</string>
+    <string name="withings_scanwatch_shortcut_spo2">SpO2 / Blood oxygen measurement</string>
+    <string name="withings_scanwatch_shortcut_workout_start">Start workout</string>
+    <string name="withings_scanwatch_shortcut_workout_selection">Workout selection</string>
+    <string name="withings_scanwatch_shortcut_breathe">Breathe</string>
+    <string name="withings_scanwatch_shortcut_stopwatch">Stopwatch</string>
+    <string name="withings_scanwatch_shortcut_timer">Timer</string>
+    <string name="withings_scanwatch_shortcut_dnd">Do not disturb</string>
+    <string name="withings_scanwatch_shortcut_quicklook">Quick look</string>
+    <string name="withings_scanwatch_shortcut_findmyphone">Find my phone</string>
+    <string name="withings_scanwatch_shortcut_flashlight">Flashlight</string>
     <string name="drag_handle">drag handle</string>
     <string name="find_my_phone_found_it">FOUND IT</string>
     <string name="pref_activity_full_sync_trigger_summary">Trigger a full sync of all activity data</string>

@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.IconHelper;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.GlyphId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageMetaData;
@@ -35,9 +35,9 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class GlyphRequestHandler implements IncomingMessageHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlyphRequestHandler.class);
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
 
-    public GlyphRequestHandler(WithingsSteelHRDeviceSupport support) {
+    public GlyphRequestHandler(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

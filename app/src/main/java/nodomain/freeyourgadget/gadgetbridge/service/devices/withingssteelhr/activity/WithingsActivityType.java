@@ -18,6 +18,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.act
 
 import java.util.Locale;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiWorkoutScreenActivityType;
 
@@ -61,6 +64,8 @@ public enum WithingsActivityType {
     RIDING(26),
     OTHER(36);
 
+    private static final Logger LOG = LoggerFactory.getLogger(WithingsActivityType.class);
+
     private final int code;
 
     WithingsActivityType(int typeCode) {
@@ -73,7 +78,8 @@ public enum WithingsActivityType {
                 return type;
             }
         }
-        throw new RuntimeException("No matching WithingsActivityType for code: " + withingsCode);
+        LOG.warn("No matching WithingsActivityType for code: {}, falling back to OTHER", withingsCode);
+        return OTHER;
     }
 
     public int getCode() {

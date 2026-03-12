@@ -64,5 +64,10 @@ public final class WithingsMessageType {
     public static final short GET_NOTIFICATION = 2404;
     public static final short GET_UNICODE_GLYPH = 2403;
 
+    /** Get the currently configured long-press crown shortcut action (cmd 0x0992). */
+    public static final short GET_SHORTCUT = (short) 0x0992;  // 2450
+    /** Set the long-press crown shortcut action (cmd 0x0989). */
+    public static final short SET_SHORTCUT = (short) 0x0989;  // 2441
+
     private WithingsMessageType() {}
 }

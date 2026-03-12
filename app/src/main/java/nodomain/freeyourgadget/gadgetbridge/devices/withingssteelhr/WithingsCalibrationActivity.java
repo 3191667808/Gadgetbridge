@@ -33,7 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 
 public class WithingsCalibrationActivity extends AbstractGBActivity {
 
@@ -64,7 +64,7 @@ public class WithingsCalibrationActivity extends AbstractGBActivity {
         setContentView(R.layout.activity_withings_calibration);
         List<GBDevice> devices = GBApplication.app().getDeviceManager().getSelectedDevices();
         for(GBDevice device : devices){
-            if(device.getType() == DeviceType.WITHINGS_STEEL_HR ){
+            if(device.getType() == DeviceType.WITHINGS_STEEL_HR || device.getType() == DeviceType.WITHINGS_SCANWATCH){
                 this.device = device;
                 break;
             }
@@ -78,14 +78,14 @@ public class WithingsCalibrationActivity extends AbstractGBActivity {
 
         initView();
         localBroadcastManager = LocalBroadcastManager.getInstance(this);
-        localBroadcastManager.sendBroadcast(new Intent(WithingsSteelHRDeviceSupport.START_HANDS_CALIBRATION_CMD));
+        localBroadcastManager.sendBroadcast(new Intent(WithingsBaseDeviceSupport.START_HANDS_CALIBRATION_CMD));
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         if (localBroadcastManager != null) {
-            localBroadcastManager.sendBroadcast(new Intent(WithingsSteelHRDeviceSupport.STOP_HANDS_CALIBRATION_CMD));
+            localBroadcastManager.sendBroadcast(new Intent(WithingsBaseDeviceSupport.STOP_HANDS_CALIBRATION_CMD));
         }
     }
 
@@ -99,7 +99,7 @@ public class WithingsCalibrationActivity extends AbstractGBActivity {
         rotaryControl.setRotationListener(new RotaryControl.RotationListener() {
             @Override
             public void onRotation(short movementAmount) {
-                Intent calibration = new Intent(WithingsSteelHRDeviceSupport.HANDS_CALIBRATION_CMD);
+                Intent calibration = new Intent(WithingsBaseDeviceSupport.HANDS_CALIBRATION_CMD);
                 calibration.putExtra("hand", hands[handIndex].code);
                 calibration.putExtra("movementAmount", movementAmount);
                 localBroadcastManager.sendBroadcast(calibration);

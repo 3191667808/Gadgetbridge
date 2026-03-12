@@ -40,7 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.PaiSample;
  *
  * The gauge is rendered as a segmented arc mirroring the visual language used throughout
  * the rest of the dashboard. When the total PAI score meets or exceeds the device target,
- * the arc is drawn in full using two proportional color segments — chart_pai_weekly for
+ * the arc is drawn in full using two proportional color segments - chart_pai_weekly for
  * the carry-over (total minus today) portion and chart_pai_today for today's contribution.
  * When the target has not yet been reached, the arc is only partially filled to reflect
  * the fraction of the goal completed.
@@ -81,7 +81,7 @@ public class DashboardPaiWidget extends AbstractGaugeWidget {
 
         // Use getAllSamples bounded by timeFrom and timeTo to ensure we only show data
         // that actually exists within the selected day. Using getLatestSample(timeTo) has no lower
-        // bound and could bleed back to a previous day's sample — for example
+        // bound and could bleed back to a previous day's sample - for example
         // if Sunday has no data or the device was reset, it would incorrectly return Saturday's score.
         final long windowStartMs = dashboardData.timeFrom * 1000L;
         final long windowEndMs   = dashboardData.timeTo   * 1000L;
@@ -97,7 +97,7 @@ public class DashboardPaiWidget extends AbstractGaugeWidget {
                         coordinator.getPaiSampleProvider(dev, dbHandler.getDaoSession());
 
                 if (provider == null) {
-                    LOG.warn("Device {} returned a null PAI sample provider — skipping", dev);
+                    LOG.warn("Device {} returned a null PAI sample provider - skipping", dev);
                     continue;
                 }
 
@@ -128,7 +128,7 @@ public class DashboardPaiWidget extends AbstractGaugeWidget {
         final PaiData paiData = (PaiData) dashboardData.get(DATA_KEY);
 
         if (paiData == null || paiData.target <= 0) {
-            // No data available — render an empty gauge rather than crashing.
+            // No data available - render an empty gauge rather than crashing.
             drawSimpleGauge(0, -1);
             setText("0");
             return;

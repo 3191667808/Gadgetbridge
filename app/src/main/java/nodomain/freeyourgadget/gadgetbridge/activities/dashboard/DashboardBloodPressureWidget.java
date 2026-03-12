@@ -98,16 +98,16 @@ public class DashboardBloodPressureWidget extends AbstractGaugeWidget {
             final int color;
             final float gaugeValue;
             if (systolic < 120 && diastolic < 80) {
-                color      = android.graphics.Color.rgb(76, 175, 80);  // green  – Normal
+                color      = android.graphics.Color.rgb(76, 175, 80);  // green  - Normal
                 gaugeValue = 0.25f;
             } else if (systolic < 130 && diastolic < 80) {
-                color      = android.graphics.Color.rgb(139, 195, 74); // lime   – Elevated
+                color      = android.graphics.Color.rgb(139, 195, 74); // lime   - Elevated
                 gaugeValue = 0.45f;
             } else if (systolic < 140 || diastolic < 90) {
-                color      = android.graphics.Color.rgb(255, 152, 0);  // orange – Stage 1
+                color      = android.graphics.Color.rgb(255, 152, 0);  // orange - Stage 1
                 gaugeValue = 0.65f;
             } else {
-                color      = android.graphics.Color.rgb(244, 67, 54);  // red    – Stage 2+
+                color      = android.graphics.Color.rgb(244, 67, 54);  // red    - Stage 2+
                 gaugeValue = 0.88f;
             }
             drawSimpleGauge(color, gaugeValue);
