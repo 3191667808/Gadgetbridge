@@ -3895,6 +3895,12 @@
     <string name="withings_scanwatch_screen_breathe">Breathe</string>
     <string name="withings_scanwatch_screen_clock">Clock</string>
 
+    <!-- ECG and AFib health feature settings -->
+    <string name="withings_scanwatch_pref_ecg_title">ECG Measurement</string>
+    <string name="withings_scanwatch_pref_ecg_summary">Enable ECG measurement feature on the watch</string>
+    <string name="withings_scanwatch_pref_afib_title">AFib Detection</string>
+    <string name="withings_scanwatch_pref_afib_summary">Enable atrial fibrillation detection and night AFib monitoring</string>
+
     <!-- Shortcut (long-press crown) settings -->
     <string name="withings_scanwatch_pref_shortcut_title">Long-press crown shortcut</string>
     <string name="withings_scanwatch_pref_shortcut_summary">Action launched by holding the crown button</string>

@@ -36,6 +36,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.With
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.WithingsUUIDs;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetShortcutHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagDeprecated;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagsUserId;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LocalNotification;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ScreenSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ShortcutAction;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsScreenId;
@@ -66,6 +69,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     private static final String PREF_SHORTCUT_ACTION = "withings_scanwatch_shortcut_action";
+
+    /** Whether the ECG measurement feature is enabled on the watch (feature tag activation). */
+    static final String PREF_ECG_ENABLED  = "withings_scanwatch_ecg_enabled";
+    /** Whether AFib detection (and night AFib) is enabled on the watch. */
+    static final String PREF_AFIB_ENABLED = "withings_scanwatch_afib_enabled";
 
     @Override
     protected void addExtraSyncCommands() {
@@ -100,7 +108,87 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             sendQueue();
             return true;
         }
+        if (PREF_ECG_ENABLED.equals(config)) {
+            final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            final boolean enabled = prefs.getBoolean(PREF_ECG_ENABLED, false);
+            clearQueue();
+            addFeatureTagsCommand(enabled, prefs.getBoolean(PREF_AFIB_ENABLED, false));
+            addLocalNotificationsCommand(enabled, prefs.getBoolean(PREF_AFIB_ENABLED, false));
+            sendQueue();
+            return true;
+        }
+        if (PREF_AFIB_ENABLED.equals(config)) {
+            final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            final boolean afibEnabled = prefs.getBoolean(PREF_AFIB_ENABLED, false);
+            clearQueue();
+            addFeatureTagsCommand(prefs.getBoolean(PREF_ECG_ENABLED, false), afibEnabled);
+            addLocalNotificationsCommand(prefs.getBoolean(PREF_ECG_ENABLED, false), afibEnabled);
+            sendQueue();
+            return true;
+        }
         return false;
+    }
+
+    /**
+     * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
+     * feature tags required for ECG and/or AFib.
+     *
+     * <p>The full tag set observed from HCI captures:
+     * <ul>
+     *   <li>ECG enabled: tags 0x0004, 0x000F, 0x0035, 0x0058</li>
+     *   <li>AFib enabled (in addition to ECG tags): 0x000A, 0x000B</li>
+     * </ul>
+     * All tags use startTime=0 / endTime=0 (always active).
+     *
+     * <p>Note: the Withings app also sends 0x0035 and 0x0058 (purpose unknown) as a baseline.
+     */
+    private void addFeatureTagsCommand(final boolean ecgEnabled, final boolean afibEnabled) {
+        final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
+        msg.addDataStructure(new FeatureTagsUserId());  // userId = 0
+
+        if (ecgEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_TERMS));
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_MEAS));
+        }
+        if (afibEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_EXTRA));
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_NIGHT));
+        }
+        if (ecgEnabled || afibEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0035));
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
+        }
+        msg.addDataStructure(new EndOfTransmission());
+        addSimpleConversationToQueue(msg);
+    }
+
+    /**
+     * Queues a {@code CMD_LOCAL_NOTIFICATIONS_CONFIG_SET} (0x0990) message configuring the
+     * five on-watch notification slots.
+     *
+     * <p>All five slots must always be sent together. Slot mapping from HCI captures:
+     * <ol>
+     *   <li>PPG_AFIB - enabled when {@code afibEnabled}</li>
+     *   <li>ECG - always disabled (managed via feature tags)</li>
+     *   <li>UNKNOWN_3 - always disabled</li>
+     *   <li>HIGH_LOW_HR - enabled when {@code ecgEnabled} (observed in ECG capture)</li>
+     *   <li>PPG_AFIB_NIGHT - enabled when {@code afibEnabled}</li>
+     * </ol>
+     */
+    private void addLocalNotificationsCommand(final boolean ecgEnabled, final boolean afibEnabled) {
+        final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_LOCAL_NOTIFICATIONS);
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB,
+                afibEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_ECG,
+                LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_UNKNOWN_3,
+                LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_LOW_HR,
+                ecgEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB_NIGHT,
+                afibEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new EndOfTransmission());
+        addSimpleConversationToQueue(msg);
     }
 
     /**

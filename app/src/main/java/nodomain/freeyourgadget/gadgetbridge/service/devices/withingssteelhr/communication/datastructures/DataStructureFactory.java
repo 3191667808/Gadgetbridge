@@ -131,6 +131,15 @@ public class DataStructureFactory {
                 case WithingsStructureType.SHORTCUT_ACTION:
                     structure = new ShortcutAction();
                     break;
+                case WithingsStructureType.FEATURE_TAG_DEPRECATED:
+                    structure = new FeatureTagDeprecated();
+                    break;
+                case WithingsStructureType.FEATURE_TAGS_USER_ID:
+                    structure = new FeatureTagsUserId();
+                    break;
+                case WithingsStructureType.LOCAL_NOTIFICATION:
+                    structure = new LocalNotification();
+                    break;
                 default:
                     structure = null;
                     logger.info("Received yet unknown structure type: " + structureTypeFromResponse);

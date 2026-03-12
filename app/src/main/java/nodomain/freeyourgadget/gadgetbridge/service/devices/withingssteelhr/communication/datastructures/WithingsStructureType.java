@@ -71,5 +71,14 @@ public class WithingsStructureType {
     /** Long-press crown shortcut action (type 0x09A1 = 2465). */
     public static final short SHORTCUT_ACTION = (short) 0x09A1;  // 2465
 
+    /** One entry in the feature-tags-deprecated list (type 0x099C = 2460). */
+    public static final short FEATURE_TAG_DEPRECATED = (short) 0x099C;  // 2460
+
+    /** User-ID header preceding feature-tag lists in CMD_FEATURE_TAGS_SET_DEPRECATED_V2 (type 0x0145 = 325). */
+    public static final short FEATURE_TAGS_USER_ID = 0x0145;  // 325
+
+    /** Local (on-watch) notification slot configuration (type 0x09A8 = 2472). */
+    public static final short LOCAL_NOTIFICATION = (short) 0x09A8;  // 2472
+
     private WithingsStructureType() {}
 }

@@ -32,11 +32,15 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
 
     static final String PREF_SCREENS_SORTABLE = "withings_scanwatch_screens_sortable";
     static final String PREF_SHORTCUT_ACTION = "withings_scanwatch_shortcut_action";
+    static final String PREF_ECG_ENABLED = "withings_scanwatch_ecg_enabled";
+    static final String PREF_AFIB_ENABLED = "withings_scanwatch_afib_enabled";
 
     @Override
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs, final String rootKey) {
         handler.addPreferenceHandlerFor(PREF_SCREENS_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SHORTCUT_ACTION);
+        handler.addPreferenceHandlerFor(PREF_ECG_ENABLED);
+        handler.addPreferenceHandlerFor(PREF_AFIB_ENABLED);
 
         final ListPreference shortcutPref = handler.findPreference(PREF_SHORTCUT_ACTION);
         if (shortcutPref != null) {

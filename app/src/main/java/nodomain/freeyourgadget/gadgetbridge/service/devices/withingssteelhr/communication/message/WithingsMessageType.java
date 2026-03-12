@@ -69,5 +69,21 @@ public final class WithingsMessageType {
     /** Set the long-press crown shortcut action (cmd 0x0989). */
     public static final short SET_SHORTCUT = (short) 0x0989;  // 2441
 
+    /**
+     * Set feature-tags-deprecated list (cmd 0x0987).
+     * Enables/disables ECG, AFib detection and related health features on the watch.
+     * The message body contains a {@code FeatureTagsUserId} header followed by one or more
+     * {@code FeatureTagDeprecated} TLVs and a final {@code EndOfTransmission}.
+     */
+    public static final short SET_FEATURE_TAGS_DEPRECATED = (short) 0x0987;  // 2439
+
+    /**
+     * Set local notification slot configuration (cmd 0x0990).
+     * Configures which on-watch health alerts (AFib, high/low HR, etc.) are enabled.
+     * The message body contains five {@code LocalNotification} TLVs (one per slot) and a final
+     * {@code EndOfTransmission}.
+     */
+    public static final short SET_LOCAL_NOTIFICATIONS = (short) 0x0990;  // 2448
+
     private WithingsMessageType() {}
 }

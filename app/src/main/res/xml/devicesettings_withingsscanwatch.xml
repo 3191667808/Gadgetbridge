@@ -34,6 +34,7 @@
 
     <!-- Long-press crown shortcut -->
     <ListPreference
+        android:icon="@drawable/ic_shortcut"
         android:defaultValue="0"
         android:entries="@array/pref_withings_scanwatch_shortcut_entries"
         android:entryValues="@array/pref_withings_scanwatch_shortcut_values"
@@ -41,5 +42,23 @@
         android:persistent="true"
         android:summary="@string/withings_scanwatch_pref_shortcut_summary"
         android:title="@string/withings_scanwatch_pref_shortcut_title" />
+
+    <!-- ECG measurement feature -->
+    <SwitchPreference
+        android:icon="@drawable/ic_ecg"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_ecg_enabled"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_ecg_summary"
+        android:title="@string/withings_scanwatch_pref_ecg_title" />
+
+    <!-- AFib detection -->
+    <SwitchPreference
+        android:icon="@drawable/ic_heartrate"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_afib_enabled"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_afib_summary"
+        android:title="@string/withings_scanwatch_pref_afib_title" />
 
 </androidx.preference.PreferenceScreen>
