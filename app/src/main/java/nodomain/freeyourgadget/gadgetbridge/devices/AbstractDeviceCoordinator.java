@@ -548,6 +548,16 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public int getSmartWakeupMaxInterval(@NonNull GBDevice device) {
+        return 255;
+    }
+
+    @Override
+    public String getSmartWakeupDescription(@NonNull GBDevice device) {
+        return null;
+    }
+
+    @Override
     public boolean forcedSmartWakeup(GBDevice device, int alarmPosition) {
         return false;
     }

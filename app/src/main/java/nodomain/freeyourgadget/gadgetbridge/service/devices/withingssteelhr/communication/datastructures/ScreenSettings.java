@@ -22,7 +22,7 @@ public class ScreenSettings extends WithingsStructure {
 
     private int id;
 
-    private int userId = 123456;
+    private int userId = 0;
     private int yetUnknown1 = 0;
     private int yetUnknown2 = 0;
     private byte idOnDevice;

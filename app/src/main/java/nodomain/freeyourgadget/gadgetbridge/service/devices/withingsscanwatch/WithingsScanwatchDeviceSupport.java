@@ -27,6 +27,7 @@ import java.util.Objects;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch.WithingsScanwatchSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
@@ -35,16 +36,33 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.WithingsUUIDs;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetShortcutHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetGlanceHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetLuminosityHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetMoveHandsHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetWearPosHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagDeprecated;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagsUserId;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.GlanceStatus;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LocalNotification;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LuminosityLevel;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ScreenSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ShortcutAction;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.TrackerMoveHands;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.TrackerWearPos;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsScreenId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
+
+import android.graphics.drawable.Drawable;
+import androidx.annotation.NonNull;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.IconHelper;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.WithingsActivityType;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageData;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageMetaData;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WorkoutScreen;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.ExpectedResponse;
 
 /**
  * Device support for Withings Scanwatch. The Scanwatch uses the same BLE protocol as the
@@ -70,10 +88,22 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     private static final String PREF_SHORTCUT_ACTION = "withings_scanwatch_shortcut_action";
 
-    /** Whether the ECG measurement feature is enabled on the watch (feature tag activation). */
-    static final String PREF_ECG_ENABLED  = "withings_scanwatch_ecg_enabled";
-    /** Whether AFib detection (and night AFib) is enabled on the watch. */
-    static final String PREF_AFIB_ENABLED = "withings_scanwatch_afib_enabled";
+    /** Whether the ECG measurement feature is enabled on the watch. */
+    static final String PREF_ECG_ENABLED        = "withings_scanwatch_ecg_enabled";
+    /** Respiratory scan mode: "off", "automatic" (some nights), or "always" (every night). */
+    static final String PREF_RESPIRATORY_SCAN   = "withings_scanwatch_respiratory_scan";
+    /** Whether daytime AFib detection is enabled on the watch. */
+    static final String PREF_AFIB_DAY_ENABLED   = "withings_scanwatch_afib_day_enabled";
+    /** Whether night-time AFib detection is enabled on the watch. */
+    static final String PREF_AFIB_NIGHT_ENABLED = "withings_scanwatch_afib_night_enabled";
+    /** Whether quicklook / glance (raise-to-wake) is enabled on the watch. */
+    static final String PREF_QUICKLOOK = "withings_scanwatch_quicklook";
+    /** Whether auto-brightness is enabled on the watch. */
+    static final String PREF_AUTO_BRIGHTNESS = "withings_scanwatch_auto_brightness";
+    /** Manual brightness level (0-100) when auto-brightness is off. */
+    static final String PREF_BRIGHTNESS_LEVEL = "withings_scanwatch_brightness_level";
+    /** Whether tracker move-hands (move hands to 10:10 when screen turns on) is enabled. */
+    static final String PREF_MOVE_HANDS = "withings_scanwatch_move_hands";
 
     @Override
     protected void addExtraSyncCommands() {
@@ -81,6 +111,32 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 new WithingsMessage(WithingsMessageType.GET_SHORTCUT),
                 new GetShortcutHandler(this)
         );
+        addSimpleConversationToQueue(
+                new WithingsMessage(WithingsMessageType.GLANCE_GET),
+                new GetGlanceHandler(this)
+        );
+        addSimpleConversationToQueue(
+                new WithingsMessage(WithingsMessageType.GET_LUMINOSITY_LEVEL),
+                new GetLuminosityHandler(this)
+        );
+        addSimpleConversationToQueue(
+                new WithingsMessage(WithingsMessageType.GET_TRACKER_MOVE_HANDS),
+                new GetMoveHandsHandler(this)
+        );
+        addSimpleConversationToQueue(
+                new WithingsMessage(WithingsMessageType.GET_TRACKER_WEAR_POS),
+                new GetWearPosHandler(this)
+        );
+
+        // Re-push feature tags and local notifications on every sync so the watch
+        // retains the correct state after a Bluetooth reconnect or reboot.
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final boolean ecg       = prefs.getBoolean(PREF_ECG_ENABLED,        false);
+        final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
+        final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
+        final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+        addFeatureTagsCommand(ecg, respScan, afibDay, afibNight);
+        addLocalNotificationsCommand(afibDay, afibNight);
     }
 
     @Override
@@ -108,21 +164,51 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             sendQueue();
             return true;
         }
-        if (PREF_ECG_ENABLED.equals(config)) {
+        if (PREF_ECG_ENABLED.equals(config) || PREF_RESPIRATORY_SCAN.equals(config)
+                || PREF_AFIB_DAY_ENABLED.equals(config) || PREF_AFIB_NIGHT_ENABLED.equals(config)) {
             final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
-            final boolean enabled = prefs.getBoolean(PREF_ECG_ENABLED, false);
+            final boolean ecg       = prefs.getBoolean(PREF_ECG_ENABLED,        false);
+            final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
+            final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
+            final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
             clearQueue();
-            addFeatureTagsCommand(enabled, prefs.getBoolean(PREF_AFIB_ENABLED, false));
-            addLocalNotificationsCommand(enabled, prefs.getBoolean(PREF_AFIB_ENABLED, false));
+            addFeatureTagsCommand(ecg, respScan, afibDay, afibNight);
+            addLocalNotificationsCommand(afibDay, afibNight);
             sendQueue();
             return true;
         }
-        if (PREF_AFIB_ENABLED.equals(config)) {
+        if (PREF_QUICKLOOK.equals(config)) {
             final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
-            final boolean afibEnabled = prefs.getBoolean(PREF_AFIB_ENABLED, false);
+            final boolean enabled = prefs.getBoolean(PREF_QUICKLOOK, false);
+            final WithingsMessage msg = new WithingsMessage(WithingsMessageType.GLANCE_SET,
+                    new GlanceStatus(enabled));
             clearQueue();
-            addFeatureTagsCommand(prefs.getBoolean(PREF_ECG_ENABLED, false), afibEnabled);
-            addLocalNotificationsCommand(prefs.getBoolean(PREF_ECG_ENABLED, false), afibEnabled);
+            addSimpleConversationToQueue(msg);
+            sendQueue();
+            return true;
+        }
+        if (PREF_AUTO_BRIGHTNESS.equals(config) || PREF_BRIGHTNESS_LEVEL.equals(config)) {
+            sendLuminosityLevel();
+            return true;
+        }
+        if (PREF_MOVE_HANDS.equals(config)) {
+            final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            final boolean enabled = prefs.getBoolean(PREF_MOVE_HANDS, false);
+            final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_TRACKER_MOVE_HANDS,
+                    new TrackerMoveHands(enabled));
+            clearQueue();
+            addSimpleConversationToQueue(msg);
+            sendQueue();
+            return true;
+        }
+        if (DeviceSettingsPreferenceConst.PREF_WEARLOCATION.equals(config)) {
+            final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            final String location = prefs.getString(DeviceSettingsPreferenceConst.PREF_WEARLOCATION, "left");
+            final byte pos = "left".equals(location) ? TrackerWearPos.POS_LEFT_WRIST : TrackerWearPos.POS_RIGHT_WRIST;
+            final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_TRACKER_WEAR_POS,
+                    new TrackerWearPos(pos));
+            clearQueue();
+            addSimpleConversationToQueue(msg);
             sendQueue();
             return true;
         }
@@ -130,31 +216,81 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     /**
-     * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
-     * feature tags required for ECG and/or AFib.
-     *
-     * <p>The full tag set observed from HCI captures:
-     * <ul>
-     *   <li>ECG enabled: tags 0x0004, 0x000F, 0x0035, 0x0058</li>
-     *   <li>AFib enabled (in addition to ECG tags): 0x000A, 0x000B</li>
-     * </ul>
-     * All tags use startTime=0 / endTime=0 (always active).
-     *
-     * <p>Note: the Withings app also sends 0x0035 and 0x0058 (purpose unknown) as a baseline.
+     * Reads the current auto-brightness / brightness-level preferences and sends the
+     * corresponding {@code CMD_SET_LUMINOSITY_LEVEL} (0x0941) command to the watch.
      */
-    private void addFeatureTagsCommand(final boolean ecgEnabled, final boolean afibEnabled) {
+    private void sendLuminosityLevel() {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final boolean autoMode = prefs.getBoolean(PREF_AUTO_BRIGHTNESS, true);
+        final byte mode;
+        final byte level;
+        if (autoMode) {
+            mode = LuminosityLevel.MODE_AUTO;
+            level = 0;
+        } else {
+            mode = LuminosityLevel.MODE_MANUAL;
+            int rawLevel;
+            try {
+                rawLevel = Integer.parseInt(prefs.getString(PREF_BRIGHTNESS_LEVEL, "50"));
+            } catch (NumberFormatException e) {
+                rawLevel = 50;
+            }
+            level = (byte) Math.max(0, Math.min(100, rawLevel));
+        }
+        final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_LUMINOSITY_LEVEL,
+                new LuminosityLevel(mode, level));
+        clearQueue();
+        addSimpleConversationToQueue(msg);
+        sendQueue();
+    }
+
+    /**
+     * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
+     * feature tags required for ECG, respiratory scan, and/or AFib.
+     *
+     * <p>Tag set from HCI captures:
+     * <ul>
+     *   <li>ECG on: tags 0x0004, 0x000F, 0x0035, 0x0058</li>
+     *   <li>Respiratory automatic: tag 0x0005 + 0x000F, 0x0035, 0x0058</li>
+     *   <li>Respiratory always: tags 0x000E, 0x0011 + 0x000F, 0x0035, 0x0058</li>
+     *   <li>AFib daytime: tags 0x0009, 0x000A</li>
+     *   <li>AFib night: tag 0x000B</li>
+     * </ul>
+     * 0x0035 and 0x0058 are sent whenever any health feature is active (purpose unknown).
+     * 0x000F (TAG_ECG_MEAS) is shared between ECG and respiratory scan; sent once even if both on.
+     */
+    private void addFeatureTagsCommand(final boolean ecgEnabled, final String respiratoryScan,
+                                       final boolean afibDayEnabled, final boolean afibNightEnabled) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         msg.addDataStructure(new FeatureTagsUserId());  // userId = 0
 
+        final boolean respAutomatic = "automatic".equals(respiratoryScan);
+        final boolean respAlways    = "always".equals(respiratoryScan);
+        final boolean respActive    = respAutomatic || respAlways;
+
         if (ecgEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_TERMS));
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_MEAS));
         }
-        if (afibEnabled) {
+        if (respAutomatic) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_SLEEP));
+        }
+        if (respAlways) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_ALWAYS));
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0011));
+        }
+        if (afibDayEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_WINDOW));
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_EXTRA));
+        }
+        if (afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_NIGHT));
         }
-        if (ecgEnabled || afibEnabled) {
+        if (ecgEnabled || respActive) {
+            // TAG_ECG_MEAS (0x000F) enables ECG/respiratory measurements; send once even if both on
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_MEAS));
+        }
+        if (ecgEnabled || respActive || afibDayEnabled || afibNightEnabled) {
+            // Baseline tags always present when any health feature is active
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0035));
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
         }
@@ -168,27 +304,78 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      *
      * <p>All five slots must always be sent together. Slot mapping from HCI captures:
      * <ol>
-     *   <li>PPG_AFIB - enabled when {@code afibEnabled}</li>
-     *   <li>ECG - always disabled (managed via feature tags)</li>
-     *   <li>UNKNOWN_3 - always disabled</li>
-     *   <li>HIGH_LOW_HR - enabled when {@code ecgEnabled} (observed in ECG capture)</li>
-     *   <li>PPG_AFIB_NIGHT - enabled when {@code afibEnabled}</li>
+     *   <li>PPG_AFIB - enabled when AFib daytime is on</li>
+     *   <li>HIGH_HR  - enabled when AFib daytime is on (high HR alert, tied to AFib/ECG state)</li>
+     *   <li>LOW_HR   - enabled when AFib daytime is on (low HR alert, tied to AFib/ECG state)</li>
+     *   <li>SLOT_4   - purpose unknown; always disabled</li>
+     *   <li>PPG_AFIB_NIGHT - enabled when AFib night is on</li>
      * </ol>
      */
-    private void addLocalNotificationsCommand(final boolean ecgEnabled, final boolean afibEnabled) {
+    private void addLocalNotificationsCommand(final boolean afibDayEnabled,
+                                              final boolean afibNightEnabled) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_LOCAL_NOTIFICATIONS);
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB,
-                afibEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
-        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_ECG,
+                afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_HR,
+                afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_LOW_HR,
+                afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_SLOT_4,
                 LocalNotification.STATUS_DISABLED));
-        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_UNKNOWN_3,
-                LocalNotification.STATUS_DISABLED));
-        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_LOW_HR,
-                ecgEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB_NIGHT,
-                afibEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+                afibNightEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new EndOfTransmission());
         addSimpleConversationToQueue(msg);
+    }
+
+    /**
+     * Builds a SET_WORKOUT_SCREEN message for the ScanWatch with correct mode/flags and
+     * two icon sizes (20x20 at idx=0, 28x28 at idx=1) as required by the ScanWatch protocol.
+     */
+    @NonNull
+    @Override
+    protected Message createWorkoutScreenMessage(String workoutType) {
+        final WithingsActivityType activityType = WithingsActivityType.fromPrefValue(workoutType);
+        final int code = activityType.getCode();
+
+        Message message = new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, ExpectedResponse.NONE);
+
+        // Workout screen settings with correct mode and flags
+        WorkoutScreen workoutScreen = new WorkoutScreen();
+        workoutScreen.setId(code);
+        final int stringId = getContext().getResources().getIdentifier(
+                "activity_type_" + workoutType, "string", getContext().getPackageName());
+        workoutScreen.setName(getContext().getString(stringId));
+        workoutScreen.setMode(activityType.getWorkoutMode());
+        workoutScreen.yetunknown2 = activityType.getWorkoutFlags();
+        message.addDataStructure(workoutScreen);
+
+        // Get the drawable for this activity type
+        final int drawableId = activityType.toActivityKind().getIcon();
+        final Drawable drawable = getContext().getDrawable(drawableId);
+
+        // Icon 0: 20x20
+        ImageMetaData meta0 = new ImageMetaData();
+        meta0.setWidth((byte) 20);
+        meta0.setHeight((byte) 20);
+        message.addDataStructure(meta0);
+
+        ImageData data0 = new ImageData();
+        data0.setImageData(IconHelper.getIconBytesFromDrawable(drawable, 20, 20));
+        message.addDataStructure(data0);
+
+        // Icon 1: 28x28
+        ImageMetaData meta1 = new ImageMetaData();
+        meta1.setIndex((byte) 1);
+        meta1.setWidth((byte) 28);
+        meta1.setHeight((byte) 28);
+        message.addDataStructure(meta1);
+
+        ImageData data1 = new ImageData();
+        data1.setImageData(IconHelper.getIconBytesFromDrawable(drawable, 28, 28));
+        message.addDataStructure(data1);
+
+        return message;
     }
 
     /**

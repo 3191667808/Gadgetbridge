@@ -31,10 +31,10 @@ import java.nio.ByteBuffer;
  *
  * <p>Known notification slot IDs observed from HCI captures:
  * <ul>
- *   <li>{@link #NOTIF_PPG_AFIB}       (1) - AFib detection alert</li>
- *   <li>{@link #NOTIF_ECG}            (2) - ECG-related notification (slot seen as disabled)</li>
- *   <li>{@link #NOTIF_UNKNOWN_3}      (3) - Unknown (always seen as disabled)</li>
- *   <li>{@link #NOTIF_HIGH_LOW_HR}    (4) - High/low heart rate alert (enabled during ECG setup)</li>
+ *   <li>{@link #NOTIF_PPG_AFIB}       (1) - AFib daytime detection alert</li>
+ *   <li>{@link #NOTIF_HIGH_HR}        (2) - High heart rate alert</li>
+ *   <li>{@link #NOTIF_LOW_HR}         (3) - Low heart rate alert</li>
+ *   <li>{@link #NOTIF_SLOT_4}         (4) - Purpose unknown (seen disabled unless ECG active)</li>
  *   <li>{@link #NOTIF_PPG_AFIB_NIGHT} (5) - Night-time AFib detection alert</li>
  * </ul>
  *
@@ -45,14 +45,14 @@ public class LocalNotification extends WithingsStructure {
 
     // ---- Notification slot identifiers ----
 
-    /** AFib detection alert. */
+    /** AFib daytime detection alert. */
     public static final byte NOTIF_PPG_AFIB       = 1;
-    /** ECG notification slot. */
-    public static final byte NOTIF_ECG            = 2;
-    /** Unknown notification slot (appears always disabled). */
-    public static final byte NOTIF_UNKNOWN_3      = 3;
-    /** High/low heart-rate alert. */
-    public static final byte NOTIF_HIGH_LOW_HR    = 4;
+    /** High heart rate alert. */
+    public static final byte NOTIF_HIGH_HR        = 2;
+    /** Low heart rate alert. */
+    public static final byte NOTIF_LOW_HR         = 3;
+    /** Purpose unknown (observed disabled unless ECG active). */
+    public static final byte NOTIF_SLOT_4         = 4;
     /** Night-time AFib detection alert. */
     public static final byte NOTIF_PPG_AFIB_NIGHT = 5;
 

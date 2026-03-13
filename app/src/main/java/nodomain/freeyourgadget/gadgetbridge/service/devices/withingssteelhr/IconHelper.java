@@ -26,9 +26,12 @@ import nodomain.freeyourgadget.gadgetbridge.util.BitmapUtil;
 public class IconHelper {
 
     public static byte[] getIconBytesFromDrawable(Drawable drawable) {
+        return getIconBytesFromDrawable(drawable, 22, 24);
+    }
+
+    public static byte[] getIconBytesFromDrawable(Drawable drawable, int width, int height) {
         Bitmap bitmap = BitmapUtil.toBitmap(drawable);
-        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 22, 24, true);
-        int size = scaledBitmap.getRowBytes() * scaledBitmap.getHeight();
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true);
         return toByteArray(scaledBitmap);
     }
 

@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 Frank Ertl
+/*  Copyright (C) 2024 Gadgetbridge contributors
 
     This file is part of Gadgetbridge.
 
@@ -18,57 +18,53 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 
 import java.nio.ByteBuffer;
 
-public class ImageMetaData extends WithingsStructure {
+/**
+ * Tracker move-hands status (move hands to 10:10 when the screen turns on).
+ *
+ * <p>TLV type {@code 0x09BB} (2491), 1-byte payload:
+ * <ul>
+ *   <li>{@code 0} = disabled</li>
+ *   <li>{@code 1} = enabled</li>
+ * </ul>
+ */
+public class TrackerMoveHands extends WithingsStructure {
 
-    private byte index = 0x00;
-    private byte width;
-    private byte height;
+    private boolean enabled;
 
-    public byte getIndex() {
-        return index;
+    /** No-arg constructor required by {@link DataStructureFactory}. */
+    public TrackerMoveHands() {}
+
+    public TrackerMoveHands(boolean enabled) {
+        this.enabled = enabled;
     }
 
-    public void setIndex(byte index) {
-        this.index = index;
+    public boolean isEnabled() {
+        return enabled;
     }
 
-    public byte getWidth() {
-        return width;
-    }
-
-    public void setWidth(byte width) {
-        this.width = width;
-    }
-
-    public byte getHeight() {
-        return height;
-    }
-
-    public void setHeight(byte height) {
-        this.height = height;
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     @Override
     public short getLength() {
-        return 7;
+        return 5; // 4 header + 1 data
     }
 
     @Override
     protected void fillinTypeSpecificData(ByteBuffer buffer) {
-        buffer.put(index);
-        buffer.put(width);
-        buffer.put(height);
+        buffer.put(enabled ? (byte) 1 : (byte) 0);
     }
 
     @Override
-    public void fillFromRawDataAsBuffer(ByteBuffer rawDataBuffer) {
-        index = rawDataBuffer.get();
-        width = rawDataBuffer.get();
-        height = rawDataBuffer.get();
+    protected void fillFromRawDataAsBuffer(ByteBuffer rawDataBuffer) {
+        if (rawDataBuffer.remaining() >= 1) {
+            enabled = rawDataBuffer.get() != 0;
+        }
     }
 
     @Override
     public short getType() {
-        return WithingsStructureType.IMAGE_META_DATA;
+        return WithingsStructureType.TRACKER_MOVE_HANDS;
     }
 }

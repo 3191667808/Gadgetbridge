@@ -163,6 +163,55 @@ public enum WithingsActivityType {
         }
     }
 
+    /**
+     * Returns the workout mode byte used in the WORKOUT_SCREEN_SETTINGS TLV.
+     * <ul>
+     *   <li>1 = Indoor / pool (no GPS, indoor-specific UI)</li>
+     *   <li>2 = GPS tracking (outdoor with GPS)</li>
+     *   <li>3 = No GPS (outdoor/generic without GPS)</li>
+     * </ul>
+     */
+    public byte getWorkoutMode() {
+        switch (this) {
+            // GPS-tracked outdoor sports
+            case WALKING:
+            case RUNNING:
+            case HIKING:
+            case SURFING:
+            case KITESURFING:
+            case WINDSURFING:
+            case SKIING:
+            case SNOWBOARDING:
+            case RIDING:
+                return 2; // GPS
+            // Indoor / pool sports
+            case SWIMMING:
+            case CLIMBING:
+            case ELLIPTICAL:
+            case WEIGHTLIFTING:
+            case GYMNASTICS:
+            case PILATES:
+            case YOGA:
+            case DANCING:
+            case ZUMBA:
+            case BOXING:
+            case ICESKATING:
+            case ROWING:
+                return 1; // Indoor
+            // Everything else: no GPS, not specifically indoor
+            default:
+                return 3; // NoGPS
+        }
+    }
+
+    /**
+     * Returns the flags short for the WORKOUT_SCREEN_SETTINGS TLV.
+     * Indoor/pool types use 0x0001; all others use 0x0000.
+     */
+    public short getWorkoutFlags() {
+        return getWorkoutMode() == 1 ? (short) 0x0001 : (short) 0x0000;
+    }
+
     public static WithingsActivityType fromPrefValue(final String prefValue) {
         for (final WithingsActivityType type : values()) {
             if (type.name().toLowerCase(Locale.ROOT).equals(prefValue.replace("_", "").toLowerCase(Locale.ROOT))) {

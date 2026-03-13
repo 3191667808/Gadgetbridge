@@ -48,6 +48,7 @@ public final class WithingsMessageType {
     public static final short GET_ALARM_SETTINGS = 298;
     public static final short SET_ALARM = 325;
     public static final short GET_ALARM = 293;
+    public static final short GET_MULTI_ALARM = 326;
     public static final short GET_ALARM_ENABLED = 2330;
     public static final short SET_ALARM_ENABLED = 2331;
     public static final short GET_ANCS_STATUS = 2353;
@@ -84,6 +85,26 @@ public final class WithingsMessageType {
      * {@code EndOfTransmission}.
      */
     public static final short SET_LOCAL_NOTIFICATIONS = (short) 0x0990;  // 2448
+
+    /** Get quicklook / glance (raise-to-wake) status (cmd 0x097B). */
+    public static final short GLANCE_GET = (short) 0x097B;  // 2427
+    /** Set quicklook / glance (raise-to-wake) status (cmd 0x0971). */
+    public static final short GLANCE_SET = (short) 0x0971;  // 2417
+
+    /** Set screen luminosity mode & level (cmd 0x0941). */
+    public static final short SET_LUMINOSITY_LEVEL = (short) 0x0941;  // 2369
+    /** Get screen luminosity mode & level (cmd 0x0942). */
+    public static final short GET_LUMINOSITY_LEVEL = (short) 0x0942;  // 2370
+
+    /** Set tracker move-hands (move hands to 10:10 when screen turns on) (cmd 0x09AB). */
+    public static final short SET_TRACKER_MOVE_HANDS = (short) 0x09AB;  // 2475
+    /** Get tracker move-hands status (cmd 0x09AC). */
+    public static final short GET_TRACKER_MOVE_HANDS = (short) 0x09AC;  // 2476
+
+    /** Set tracker wear position (left/right wrist) (cmd 0x014F). */
+    public static final short SET_TRACKER_WEAR_POS = 335;   // 0x014F
+    /** Get tracker wear position (cmd 0x0150). */
+    public static final short GET_TRACKER_WEAR_POS = 336;   // 0x0150
 
     private WithingsMessageType() {}
 }

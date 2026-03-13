@@ -1914,6 +1914,17 @@
         <item>9</item>
     </string-array>
 
+    <string-array name="pref_withings_scanwatch_respiratory_scan_entries">
+        <item>@string/withings_scanwatch_pref_respiratory_scan_off</item>
+        <item>@string/withings_scanwatch_pref_respiratory_scan_automatic</item>
+        <item>@string/withings_scanwatch_pref_respiratory_scan_always</item>
+    </string-array>
+    <string-array name="pref_withings_scanwatch_respiratory_scan_values">
+        <item>off</item>
+        <item>automatic</item>
+        <item>always</item>
+    </string-array>
+
     <string-array name="pref_neo_display_items">
         <item>@string/menuitem_pai</item>
         <item>@string/menuitem_dnd</item>

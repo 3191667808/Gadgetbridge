@@ -52,13 +52,70 @@
         android:summary="@string/withings_scanwatch_pref_ecg_summary"
         android:title="@string/withings_scanwatch_pref_ecg_title" />
 
-    <!-- AFib detection -->
+    <!-- Respiratory scan (SpO2 during sleep) -->
+    <ListPreference
+        android:icon="@drawable/ic_heartrate"
+        android:defaultValue="off"
+        android:entries="@array/pref_withings_scanwatch_respiratory_scan_entries"
+        android:entryValues="@array/pref_withings_scanwatch_respiratory_scan_values"
+        android:key="withings_scanwatch_respiratory_scan"
+        android:persistent="true"
+        android:title="@string/withings_scanwatch_pref_respiratory_scan_title" />
+
+    <!-- AFib daytime detection -->
     <SwitchPreference
         android:icon="@drawable/ic_heartrate"
         android:defaultValue="false"
-        android:key="withings_scanwatch_afib_enabled"
+        android:key="withings_scanwatch_afib_day_enabled"
         android:persistent="true"
-        android:summary="@string/withings_scanwatch_pref_afib_summary"
-        android:title="@string/withings_scanwatch_pref_afib_title" />
+        android:summary="@string/withings_scanwatch_pref_afib_day_summary"
+        android:title="@string/withings_scanwatch_pref_afib_day_title" />
+
+    <!-- AFib night detection -->
+    <SwitchPreference
+        android:icon="@drawable/ic_heartrate"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_afib_night_enabled"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_afib_night_summary"
+        android:title="@string/withings_scanwatch_pref_afib_night_title" />
+
+    <!-- Quicklook / glance (raise-to-wake) -->
+    <SwitchPreference
+        android:icon="@drawable/ic_always_on_display"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_quicklook"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_quicklook_summary"
+        android:title="@string/withings_scanwatch_pref_quicklook_title" />
+
+    <!-- Auto brightness toggle -->
+    <SwitchPreference
+        android:icon="@drawable/ic_brightness_2"
+        android:defaultValue="true"
+        android:key="withings_scanwatch_auto_brightness"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_auto_brightness_summary"
+        android:title="@string/withings_scanwatch_pref_auto_brightness_title" />
+
+    <!-- Manual brightness level (only meaningful when auto brightness is OFF) -->
+    <EditTextPreference
+        android:icon="@drawable/ic_brightness_2"
+        android:defaultValue="100"
+        android:inputType="number"
+        android:key="withings_scanwatch_brightness_level"
+        android:maxLength="3"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_brightness_level_summary"
+        android:title="@string/withings_scanwatch_pref_brightness_level_title" />
+
+    <!-- Move hands to 10:10 when screen turns on -->
+    <SwitchPreference
+        android:icon="@drawable/ic_sensor_calibration"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_move_hands"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_move_hands_summary"
+        android:title="@string/withings_scanwatch_pref_move_hands_title" />
 
 </androidx.preference.PreferenceScreen>

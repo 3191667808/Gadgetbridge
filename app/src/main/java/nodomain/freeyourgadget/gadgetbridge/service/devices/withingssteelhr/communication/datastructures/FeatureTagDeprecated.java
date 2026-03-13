@@ -30,16 +30,19 @@ import java.nio.ByteBuffer;
  *
  * <p>Known feature tag IDs observed from HCI captures:
  * <ul>
- *   <li>{@link #TAG_ECG_TERMS}   (0x0004) - ECG terms &amp; conditions accepted</li>
- *   <li>{@link #TAG_AFIB_WINDOW} (0x0009) - AFib detection time window (uses timestamps)</li>
- *   <li>{@link #TAG_AFIB_EXTRA}  (0x000A) - AFib detection (always active)</li>
- *   <li>{@link #TAG_AFIB_NIGHT}  (0x000B) - Night-time AFib detection</li>
- *   <li>{@link #TAG_ECG_MEAS}    (0x000F) - ECG measurement enabled</li>
- *   <li>{@link #TAG_IRREGULAR_HR}(0x0013) - Irregular heart rate detection</li>
- *   <li>{@link #TAG_HIGH_HR}     (0x0014) - High heart rate notification</li>
- *   <li>{@link #TAG_LOW_HR}      (0x0016) - Low heart rate notification</li>
- *   <li>{@link #TAG_0x0035}      (0x0035) - Present during ECG activation (purpose unknown)</li>
- *   <li>{@link #TAG_0x0058}      (0x0058) - Present during ECG activation (purpose unknown)</li>
+ *   <li>{@link #TAG_ECG_TERMS}    (0x0004) - ECG terms &amp; conditions accepted</li>
+ *   <li>{@link #TAG_SPO2_SLEEP}   (0x0005) - Respiratory scan automatic/sleep mode</li>
+ *   <li>{@link #TAG_AFIB_WINDOW}  (0x0009) - AFib detection time window (uses timestamps)</li>
+ *   <li>{@link #TAG_AFIB_EXTRA}   (0x000A) - AFib detection (always active)</li>
+ *   <li>{@link #TAG_AFIB_NIGHT}   (0x000B) - Night-time AFib detection</li>
+ *   <li>{@link #TAG_RESP_ALWAYS}  (0x000E) - Respiratory scan always-on mode</li>
+ *   <li>{@link #TAG_ECG_MEAS}     (0x000F) - ECG/respiratory measurement enabled</li>
+ *   <li>{@link #TAG_0x0011}       (0x0011) - Companion to TAG_RESP_ALWAYS in always-on mode</li>
+ *   <li>{@link #TAG_IRREGULAR_HR} (0x0013) - Irregular heart rate detection</li>
+ *   <li>{@link #TAG_HIGH_HR}      (0x0014) - High heart rate notification</li>
+ *   <li>{@link #TAG_LOW_HR}       (0x0016) - Low heart rate notification</li>
+ *   <li>{@link #TAG_0x0035}       (0x0035) - Present when any health feature is active (purpose unknown)</li>
+ *   <li>{@link #TAG_0x0058}       (0x0058) - Present when any health feature is active (purpose unknown)</li>
  * </ul>
  */
 public class FeatureTagDeprecated extends WithingsStructure {
@@ -48,23 +51,29 @@ public class FeatureTagDeprecated extends WithingsStructure {
 
     /** ECG terms &amp; conditions accepted by the user. */
     public static final short TAG_ECG_TERMS    = 0x0004;
+    /** Respiratory scan automatic mode (scans some nights). */
+    public static final short TAG_SPO2_SLEEP   = 0x0005;
     /** AFib detection time window (populated with actual timestamps). */
     public static final short TAG_AFIB_WINDOW  = 0x0009;
     /** AFib continuous detection (always-active, timestamps = 0). */
     public static final short TAG_AFIB_EXTRA   = (short) 0x000A;
     /** Night-time AFib detection. */
     public static final short TAG_AFIB_NIGHT   = (short) 0x000B;
-    /** ECG measurement feature enabled. */
+    /** Respiratory scan always-on mode (scans every night). */
+    public static final short TAG_RESP_ALWAYS  = (short) 0x000E;
+    /** ECG / respiratory measurement feature enabled. */
     public static final short TAG_ECG_MEAS     = (short) 0x000F;
+    /** Companion to TAG_RESP_ALWAYS in always-on respiratory scan mode. */
+    public static final short TAG_0x0011       = (short) 0x0011;
     /** Irregular heart rate detection. */
     public static final short TAG_IRREGULAR_HR = (short) 0x0013;
     /** High heart rate notification. */
     public static final short TAG_HIGH_HR      = (short) 0x0014;
     /** Low heart rate notification. */
     public static final short TAG_LOW_HR       = (short) 0x0016;
-    /** Unknown; observed during ECG activation (always-active). */
+    /** Unknown; present when any health feature is active. */
     public static final short TAG_0x0035       = 0x0035;
-    /** Unknown; observed during ECG activation (always-active). */
+    /** Unknown; present when any health feature is active. */
     public static final short TAG_0x0058       = 0x0058;
 
     // ---- Payload ----

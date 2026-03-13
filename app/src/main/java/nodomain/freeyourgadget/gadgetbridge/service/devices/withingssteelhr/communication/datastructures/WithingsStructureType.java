@@ -80,5 +80,17 @@ public class WithingsStructureType {
     /** Local (on-watch) notification slot configuration (type 0x09A8 = 2472). */
     public static final short LOCAL_NOTIFICATION = (short) 0x09A8;  // 2472
 
+    /** Quicklook / glance (raise-to-wake) status (type 0x097A = 2426). */
+    public static final short GLANCE_STATUS = (short) 0x097A;  // 2426
+
+    /** Screen luminosity mode + level (type 0x0937 = 2359), 2-byte payload: [mode][level]. */
+    public static final short LUMINOSITY_LEVEL = (short) 0x0937;  // 2359
+
+    /** Tracker move-hands status (type 0x09BB = 2491), 1-byte payload: 0=off, 1=on. */
+    public static final short TRACKER_MOVE_HANDS = (short) 0x09BB;  // 2491
+
+    /** Tracker wear position (type 0x012F = 303), 1-byte payload: 2=left wrist, 3=right wrist. */
+    public static final short TRACKER_WEAR_POS = 303;  // 0x012F
+
     private WithingsStructureType() {}
 }

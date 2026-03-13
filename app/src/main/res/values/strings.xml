@@ -3876,7 +3876,13 @@
     <string name="loyalty_cards_syncing">Syncing %d loyalty cards to device</string>
     <string name="withings_calibration_text_hours">Please use the dial below to align the hour hand to the 12.</string>
     <string name="withings_calibration_text_minutes">Now use the dial to align the minute hand to the 12.</string>
-    <string name="withings_calibration_text_activity_target">Finally align the activity hand to 100%. Please be aware that this hand only moves clockwise.</string>
+    <string name="withings_calibration_text_activity_target">Finally align the activity hand to 100%.</string>
+    <string name="withings_calibration_crown_text_hours">Use the crown on your watch to move the hour hand to the 12.</string>
+    <string name="withings_calibration_crown_text_minutes">Now use the crown to move the minute hand to the 12.</string>
+    <string name="withings_calibration_crown_text_activity_target">Finally use the crown to move the activity hand to 100%.</string>
+    <string name="withings_calibration_mode_app">App dial</string>
+    <string name="withings_calibration_mode_crown">Watch crown</string>
+    <string name="withings_calibration_confirm">Confirm</string>
     <string name="withings_bt_calibration_previous">Previous</string>
     <string name="withings_bt_calibration_next">Next</string>
     <string name="withings_scanwatch_pref_screens_title">Watch screens</string>
@@ -3898,8 +3904,29 @@
     <!-- ECG and AFib health feature settings -->
     <string name="withings_scanwatch_pref_ecg_title">ECG Measurement</string>
     <string name="withings_scanwatch_pref_ecg_summary">Enable ECG measurement feature on the watch</string>
-    <string name="withings_scanwatch_pref_afib_title">AFib Detection</string>
-    <string name="withings_scanwatch_pref_afib_summary">Enable atrial fibrillation detection and night AFib monitoring</string>
+    <string name="withings_scanwatch_pref_respiratory_scan_title">Respiratory Scan</string>
+    <string name="withings_scanwatch_pref_respiratory_scan_off">Off</string>
+    <string name="withings_scanwatch_pref_respiratory_scan_automatic">Automatic (scans some nights, minimal battery impact)</string>
+    <string name="withings_scanwatch_pref_respiratory_scan_always">Always (scans every night, higher battery usage)</string>
+    <string name="withings_scanwatch_pref_afib_day_title">AFib Detection (Daytime)</string>
+    <string name="withings_scanwatch_pref_afib_day_summary">Enable daytime atrial fibrillation detection</string>
+    <string name="withings_scanwatch_pref_afib_night_title">AFib Detection (Night)</string>
+    <string name="withings_scanwatch_pref_afib_night_summary">Enable night-time atrial fibrillation detection</string>
+    <string name="withings_scanwatch_alarm_smart_wakeup_description">The watch will find the best moment to wake you up between the smart wakeup window start and your alarm time, based on your sleep cycle. Set the window to 0 to wake up exactly at the alarm time.</string>
+
+    <!-- Quicklook / glance (raise-to-wake) -->
+    <string name="withings_scanwatch_pref_quicklook_title">Quicklook</string>
+    <string name="withings_scanwatch_pref_quicklook_summary">Show time when you raise your wrist</string>
+
+    <!-- Brightness / luminosity -->
+    <string name="withings_scanwatch_pref_auto_brightness_title">Auto brightness</string>
+    <string name="withings_scanwatch_pref_auto_brightness_summary">Automatically adjust screen brightness</string>
+    <string name="withings_scanwatch_pref_brightness_level_title">Brightness level</string>
+    <string name="withings_scanwatch_pref_brightness_level_summary">Manual brightness level (0-100)</string>
+
+    <!-- Move hands (move hands to 10:10 when screen turns on) -->
+    <string name="withings_scanwatch_pref_move_hands_title">Move hands</string>
+    <string name="withings_scanwatch_pref_move_hands_summary">Move watch hands to 10:10 when the screen turns on to avoid blocking the display</string>
 
     <!-- Shortcut (long-press crown) settings -->
     <string name="withings_scanwatch_pref_shortcut_title">Long-press crown shortcut</string>

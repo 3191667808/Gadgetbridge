@@ -573,6 +573,19 @@ public interface DeviceCoordinator {
     boolean supportsSmartWakeupInterval(@NonNull final GBDevice device, int alarmPosition);
 
     /**
+     * Returns the maximum smart wakeup interval in minutes supported by this device.
+     * Defaults to 255. Override to restrict (e.g. Scanwatch supports 0-60).
+     */
+    int getSmartWakeupMaxInterval(@NonNull GBDevice device);
+
+    /**
+     * Returns an optional human-readable description explaining how smart wakeup works on this
+     * device, or {@code null} if no description should be shown.
+     */
+    @Nullable
+    String getSmartWakeupDescription(@NonNull GBDevice device);
+
+    /**
      * Returns true if the alarm at the specified position *must* be a smart alarm for this device/coordinator
      * @param alarmPosition Position of the alarm
      * @return True if it must be a smart alarm, false otherwise

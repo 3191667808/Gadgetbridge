@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 
 import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
@@ -51,7 +52,7 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public int[] getSupportedDeviceSpecificSettings(GBDevice device) {
-        return new int[]{ R.xml.devicesettings_withingsscanwatch };
+        return new int[]{ R.xml.devicesettings_withingsscanwatch, R.xml.devicesettings_wearlocation };
     }
 
     @Override
@@ -91,7 +92,7 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public int getAlarmSlotCount(GBDevice gbDevice) {
-        return 3;
+        return 5;
     }
 
     @Override
@@ -107,6 +108,21 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     @Override
     public boolean supportsSmartWakeup(GBDevice device, int position) {
         return true;
+    }
+
+    @Override
+    public boolean supportsSmartWakeupInterval(@NonNull GBDevice device, int alarmPosition) {
+        return true;
+    }
+
+    @Override
+    public int getSmartWakeupMaxInterval(@NonNull GBDevice device) {
+        return 60;
+    }
+
+    @Override
+    public String getSmartWakeupDescription(@NonNull GBDevice device) {
+        return GBApplication.getContext().getString(R.string.withings_scanwatch_alarm_smart_wakeup_description);
     }
 
     @Override

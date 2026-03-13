@@ -53,6 +53,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
+import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -65,6 +66,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.BatteryStateHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.Conversation;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.ConversationQueue;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetAlarmHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.HeartRateHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.ResponseHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.SetupFinishedHandler;
@@ -246,7 +248,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.DISTANCE, getUnit())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
-            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(activityUser.getStepsGoal())));
+            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, activityUser.getStepsGoal())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
@@ -288,12 +290,12 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 // This makes the "authentication" far easier. However if it turns out that this is needed, we would need to find a way to savely store a unique generated secret.
                 //  message.addDataStructure(new UserSecret());
                 addSimpleConversationToQueue(message);
-                addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(activityUser.getStepsGoal())));
+                addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, activityUser.getStepsGoal())));
                 addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.DISTANCE, getUnit())));
                 addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
                 addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ALARM_SETTINGS));
                 addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_SCREEN_SETTINGS), new ScreenSettingsHandler(this));
-                addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ALARM));
+                addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_MULTI_ALARM), new GetAlarmHandler(this));
                 addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ALARM_ENABLED));
                 addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_WORKOUT_SCREEN_LIST), new WorkoutScreenListHandler(this));
                 addExtraSyncCommands();
@@ -372,25 +374,32 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     @Override
     public void onSetAlarms(ArrayList<? extends Alarm> alarms) {
-        if (alarms.size() > 3) {
-            throw new IllegalArgumentException("This device only has three alarm slots!");
-        }
-
         if (alarms.size() == 0) {
             return;
         }
 
-        boolean noAlarmsEnabled = true;
         conversationQueue.clear();
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ALARM));
+
+        // Build a single CMD_SET_MULTI_ALARM message containing ALL enabled alarms.
+        // The watch replaces its entire alarm list with the contents of this message,
+        // so sending one message per alarm would cause only the last one to survive.
+        Message multiAlarmMessage = new WithingsMessage(WithingsMessageType.SET_ALARM);
+        boolean anyAlarmEnabled = false;
+
         for (Alarm alarm : alarms) {
             if (alarm.getEnabled() && !alarm.getUnused()) {
-                noAlarmsEnabled = false;
-                addAlarm(alarm);
+                anyAlarmEnabled = true;
+                addAlarmToMessage(multiAlarmMessage, alarm);
             }
         }
 
-        if (noAlarmsEnabled) {
+        if (anyAlarmEnabled) {
+            addSimpleConversationToQueue(multiAlarmMessage);
+            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ALARM_ENABLED, new AlarmStatus(true)));
+        } else {
+            // Send an empty SET_ALARM to clear all alarms, then disable
+            addSimpleConversationToQueue(multiAlarmMessage);
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ALARM_ENABLED, new AlarmStatus(false)));
         }
 
@@ -437,6 +446,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 case PREF_LANGUAGE:
                     setLanguage();
                     break;
+                case ActivityUser.PREF_USER_STEPS_GOAL:
+                    sendStepsGoal();
+                    break;
                 default:
                     if (!handleExtraConfiguration(config)) {
                         logger.debug("unknown configuration setting received: " + config);
@@ -445,6 +457,14 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         } catch (Exception e) {
             GB.toast("Error setting configuration", Toast.LENGTH_LONG, GB.ERROR, e);
         }
+    }
+
+    private void sendStepsGoal() {
+        ActivityUser user = new ActivityUser();
+        conversationQueue.clear();
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET,
+                new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, user.getStepsGoal())));
+        conversationQueue.send();
     }
 
     /**
@@ -545,24 +565,40 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         }
     }
 
-    private void addAlarm(Alarm alarm) {
+    private void addAlarmToMessage(Message multiAlarmMessage, Alarm alarm) {
         AlarmSettings alarmSettings = new AlarmSettings();
         alarmSettings.setHour((short) alarm.getHour());
         alarmSettings.setMinute((short) alarm.getMinute());
         alarmSettings.setDayOfWeek(mapRepetitionToWithingsValue(alarm));
-        if (alarm.getSmartWakeup()) {
-            // Healthmate has the possibility to change the minutecount, in GB we use a fixed value of 15
-            alarmSettings.setSmartWakeupMinutes((short) 15);
+
+        if (!alarm.isRepetitive()) {
+            // One-time alarm: set the target date so the watch knows when to fire.
+            // Without a date, flags=0x80 + date=00/00/00 is ambiguous and the watch
+            // may ignore the alarm entirely.
+            Calendar cal = AlarmUtils.toCalendar(alarm);
+            alarmSettings.setDayOfMonth((short) cal.get(Calendar.DAY_OF_MONTH));
+            alarmSettings.setMonth((short) (cal.get(Calendar.MONTH) + 1)); // Calendar.MONTH is 0-based
+            alarmSettings.setYear((short) (cal.get(Calendar.YEAR) - 2000));
         }
 
-        Message alarmMessage = new WithingsMessage(WithingsMessageType.SET_ALARM, alarmSettings);
+        if (alarm.getSmartWakeup()) {
+            final Integer interval = alarm.getSmartWakeupInterval();
+            final int maxInterval = gbDevice.getDeviceCoordinator().getSmartWakeupMaxInterval(gbDevice);
+            short minutes;
+            if (interval != null && interval > 0) {
+                minutes = (short) Math.min(interval, maxInterval);
+            } else {
+                // Fall back to a sensible default (20 min) if not configured
+                minutes = 20;
+            }
+            alarmSettings.setSmartWakeupMinutes(minutes);
+        }
+
+        multiAlarmMessage.addDataStructure(alarmSettings);
         if (!StringUtils.isEmpty(alarm.getTitle())) {
             AlarmName alarmName = new AlarmName(alarm.getTitle());
-            alarmMessage.addDataStructure(alarmName);
+            multiAlarmMessage.addDataStructure(alarmName);
         }
-
-        addSimpleConversationToQueue(alarmMessage);
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ALARM_ENABLED, new AlarmStatus(true)));
     }
 
     private short mapRepetitionToWithingsValue(Alarm alarm) {
@@ -732,7 +768,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     @NonNull
-    private Message createWorkoutScreenMessage(String workoutType) {
+    protected Message createWorkoutScreenMessage(String workoutType) {
         WithingsActivityType withingsActivityType = WithingsActivityType.fromPrefValue(workoutType);
         int code = withingsActivityType.getCode();
         Message message = new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, ExpectedResponse.NONE);

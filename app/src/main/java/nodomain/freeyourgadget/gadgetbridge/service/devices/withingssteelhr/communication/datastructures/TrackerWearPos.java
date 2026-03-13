@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 Frank Ertl
+/*  Copyright (C) 2024 Gadgetbridge contributors
 
     This file is part of Gadgetbridge.
 
@@ -17,42 +17,66 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
-public class AlarmName extends WithingsStructure {
+/**
+ * Tracker wear position (which wrist the watch is worn on).
+ *
+ * <p>TLV type {@code 0x012F} (303), 1-byte payload:
+ * <ul>
+ *   <li>{@code 0} = not set</li>
+ *   <li>{@code 1} = hip</li>
+ *   <li>{@code 2} = left wrist</li>
+ *   <li>{@code 3} = right wrist</li>
+ * </ul>
+ */
+public class TrackerWearPos extends WithingsStructure {
 
-    private String name;
+    public static final byte POS_LEFT_WRIST = 2;
+    public static final byte POS_RIGHT_WRIST = 3;
+
+    private byte position;
 
     /** No-arg constructor required by {@link DataStructureFactory}. */
-    public AlarmName() {}
+    public TrackerWearPos() {}
 
-    public AlarmName(String name) {
-        this.name = name;
+    public TrackerWearPos(byte position) {
+        this.position = position;
     }
 
-    public String getName() {
-        return name;
+    public byte getPosition() {
+        return position;
+    }
+
+    public void setPosition(byte position) {
+        this.position = position;
+    }
+
+    /**
+     * Returns {@code true} if the position is left wrist.
+     */
+    public boolean isLeftWrist() {
+        return position == POS_LEFT_WRIST;
     }
 
     @Override
     public short getLength() {
-        return (short) ((name != null ? name.getBytes().length : 0) + 1 + HEADER_SIZE);
+        return 5; // 4 header + 1 data
     }
 
     @Override
-    protected void fillinTypeSpecificData(ByteBuffer rawDataBuffer) {
-        addStringAsBytesWithLengthByte(rawDataBuffer, name);
+    protected void fillinTypeSpecificData(ByteBuffer buffer) {
+        buffer.put(position);
     }
 
     @Override
     protected void fillFromRawDataAsBuffer(ByteBuffer rawDataBuffer) {
         if (rawDataBuffer.remaining() >= 1) {
-            name = getNextString(rawDataBuffer);
+            position = rawDataBuffer.get();
         }
     }
 
     @Override
     public short getType() {
-        return WithingsStructureType.ALARM_NAME;
+        return WithingsStructureType.TRACKER_WEAR_POS;
     }
 }

@@ -140,6 +140,24 @@ public class DataStructureFactory {
                 case WithingsStructureType.LOCAL_NOTIFICATION:
                     structure = new LocalNotification();
                     break;
+                case WithingsStructureType.GLANCE_STATUS:
+                    structure = new GlanceStatus();
+                    break;
+                case WithingsStructureType.ALARM:
+                    structure = new AlarmSettings();
+                    break;
+                case WithingsStructureType.ALARM_NAME:
+                    structure = new AlarmName();
+                    break;
+                case WithingsStructureType.LUMINOSITY_LEVEL:
+                    structure = new LuminosityLevel();
+                    break;
+                case WithingsStructureType.TRACKER_MOVE_HANDS:
+                    structure = new TrackerMoveHands();
+                    break;
+                case WithingsStructureType.TRACKER_WEAR_POS:
+                    structure = new TrackerWearPos();
+                    break;
                 default:
                     structure = null;
                     logger.info("Received yet unknown structure type: " + structureTypeFromResponse);
