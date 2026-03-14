@@ -29,11 +29,13 @@ public enum WithingsActivityType {
     WALKING(1),
     RUNNING(2),
     HIKING(3),
+    BMX(5),
     BIKING(6),
     SWIMMING(7),
     SURFING(8),
     KITESURFING(9),
     WINDSURFING(10),
+    BODYBOARDING(11),
     TENNIS(12),
     PINGPONG(13),
     SQUASH(14),
@@ -54,6 +56,20 @@ public enum WithingsActivityType {
     SKIING(34),
     SNOWBOARDING(35),
     ROWING(0), // The code has yet to be identified.
+    INDOOR_RUNNING(307),
+    CANOEING(495),
+    FISHING(497),
+    BIATHLON(504),
+    DODGEBALL(512),
+    TRACK_AND_FIELD(517),
+    E_MOUNTAIN_BIKING(526),
+    BREAKING(544),
+    CROSSFIT(546),
+    CRICKET(548),
+    FLAMENCO_DANCING(549),
+    DOG_WALKING(559),
+    BREATHING_EXERCISES(560),
+    BOWLING(564),
     ZUMBA(188),
     BASEBALL(191),
     HANDBALL(192),
@@ -94,6 +110,8 @@ public enum WithingsActivityType {
                 return ActivityKind.RUNNING;
             case HIKING:
                 return ActivityKind.HIKING;
+            case BMX:
+                return ActivityKind.BMX;
             case BIKING:
                 return ActivityKind.CYCLING;
             case SWIMMING:
@@ -104,6 +122,8 @@ public enum WithingsActivityType {
                 return ActivityKind.ACTIVITY;
             case WINDSURFING:
                 return ActivityKind.ACTIVITY;
+            case BODYBOARDING:
+                return ActivityKind.SURFING;
             case TENNIS:
                 return ActivityKind.ACTIVITY;
             case PINGPONG:
@@ -144,6 +164,34 @@ public enum WithingsActivityType {
                 return ActivityKind.ACTIVITY;
             case ROWING:
                 return ActivityKind.ROWING_MACHINE;
+            case INDOOR_RUNNING:
+                return ActivityKind.INDOOR_RUNNING;
+            case CANOEING:
+                return ActivityKind.CANOEING;
+            case FISHING:
+                return ActivityKind.FISHING;
+            case BIATHLON:
+                return ActivityKind.BIATHLON;
+            case DODGEBALL:
+                return ActivityKind.DODGEBALL;
+            case TRACK_AND_FIELD:
+                return ActivityKind.TRACK_AND_FIELD;
+            case E_MOUNTAIN_BIKING:
+                return ActivityKind.E_MOUNTAIN_BIKE;
+            case BREAKING:
+                return ActivityKind.BREAKING;
+            case CROSSFIT:
+                return ActivityKind.CROSSFIT;
+            case CRICKET:
+                return ActivityKind.CRICKET;
+            case FLAMENCO_DANCING:
+                return ActivityKind.DANCE;
+            case DOG_WALKING:
+                return ActivityKind.OUTDOOR_WALKING;
+            case BREATHING_EXERCISES:
+                return ActivityKind.BREATHWORK;
+            case BOWLING:
+                return ActivityKind.BOWLING;
             case ZUMBA:
                 return ActivityKind.ACTIVITY;
             case BASEBALL:
@@ -180,9 +228,12 @@ public enum WithingsActivityType {
             case SURFING:
             case KITESURFING:
             case WINDSURFING:
+            case BIATHLON:
             case SKIING:
             case SNOWBOARDING:
             case RIDING:
+            case E_MOUNTAIN_BIKING:
+            case DOG_WALKING:
                 return 2; // GPS
             // Indoor / pool sports
             case SWIMMING:
@@ -193,6 +244,11 @@ public enum WithingsActivityType {
             case PILATES:
             case YOGA:
             case DANCING:
+            case BREAKING:
+            case CROSSFIT:
+            case FLAMENCO_DANCING:
+            case BREATHING_EXERCISES:
+            case INDOOR_RUNNING:
             case ZUMBA:
             case BOXING:
             case ICESKATING:
@@ -213,8 +269,17 @@ public enum WithingsActivityType {
     }
 
     public static WithingsActivityType fromPrefValue(final String prefValue) {
+        if ("golf".equalsIgnoreCase(prefValue)) {
+            return GOLFING;
+        }
+        if ("rowing_machine".equalsIgnoreCase(prefValue)) {
+            return ROWING;
+        }
+
+        final String normalizedPref = prefValue.replace("_", "").toLowerCase(Locale.ROOT);
         for (final WithingsActivityType type : values()) {
-            if (type.name().toLowerCase(Locale.ROOT).equals(prefValue.replace("_", "").toLowerCase(Locale.ROOT))) {
+            final String normalizedType = type.name().replace("_", "").toLowerCase(Locale.ROOT);
+            if (normalizedType.equals(normalizedPref)) {
                 return type;
             }
         }

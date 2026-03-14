@@ -555,18 +555,16 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      */
     @NonNull
     @Override
-    protected Message createWorkoutScreenMessage(String workoutType) {
+    protected Message createWorkoutScreenMessage(String workoutType, ExpectedResponse expectedResponse) {
         final WithingsActivityType activityType = WithingsActivityType.fromPrefValue(workoutType);
         final int code = activityType.getCode();
 
-        Message message = new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, ExpectedResponse.NONE);
+        Message message = new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, expectedResponse);
 
         // Workout screen settings with correct mode and flags
         WorkoutScreen workoutScreen = new WorkoutScreen();
         workoutScreen.setId(code);
-        final int stringId = getContext().getResources().getIdentifier(
-                "activity_type_" + workoutType, "string", getContext().getPackageName());
-        workoutScreen.setName(getContext().getString(stringId));
+        workoutScreen.setName(getWorkoutScreenName(workoutType, activityType));
         workoutScreen.setMode(activityType.getWorkoutMode());
         workoutScreen.yetunknown2 = activityType.getWorkoutFlags();
         message.addDataStructure(workoutScreen);

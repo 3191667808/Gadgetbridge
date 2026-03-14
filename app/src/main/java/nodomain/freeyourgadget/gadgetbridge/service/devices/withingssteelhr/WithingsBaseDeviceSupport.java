@@ -90,6 +90,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ProbeOsVersion;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ScreenSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsScreenId;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.Time;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.TypeVersion;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.User;
@@ -749,43 +750,104 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private void setWorkoutActivityTypes() {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
 
-        final List<String> allActivityTypes = Arrays.asList(getContext().getResources().getStringArray(R.array.pref_withings_steel_activity_types_values));
         final List<String> defaultActivityTypes = Arrays.asList(getContext().getResources().getStringArray(R.array.pref_withings_steel_activity_types_default));
         final String activityTypesPref = prefs.getString("workout_activity_types_sortable", null);
 
         final List<String> enabledActivityTypes;
         if (activityTypesPref == null || activityTypesPref.equals("")) {
-            enabledActivityTypes = defaultActivityTypes;
+            enabledActivityTypes = new ArrayList<>(defaultActivityTypes);
         } else {
-            enabledActivityTypes = Arrays.asList(activityTypesPref.split(","));
+            enabledActivityTypes = new ArrayList<>(Arrays.asList(activityTypesPref.split(",")));
         }
 
-        conversationQueue.clear();
-        for (int i = 0; i < enabledActivityTypes.size(); i++) {
-            String workoutType = enabledActivityTypes.get(i);
+        enabledActivityTypes.removeIf(String::isEmpty);
+        final List<String> deduplicated = new ArrayList<>();
+        for (final String type : enabledActivityTypes) {
+            if (!deduplicated.contains(type)) {
+                deduplicated.add(type);
+            }
+        }
+        enabledActivityTypes.clear();
+        enabledActivityTypes.addAll(deduplicated);
+
+        // Official app behavior: keep max 8 user-selected entries, with OTHER always appended.
+        enabledActivityTypes.remove("other");
+        final int maxWorkoutEntries = 8;
+        while (enabledActivityTypes.size() > maxWorkoutEntries) {
+            enabledActivityTypes.remove(enabledActivityTypes.size() - 1);
+        }
+        enabledActivityTypes.add("other");
+
+        if (enabledActivityTypes.isEmpty()) {
+            logger.warn("No workout activity types enabled, skipping workout screen update");
+            return;
+        }
+
+        final List<WithingsStructure> workoutStructures = new ArrayList<>();
+        for (final String workoutType : enabledActivityTypes) {
             try {
-                Message message = createWorkoutScreenMessage(workoutType);
-                if (i == enabledActivityTypes.size() - 1) {
-                    message.addDataStructure(new EndOfTransmission());
-                }
-                addSimpleConversationToQueue(message);
+                final Message workoutMessage = createWorkoutScreenMessage(workoutType, ExpectedResponse.NONE);
+                workoutStructures.addAll(workoutMessage.getDataStructures());
             } catch (Exception e) {
                 logger.warn("exception in setWorkoutActivityTypes", e);
             }
+        }
+
+        if (workoutStructures.isEmpty()) {
+            logger.warn("Failed to build workout screen payload, skipping workout screen update");
+            return;
+        }
+
+        // Official app splits CMD_SET_WORKOUT_SCREEN into multiple protocol messages.
+        // Keep room for final EOT (4 bytes), so payload chunks stay <= 194 bytes total.
+        final int maxPayloadPerMessage = 190;
+        final List<List<WithingsStructure>> chunks = new ArrayList<>();
+        List<WithingsStructure> currentChunk = new ArrayList<>();
+        int currentChunkSize = 0;
+
+        for (final WithingsStructure structure : workoutStructures) {
+            final int structureSize = structure.getLength();
+            if (currentChunkSize > 0 && currentChunkSize + structureSize > maxPayloadPerMessage) {
+                chunks.add(currentChunk);
+                currentChunk = new ArrayList<>();
+                currentChunkSize = 0;
+            }
+            currentChunk.add(structure);
+            currentChunkSize += structureSize;
+        }
+        if (!currentChunk.isEmpty()) {
+            chunks.add(currentChunk);
+        }
+
+        conversationQueue.clear();
+        for (int i = 0; i < chunks.size(); i++) {
+            final boolean isFinalChunk = i == chunks.size() - 1;
+            final Message message = isFinalChunk
+                    ? new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN)
+                    : new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, ExpectedResponse.NONE);
+
+            for (final WithingsStructure structure : chunks.get(i)) {
+                message.addDataStructure(structure);
+            }
+
+            if (isFinalChunk) {
+                message.addDataStructure(new EndOfTransmission());
+            }
+
+            addSimpleConversationToQueue(message);
         }
 
         conversationQueue.send();
     }
 
     @NonNull
-    protected Message createWorkoutScreenMessage(String workoutType) {
+    protected Message createWorkoutScreenMessage(String workoutType, ExpectedResponse expectedResponse) {
         WithingsActivityType withingsActivityType = WithingsActivityType.fromPrefValue(workoutType);
         int code = withingsActivityType.getCode();
-        Message message = new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, ExpectedResponse.NONE);
+        Message message = new WithingsMessage(WithingsMessageType.SET_WORKOUT_SCREEN, expectedResponse);
         WorkoutScreen workoutScreen = new WorkoutScreen();
         workoutScreen.setId(code);
-        final int stringId = getContext().getResources().getIdentifier("activity_type_" + workoutType, "string", getContext().getPackageName());
-        workoutScreen.setName(getContext().getString(stringId));
+        workoutScreen.setName(getWorkoutScreenName(workoutType, withingsActivityType));
         message.addDataStructure(workoutScreen);
 
         ImageMetaData imageMetaData = new ImageMetaData();
@@ -800,6 +862,14 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         message.addDataStructure(imageData);
 
         return message;
+    }
+
+    protected String getWorkoutScreenName(final String workoutType, final WithingsActivityType activityType) {
+        final int stringId = getContext().getResources().getIdentifier("activity_type_" + workoutType, "string", getContext().getPackageName());
+        if (stringId != 0) {
+            return getContext().getString(stringId);
+        }
+        return activityType.toActivityKind().getLabel(getContext());
     }
 
     protected void setLanguage() {

@@ -19,6 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +35,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 
 public class WorkoutScreenListHandler extends AbstractResponseHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(WorkoutScreenListHandler.class);
 
     public WorkoutScreenListHandler(WithingsBaseDeviceSupport support) {
         super(support);
@@ -52,8 +56,23 @@ public class WorkoutScreenListHandler extends AbstractResponseHandler {
         for (int i = 0; i < workoutIds.length; i++) {
             int currentId = workoutIds[i];
             if (currentId > 0) {
-                WithingsActivityType type = WithingsActivityType.fromCode(currentId);
-                prefValues.add(type.name().toLowerCase(Locale.ROOT));
+                WithingsActivityType matchedType = null;
+                for (final WithingsActivityType type : WithingsActivityType.values()) {
+                    if (type.getCode() == currentId) {
+                        matchedType = type;
+                        break;
+                    }
+                }
+
+                if (matchedType == null) {
+                    LOG.debug("Ignoring unknown workout id from watch: {}", currentId);
+                    continue;
+                }
+
+                final String prefValue = matchedType.name().toLowerCase(Locale.ROOT);
+                if (!prefValues.contains(prefValue)) {
+                    prefValues.add(prefValue);
+                }
             }
          }
 

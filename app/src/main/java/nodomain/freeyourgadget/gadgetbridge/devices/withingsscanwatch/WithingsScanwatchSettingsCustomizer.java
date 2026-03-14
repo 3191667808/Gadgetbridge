@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
 
+    static final String PREF_WORKOUT_TYPES_SORTABLE = "workout_activity_types_sortable";
     static final String PREF_SCREENS_SORTABLE  = "withings_scanwatch_screens_sortable";
     static final String PREF_SHORTCUT_ACTION   = "withings_scanwatch_shortcut_action";
     static final String PREF_ECG_ENABLED       = "withings_scanwatch_ecg_enabled";
@@ -50,6 +51,7 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
 
     @Override
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs, final String rootKey) {
+        handler.addPreferenceHandlerFor(PREF_WORKOUT_TYPES_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SCREENS_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SHORTCUT_ACTION);
         handler.addPreferenceHandlerFor(PREF_ECG_ENABLED);

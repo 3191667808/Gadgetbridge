@@ -54,8 +54,10 @@ public class IconHelper {
     }
 
     private static boolean shouldPixelbeAdded(int pixel) {
-        double luma = ((Color.red(pixel) * 0.2126d) + (Color.green(pixel) * 0.7152d) + (Color.blue(pixel) * 0.0722d)) * (Color.alpha(pixel) / 255.0f);
-        return luma > 0;
+        // Workout/source icons are often black on transparent. Luma-based thresholding
+        // drops black pixels and produces empty images. For Withings monochrome bitmaps,
+        // any visible (non-transparent) pixel should be set.
+        return Color.alpha(pixel) > 0;
     }
 
     private static byte setBit(byte bits, int position) {
