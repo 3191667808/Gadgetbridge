@@ -16,7 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,66 +28,146 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiWorkoutSc
 
 public enum WithingsActivityType {
 
-    WALKING(1),
-    RUNNING(2),
-    HIKING(3),
-    BMX(5),
-    BIKING(6),
-    SWIMMING(7),
-    SURFING(8),
-    KITESURFING(9),
-    WINDSURFING(10),
-    BODYBOARDING(11),
-    TENNIS(12),
-    PINGPONG(13),
-    SQUASH(14),
-    BADMINTON(15),
-    WEIGHTLIFTING(16),
-    GYMNASTICS(17),
-    ELLIPTICAL(18),
-    PILATES(19),
-    BASKETBALL(20),
-    SOCCER(21),
-    FOOTBALL(22),
-    RUGBY(23),
-    VOLLEYBALL(24),
-    GOLFING(227),
-    YOGA(28),
-    DANCING(29),
-    BOXING(30),
-    SKIING(34),
-    SNOWBOARDING(35),
-    ROWING(0), // The code has yet to be identified.
-    INDOOR_RUNNING(307),
-    CANOEING(495),
-    FISHING(497),
-    BIATHLON(504),
-    DODGEBALL(512),
-    TRACK_AND_FIELD(517),
-    E_MOUNTAIN_BIKING(526),
-    BREAKING(544),
-    CROSSFIT(546),
-    CRICKET(548),
-    FLAMENCO_DANCING(549),
-    DOG_WALKING(559),
-    BREATHING_EXERCISES(560),
-    BOWLING(564),
-    ZUMBA(188),
-    BASEBALL(191),
-    HANDBALL(192),
-    HOCKEY(193),
-    ICEHOCKEY(194),
-    CLIMBING(195),
-    ICESKATING(196),
-    RIDING(26),
-    OTHER(36);
+    WALKING(1, (byte) 2, (short) 0x0000, ActivityKind.WALKING),
+    RUNNING(2, (byte) 2, (short) 0x0000, ActivityKind.RUNNING),
+    HIKING(3, (byte) 2, (short) 0x0000, ActivityKind.HIKING),
+    BMX(5, (byte) 1, (short) 0x0001, ActivityKind.BMX),
+    BIKING(6, (byte) 3, (short) 0x0000, ActivityKind.CYCLING),
+    SWIMMING(7, (byte) 1, (short) 0x0001, ActivityKind.SWIMMING),
+    SURFING(8, (byte) 1, (short) 0x0001, ActivityKind.SURFING),
+    KITESURFING(9, (byte) 1, (short) 0x0001, ActivityKind.KITESURFING),
+    WINDSURFING(10, (byte) 3, (short) 0x0001, ActivityKind.WINDSURFING),
+    BODYBOARDING(11, (byte) 1, (short) 0x0001, ActivityKind.SURFING),
+    TENNIS(12, (byte) 1, (short) 0x0001, ActivityKind.TENNIS),
+    PINGPONG(13, (byte) 1, (short) 0x0001, ActivityKind.PINGPONG),
+    SQUASH(14, (byte) 1, (short) 0x0001, ActivityKind.SQUASH),
+    BADMINTON(15, (byte) 1, (short) 0x0001, ActivityKind.BADMINTON),
+    WEIGHTLIFTING(16, (byte) 1, (short) 0x0001, ActivityKind.WEIGHTLIFTING),
+    GYMNASTICS(17, (byte) 1, (short) 0x0001, ActivityKind.GYMNASTICS),
+    ELLIPTICAL(18, (byte) 1, (short) 0x0000, ActivityKind.ELLIPTICAL_TRAINER),
+    PILATES(19, (byte) 1, (short) 0x0001, ActivityKind.PILATES),
+    BASKETBALL(20, (byte) 1, (short) 0x0001, ActivityKind.BASKETBALL),
+    SOCCER(21, (byte) 1, (short) 0x0001, ActivityKind.SOCCER),
+    FOOTBALL(22, (byte) 1, (short) 0x0001, ActivityKind.AMERICAN_FOOTBALL),
+    RUGBY(23, (byte) 1, (short) 0x0001, ActivityKind.RUGBY),
+    VOLLEYBALL(24, (byte) 1, (short) 0x0001, ActivityKind.VOLLEYBALL),
+    WATER_POLO(25, (byte) 1, (short) 0x0001, ActivityKind.WATER_POLO),
+    RIDING(26, (byte) 2, (short) 0x0000, ActivityKind.HORSE_RIDING),
+    GOLFING(27, (byte) 1, (short) 0x0001, ActivityKind.GOLF),
+    YOGA(28, (byte) 1, (short) 0x0001, ActivityKind.YOGA),
+    DANCING(29, (byte) 1, (short) 0x0001, ActivityKind.DANCE),
+    BOXING(30, (byte) 1, (short) 0x0001, ActivityKind.BOXING),
+    FENCING(31, (byte) 1, (short) 0x0001, ActivityKind.FENCING),
+    WRESTLING(32, (byte) 1, (short) 0x0001, ActivityKind.WRESTLING),
+    MARTIAL_ARTS(33, (byte) 1, (short) 0x0001, ActivityKind.MARTIAL_ARTS),
+    SKIING(34, (byte) 3, (short) 0x0000, ActivityKind.SKIING),
+    SNOWBOARDING(35, (byte) 3, (short) 0x0000, ActivityKind.SNOWBOARDING),
+    OTHER(36, (byte) 3, (short) 0x0000, ActivityKind.ACTIVITY),
+    ZUMBA(188, (byte) 1, (short) 0x0001, ActivityKind.ZUMBA),
+    BASEBALL(191, (byte) 1, (short) 0x0001, ActivityKind.BASEBALL),
+    HANDBALL(192, (byte) 1, (short) 0x0001, ActivityKind.HANDBALL),
+    HOCKEY(193, (byte) 1, (short) 0x0001, ActivityKind.HOCKEY),
+    ICEHOCKEY(194, (byte) 1, (short) 0x0001, ActivityKind.ICE_HOCKEY),
+    CLIMBING(195, (byte) 1, (short) 0x0001, ActivityKind.CLIMBING),
+    ICESKATING(196, (byte) 1, (short) 0x0001, ActivityKind.ICE_SKATING),
+    INDOOR_WALKING(306, (byte) 2, (short) 0x0001, ActivityKind.INDOOR_WALKING),
+    INDOOR_RUNNING(307, (byte) 1, (short) 0x0000, ActivityKind.INDOOR_RUNNING),
+    INDOOR_CYCLING(308, (byte) 3, (short) 0x0001, ActivityKind.INDOOR_CYCLING),
+    PADDLEBOARDING(455, (byte) 2, (short) 0x0000, ActivityKind.STAND_UP_PADDLEBOARDING),
+    PADEL(456, (byte) 1, (short) 0x0000, ActivityKind.PADEL),
+    GAMING(457, (byte) 1, (short) 0x0000, ActivityKind.VIDEO_GAMING),
+    STAIR_STEPPER(491, (byte) 1, (short) 0x0000, ActivityKind.STAIR_STEPPER),
+    SKATEBOARDING(492, (byte) 3, (short) 0x0000, ActivityKind.SKATEBOARDING),
+    PARKOUR(493, (byte) 3, (short) 0x0000, ActivityKind.PARKOUR),
+    KAYAKING(494, (byte) 3, (short) 0x0000, ActivityKind.KAYAKING),
+    CANOEING(495, (byte) 3, (short) 0x0000, ActivityKind.CANOEING),
+    FISHING(497, (byte) 1, (short) 0x0000, ActivityKind.FISHING),
+    TRAIL_RUNNING(498, (byte) 3, (short) 0x0000, ActivityKind.TRAIL_RUN),
+    SNOWSHOEING(499, (byte) 3, (short) 0x0000, ActivityKind.SNOWSHOE),
+    PAINTBALL(500, (byte) 3, (short) 0x0000, ActivityKind.TEAM_SPORT),
+    ARCHERY(501, (byte) 1, (short) 0x0000, ActivityKind.ARCHERY),
+    BIATHLON(504, (byte) 3, (short) 0x0000, ActivityKind.BIATHLON),
+    BOCCE(505, (byte) 1, (short) 0x0000, ActivityKind.BOCCE),
+    PETANQUE(506, (byte) 1, (short) 0x0000, ActivityKind.BOCCE),
+    PARAGLIDING(507, (byte) 1, (short) 0x0000, ActivityKind.PARAGLIDING),
+    FRISBEE(508, (byte) 1, (short) 0x0000, ActivityKind.FRISBEE),
+    SKYDIVING(509, (byte) 1, (short) 0x0000, ActivityKind.SKY_DIVING),
+    PICKLEBALL(510, (byte) 1, (short) 0x0000, ActivityKind.PICKLEBALL),
+    CORNHOLE(511, (byte) 1, (short) 0x0000, ActivityKind.ACTIVITY),
+    DODGEBALL(512, (byte) 1, (short) 0x0000, ActivityKind.DODGEBALL),
+    ULTIMATE(513, (byte) 1, (short) 0x0000, ActivityKind.ULTIMATE_DISC),
+    TEQBALL(514, (byte) 1, (short) 0x0000, ActivityKind.ACTIVITY),
+    PUSHING_WHEELCHAIR_FAST(515, (byte) 3, (short) 0x0000, ActivityKind.PUSH_RUN_SPEED),
+    PUSHING_WHEELCHAIR_REGULAR(516, (byte) 3, (short) 0x0000, ActivityKind.PUSH_WALK_SPEED),
+    TRACK_AND_FIELD(517, (byte) 3, (short) 0x0000, ActivityKind.TRACK_AND_FIELD),
+    TRACK_CYCLING(518, (byte) 3, (short) 0x0000, ActivityKind.CYCLING),
+    PENTATHLON(519, (byte) 3, (short) 0x0000, ActivityKind.MULTISPORT),
+    SPORT_SHOOTING(520, (byte) 1, (short) 0x0000, ActivityKind.SHOOTING),
+    TRIATHLON(521, (byte) 3, (short) 0x0000, ActivityKind.TRIATHLON),
+    PLATFORM_DIVING(522, (byte) 3, (short) 0x0000, ActivityKind.DIVING),
+    MOUNTAIN_BIKING(523, (byte) 3, (short) 0x0000, ActivityKind.MOUNTAIN_BIKE),
+    GRAVEL_BIKING(524, (byte) 3, (short) 0x0000, ActivityKind.GRAVEL_BIKE),
+    E_BIKING(525, (byte) 3, (short) 0x0000, ActivityKind.E_BIKE),
+    E_MOUNTAIN_BIKING(526, (byte) 3, (short) 0x0000, ActivityKind.E_MOUNTAIN_BIKE),
+    VELOMOBILE(528, (byte) 3, (short) 0x0000, ActivityKind.CYCLING),
+    NORDIC_SKIING(530, (byte) 3, (short) 0x0000, ActivityKind.CROSS_COUNTRY_SKIING),
+    ROLLER_SKIING(531, (byte) 3, (short) 0x0000, ActivityKind.ROLLER_SKATING),
+    RACQUETBALL(532, (byte) 1, (short) 0x0000, ActivityKind.RACQUETBALL),
+    MUAY_THAI(535, (byte) 1, (short) 0x0001, ActivityKind.MUAY_THAI),
+    TAEKWONDO(536, (byte) 1, (short) 0x0001, ActivityKind.TAEKWONDO),
+    JUDO(537, (byte) 1, (short) 0x0001, ActivityKind.JUDO),
+    TRAMPOLINE(538, (byte) 1, (short) 0x0001, ActivityKind.TRAMPOLINE),
+    STANDING_FRAME(539, (byte) 1, (short) 0x0001, ActivityKind.ACTIVITY),
+    WALKING_WITH_WALKER(542, (byte) 2, (short) 0x0000, ActivityKind.WALKING),
+    WALKING_WITH_CANE(543, (byte) 2, (short) 0x0000, ActivityKind.WALKING),
+    BREAKING(544, (byte) 1, (short) 0x0001, ActivityKind.BREAKING),
+    CROSSFIT(546, (byte) 1, (short) 0x0001, ActivityKind.CROSSFIT),
+    SPIN_CLASS(547, (byte) 1, (short) 0x0001, ActivityKind.SPINNING),
+    CRICKET(548, (byte) 1, (short) 0x0001, ActivityKind.CRICKET),
+    FLAMENCO_DANCING(549, (byte) 1, (short) 0x0001, ActivityKind.DANCE),
+    HIIT(550, (byte) 1, (short) 0x0001, ActivityKind.HIIT),
+    MEDITATION(551, (byte) 1, (short) 0x0001, ActivityKind.MEDITATION),
+    STRETCHING(552, (byte) 1, (short) 0x0001, ActivityKind.STRETCHING),
+    YARD_WORK_GARDENING(553, (byte) 1, (short) 0x0001, ActivityKind.ACTIVITY),
+    PUBLIC_SPEAKING(555, (byte) 1, (short) 0x0001, ActivityKind.ACTIVITY),
+    SPIKEBALL(556, (byte) 1, (short) 0x0001, ActivityKind.TEAM_SPORT),
+    LACROSSE(557, (byte) 1, (short) 0x0001, ActivityKind.LACROSSE),
+    DOG_WALKING(559, (byte) 2, (short) 0x0000, ActivityKind.OUTDOOR_WALKING),
+    BREATHING_EXERCISES(560, (byte) 1, (short) 0x0001, ActivityKind.BREATHWORK),
+    PUSHING_STROLLER(562, (byte) 2, (short) 0x0000, ActivityKind.OUTDOOR_WALKING),
+    TODDLER_WEARING(563, (byte) 2, (short) 0x0000, ActivityKind.OUTDOOR_WALKING),
+    BOWLING(564, (byte) 1, (short) 0x0000, ActivityKind.BOWLING),
+    LASER_TAG(565, (byte) 1, (short) 0x0000, ActivityKind.LASER_TAG),
+    NORDIC_WALKING(566, (byte) 2, (short) 0x0000, ActivityKind.WALKING),
+    SUMO_WRESTLING(567, (byte) 1, (short) 0x0000, ActivityKind.WRESTLING),
+    COOKING(568, (byte) 1, (short) 0x0000, ActivityKind.ACTIVITY),
+    ROWING(0, (byte) 1, (short) 0x0001, ActivityKind.ROWING_MACHINE); // legacy fallback, no capture code yet
 
     private static final Logger LOG = LoggerFactory.getLogger(WithingsActivityType.class);
+    private static final Map<String, WithingsActivityType> PREF_LOOKUP = new HashMap<>();
+
+    static {
+        for (final WithingsActivityType type : values()) {
+            PREF_LOOKUP.put(normalize(type.name()), type);
+        }
+
+        PREF_LOOKUP.put(normalize("golf"), GOLFING);
+        PREF_LOOKUP.put(normalize("rowing_machine"), ROWING);
+    }
 
     private final int code;
+    private final byte workoutMode;
+    private final short workoutFlags;
+    private final ActivityKind activityKind;
 
-    WithingsActivityType(int typeCode) {
+    WithingsActivityType(final int typeCode,
+                         final byte workoutMode,
+                         final short workoutFlags,
+                         final ActivityKind activityKind) {
         this.code = typeCode;
+        this.workoutMode = workoutMode;
+        this.workoutFlags = workoutFlags;
+        this.activityKind = activityKind;
     }
 
     public static WithingsActivityType fromCode(int withingsCode) {
@@ -103,112 +185,7 @@ public enum WithingsActivityType {
     }
 
     public ActivityKind toActivityKind() {
-        switch (this) {
-            case WALKING:
-                return ActivityKind.WALKING;
-            case RUNNING:
-                return ActivityKind.RUNNING;
-            case HIKING:
-                return ActivityKind.HIKING;
-            case BMX:
-                return ActivityKind.BMX;
-            case BIKING:
-                return ActivityKind.CYCLING;
-            case SWIMMING:
-                return ActivityKind.SWIMMING;
-            case SURFING:
-                return ActivityKind.ACTIVITY;
-            case KITESURFING:
-                return ActivityKind.ACTIVITY;
-            case WINDSURFING:
-                return ActivityKind.ACTIVITY;
-            case BODYBOARDING:
-                return ActivityKind.SURFING;
-            case TENNIS:
-                return ActivityKind.ACTIVITY;
-            case PINGPONG:
-                return ActivityKind.PINGPONG;
-            case SQUASH:
-                return ActivityKind.ACTIVITY;
-            case BADMINTON:
-                return ActivityKind.BADMINTON;
-            case WEIGHTLIFTING:
-                return ActivityKind.ACTIVITY;
-            case GYMNASTICS:
-                return ActivityKind.EXERCISE;
-            case ELLIPTICAL:
-                return ActivityKind.ELLIPTICAL_TRAINER;
-            case PILATES:
-                return ActivityKind.YOGA;
-            case BASKETBALL:
-                return ActivityKind.BASKETBALL;
-            case SOCCER:
-                return ActivityKind.SOCCER;
-            case FOOTBALL:
-                return ActivityKind.ACTIVITY;
-            case RUGBY:
-                return ActivityKind.ACTIVITY;
-            case VOLLEYBALL:
-                return ActivityKind.ACTIVITY;
-            case GOLFING:
-                return ActivityKind.ACTIVITY;
-            case YOGA:
-                return ActivityKind.YOGA;
-            case DANCING:
-                return ActivityKind.ACTIVITY;
-            case BOXING:
-                return ActivityKind.ACTIVITY;
-            case SKIING:
-                return ActivityKind.ACTIVITY;
-            case SNOWBOARDING:
-                return ActivityKind.ACTIVITY;
-            case ROWING:
-                return ActivityKind.ROWING_MACHINE;
-            case INDOOR_RUNNING:
-                return ActivityKind.INDOOR_RUNNING;
-            case CANOEING:
-                return ActivityKind.CANOEING;
-            case FISHING:
-                return ActivityKind.FISHING;
-            case BIATHLON:
-                return ActivityKind.BIATHLON;
-            case DODGEBALL:
-                return ActivityKind.DODGEBALL;
-            case TRACK_AND_FIELD:
-                return ActivityKind.TRACK_AND_FIELD;
-            case E_MOUNTAIN_BIKING:
-                return ActivityKind.E_MOUNTAIN_BIKE;
-            case BREAKING:
-                return ActivityKind.BREAKING;
-            case CROSSFIT:
-                return ActivityKind.CROSSFIT;
-            case CRICKET:
-                return ActivityKind.CRICKET;
-            case FLAMENCO_DANCING:
-                return ActivityKind.DANCE;
-            case DOG_WALKING:
-                return ActivityKind.OUTDOOR_WALKING;
-            case BREATHING_EXERCISES:
-                return ActivityKind.BREATHWORK;
-            case BOWLING:
-                return ActivityKind.BOWLING;
-            case ZUMBA:
-                return ActivityKind.ACTIVITY;
-            case BASEBALL:
-                return ActivityKind.CRICKET;
-            case HANDBALL:
-                return ActivityKind.ACTIVITY;
-            case HOCKEY:
-                return ActivityKind.ACTIVITY;
-            case ICEHOCKEY:
-                return ActivityKind.ACTIVITY;
-            case CLIMBING:
-                return ActivityKind.CLIMBING;
-            case ICESKATING:
-                return ActivityKind.ACTIVITY;
-            default:
-                return ActivityKind.UNKNOWN;
-        }
+        return activityKind;
     }
 
     /**
@@ -220,44 +197,7 @@ public enum WithingsActivityType {
      * </ul>
      */
     public byte getWorkoutMode() {
-        switch (this) {
-            // GPS-tracked outdoor sports
-            case WALKING:
-            case RUNNING:
-            case HIKING:
-            case SURFING:
-            case KITESURFING:
-            case WINDSURFING:
-            case BIATHLON:
-            case SKIING:
-            case SNOWBOARDING:
-            case RIDING:
-            case E_MOUNTAIN_BIKING:
-            case DOG_WALKING:
-                return 2; // GPS
-            // Indoor / pool sports
-            case SWIMMING:
-            case CLIMBING:
-            case ELLIPTICAL:
-            case WEIGHTLIFTING:
-            case GYMNASTICS:
-            case PILATES:
-            case YOGA:
-            case DANCING:
-            case BREAKING:
-            case CROSSFIT:
-            case FLAMENCO_DANCING:
-            case BREATHING_EXERCISES:
-            case INDOOR_RUNNING:
-            case ZUMBA:
-            case BOXING:
-            case ICESKATING:
-            case ROWING:
-                return 1; // Indoor
-            // Everything else: no GPS, not specifically indoor
-            default:
-                return 3; // NoGPS
-        }
+        return workoutMode;
     }
 
     /**
@@ -265,24 +205,18 @@ public enum WithingsActivityType {
      * Indoor/pool types use 0x0001; all others use 0x0000.
      */
     public short getWorkoutFlags() {
-        return getWorkoutMode() == 1 ? (short) 0x0001 : (short) 0x0000;
+        return workoutFlags;
     }
 
     public static WithingsActivityType fromPrefValue(final String prefValue) {
-        if ("golf".equalsIgnoreCase(prefValue)) {
-            return GOLFING;
-        }
-        if ("rowing_machine".equalsIgnoreCase(prefValue)) {
-            return ROWING;
-        }
-
-        final String normalizedPref = prefValue.replace("_", "").toLowerCase(Locale.ROOT);
-        for (final WithingsActivityType type : values()) {
-            final String normalizedType = type.name().replace("_", "").toLowerCase(Locale.ROOT);
-            if (normalizedType.equals(normalizedPref)) {
-                return type;
-            }
+        final WithingsActivityType type = PREF_LOOKUP.get(normalize(prefValue));
+        if (type != null) {
+            return type;
         }
         throw new RuntimeException("No matching WithingsActivityType for pref value: " + prefValue);
+    }
+
+    private static String normalize(final String input) {
+        return input.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 }

@@ -1750,11 +1750,13 @@
     <string-array name="pref_withings_steel_activity_types">
         <item>@string/activity_type_outdoor_running</item>
         <item>@string/activity_type_hiking</item>
+        <item>BMX</item>
         <item>@string/activity_type_biking</item>
         <item>@string/activity_type_swimming</item>
         <item>@string/activity_type_surfing</item>
         <item>@string/activity_type_windsurfing</item>
         <item>@string/activity_type_kitesurfing</item>
+        <item>Bodyboarding</item>
         <item>@string/activity_type_tennis</item>
         <item>@string/activity_type_pingpong</item>
         <item>@string/activity_type_squash</item>
@@ -1764,6 +1766,7 @@
         <item>@string/activity_type_football</item>
         <item>@string/activity_type_rugby</item>
         <item>@string/activity_type_volleyball</item>
+        <item>Water polo</item>
         <item>@string/activity_type_baseball</item>
         <item>@string/activity_type_handball</item>
         <item>@string/activity_type_golf</item>
@@ -1775,6 +1778,9 @@
         <item>@string/activity_type_zumba</item>
         <item>@string/activity_type_weightlifting</item>
         <item>@string/activity_type_boxing</item>
+        <item>Fencing</item>
+        <item>Wrestling</item>
+        <item>Martial arts</item>
         <item>@string/activity_type_skiing</item>
         <item>@string/activity_type_snowboarding</item>
         <item>@string/activity_type_rowing_machine</item>
@@ -1782,6 +1788,77 @@
         <item>@string/activity_type_icehockey</item>
         <item>@string/activity_type_climbing</item>
         <item>@string/activity_type_iceskating</item>
+        <item>Indoor walking</item>
+        <item>Indoor running</item>
+        <item>Indoor cycling</item>
+        <item>Paddleboarding</item>
+        <item>Padel</item>
+        <item>Gaming</item>
+        <item>Stair stepper</item>
+        <item>Skateboarding</item>
+        <item>Parkour</item>
+        <item>Kayaking</item>
+        <item>Canoeing</item>
+        <item>Fishing</item>
+        <item>Trail running</item>
+        <item>Snowshoeing</item>
+        <item>Paintball</item>
+        <item>Archery</item>
+        <item>Biathlon</item>
+        <item>Bocce</item>
+        <item>Petanque</item>
+        <item>Paragliding</item>
+        <item>Frisbee</item>
+        <item>Skydiving</item>
+        <item>Pickleball</item>
+        <item>Cornhole</item>
+        <item>Dodgeball</item>
+        <item>Ultimate</item>
+        <item>Teqball</item>
+        <item>Pushing wheelchair (fast)</item>
+        <item>Pushing wheelchair (regular)</item>
+        <item>Track and field</item>
+        <item>Track cycling</item>
+        <item>Pentathlon</item>
+        <item>Sport shooting</item>
+        <item>Triathlon</item>
+        <item>Platform diving</item>
+        <item>Mountain biking</item>
+        <item>Gravel biking</item>
+        <item>E-biking</item>
+        <item>E-mountain biking</item>
+        <item>Velomobile</item>
+        <item>Nordic skiing</item>
+        <item>Roller skiing</item>
+        <item>Racquetball</item>
+        <item>Muay thai</item>
+        <item>Taekwondo</item>
+        <item>Judo</item>
+        <item>Trampoline</item>
+        <item>Standing frame</item>
+        <item>Walking with walker</item>
+        <item>Walking with cane</item>
+        <item>Breaking</item>
+        <item>Crossfit</item>
+        <item>Spin class</item>
+        <item>Cricket</item>
+        <item>Flamenco dancing</item>
+        <item>HIIT</item>
+        <item>Meditation</item>
+        <item>Stretching</item>
+        <item>Yard work / gardening</item>
+        <item>Public speaking</item>
+        <item>Spikeball</item>
+        <item>Lacrosse</item>
+        <item>Dog walking</item>
+        <item>Breathing exercises</item>
+        <item>Pushing stroller</item>
+        <item>Toddler wearing</item>
+        <item>Bowling</item>
+        <item>Laser tag</item>
+        <item>Nordic walking</item>
+        <item>Sumo wrestling</item>
+        <item>Cooking</item>
         <item>@string/activity_type_riding</item>
         <item>@string/activity_type_other</item>
     </string-array>
@@ -1789,11 +1866,13 @@
     <string-array name="pref_withings_steel_activity_types_values">
         <item>running</item>
         <item>hiking</item>
+        <item>bmx</item>
         <item>biking</item>
         <item>swimming</item>
         <item>surfing</item>
         <item>windsurfing</item>
         <item>kitesurfing</item>
+        <item>bodyboarding</item>
         <item>tennis</item>
         <item>pingpong</item>
         <item>squash</item>
@@ -1803,6 +1882,7 @@
         <item>football</item>
         <item>rugby</item>
         <item>volleyball</item>
+        <item>water_polo</item>
         <item>baseball</item>
         <item>handball</item>
         <item>golf</item>
@@ -1814,6 +1894,9 @@
         <item>zumba</item>
         <item>weightlifting</item>
         <item>boxing</item>
+        <item>fencing</item>
+        <item>wrestling</item>
+        <item>martial_arts</item>
         <item>skiing</item>
         <item>snowboarding</item>
         <item>rowing_machine</item>
@@ -1821,6 +1904,77 @@
         <item>icehockey</item>
         <item>climbing</item>
         <item>iceskating</item>
+        <item>indoor_walking</item>
+        <item>indoor_running</item>
+        <item>indoor_cycling</item>
+        <item>paddleboarding</item>
+        <item>padel</item>
+        <item>gaming</item>
+        <item>stair_stepper</item>
+        <item>skateboarding</item>
+        <item>parkour</item>
+        <item>kayaking</item>
+        <item>canoeing</item>
+        <item>fishing</item>
+        <item>trail_running</item>
+        <item>snowshoeing</item>
+        <item>paintball</item>
+        <item>archery</item>
+        <item>biathlon</item>
+        <item>bocce</item>
+        <item>petanque</item>
+        <item>paragliding</item>
+        <item>frisbee</item>
+        <item>skydiving</item>
+        <item>pickleball</item>
+        <item>cornhole</item>
+        <item>dodgeball</item>
+        <item>ultimate</item>
+        <item>teqball</item>
+        <item>pushing_wheelchair_fast</item>
+        <item>pushing_wheelchair_regular</item>
+        <item>track_and_field</item>
+        <item>track_cycling</item>
+        <item>pentathlon</item>
+        <item>sport_shooting</item>
+        <item>triathlon</item>
+        <item>platform_diving</item>
+        <item>mountain_biking</item>
+        <item>gravel_biking</item>
+        <item>e_biking</item>
+        <item>e_mountain_biking</item>
+        <item>velomobile</item>
+        <item>nordic_skiing</item>
+        <item>roller_skiing</item>
+        <item>racquetball</item>
+        <item>muay_thai</item>
+        <item>taekwondo</item>
+        <item>judo</item>
+        <item>trampoline</item>
+        <item>standing_frame</item>
+        <item>walking_with_walker</item>
+        <item>walking_with_cane</item>
+        <item>breaking</item>
+        <item>crossfit</item>
+        <item>spin_class</item>
+        <item>cricket</item>
+        <item>flamenco_dancing</item>
+        <item>hiit</item>
+        <item>meditation</item>
+        <item>stretching</item>
+        <item>yard_work_gardening</item>
+        <item>public_speaking</item>
+        <item>spikeball</item>
+        <item>lacrosse</item>
+        <item>dog_walking</item>
+        <item>breathing_exercises</item>
+        <item>pushing_stroller</item>
+        <item>toddler_wearing</item>
+        <item>bowling</item>
+        <item>laser_tag</item>
+        <item>nordic_walking</item>
+        <item>sumo_wrestling</item>
+        <item>cooking</item>
         <item>riding</item>
         <item>other</item>
     </string-array>
