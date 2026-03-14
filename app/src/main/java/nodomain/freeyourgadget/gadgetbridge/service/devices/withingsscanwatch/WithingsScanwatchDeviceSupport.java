@@ -21,21 +21,26 @@ import android.content.SharedPreferences;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Objects;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch.WithingsScanwatchSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.WithingsUUIDs;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetShortcutHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetUserHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetGlanceHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetLuminosityHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetMoveHandsHandler;
@@ -44,6 +49,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagDeprecated;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagsUserId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.GlanceStatus;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.HrAlertThreshold;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LocalNotification;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LuminosityLevel;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ScreenSettings;
@@ -105,8 +111,45 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     /** Whether tracker move-hands (move hands to 10:10 when screen turns on) is enabled. */
     static final String PREF_MOVE_HANDS = "withings_scanwatch_move_hands";
 
+    /**
+     * Resting heart rate alert mode: {@code "off"}, {@code "automatic"}, or {@code "custom"}.
+     * <ul>
+     *   <li>{@code "off"} - both high and low resting HR alerts are disabled.</li>
+     *   <li>{@code "automatic"} - thresholds are computed from Gadgetbridge's own HR history.</li>
+     *   <li>{@code "custom"} - user-specified thresholds via {@link #PREF_HR_ALERT_LOW} /
+     *       {@link #PREF_HR_ALERT_HIGH}.</li>
+     * </ul>
+     */
+    static final String PREF_HR_ALERT_MODE = "withings_scanwatch_hr_alert_mode";
+    /**
+     * Low resting HR alert threshold in BPM (integer string), used when mode is {@code "custom"}.
+     * Clamped to [30, 200] before sending to device.
+     */
+    static final String PREF_HR_ALERT_LOW  = "withings_scanwatch_hr_alert_low";
+    /**
+     * High resting HR alert threshold in BPM (integer string), used when mode is {@code "custom"}.
+     * Clamped to [30, 200] before sending to device.
+     */
+    static final String PREF_HR_ALERT_HIGH = "withings_scanwatch_hr_alert_high";
+
+    /**
+     * Number of days of HR history used for automatic threshold calculation.
+     * @see #computeAutoHrThresholds()
+     */
+    private static final int AUTO_HR_HISTORY_DAYS = 30;
+    /** Minimum valid BPM value accepted by the watch. */
+    private static final int HR_BPM_MIN = 30;
+    /** Maximum valid BPM value accepted by the watch. */
+    private static final int HR_BPM_MAX = 200;
+
     @Override
     protected void addExtraSyncCommands() {
+        // Fetch the watch's Withings userId first so it is stored in prefs before any command
+        // that requires it (screen list, HR alert thresholds, feature tags).
+        addSimpleConversationToQueue(
+                new WithingsMessage(WithingsMessageType.GET_USER),
+                new GetUserHandler(this)
+        );
         addSimpleConversationToQueue(
                 new WithingsMessage(WithingsMessageType.GET_SHORTCUT),
                 new GetShortcutHandler(this)
@@ -128,15 +171,22 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 new GetWearPosHandler(this)
         );
 
-        // Re-push feature tags and local notifications on every sync so the watch
-        // retains the correct state after a Bluetooth reconnect or reboot.
+        // Re-push feature tags, HR alert thresholds, and local notifications on every sync so
+        // the watch retains the correct state after a Bluetooth reconnect or reboot.
+        // HR alert commands are only sent if the user has explicitly enabled the feature in settings.
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         final boolean ecg       = prefs.getBoolean(PREF_ECG_ENABLED,        false);
         final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
         final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
         final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
-        addFeatureTagsCommand(ecg, respScan, afibDay, afibNight);
-        addLocalNotificationsCommand(afibDay, afibNight);
+        final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
+        final boolean hrAlertsOn = !"off".equals(hrMode);
+
+        addFeatureTagsCommand(ecg, respScan, afibDay, afibNight, hrAlertsOn);
+        if (hrAlertsOn) {
+            addHrAlertCommand(hrMode, prefs);
+        }
+        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
     }
 
     @Override
@@ -171,9 +221,27 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
             final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
             final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+            final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
+            final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(ecg, respScan, afibDay, afibNight);
-            addLocalNotificationsCommand(afibDay, afibNight);
+            addFeatureTagsCommand(ecg, respScan, afibDay, afibNight, hrAlertsOn);
+            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+            sendQueue();
+            return true;
+        }
+        if (PREF_HR_ALERT_MODE.equals(config) || PREF_HR_ALERT_LOW.equals(config)
+                || PREF_HR_ALERT_HIGH.equals(config)) {
+            final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            final boolean ecg       = prefs.getBoolean(PREF_ECG_ENABLED,        false);
+            final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
+            final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
+            final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+            final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
+            final boolean hrAlertsOn = !"off".equals(hrMode);
+            clearQueue();
+            addFeatureTagsCommand(ecg, respScan, afibDay, afibNight, hrAlertsOn);
+            addHrAlertCommand(hrMode, prefs);
+            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
             sendQueue();
             return true;
         }
@@ -246,50 +314,81 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     /**
      * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
-     * feature tags required for ECG, respiratory scan, and/or AFib.
+     * feature tags required for ECG, respiratory scan, AFib, notifications, and/or resting HR alerts.
      *
-     * <p>Tag set from HCI captures:
+     * <p>Tag set derived from HCI captures (corrected mapping):
      * <ul>
-     *   <li>ECG on: tags 0x0004, 0x000F, 0x0035, 0x0058</li>
-     *   <li>Respiratory automatic: tag 0x0005 + 0x000F, 0x0035, 0x0058</li>
-     *   <li>Respiratory always: tags 0x000E, 0x0011 + 0x000F, 0x0035, 0x0058</li>
-     *   <li>AFib daytime: tags 0x0009, 0x000A</li>
-     *   <li>AFib night: tag 0x000B</li>
+     *   <li>ECG on: tag 0x0004</li>
+     *   <li>Respiratory off:       tag 0x000A only (base)</li>
+     *   <li>Respiratory automatic: tags 0x0009 (start=now, end=noon-next-day), 0x000A, 0x000B</li>
+     *   <li>Respiratory always-on: tags 0x0009 (start=0, end=0), 0x000A</li>
+     *   <li>AFib on: tags 0x000E, 0x0011</li>
+     *   <li>HR alerts on: tag 0x0016 (LOW_HR)</li>
      * </ul>
-     * 0x0035 and 0x0058 are sent whenever any health feature is active (purpose unknown).
-     * 0x000F (TAG_ECG_MEAS) is shared between ECG and respiratory scan; sent once even if both on.
+     * 0x000F (SpO2 measurement), 0x0013 (notifications), 0x0035 and 0x0058 are sent whenever
+     * any health feature is active. The ScanWatch keeps these tags on permanently once enabled.
      */
     private void addFeatureTagsCommand(final boolean ecgEnabled, final String respiratoryScan,
-                                       final boolean afibDayEnabled, final boolean afibNightEnabled) {
+                                       final boolean afibDayEnabled, final boolean afibNightEnabled,
+                                       final boolean hrAlertsOn) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
-        msg.addDataStructure(new FeatureTagsUserId());  // userId = 0
+        // TODO: replace hardcoded userId with a user-configurable setting
+        final SharedPreferences featurePrefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final int featureUserId = featurePrefs.getInt(WithingsBaseDeviceSupport.PREF_WITHINGS_USER_ID, 0x01f53022);
+        msg.addDataStructure(new FeatureTagsUserId(featureUserId));
 
         final boolean respAutomatic = "automatic".equals(respiratoryScan);
         final boolean respAlways    = "always".equals(respiratoryScan);
         final boolean respActive    = respAutomatic || respAlways;
+        final boolean anyFeatureOn  = ecgEnabled || respAutomatic || respAlways
+                || afibDayEnabled || afibNightEnabled || hrAlertsOn;
 
         if (ecgEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_TERMS));
         }
+        // Respiratory scan tags
         if (respAutomatic) {
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_SLEEP));
+            // Automatic: TAG_RESP_SCAN with start=now, end=noon-next-day
+            final int now = (int) (System.currentTimeMillis() / 1000);
+            final Calendar cal = Calendar.getInstance();
+            cal.add(Calendar.DAY_OF_YEAR, 1);
+            cal.set(Calendar.HOUR_OF_DAY, 12);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            final int noonNextDay = (int) (cal.getTimeInMillis() / 1000);
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_SCAN, now, noonNextDay));
+        } else if (respAlways) {
+            // Always-on: TAG_RESP_SCAN with start=0, end=0
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_SCAN));
         }
-        if (respAlways) {
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_ALWAYS));
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0011));
+        // Off: TAG_RESP_SCAN (0x0009) is absent
+        // TAG_RESP_BASE (0x000A) is always present (sent in all modes including off)
+        msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_BASE));
+        if (respAutomatic) {
+            // TAG_RESP_AUTO (0x000B) is only present in automatic mode
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_AUTO));
         }
-        if (afibDayEnabled) {
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_WINDOW));
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_EXTRA));
+        // AFib detection: tags 0x000E + 0x0011
+        if (afibDayEnabled || afibNightEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB));
         }
-        if (afibNightEnabled) {
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_NIGHT));
+        // SpO2 measurement (0x000F) - always present when any health feature is active
+        if (anyFeatureOn) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_MEAS));
         }
-        if (ecgEnabled || respActive) {
-            // TAG_ECG_MEAS (0x000F) enables ECG/respiratory measurements; send once even if both on
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_MEAS));
+        if (afibDayEnabled || afibNightEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_2));
         }
-        if (ecgEnabled || respActive || afibDayEnabled || afibNightEnabled) {
+        // Notifications (0x0013) - always present when any health feature is active
+        if (anyFeatureOn) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
+        }
+        if (hrAlertsOn) {
+            // TAG_LOW_HR (0x0016) is sent when resting HR alerts are enabled.
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_LOW_HR));
+        }
+        if (anyFeatureOn) {
             // Baseline tags always present when any health feature is active
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0035));
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
@@ -305,27 +404,142 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      * <p>All five slots must always be sent together. Slot mapping from HCI captures:
      * <ol>
      *   <li>PPG_AFIB - enabled when AFib daytime is on</li>
-     *   <li>HIGH_HR  - enabled when AFib daytime is on (high HR alert, tied to AFib/ECG state)</li>
-     *   <li>LOW_HR   - enabled when AFib daytime is on (low HR alert, tied to AFib/ECG state)</li>
+     *   <li>HIGH_HR  - enabled when resting HR alerts are on (independent of AFib)</li>
+     *   <li>LOW_HR   - enabled when resting HR alerts are on (independent of AFib)</li>
      *   <li>SLOT_4   - purpose unknown; always disabled</li>
      *   <li>PPG_AFIB_NIGHT - enabled when AFib night is on</li>
      * </ol>
+     *
+     * <p>Note: HIGH_HR (slot 2) and LOW_HR (slot 3) are independent of AFib.
+     * The resting HR alert enable/disable state is controlled separately via
+     * {@link #addHrAlertCommand}.
      */
     private void addLocalNotificationsCommand(final boolean afibDayEnabled,
-                                              final boolean afibNightEnabled) {
+                                              final boolean afibNightEnabled,
+                                              final boolean hrAlertsOn) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_LOCAL_NOTIFICATIONS);
+        // Order must match the official app: AFIB_DAY(1), SLOT_4(4), AFIB_NIGHT(5), HIGH_HR(2), LOW_HR(3)
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB,
-                afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
-        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_HR,
-                afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
-        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_LOW_HR,
                 afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_SLOT_4,
                 LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB_NIGHT,
                 afibNightEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_HR,
+                hrAlertsOn ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
+        msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_LOW_HR,
+                hrAlertsOn ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new EndOfTransmission());
         addSimpleConversationToQueue(msg);
+    }
+
+    /**
+     * Queues a {@code CMD_SET_HR_ALERT_THRESHOLDS} (0x098e) message configuring the resting
+     * heart rate alert thresholds and their enabled/disabled state.
+     *
+     * <p>The message always contains both a LOW and a HIGH threshold entry.  When the mode is
+     * {@code "off"} both entries are sent with {@code enabled=0} but the threshold values are
+     * preserved from the previous setting (or fall back to the default custom values) so that the
+     * watch can restore them if alerts are re-enabled.
+     *
+     * <p>The watch echoes the command type (0x098E) back as the response when the payload is
+     * accepted, so the default {@link ExpectedResponse#SIMPLE} is used.  Earlier versions of this
+     * code used {@link ExpectedResponse#NONE} as a workaround for a stall caused by the watch
+     * returning {@code CMD_ERROR (0x0100)} when it received a malformed payload; that workaround
+     * is no longer necessary now that the payload is correct.
+     *
+     * @param hrMode {@code "off"}, {@code "automatic"}, or {@code "custom"}
+     * @param prefs  device-specific {@link SharedPreferences} from which to read custom thresholds
+     */
+    private void addHrAlertCommand(final String hrMode, final SharedPreferences prefs) {
+        final byte enabled = "off".equals(hrMode) ? HrAlertThreshold.DISABLED : HrAlertThreshold.ENABLED;
+
+        final int lowBpm;
+        final int highBpm;
+
+        if ("automatic".equals(hrMode)) {
+            final int[] auto = computeAutoHrThresholds();
+            lowBpm  = auto[0];
+            highBpm = auto[1];
+        } else {
+            // "custom" or "off" - read persisted values (defaults: low=40, high=100)
+            int rawLow  = 40;
+            int rawHigh = 100;
+            try {
+                rawLow  = Integer.parseInt(prefs.getString(PREF_HR_ALERT_LOW,  "40"));
+                rawHigh = Integer.parseInt(prefs.getString(PREF_HR_ALERT_HIGH, "100"));
+            } catch (NumberFormatException e) {
+                logger.warn("Invalid HR alert threshold pref: low='{}' high='{}'",
+                        prefs.getString(PREF_HR_ALERT_LOW, "40"),
+                        prefs.getString(PREF_HR_ALERT_HIGH, "100"));
+            }
+            lowBpm  = Math.max(HR_BPM_MIN, Math.min(HR_BPM_MAX, rawLow));
+            highBpm = Math.max(HR_BPM_MIN, Math.min(HR_BPM_MAX, rawHigh));
+        }
+
+        final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_HR_ALERT_THRESHOLDS);
+        // Use the Withings userId stored during the GET_USER handshake. The watch rejects userId=0
+        // with CMD_ERROR(-4); if not yet stored, fall back to hardcoded userId.
+        // TODO: replace hardcoded userId with a user-configurable setting
+        final int userId = prefs.getInt(WithingsBaseDeviceSupport.PREF_WITHINGS_USER_ID, 0x01f53022);
+        msg.addDataStructure(new FeatureTagsUserId(userId));
+        msg.addDataStructure(new HrAlertThreshold(HrAlertThreshold.DIRECTION_LOW,  enabled, (byte) lowBpm));
+        msg.addDataStructure(new HrAlertThreshold(HrAlertThreshold.DIRECTION_HIGH, enabled, (byte) highBpm));
+        msg.addDataStructure(new EndOfTransmission());
+        addSimpleConversationToQueue(msg);
+    }
+
+    /**
+     * Computes automatic resting heart rate alert thresholds from Gadgetbridge's own HR history.
+     *
+     * <p>Queries the last {@value #AUTO_HR_HISTORY_DAYS} days of activity samples, takes the
+     * average of all valid (measured) HR readings, then sets:
+     * <ul>
+     *   <li>Low threshold  = average - 20 bpm  (floor {@value #HR_BPM_MIN})</li>
+     *   <li>High threshold = average + 30 bpm  (ceiling {@value #HR_BPM_MAX})</li>
+     * </ul>
+     * If no HR history is available the defaults 40 / 100 bpm are returned.
+     *
+     * @return int[2] where [0] = low threshold and [1] = high threshold, in BPM
+     */
+    private int[] computeAutoHrThresholds() {
+        final int defaultLow  = 40;
+        final int defaultHigh = 100;
+
+        final Calendar cal = Calendar.getInstance();
+        final int tsTo   = (int) (cal.getTimeInMillis() / 1000);
+        cal.add(Calendar.DAY_OF_YEAR, -AUTO_HR_HISTORY_DAYS);
+        final int tsFrom = (int) (cal.getTimeInMillis() / 1000);
+
+        try (DBHandler dbHandler = GBApplication.acquireDB()) {
+            final AbstractSampleProvider<? extends AbstractWithingsActivitySample> provider =
+                    createSampleProvider(gbDevice, dbHandler.getDaoSession());
+            final List<? extends AbstractWithingsActivitySample> samples =
+                    provider.getAllActivitySamples(tsFrom, tsTo);
+
+            long hrSum   = 0;
+            int  hrCount = 0;
+            for (final AbstractWithingsActivitySample sample : samples) {
+                final int hr = sample.getHeartRate();
+                if (hr > ActivitySample.NOT_MEASURED && hr > 0) {
+                    hrSum += hr;
+                    hrCount++;
+                }
+            }
+            if (hrCount == 0) {
+                logger.debug("No HR history for auto thresholds, using defaults {}/{}", defaultLow, defaultHigh);
+                return new int[]{defaultLow, defaultHigh};
+            }
+            final int avg = (int) (hrSum / hrCount);
+            logger.debug("Auto HR thresholds: avg={}bpm from {} samples", avg, hrCount);
+            final int low  = Math.max(HR_BPM_MIN, avg - 20);
+            final int high = Math.min(HR_BPM_MAX, avg + 30);
+            logger.debug("Auto HR thresholds computed: low={}bpm, high={}bpm", low, high);
+            return new int[]{low, high};
+        } catch (Exception e) {
+            logger.warn("Could not read HR history for auto thresholds: {}", e.getMessage());
+            return new int[]{defaultLow, defaultHigh};
+        }
     }
 
     /**
@@ -385,19 +599,31 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      * of screen value keys in the order the user has arranged them. Only screens present in the
      * list are enabled; removing an entry from the list disables that screen on the watch.
      *
-     * <p>Each screen has a fixed internal slot number (confirmed from {@code reorder_screens.zip}
-     * BLE capture). The watch determines display order by ascending slot number, so the slot values
-     * are fixed per screen - reordering is achieved by which screens are included, not by changing
-     * slot numbers.
+     * <p>Display order on the watch is determined by the <em>sequence</em> of entries in the
+     * SET_SCREEN_LIST packet - entries are sent in the same order the user arranged them. Each
+     * screen also carries a fixed {@code idOnDevice} byte (confirmed from BLE captures) that is
+     * not a position index; it is a fixed property of each screen.
      *
-     * <p>Screen ID <-> slot mapping is defined in {@link WithingsScreenId#getScanwatchSlot(int)}.
+     * <p>Screen ID <-> idOnDevice mapping is defined in
+     * {@link WithingsScreenId#getScanwatchIdOnDevice(int)}.
      *
-     * <p>This method is a no-op if the current screen list matches what was last successfully sent
-     * to the watch.
+     * <p><b>Pinning:</b> The {@code "date"} screen (Watch face / Date) is always enforced at
+     * position 0 before sending, regardless of what is stored in the preference. If it is missing
+     * from the stored list it is re-inserted; if it is present but not first it is moved to the
+     * front. The UI-layer customizer also normalises the stored value on every change, so the two
+     * layers stay in sync.
+     *
+     * <p>This method is a no-op if the current screen list (after pinning) matches what was last
+     * successfully sent to the watch.
      */
     @Override
     protected void addScreenListCommands() {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final int userId = prefs.getInt(WithingsBaseDeviceSupport.PREF_WITHINGS_USER_ID, 0);
+        if (userId <= 0) {
+            logger.warn("Skipping SET_SCREEN_LIST: missing confirmed watch userId (value={})", userId);
+            return;
+        }
 
         final List<String> defaultScreens = Arrays.asList(
                 getContext().getResources().getStringArray(R.array.pref_withings_scanwatch_screens_default));
@@ -405,10 +631,17 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         final String screensPref = prefs.getString(PREF_SCREENS_SORTABLE, null);
         final List<String> enabledScreens;
         if (screensPref == null || screensPref.isEmpty()) {
-            enabledScreens = defaultScreens;
+            enabledScreens = new ArrayList<>(defaultScreens);
         } else {
-            enabledScreens = Arrays.asList(screensPref.split(","));
+            enabledScreens = new ArrayList<>(Arrays.asList(screensPref.split(",")));
         }
+
+        // "Watch face (Date)" is always pinned at position 0. Enforce this at send time
+        // regardless of what the UI preference contains, so the watch is always consistent
+        // even if the user somehow bypassed the UI-level constraint.
+        final String PINNED_SCREEN = "date";
+        enabledScreens.remove(PINNED_SCREEN);
+        enabledScreens.add(0, PINNED_SCREEN);
 
         // Normalise to a canonical comma-separated string for comparison
         final String currentValue = String.join(",", enabledScreens);
@@ -419,25 +652,64 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             return;
         }
 
-        Message message = new WithingsMessage(WithingsMessageType.SET_SCREEN_LIST);
+        final List<ScreenSettings> screenEntries = new ArrayList<>();
         for (final String screenKey : enabledScreens) {
             final int screenId = screenKeyToId(screenKey);
             if (screenId < 0) {
                 logger.warn("Unknown screen key '{}', skipping", screenKey);
                 continue;
             }
-            final byte slot = WithingsScreenId.getScanwatchSlot(screenId);
-            if (slot < 0) {
-                logger.warn("No fixed slot for screen key '{}' (id=0x{:04x}), skipping", screenKey, screenId);
+            final byte idOnDevice = WithingsScreenId.getScanwatchIdOnDevice(screenId);
+            if (idOnDevice < 0) {
+                logger.warn("No idOnDevice for screen key '{}' (id=0x{:04x}), skipping", screenKey, screenId);
                 continue;
             }
-            message.addDataStructure(buildScreen(screenId, slot));
+            screenEntries.add(buildScanwatchScreen(screenId, idOnDevice, userId));
         }
-        message.addDataStructure(new EndOfTransmission());
-        addSimpleConversationToQueue(message);
+
+        if (screenEntries.isEmpty()) {
+            logger.warn("No valid ScanWatch screens to send, skipping SET_SCREEN_LIST");
+            return;
+        }
+
+        // Official app sends CMD_SET_SCREEN_LIST in two logical messages for long lists:
+        // first up to 8 entries (without EOT), then remaining entries with EOT.
+        // Matching this framing avoids very large single-message payloads that can reboot the watch.
+        final int maxEntriesPerMessage = 8;
+        for (int i = 0; i < screenEntries.size(); i += maxEntriesPerMessage) {
+            final int chunkEnd = Math.min(i + maxEntriesPerMessage, screenEntries.size());
+            final boolean isFinalChunk = chunkEnd >= screenEntries.size();
+            final Message message = isFinalChunk
+                    ? new WithingsMessage(WithingsMessageType.SET_SCREEN_LIST)
+                    : new WithingsMessage(WithingsMessageType.SET_SCREEN_LIST, ExpectedResponse.NONE);
+            for (int j = i; j < chunkEnd; j++) {
+                message.addDataStructure(screenEntries.get(j));
+            }
+            if (isFinalChunk) {
+                message.addDataStructure(new EndOfTransmission());
+            }
+            addSimpleConversationToQueue(message);
+        }
 
         // Record what we sent so we can skip on future syncs if nothing changed
         prefs.edit().putString(PREF_SCREENS_LAST_SENT, currentValue).apply();
+    }
+
+    /**
+     * Builds a {@link ScreenSettings} entry for the ScanWatch with the stored Withings userId.
+     *
+     * <p>The ScanWatch reboots if it receives a {@code CMD_SCREEN_LIST_SET} (0x050C) packet
+     * containing {@link ScreenSettings} entries with {@code userId = 0}. The official app always
+     * sends the real Withings account ID; we read it from prefs (stored by {@link GetUserHandler}
+     * during the handshake).
+     */
+    private ScreenSettings buildScanwatchScreen(final int screenId, final byte idOnDevice, final int userId) {
+        final ScreenSettings settings = new ScreenSettings();
+        settings.setId(screenId);
+        settings.setIdOnDevice(idOnDevice);
+        settings.setUserId(userId);
+        settings.setScreenType(WithingsScreenId.getScanwatchScreenType(screenId));
+        return settings;
     }
 
     /**

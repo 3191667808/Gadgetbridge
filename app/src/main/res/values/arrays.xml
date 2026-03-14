@@ -1925,6 +1925,49 @@
         <item>always</item>
     </string-array>
 
+    <string-array name="pref_withings_scanwatch_hr_alert_mode_entries">
+        <item>@string/withings_scanwatch_pref_hr_alert_off</item>
+        <item>@string/withings_scanwatch_pref_hr_alert_automatic</item>
+        <item>@string/withings_scanwatch_pref_hr_alert_custom</item>
+    </string-array>
+    <string-array name="pref_withings_scanwatch_hr_alert_mode_values">
+        <item>off</item>
+        <item>automatic</item>
+        <item>custom</item>
+    </string-array>
+
+    <string-array name="pref_withings_scanwatch_hr_alert_low_entries">
+        <item>@string/heartrate_bpm_35</item>
+        <item>@string/heartrate_bpm_40</item>
+        <item>@string/heartrate_bpm_45</item>
+        <item>@string/heartrate_bpm_50</item>
+        <item>@string/heartrate_bpm_55</item>
+    </string-array>
+    <string-array name="pref_withings_scanwatch_hr_alert_low_values">
+        <item>35</item>
+        <item>40</item>
+        <item>45</item>
+        <item>50</item>
+        <item>55</item>
+    </string-array>
+
+    <string-array name="pref_withings_scanwatch_hr_alert_high_entries">
+        <item>@string/heartrate_bpm_100</item>
+        <item>@string/heartrate_bpm_110</item>
+        <item>@string/heartrate_bpm_120</item>
+        <item>@string/heartrate_bpm_130</item>
+        <item>@string/heartrate_bpm_140</item>
+        <item>@string/heartrate_bpm_150</item>
+    </string-array>
+    <string-array name="pref_withings_scanwatch_hr_alert_high_values">
+        <item>100</item>
+        <item>110</item>
+        <item>120</item>
+        <item>130</item>
+        <item>140</item>
+        <item>150</item>
+    </string-array>
+
     <string-array name="pref_neo_display_items">
         <item>@string/menuitem_pai</item>
         <item>@string/menuitem_dnd</item>

@@ -124,6 +124,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
+    /**
+     * Device-specific SharedPreferences key for the userId sent to the watch in SET_USER.
+     * Used by ScreenSettings and FeatureTagsUserId to ensure a consistent, non-zero userId.
+     */
+    public static final String PREF_WITHINGS_USER_ID = "withings_user_id";
     private final MessageBuilder messageBuilder;
     private LiveWorkoutHandler liveWorkoutHandler;
     private ActivitySampleHandler activitySampleHandler;
@@ -284,8 +289,15 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
             if (shoudSync()) {
                 logger.debug("Doing full sync...");
+                final User user = getUser();
+                // Store the userId we're about to send to the watch so that all subsequent
+                // commands built in addExtraSyncCommands() (ScreenSettings, FeatureTagsUserId, etc.)
+                // can read a consistent, non-zero userId from prefs.
+                GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).edit()
+                        .putInt(PREF_WITHINGS_USER_ID, user.getUserID())
+                        .apply();
                 WithingsMessage message = new WithingsMessage(WithingsMessageType.SET_USER);
-                message.addDataStructure(getUser());
+                message.addDataStructure(user);
                 // The UserSecret appears in the original communication with the HealthMate app. Until now GB works without the secret.
                 // This makes the "authentication" far easier. However if it turns out that this is needed, we would need to find a way to savely store a unique generated secret.
                 //  message.addDataStructure(new UserSecret());

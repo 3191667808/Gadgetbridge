@@ -86,6 +86,14 @@ public final class WithingsMessageType {
      */
     public static final short SET_LOCAL_NOTIFICATIONS = (short) 0x0990;  // 2448
 
+    /**
+     * Set heart-rate alert thresholds (cmd 0x098e).
+     * Configures the BPM thresholds and enabled/disabled state for high and low resting HR alerts.
+     * The message body contains a {@code FeatureTagsUserId} header followed by one
+     * {@code HrAlertThreshold} TLV for LOW and one for HIGH, then {@code EndOfTransmission}.
+     */
+    public static final short SET_HR_ALERT_THRESHOLDS = (short) 0x098e;  // 2446
+
     /** Get quicklook / glance (raise-to-wake) status (cmd 0x097B). */
     public static final short GLANCE_GET = (short) 0x097B;  // 2427
     /** Set quicklook / glance (raise-to-wake) status (cmd 0x0971). */

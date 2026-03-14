@@ -80,6 +80,18 @@ public class WithingsStructureType {
     /** Local (on-watch) notification slot configuration (type 0x09A8 = 2472). */
     public static final short LOCAL_NOTIFICATION = (short) 0x09A8;  // 2472
 
+    /**
+     * Heart-rate alert threshold entry (type 0x09A5 = 2469), 8-byte payload:
+     * <pre>
+     *   pad       (uint8)   - always 0x00
+     *   direction (uint8)   - 0x01 = HIGH, 0x02 = LOW
+     *   enabled   (uint8)   - 0x01 = enabled, 0x00 = disabled
+     *   pad       (uint32)  - always 0x00000000
+     *   threshold (uint8)   - BPM value
+     * </pre>
+     */
+    public static final short HR_ALERT_THRESHOLD = (short) 0x09A5;  // 2469
+
     /** Quicklook / glance (raise-to-wake) status (type 0x097A = 2426). */
     public static final short GLANCE_STATUS = (short) 0x097A;  // 2426
 

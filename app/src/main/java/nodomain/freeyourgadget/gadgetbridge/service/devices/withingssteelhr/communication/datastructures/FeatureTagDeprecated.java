@@ -31,14 +31,16 @@ import java.nio.ByteBuffer;
  * <p>Known feature tag IDs observed from HCI captures:
  * <ul>
  *   <li>{@link #TAG_ECG_TERMS}    (0x0004) - ECG terms &amp; conditions accepted</li>
- *   <li>{@link #TAG_SPO2_SLEEP}   (0x0005) - Respiratory scan automatic/sleep mode</li>
- *   <li>{@link #TAG_AFIB_WINDOW}  (0x0009) - AFib detection time window (uses timestamps)</li>
- *   <li>{@link #TAG_AFIB_EXTRA}   (0x000A) - AFib detection (always active)</li>
- *   <li>{@link #TAG_AFIB_NIGHT}   (0x000B) - Night-time AFib detection</li>
- *   <li>{@link #TAG_RESP_ALWAYS}  (0x000E) - Respiratory scan always-on mode</li>
- *   <li>{@link #TAG_ECG_MEAS}     (0x000F) - ECG/respiratory measurement enabled</li>
- *   <li>{@link #TAG_0x0011}       (0x0011) - Companion to TAG_RESP_ALWAYS in always-on mode</li>
- *   <li>{@link #TAG_IRREGULAR_HR} (0x0013) - Irregular heart rate detection</li>
+ *   <li>{@link #TAG_SPO2_SLEEP}   (0x0005) - Transient; appears briefly during ECG enable flow</li>
+ *   <li>{@link #TAG_RESP_SCAN}    (0x0009) - Respiratory scan scheduling: absent=off, start/end=0 -> always-on,
+ *       start=now/end=noon-next-day -> automatic</li>
+ *   <li>{@link #TAG_RESP_BASE}    (0x000A) - Respiratory scan base (present whenever resp feature is activated,
+ *       including off state once enabled)</li>
+ *   <li>{@link #TAG_RESP_AUTO}    (0x000B) - Respiratory scan automatic LED scheduling (present only in automatic mode)</li>
+ *   <li>{@link #TAG_AFIB}         (0x000E) - AFib detection part 1</li>
+ *   <li>{@link #TAG_SPO2_MEAS}    (0x000F) - SpO2 / oxygen saturation measurement enabled</li>
+ *   <li>{@link #TAG_AFIB_2}       (0x0011) - AFib detection part 2 (companion to TAG_AFIB)</li>
+ *   <li>{@link #TAG_NOTIFICATIONS}(0x0013) - On-watch notifications enabled</li>
  *   <li>{@link #TAG_HIGH_HR}      (0x0014) - High heart rate notification</li>
  *   <li>{@link #TAG_LOW_HR}       (0x0016) - Low heart rate notification</li>
  *   <li>{@link #TAG_0x0035}       (0x0035) - Present when any health feature is active (purpose unknown)</li>
@@ -51,22 +53,29 @@ public class FeatureTagDeprecated extends WithingsStructure {
 
     /** ECG terms &amp; conditions accepted by the user. */
     public static final short TAG_ECG_TERMS    = 0x0004;
-    /** Respiratory scan automatic mode (scans some nights). */
+    /** Transient tag; appears briefly during ECG enable flow (purpose not fully known). */
     public static final short TAG_SPO2_SLEEP   = 0x0005;
-    /** AFib detection time window (populated with actual timestamps). */
-    public static final short TAG_AFIB_WINDOW  = 0x0009;
-    /** AFib continuous detection (always-active, timestamps = 0). */
-    public static final short TAG_AFIB_EXTRA   = (short) 0x000A;
-    /** Night-time AFib detection. */
-    public static final short TAG_AFIB_NIGHT   = (short) 0x000B;
-    /** Respiratory scan always-on mode (scans every night). */
-    public static final short TAG_RESP_ALWAYS  = (short) 0x000E;
-    /** ECG / respiratory measurement feature enabled. */
-    public static final short TAG_ECG_MEAS     = (short) 0x000F;
-    /** Companion to TAG_RESP_ALWAYS in always-on respiratory scan mode. */
-    public static final short TAG_0x0011       = (short) 0x0011;
-    /** Irregular heart rate detection. */
-    public static final short TAG_IRREGULAR_HR = (short) 0x0013;
+    /**
+     * Respiratory scan scheduling.
+     * <ul>
+     *   <li>Absent -> respiratory scan off</li>
+     *   <li>start=0, end=0 -> always-on mode</li>
+     *   <li>start=now, end=noon-next-day -> automatic mode</li>
+     * </ul>
+     */
+    public static final short TAG_RESP_SCAN    = 0x0009;
+    /** Respiratory scan base tag; present whenever the respiratory feature has been activated. */
+    public static final short TAG_RESP_BASE    = (short) 0x000A;
+    /** Respiratory scan automatic LED scheduling; present only in automatic mode. */
+    public static final short TAG_RESP_AUTO    = (short) 0x000B;
+    /** AFib detection part 1. */
+    public static final short TAG_AFIB         = (short) 0x000E;
+    /** SpO2 / oxygen saturation measurement enabled. */
+    public static final short TAG_SPO2_MEAS    = (short) 0x000F;
+    /** AFib detection part 2 (companion to {@link #TAG_AFIB}). */
+    public static final short TAG_AFIB_2       = (short) 0x0011;
+    /** On-watch notifications enabled. */
+    public static final short TAG_NOTIFICATIONS = (short) 0x0013;
     /** High heart rate notification. */
     public static final short TAG_HIGH_HR      = (short) 0x0014;
     /** Low heart rate notification. */

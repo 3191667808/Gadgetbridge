@@ -22,7 +22,10 @@ import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
@@ -41,6 +44,9 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
     static final String PREF_AUTO_BRIGHTNESS    = "withings_scanwatch_auto_brightness";
     static final String PREF_BRIGHTNESS_LEVEL   = "withings_scanwatch_brightness_level";
     static final String PREF_MOVE_HANDS         = "withings_scanwatch_move_hands";
+    static final String PREF_HR_ALERT_MODE      = "withings_scanwatch_hr_alert_mode";
+    static final String PREF_HR_ALERT_LOW       = "withings_scanwatch_hr_alert_low";
+    static final String PREF_HR_ALERT_HIGH      = "withings_scanwatch_hr_alert_high";
 
     @Override
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs, final String rootKey) {
@@ -53,6 +59,38 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
         handler.addPreferenceHandlerFor(PREF_QUICKLOOK);
         handler.addPreferenceHandlerFor(PREF_AUTO_BRIGHTNESS);
         handler.addPreferenceHandlerFor(PREF_MOVE_HANDS);
+        handler.addPreferenceHandlerFor(PREF_HR_ALERT_MODE);
+        handler.addPreferenceHandlerFor(PREF_HR_ALERT_LOW);
+        handler.addPreferenceHandlerFor(PREF_HR_ALERT_HIGH);
+
+        // "Watch face (Date)" must always be pinned at position 0.
+        // Intercept changes to the screens pref and normalise the stored value so that
+        // "date" is always present and always first before it is written to SharedPreferences.
+        // The service layer also enforces this at send time, but correcting the stored value
+        // here keeps the UI consistent with what will actually be sent to the watch.
+        handler.addPreferenceHandlerFor(PREF_SCREENS_SORTABLE, (pref, newValue) -> {
+            if (!(newValue instanceof String)) {
+                return true; // nothing to normalise; let the default handler proceed
+            }
+            final String raw = (String) newValue;
+            final List<String> screens = new ArrayList<>();
+            if (!raw.isEmpty()) {
+                screens.addAll(Arrays.asList(raw.split(",")));
+            }
+            // Move "date" to position 0 (or add it if it was removed)
+            screens.remove("date");
+            screens.add(0, "date");
+            final String normalised = android.text.TextUtils.join(",", screens);
+            if (!normalised.equals(raw)) {
+                // Persist the corrected value ourselves and reject the original so that the
+                // preference does not store the out-of-order / missing-date value.
+                if (pref.getSharedPreferences() != null) {
+                    pref.getSharedPreferences().edit().putString(PREF_SCREENS_SORTABLE, normalised).apply();
+                }
+                return false;
+            }
+            return true;
+        });
 
         // Brightness level is only meaningful when auto-brightness is OFF (inverse dependency)
         final EditTextPreference brightnessPref = handler.findPreference(PREF_BRIGHTNESS_LEVEL);
@@ -87,6 +125,27 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
         if (respiratoryPref != null) {
             respiratoryPref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
         }
+
+        // HR alert mode summary
+        final ListPreference hrAlertModePref = handler.findPreference(PREF_HR_ALERT_MODE);
+        if (hrAlertModePref != null) {
+            hrAlertModePref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+        }
+
+        // Show threshold prefs only when mode is "custom"
+        final boolean isCustom = "custom".equals(prefs.getString(PREF_HR_ALERT_MODE, "off"));
+        final ListPreference hrLowPref = handler.findPreference(PREF_HR_ALERT_LOW);
+        if (hrLowPref != null) {
+            hrLowPref.setEnabled(isCustom);
+            hrLowPref.setVisible(isCustom);
+            hrLowPref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+        }
+        final ListPreference hrHighPref = handler.findPreference(PREF_HR_ALERT_HIGH);
+        if (hrHighPref != null) {
+            hrHighPref.setEnabled(isCustom);
+            hrHighPref.setVisible(isCustom);
+            hrHighPref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+        }
     }
 
     @Override
@@ -97,6 +156,22 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
                 // preference value has already been persisted at this point
                 final boolean autoOn = preference.getSharedPreferences().getBoolean(PREF_AUTO_BRIGHTNESS, true);
                 brightnessPref.setEnabled(!autoOn);
+            }
+        }
+
+        if (PREF_HR_ALERT_MODE.equals(preference.getKey())) {
+            // The new value has already been persisted; read it back to update visibility
+            final String newMode = preference.getSharedPreferences().getString(PREF_HR_ALERT_MODE, "off");
+            final boolean isCustom = "custom".equals(newMode);
+            final ListPreference hrLowPref = handler.findPreference(PREF_HR_ALERT_LOW);
+            if (hrLowPref != null) {
+                hrLowPref.setEnabled(isCustom);
+                hrLowPref.setVisible(isCustom);
+            }
+            final ListPreference hrHighPref = handler.findPreference(PREF_HR_ALERT_HIGH);
+            if (hrHighPref != null) {
+                hrHighPref.setEnabled(isCustom);
+                hrHighPref.setVisible(isCustom);
             }
         }
     }

@@ -158,6 +158,9 @@ public class DataStructureFactory {
                 case WithingsStructureType.TRACKER_WEAR_POS:
                     structure = new TrackerWearPos();
                     break;
+                case WithingsStructureType.USER:
+                    structure = new User();
+                    break;
                 default:
                     structure = null;
                     logger.info("Received yet unknown structure type: " + structureTypeFromResponse);

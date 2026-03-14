@@ -848,9 +848,11 @@
     <string name="interval_twenty_minutes">every 20 minutes</string>
     <string name="interval_thirty_minutes">every 30 minutes</string>
     <string name="interval_forty_five_minutes">every 45 minutes</string>
+    <string name="heartrate_bpm_35">35 bpm</string>
     <string name="heartrate_bpm_40">40 bpm</string>
     <string name="heartrate_bpm_45">45 bpm</string>
     <string name="heartrate_bpm_50">50 bpm</string>
+    <string name="heartrate_bpm_55">55 bpm</string>
     <string name="heartrate_bpm_100">100 bpm</string>
     <string name="heartrate_bpm_105">105 bpm</string>
     <string name="heartrate_bpm_110">110 bpm</string>
@@ -3943,6 +3945,14 @@
     <string name="withings_scanwatch_shortcut_quicklook">Quick look</string>
     <string name="withings_scanwatch_shortcut_findmyphone">Find my phone</string>
     <string name="withings_scanwatch_shortcut_flashlight">Flashlight</string>
+    <string name="withings_scanwatch_pref_hr_alert_title">High/low resting heart rate alerts</string>
+    <string name="withings_scanwatch_pref_hr_alert_off">Off</string>
+    <string name="withings_scanwatch_pref_hr_alert_automatic">Automatic (recommended)</string>
+    <string name="withings_scanwatch_pref_hr_alert_custom">Custom threshold</string>
+    <string name="withings_scanwatch_pref_hr_alert_low_title">Low heart rate threshold</string>
+    <string name="withings_scanwatch_pref_hr_alert_low_summary">Alert when resting heart rate drops below this value (bpm)</string>
+    <string name="withings_scanwatch_pref_hr_alert_high_title">High heart rate threshold</string>
+    <string name="withings_scanwatch_pref_hr_alert_high_summary">Alert when resting heart rate exceeds this value (bpm)</string>
     <string name="drag_handle">drag handle</string>
     <string name="find_my_phone_found_it">FOUND IT</string>
     <string name="pref_activity_full_sync_trigger_summary">Trigger a full sync of all activity data</string>

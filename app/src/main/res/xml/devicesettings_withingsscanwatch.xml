@@ -80,6 +80,38 @@
         android:summary="@string/withings_scanwatch_pref_afib_night_summary"
         android:title="@string/withings_scanwatch_pref_afib_night_title" />
 
+    <!-- High/low resting heart rate alerts -->
+    <ListPreference
+        android:icon="@drawable/ic_heartrate"
+        android:defaultValue="off"
+        android:entries="@array/pref_withings_scanwatch_hr_alert_mode_entries"
+        android:entryValues="@array/pref_withings_scanwatch_hr_alert_mode_values"
+        android:key="withings_scanwatch_hr_alert_mode"
+        android:persistent="true"
+        android:title="@string/withings_scanwatch_pref_hr_alert_title" />
+
+    <!-- Custom low HR threshold (only meaningful when mode = custom) -->
+    <ListPreference
+        android:icon="@drawable/ic_heartrate"
+        android:defaultValue="40"
+        android:entries="@array/pref_withings_scanwatch_hr_alert_low_entries"
+        android:entryValues="@array/pref_withings_scanwatch_hr_alert_low_values"
+        android:key="withings_scanwatch_hr_alert_low"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_hr_alert_low_summary"
+        android:title="@string/withings_scanwatch_pref_hr_alert_low_title" />
+
+    <!-- Custom high HR threshold (only meaningful when mode = custom) -->
+    <ListPreference
+        android:icon="@drawable/ic_heartrate"
+        android:defaultValue="100"
+        android:entries="@array/pref_withings_scanwatch_hr_alert_high_entries"
+        android:entryValues="@array/pref_withings_scanwatch_hr_alert_high_values"
+        android:key="withings_scanwatch_hr_alert_high"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_hr_alert_high_summary"
+        android:title="@string/withings_scanwatch_pref_hr_alert_high_title" />
+
     <!-- Quicklook / glance (raise-to-wake) -->
     <SwitchPreference
         android:icon="@drawable/ic_always_on_display"
