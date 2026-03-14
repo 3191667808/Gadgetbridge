@@ -266,9 +266,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(message, new AuthenticationHandler(this));
         }
 
-        if (!firstTimeConnect) {
-            finishInitialization();
-        }
         conversationQueue.send();
     }
 
@@ -568,6 +565,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     void onAuthenticationFinished() {
         if (!firstTimeConnect) {
+            finishInitialization();
             doSync();
         } else {
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));

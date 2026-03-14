@@ -98,6 +98,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     static final String PREF_ECG_ENABLED        = "withings_scanwatch_ecg_enabled";
     /** Respiratory scan mode: "off", "automatic" (some nights), or "always" (every night). */
     static final String PREF_RESPIRATORY_SCAN   = "withings_scanwatch_respiratory_scan";
+    /** True once respiratory scan has been enabled at least once (used for off-state base tag behavior). */
+    static final String PREF_RESPIRATORY_ACTIVATED = "withings_scanwatch_respiratory_activated";
     /** Whether daytime AFib detection is enabled on the watch. */
     static final String PREF_AFIB_DAY_ENABLED   = "withings_scanwatch_afib_day_enabled";
     /** Whether night-time AFib detection is enabled on the watch. */
@@ -186,7 +188,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         if (hrAlertsOn) {
             addHrAlertCommand(hrMode, prefs);
         }
-        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+        addLocalNotificationsCommand(ecg, afibDay, afibNight, hrAlertsOn);
     }
 
     @Override
@@ -225,7 +227,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
             addFeatureTagsCommand(ecg, respScan, afibDay, afibNight, hrAlertsOn);
-            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+            addLocalNotificationsCommand(ecg, afibDay, afibNight, hrAlertsOn);
             sendQueue();
             return true;
         }
@@ -241,7 +243,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             clearQueue();
             addFeatureTagsCommand(ecg, respScan, afibDay, afibNight, hrAlertsOn);
             addHrAlertCommand(hrMode, prefs);
-            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+            addLocalNotificationsCommand(ecg, afibDay, afibNight, hrAlertsOn);
             sendQueue();
             return true;
         }
@@ -319,27 +321,33 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      * <p>Tag set derived from HCI captures (corrected mapping):
      * <ul>
      *   <li>ECG on: tag 0x0004</li>
-     *   <li>Respiratory off:       tag 0x000A only (base)</li>
+     *   <li>Respiratory off:       tag 0x000A only if respiratory was previously activated</li>
      *   <li>Respiratory automatic: tags 0x0009 (start=now, end=noon-next-day), 0x000A, 0x000B</li>
      *   <li>Respiratory always-on: tags 0x0009 (start=0, end=0), 0x000A</li>
      *   <li>AFib on: tags 0x000E, 0x0011</li>
      *   <li>HR alerts on: tag 0x0016 (LOW_HR)</li>
      * </ul>
-     * 0x000F (SpO2 measurement), 0x0013 (notifications), 0x0035 and 0x0058 are sent whenever
-     * any health feature is active. The ScanWatch keeps these tags on permanently once enabled.
+     * 0x000F (SpO2 measurement), 0x0035 and 0x0058 are sent whenever any health feature is active.
+     * Official captures use userId=0 in the 0x0145 feature-tag header for this command.
      */
     private void addFeatureTagsCommand(final boolean ecgEnabled, final String respiratoryScan,
                                        final boolean afibDayEnabled, final boolean afibNightEnabled,
                                        final boolean hrAlertsOn) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
-        // TODO: replace hardcoded userId with a user-configurable setting
         final SharedPreferences featurePrefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
-        final int featureUserId = featurePrefs.getInt(WithingsBaseDeviceSupport.PREF_WITHINGS_USER_ID, 0x01f53022);
-        msg.addDataStructure(new FeatureTagsUserId(featureUserId));
+        msg.addDataStructure(new FeatureTagsUserId(0));
 
         final boolean respAutomatic = "automatic".equals(respiratoryScan);
         final boolean respAlways    = "always".equals(respiratoryScan);
         final boolean respActive    = respAutomatic || respAlways;
+        boolean respEverActivated   = featurePrefs.getBoolean(PREF_RESPIRATORY_ACTIVATED, false);
+
+        if (respActive && !respEverActivated) {
+            featurePrefs.edit().putBoolean(PREF_RESPIRATORY_ACTIVATED, true).apply();
+            respEverActivated = true;
+        }
+
+        final boolean includeRespBase = respActive || respEverActivated;
         final boolean anyFeatureOn  = ecgEnabled || respAutomatic || respAlways
                 || afibDayEnabled || afibNightEnabled || hrAlertsOn;
 
@@ -363,8 +371,10 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_SCAN));
         }
         // Off: TAG_RESP_SCAN (0x0009) is absent
-        // TAG_RESP_BASE (0x000A) is always present (sent in all modes including off)
-        msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_BASE));
+        // TAG_RESP_BASE (0x000A) is present only after respiratory has been activated at least once
+        if (includeRespBase) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_BASE));
+        }
         if (respAutomatic) {
             // TAG_RESP_AUTO (0x000B) is only present in automatic mode
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_AUTO));
@@ -379,10 +389,6 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         }
         if (afibDayEnabled || afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_2));
-        }
-        // Notifications (0x0013) - always present when any health feature is active
-        if (anyFeatureOn) {
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
         }
         if (hrAlertsOn) {
             // TAG_LOW_HR (0x0016) is sent when resting HR alerts are enabled.
@@ -414,7 +420,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      * The resting HR alert enable/disable state is controlled separately via
      * {@link #addHrAlertCommand}.
      */
-    private void addLocalNotificationsCommand(final boolean afibDayEnabled,
+    private void addLocalNotificationsCommand(final boolean ecgEnabled,
+                                              final boolean afibDayEnabled,
                                               final boolean afibNightEnabled,
                                               final boolean hrAlertsOn) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_LOCAL_NOTIFICATIONS);
@@ -422,7 +429,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB,
                 afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_SLOT_4,
-                LocalNotification.STATUS_DISABLED));
+                ecgEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB_NIGHT,
                 afibNightEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_HR,
