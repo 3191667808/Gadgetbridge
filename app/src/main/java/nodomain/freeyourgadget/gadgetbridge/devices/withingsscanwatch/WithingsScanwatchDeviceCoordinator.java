@@ -92,7 +92,7 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public int getAlarmSlotCount(GBDevice gbDevice) {
-        return 5;
+        return 10;
     }
 
     @Override

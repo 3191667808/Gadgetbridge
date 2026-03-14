@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
     <com.mobeta.android.dslv.DragSortListPreference
-        android:icon="@drawable/ic_activity_unknown_small"
+        android:icon="@drawable/ic_widgets"
         android:defaultValue="@array/pref_withings_steel_activity_types_default"
         android:dialogTitle="@string/mi5_prefs_workout_activity_types"
         android:entries="@array/pref_withings_steel_activity_types"
@@ -22,7 +22,7 @@
 
     <!-- Watch screen configuration: drag to reorder, uncheck to disable -->
     <com.mobeta.android.dslv.DragSortListPreference
-        android:icon="@drawable/ic_watchface"
+        android:icon="@drawable/ic_widgets"
         android:defaultValue="@array/pref_withings_scanwatch_screens_default"
         android:dialogTitle="@string/withings_scanwatch_pref_screens_title"
         android:entries="@array/pref_withings_scanwatch_screens"
@@ -34,7 +34,7 @@
 
     <!-- Long-press crown shortcut -->
     <ListPreference
-        android:icon="@drawable/ic_shortcut"
+        android:icon="@drawable/ic_touch_long_left"
         android:defaultValue="0"
         android:entries="@array/pref_withings_scanwatch_shortcut_entries"
         android:entryValues="@array/pref_withings_scanwatch_shortcut_values"
@@ -54,7 +54,7 @@
 
     <!-- Respiratory scan (SpO2 during sleep) -->
     <ListPreference
-        android:icon="@drawable/ic_heartrate"
+        android:icon="@drawable/ic_pulmonology"
         android:defaultValue="off"
         android:entries="@array/pref_withings_scanwatch_respiratory_scan_entries"
         android:entryValues="@array/pref_withings_scanwatch_respiratory_scan_values"
@@ -64,7 +64,7 @@
 
     <!-- AFib daytime detection -->
     <SwitchPreference
-        android:icon="@drawable/ic_heartrate"
+        android:icon="@drawable/ic_health"
         android:defaultValue="false"
         android:key="withings_scanwatch_afib_day_enabled"
         android:persistent="true"
@@ -73,7 +73,7 @@
 
     <!-- AFib night detection -->
     <SwitchPreference
-        android:icon="@drawable/ic_heartrate"
+        android:icon="@drawable/ic_health"
         android:defaultValue="false"
         android:key="withings_scanwatch_afib_night_enabled"
         android:persistent="true"
@@ -92,7 +92,7 @@
 
     <!-- Custom low HR threshold (only meaningful when mode = custom) -->
     <ListPreference
-        android:icon="@drawable/ic_heartrate"
+        android:icon="@drawable/ic_arrow_downward"
         android:defaultValue="40"
         android:entries="@array/pref_withings_scanwatch_hr_alert_low_entries"
         android:entryValues="@array/pref_withings_scanwatch_hr_alert_low_values"
@@ -103,7 +103,7 @@
 
     <!-- Custom high HR threshold (only meaningful when mode = custom) -->
     <ListPreference
-        android:icon="@drawable/ic_heartrate"
+        android:icon="@drawable/ic_arrow_upward"
         android:defaultValue="100"
         android:entries="@array/pref_withings_scanwatch_hr_alert_high_entries"
         android:entryValues="@array/pref_withings_scanwatch_hr_alert_high_values"
@@ -114,7 +114,7 @@
 
     <!-- Quicklook / glance (raise-to-wake) -->
     <SwitchPreference
-        android:icon="@drawable/ic_always_on_display"
+        android:icon="@drawable/ic_pageview"
         android:defaultValue="false"
         android:key="withings_scanwatch_quicklook"
         android:persistent="true"
@@ -123,7 +123,7 @@
 
     <!-- Auto brightness toggle -->
     <SwitchPreference
-        android:icon="@drawable/ic_brightness_2"
+        android:icon="@drawable/ic_wb_sunny"
         android:defaultValue="true"
         android:key="withings_scanwatch_auto_brightness"
         android:persistent="true"
@@ -143,7 +143,7 @@
 
     <!-- Move hands to 10:10 when screen turns on -->
     <SwitchPreference
-        android:icon="@drawable/ic_sensor_calibration"
+        android:icon="@drawable/ic_rotate_left"
         android:defaultValue="false"
         android:key="withings_scanwatch_move_hands"
         android:persistent="true"
