@@ -1328,7 +1328,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             final String trackName = options.getString(GarminGpxRouteInstallHandler.EXTRA_TRACK_NAME);
             final GpxRouteFileConverter gpxRouteFileConverter = new GpxRouteFileConverter(
                     garminGpxRouteInstallHandler.getGpxFile(),
-                    trackName
+                    trackName, null
             );
             final FitFile convertedFile = gpxRouteFileConverter.getConvertedFile();
             final FileType.FILETYPE fileType = convertedFile.getFileType();
