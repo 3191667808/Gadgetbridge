@@ -43,14 +43,15 @@
         android:summary="@string/withings_scanwatch_pref_shortcut_summary"
         android:title="@string/withings_scanwatch_pref_shortcut_title" />
 
-    <!-- ECG measurement feature -->
-    <SwitchPreference
-        android:icon="@drawable/ic_ecg"
-        android:defaultValue="false"
-        android:key="withings_scanwatch_ecg_enabled"
+    <!-- SpO2 mode -->
+    <ListPreference
+        android:icon="@drawable/ic_spo2"
+        android:defaultValue="on_demand"
+        android:entries="@array/pref_withings_scanwatch_spo2_mode_entries"
+        android:entryValues="@array/pref_withings_scanwatch_spo2_mode_values"
+        android:key="withings_scanwatch_spo2_mode"
         android:persistent="true"
-        android:summary="@string/withings_scanwatch_pref_ecg_summary"
-        android:title="@string/withings_scanwatch_pref_ecg_title" />
+        android:title="@string/withings_scanwatch_pref_spo2_mode_title" />
 
     <!-- Respiratory scan (SpO2 during sleep) -->
     <ListPreference

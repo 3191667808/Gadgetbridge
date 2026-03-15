@@ -117,6 +117,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_LANGUAGE;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_LANGUAGE_AUTO;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_TIMEFORMAT;
 
 public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
@@ -453,6 +454,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 case HuamiConst.PREF_WORKOUT_ACTIVITY_TYPES_SORTABLE:
                     setWorkoutActivityTypes();
                     break;
+                case PREF_TIMEFORMAT:
+                    setTimeFormat();
+                    break;
                 case PREF_LANGUAGE:
                     setLanguage();
                     break;
@@ -474,6 +478,13 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         conversationQueue.clear();
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET,
                 new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, user.getStepsGoal())));
+        conversationQueue.send();
+    }
+
+    private void setTimeFormat() {
+        conversationQueue.clear();
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT,
+                new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
         conversationQueue.send();
     }
 

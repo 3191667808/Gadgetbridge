@@ -2079,6 +2079,15 @@
         <item>always</item>
     </string-array>
 
+    <string-array name="pref_withings_scanwatch_spo2_mode_entries">
+        <item>@string/withings_scanwatch_pref_spo2_mode_on_demand</item>
+        <item>@string/withings_scanwatch_pref_spo2_mode_sleep</item>
+    </string-array>
+    <string-array name="pref_withings_scanwatch_spo2_mode_values">
+        <item>on_demand</item>
+        <item>sleep</item>
+    </string-array>
+
     <string-array name="pref_withings_scanwatch_hr_alert_mode_entries">
         <item>@string/withings_scanwatch_pref_hr_alert_off</item>
         <item>@string/withings_scanwatch_pref_hr_alert_automatic</item>

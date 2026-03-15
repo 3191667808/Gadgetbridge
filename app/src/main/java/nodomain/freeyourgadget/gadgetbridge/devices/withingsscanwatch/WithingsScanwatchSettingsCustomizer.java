@@ -37,7 +37,7 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
     static final String PREF_WORKOUT_TYPES_SORTABLE = "workout_activity_types_sortable";
     static final String PREF_SCREENS_SORTABLE  = "withings_scanwatch_screens_sortable";
     static final String PREF_SHORTCUT_ACTION   = "withings_scanwatch_shortcut_action";
-    static final String PREF_ECG_ENABLED       = "withings_scanwatch_ecg_enabled";
+    static final String PREF_SPO2_MODE         = "withings_scanwatch_spo2_mode";
     static final String PREF_RESPIRATORY_SCAN  = "withings_scanwatch_respiratory_scan";
     static final String PREF_AFIB_DAY_ENABLED  = "withings_scanwatch_afib_day_enabled";
     static final String PREF_AFIB_NIGHT_ENABLED= "withings_scanwatch_afib_night_enabled";
@@ -54,7 +54,7 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
         handler.addPreferenceHandlerFor(PREF_WORKOUT_TYPES_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SCREENS_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SHORTCUT_ACTION);
-        handler.addPreferenceHandlerFor(PREF_ECG_ENABLED);
+        handler.addPreferenceHandlerFor(PREF_SPO2_MODE);
         handler.addPreferenceHandlerFor(PREF_RESPIRATORY_SCAN);
         handler.addPreferenceHandlerFor(PREF_AFIB_DAY_ENABLED);
         handler.addPreferenceHandlerFor(PREF_AFIB_NIGHT_ENABLED);
@@ -121,6 +121,11 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
         final ListPreference shortcutPref = handler.findPreference(PREF_SHORTCUT_ACTION);
         if (shortcutPref != null) {
             shortcutPref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+        }
+
+        final ListPreference spo2ModePref = handler.findPreference(PREF_SPO2_MODE);
+        if (spo2ModePref != null) {
+            spo2ModePref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
         }
 
         final ListPreference respiratoryPref = handler.findPreference(PREF_RESPIRATORY_SCAN);

@@ -3903,9 +3903,10 @@
     <string name="withings_scanwatch_screen_breathe">Breathe</string>
     <string name="withings_scanwatch_screen_clock">Clock</string>
 
-    <!-- ECG and AFib health feature settings -->
-    <string name="withings_scanwatch_pref_ecg_title">ECG Measurement</string>
-    <string name="withings_scanwatch_pref_ecg_summary">Enable ECG measurement feature on the watch</string>
+    <!-- SpO2/respiratory/AFib health feature settings -->
+    <string name="withings_scanwatch_pref_spo2_mode_title">Oxygen Saturation (SpO2)</string>
+    <string name="withings_scanwatch_pref_spo2_mode_on_demand">On demand</string>
+    <string name="withings_scanwatch_pref_spo2_mode_sleep">Monitor during sleep</string>
     <string name="withings_scanwatch_pref_respiratory_scan_title">Respiratory Scan</string>
     <string name="withings_scanwatch_pref_respiratory_scan_off">Off</string>
     <string name="withings_scanwatch_pref_respiratory_scan_automatic">Automatic (scans some nights, minimal battery impact)</string>
