@@ -112,6 +112,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     static final String PREF_BRIGHTNESS_LEVEL = "withings_scanwatch_brightness_level";
     /** Whether tracker move-hands (move hands to 10:10 when screen turns on) is enabled. */
     static final String PREF_MOVE_HANDS = "withings_scanwatch_move_hands";
+    /** Whether activity reminder is enabled on the watch. */
+    static final String PREF_ACTIVITY_REMINDER = "withings_scanwatch_activity_reminder";
 
     /**
      * Resting heart rate alert mode: {@code "off"}, {@code "automatic"}, or {@code "custom"}.
@@ -181,14 +183,15 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
         final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
         final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+        final boolean activityReminderEnabled = prefs.getBoolean(PREF_ACTIVITY_REMINDER, false);
         final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
         final boolean hrAlertsOn = !"off".equals(hrMode);
 
-        addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+        addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
         if (hrAlertsOn) {
             addHrAlertCommand(hrMode, prefs);
         }
-        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
     }
 
     @Override
@@ -217,17 +220,19 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             return true;
         }
         if (PREF_SPO2_MODE.equals(config) || PREF_RESPIRATORY_SCAN.equals(config)
-                || PREF_AFIB_DAY_ENABLED.equals(config) || PREF_AFIB_NIGHT_ENABLED.equals(config)) {
+                || PREF_AFIB_DAY_ENABLED.equals(config) || PREF_AFIB_NIGHT_ENABLED.equals(config)
+                || PREF_ACTIVITY_REMINDER.equals(config)) {
             final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
             final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
             final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
             final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
             final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+            final boolean activityReminderEnabled = prefs.getBoolean(PREF_ACTIVITY_REMINDER, false);
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
-            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+            addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
         }
@@ -238,12 +243,13 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
             final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
             final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+            final boolean activityReminderEnabled = prefs.getBoolean(PREF_ACTIVITY_REMINDER, false);
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             addHrAlertCommand(hrMode, prefs);
-            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn);
+            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
         }
@@ -326,6 +332,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      *   <li>Respiratory automatic: tags 0x0009 (start=now, end=noon-next-day), 0x000A, 0x000B</li>
      *   <li>Respiratory always-on: tags 0x0009 (start=0, end=0), 0x000A</li>
      *   <li>AFib on: tags 0x000E, 0x0011</li>
+     *   <li>Activity reminder on: tag 0x0014 (HIGH_HR in previous naming)</li>
      *   <li>HR alerts on: tag 0x0016 (LOW_HR)</li>
      * </ul>
      * 0x000F (SpO2 measurement), 0x0035 and 0x0058 are always sent.
@@ -333,7 +340,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      */
     private void addFeatureTagsCommand(final String spo2Mode, final String respiratoryScan,
                                        final boolean afibDayEnabled, final boolean afibNightEnabled,
-                                       final boolean hrAlertsOn) {
+                                       final boolean hrAlertsOn, final boolean activityReminderEnabled) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         final SharedPreferences featurePrefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         msg.addDataStructure(new FeatureTagsUserId(0));
@@ -388,8 +395,13 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         }
         // SpO2 measurement (0x000F) - always present
         msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_MEAS));
+        // Phone notification forwarding (messages/calls/app notifications).
+        msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
         if (afibDayEnabled || afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_2));
+        }
+        if (activityReminderEnabled) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_HIGH_HR));
         }
         if (hrAlertsOn) {
             // TAG_LOW_HR (0x0016) is sent when resting HR alerts are enabled.
@@ -411,7 +423,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      *   <li>PPG_AFIB - enabled when AFib daytime is on</li>
      *   <li>HIGH_HR  - enabled when resting HR alerts are on (independent of AFib)</li>
      *   <li>LOW_HR   - enabled when resting HR alerts are on (independent of AFib)</li>
-     *   <li>SLOT_4   - ECG slot, kept enabled after activation</li>
+     *   <li>SLOT_4   - Activity reminder</li>
      *   <li>PPG_AFIB_NIGHT - enabled when AFib night is on</li>
      * </ol>
      *
@@ -421,14 +433,15 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      */
     private void addLocalNotificationsCommand(final boolean afibDayEnabled,
                                               final boolean afibNightEnabled,
-                                              final boolean hrAlertsOn) {
+                                              final boolean hrAlertsOn,
+                                              final boolean activityReminderEnabled) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_LOCAL_NOTIFICATIONS);
         // Order must match the official app: AFIB_DAY(1), SLOT_4(4), AFIB_NIGHT(5), HIGH_HR(2), LOW_HR(3)
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB,
                 afibDayEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
-        // Slot 4 tracks ECG feature state; keep enabled after ECG activation.
+        // Slot 4 tracks activity reminder on ScanWatch.
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_SLOT_4,
-                LocalNotification.STATUS_ENABLED));
+                activityReminderEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_PPG_AFIB_NIGHT,
                 afibNightEnabled ? LocalNotification.STATUS_ENABLED : LocalNotification.STATUS_DISABLED));
         msg.addDataStructure(new LocalNotification(LocalNotification.NOTIF_HIGH_HR,

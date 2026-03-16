@@ -33,17 +33,8 @@ public class NotificationProvider {
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
     private final WithingsBaseDeviceSupport support;
     private final Map<Integer, NotificationSpec> pendingNotifications = new HashMap<>();
-    private static NotificationProvider instance;
 
-    public static NotificationProvider getInstance(WithingsBaseDeviceSupport support) {
-        if (instance == null) {
-            instance = new NotificationProvider(support);
-        }
-
-        return instance;
-    }
-
-    private NotificationProvider(WithingsBaseDeviceSupport support) {
+    public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

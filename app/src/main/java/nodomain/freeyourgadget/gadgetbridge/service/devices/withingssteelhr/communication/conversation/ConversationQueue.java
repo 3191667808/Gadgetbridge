@@ -23,6 +23,7 @@ import java.util.LinkedList;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 
 public class ConversationQueue implements ConversationObserver
 {
@@ -73,6 +74,21 @@ public class ConversationQueue implements ConversationObserver
         }
     }
 
+    public void addConversationFirst(Conversation conversation) {
+        if (conversation == null) {
+            return;
+        }
+
+        if (conversation.getRequest().needsResponse() || conversation.getRequest().needsEOT()) {
+            logger.debug("addConversationFirst: queuing type={} (0x{}) needsResponse={} needsEOT={}", conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff), conversation.getRequest().needsResponse(), conversation.getRequest().needsEOT());
+            queue.addFirst(conversation);
+            conversation.registerObserver(this);
+        } else {
+            logger.debug("addConversationFirst: fire-and-forget type={} (0x{})", conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff));
+            support.sendToDevice(conversation.getRequest());
+        }
+    }
+
     public void processResponse(Message response) {
         logger.debug("processResponse: type={} (0x{}), queue size={}", response.getType(), Integer.toHexString(response.getType() & 0xffff), queue.size());
         for (Conversation c : queue) {
@@ -80,7 +96,16 @@ public class ConversationQueue implements ConversationObserver
                 logger.debug("  queued conversation request type={} (0x{})", c.getRequest().getType(), Integer.toHexString(c.getRequest().getType() & 0xffff));
             }
         }
+
         Conversation conversation = getConversation(response.getType());
+        if (conversation == null && response.getType() == WithingsMessageType.TRANSFER_COMPLETE) {
+            conversation = getHeadEotConversation();
+            if (conversation != null) {
+                logger.debug("processResponse: remapping transfer-complete type=0x100 to pending EOT conversation type={} (0x{})",
+                        conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff));
+            }
+        }
+
         if (conversation != null) {
             logger.debug("processResponse: matched conversation for type={}", response.getType());
             conversation.handleResponse(response);
@@ -96,6 +121,14 @@ public class ConversationQueue implements ConversationObserver
             }
         }
 
+        return null;
+    }
+
+    private Conversation getHeadEotConversation() {
+        final Conversation head = queue.peekFirst();
+        if (head != null && head.getRequest() != null && head.getRequest().needsEOT()) {
+            return head;
+        }
         return null;
     }
 }

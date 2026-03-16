@@ -22,6 +22,7 @@ import java.util.List;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructureType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 
 public abstract class AbstractConversation implements Conversation {
 
@@ -62,11 +63,12 @@ public abstract class AbstractConversation implements Conversation {
 
     @Override
     public void handleResponse(Message response) {
-        if (response.getType() == requestType) {
+        final boolean transferCompleteForEot = request.needsEOT() && response.getType() == WithingsMessageType.TRANSFER_COMPLETE;
+        if (response.getType() == requestType || transferCompleteForEot) {
             if (request.needsResponse()) {
                 complete = true;
             } else if (request.needsEOT()) {
-                complete = hasEOT(response);
+                complete = transferCompleteForEot || hasEOT(response);
             }
 
             doHandleResponse(response);

@@ -71,7 +71,7 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
     private byte[] getImageData(String sourceAppId) {
         byte[] imageData = appIconCache.get(sourceAppId);
         if (imageData == null) {
-            NotificationSpec notificationSpec = NotificationProvider.getInstance(support).getNotificationSpecForSourceAppId(sourceAppId);
+            NotificationSpec notificationSpec = support.getNotificationProvider().getNotificationSpecForSourceAppId(sourceAppId);
             if (notificationSpec != null) {
                 int iconId = notificationSpec.iconId;
                 try {

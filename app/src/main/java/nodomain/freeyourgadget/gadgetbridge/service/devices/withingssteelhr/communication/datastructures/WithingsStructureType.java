@@ -60,6 +60,11 @@ public class WithingsStructureType {
     public static final short ACTIVITY_SAMPLE_CALORIES_2 = 1546;
     // No idea what this is, however it is in the response to requesting activities:
     public static final short ACTIVITY_SAMPLE_UNKNOWN = 1547;
+    public static final short STORED_MEASURE_META = 278;
+    public static final short STORED_MEASURE_DATA = 279;
+    public static final short STORED_SIGNAL_META = 323;
+    public static final short VASISTAS_TYPE = 1301;
+    public static final short VASISTAS_SPO2 = (short) 0x0995;
     public static final short WORKOUT_TYPE = 2409;
     public static final short LIVE_WORKOUT_START = 2418;
     public static final short LIVE_WORKOUT_END = 2419;

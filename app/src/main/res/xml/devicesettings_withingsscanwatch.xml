@@ -151,4 +151,12 @@
         android:summary="@string/withings_scanwatch_pref_move_hands_summary"
         android:title="@string/withings_scanwatch_pref_move_hands_title" />
 
+    <SwitchPreference
+        android:icon="@drawable/ic_chair"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_activity_reminder"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_activity_reminder_summary"
+        android:title="@string/withings_scanwatch_pref_activity_reminder_title" />
+
 </androidx.preference.PreferenceScreen>

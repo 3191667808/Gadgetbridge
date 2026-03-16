@@ -73,6 +73,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.SimpleConversation;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.SyncFinishedHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.ScreenSettingsHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.StoredMeasureSignalHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.WorkoutScreenListHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityTarget;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmName;
@@ -81,6 +82,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AncsStatus;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.DataStructureFactory;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagsUserId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.GetActivitySamples;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageMetaData;
@@ -89,6 +91,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.Probe;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ProbeOsVersion;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ScreenSettings;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalMeta;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsScreenId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.Time;
@@ -97,6 +100,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.UserUnit;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.UserUnitConstants;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WorkoutScreen;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructureType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.ExpectedResponse;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.MessageBuilder;
@@ -138,7 +142,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private boolean firstTimeConnect;
     private BluetoothGattCharacteristic notificationSourceCharacteristic;
     private BluetoothGattCharacteristic dataSourceCharacteristic;
-    private BluetoothDevice device;
 
     /**
      * Creates a device-specific sample provider for storing activity data.
@@ -160,7 +163,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public WithingsBaseDeviceSupport() {
         super(logger);
         conversationQueue = new ConversationQueue(this);
-        notificationProvider = NotificationProvider.getInstance(this);
+        notificationProvider = new NotificationProvider(this);
         messageBuilder = new MessageBuilder(this, new MessageFactory(new DataStructureFactory()));
         liveWorkoutHandler = new LiveWorkoutHandler(this);
         incomingMessageHandlerFactory = IncomingMessageHandlerFactory.getInstance(this);
@@ -282,6 +285,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             getDevice().setBusyTask(R.string.busy_task_syncing, getContext());
             syncInProgress = true;
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.INITIAL_CONNECT));
+            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
@@ -323,6 +327,18 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
                 message.addDataStructure(new TypeVersion());
                 addSimpleConversationToQueue(message, activitySampleHandler);
+
+                message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+                message.addDataStructure(new StoredSignalMeta(0x0001, 0));
+                addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0001));
+
+                message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+                message.addDataStructure(new StoredSignalMeta(0x0004, 0));
+                addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0004));
+
+                message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+                message.addDataStructure(new StoredSignalMeta(0x0005, 0));
+                addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0005));
             }
         } catch (Exception e) {
             logger.error("Could not synchronize! ", e);
@@ -419,12 +435,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     @Override
     public boolean onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
-        this.device = device;
+        logger.debug("onDescriptorWriteRequest from device={}, descriptor={}, value={}", device.getAddress(), descriptor.getUuid(), GB.hexdump(value));
         return true;
     }
 
     @Override
+    public boolean onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+        logger.debug("onCharacteristicReadRequest from device={}, characteristic={}, offset={}", device.getAddress(), characteristic.getUuid(), offset);
+        return false;
+    }
+
+    @Override
     public boolean onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+        logger.debug("onCharacteristicWriteRequest from device={}, characteristic={}, value={}", device.getAddress(), characteristic.getUuid(), GB.hexdump(value));
         if (characteristic.getUuid().equals(getWithingsUUIDs().CONTROL_POINT_CHARACTERISTIC_UUID)) {
             logger.debug("Got GetNotificationAttributesRequest: " + GB.hexdump(value));
             GetNotificationAttributes request = new GetNotificationAttributes();
@@ -534,11 +557,28 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         }
     }
 
+    /**
+     * Returns a reliable {@link BluetoothDevice} reference for GATT server operations.
+     * The old approach of storing the device from {@code onDescriptorWriteRequest} was
+     * unreliable - if the watch never wrote the CCC descriptor, the field stayed null
+     * and all notifications were silently dropped.
+     *
+     * This uses the canonical Gadgetbridge pattern (same as {@code BtLEQueue.connectImp()}).
+     */
+    private BluetoothDevice getServerDevice() {
+        return getBluetoothAdapter().getRemoteDevice(getDevice().getAddress());
+    }
+
     public void sendAncsNotificationSourceNotification(NotificationSource notificationSource) {
         try {
+            BluetoothDevice serverDevice = getServerDevice();
+            logger.info("Sending ANCS NotificationSource to device={}, characteristic={}, data={}",
+                    serverDevice.getAddress(),
+                    notificationSourceCharacteristic.getUuid(),
+                    GB.hexdump(notificationSource.serialize()));
             ServerTransactionBuilder builder = performServer("notificationSourceNotification");
             byte[] data = notificationSource.serialize();
-            builder.notifyCharacteristicChanged(device, notificationSourceCharacteristic, data);
+            builder.notifyCharacteristicChanged(serverDevice, notificationSourceCharacteristic, data);
             builder.queue(getQueue());
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
@@ -550,12 +590,16 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         try {
             ServerTransactionBuilder builder = performServer("dataSourceNotification");
             byte[] data = response.serialize();
-            builder.notifyCharacteristicChanged(device, dataSourceCharacteristic, data);
+            builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, data);
             builder.queue(getQueue());
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
             GB.toast("Could not send notification.", Toast.LENGTH_LONG, GB.ERROR, e);
         }
+    }
+
+    public NotificationProvider getNotificationProvider() {
+        return notificationProvider;
     }
 
     public void finishInitialization() {
@@ -585,6 +629,25 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             conversationQueue.send();
         }
+    }
+
+    @Override
+    public void onReset(final int flags) {
+        // Official app dissociation protocol (from btsnoop captures):
+        // 1. Send command 0x0123 (dissociate product)
+        // 2. Send command 0x0110 (unknown - possibly "forget pairing" or "factory reset")
+        // 3. HCI disconnect
+        // After this, the watch enters pairing mode.
+        conversationQueue.clear();
+        addSimpleConversationToQueue(new WithingsMessage((short) 0x0123));
+        addSimpleConversationToQueue(new WithingsMessage((short) 0x0110));
+        conversationQueue.send();
+
+        // Give the watch time to process both commands, then disconnect
+        backgroundTasksHandler.postDelayed(() -> {
+            logger.info("Disconnecting after dissociation commands");
+            disconnect();
+        }, 2000);
     }
 
     private void addAlarmToMessage(Message multiAlarmMessage, Alarm alarm) {
@@ -651,6 +714,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     private void addANCSService() {
+        logger.info("Adding ANCS service with UUIDs: service={}, notifSource={}, controlPoint={}, dataSource={}",
+                getWithingsUUIDs().WITHINGS_ANCS_SERVICE_UUID,
+                getWithingsUUIDs().NOTIFICATION_SOURCE_CHARACTERISTIC_UUID,
+                getWithingsUUIDs().CONTROL_POINT_CHARACTERISTIC_UUID,
+                getWithingsUUIDs().DATA_SOURCE_CHARACTERISTIC_UUID);
         BluetoothGattService withingsGATTService = new BluetoothGattService(getWithingsUUIDs().WITHINGS_ANCS_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
         notificationSourceCharacteristic = new BluetoothGattCharacteristic(getWithingsUUIDs().NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
         notificationSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(getWithingsUUIDs().CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
@@ -670,6 +738,41 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         Conversation conversation = new SimpleConversation(handler);
         conversation.setRequest(message);
         conversationQueue.addConversation(conversation);
+    }
+
+    public void addSimpleConversationFirst(Message message, ResponseHandler handler) {
+        Conversation conversation = new SimpleConversation(handler);
+        conversation.setRequest(message);
+        conversationQueue.addConversationFirst(conversation);
+    }
+
+    public void queueDeleteStoredMeasureSignal(final int signalType, final int signalFlags, final int cursor) {
+        Message deleteMessage = new WithingsMessage(WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL, ExpectedResponse.NONE);
+        // Official app includes a 0x0145 user-id TLV (value 0) before 0x0143 for delete requests.
+        deleteMessage.addDataStructure(new FeatureTagsUserId(0));
+        deleteMessage.addDataStructure(new StoredSignalMeta(signalType, signalFlags, cursor));
+        addSimpleConversationFirst(deleteMessage, null);
+    }
+
+    public void queueGetStoredMeasureSignal(final int signalType, final int cursor) {
+        Message getMessage = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+        getMessage.addDataStructure(new StoredSignalMeta(signalType, cursor));
+        addSimpleConversationFirst(getMessage, new StoredMeasureSignalHandler(this, gbDevice, signalType));
+    }
+
+    public boolean hasEndOfTransmission(final Message response) {
+        final List<WithingsStructure> dataStructures = response.getDataStructures();
+        if (dataStructures == null) {
+            return false;
+        }
+
+        for (final WithingsStructure structure : dataStructures) {
+            if (structure.getType() == WithingsStructureType.END_OF_TRANSMISSION) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Clears any pending conversations from the queue. */

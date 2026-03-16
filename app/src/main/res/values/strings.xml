@@ -3931,6 +3931,9 @@
     <string name="withings_scanwatch_pref_move_hands_title">Move hands</string>
     <string name="withings_scanwatch_pref_move_hands_summary">Move watch hands to 10:10 when the screen turns on to avoid blocking the display</string>
 
+    <string name="withings_scanwatch_pref_activity_reminder_title">Activity reminder</string>
+    <string name="withings_scanwatch_pref_activity_reminder_summary">ScanWatch can vibrate when it detects long periods of inactivity to help you stay active</string>
+
     <!-- Shortcut (long-press crown) settings -->
     <string name="withings_scanwatch_pref_shortcut_title">Long-press crown shortcut</string>
     <string name="withings_scanwatch_pref_shortcut_summary">Action launched by holding the crown button</string>

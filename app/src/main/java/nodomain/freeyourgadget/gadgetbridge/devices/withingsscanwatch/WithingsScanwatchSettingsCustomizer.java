@@ -45,6 +45,7 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
     static final String PREF_AUTO_BRIGHTNESS    = "withings_scanwatch_auto_brightness";
     static final String PREF_BRIGHTNESS_LEVEL   = "withings_scanwatch_brightness_level";
     static final String PREF_MOVE_HANDS         = "withings_scanwatch_move_hands";
+    static final String PREF_ACTIVITY_REMINDER  = "withings_scanwatch_activity_reminder";
     static final String PREF_HR_ALERT_MODE      = "withings_scanwatch_hr_alert_mode";
     static final String PREF_HR_ALERT_LOW       = "withings_scanwatch_hr_alert_low";
     static final String PREF_HR_ALERT_HIGH      = "withings_scanwatch_hr_alert_high";
@@ -61,6 +62,7 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
         handler.addPreferenceHandlerFor(PREF_QUICKLOOK);
         handler.addPreferenceHandlerFor(PREF_AUTO_BRIGHTNESS);
         handler.addPreferenceHandlerFor(PREF_MOVE_HANDS);
+        handler.addPreferenceHandlerFor(PREF_ACTIVITY_REMINDER);
         handler.addPreferenceHandlerFor(PREF_HR_ALERT_MODE);
         handler.addPreferenceHandlerFor(PREF_HR_ALERT_LOW);
         handler.addPreferenceHandlerFor(PREF_HR_ALERT_HIGH);

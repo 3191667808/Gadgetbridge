@@ -22,6 +22,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
  */
 public final class WithingsMessageType {
 
+    public static final short TRANSFER_COMPLETE = 256;
     public static final short PROBE = 257;
     public static final short CHALLENGE = 296;
     public static final short SET_TIME = 1281;
@@ -57,6 +58,8 @@ public final class WithingsMessageType {
     // The next two do nearly the same, when I look at the responses, though only the first seems to deliver sleep samples
     public static final short GET_ACTIVITY_SAMPLES = 2424;
     public static final short GET_MOVEMENT_SAMPLES = 1286;
+    public static final short GET_STORED_MEASURE_SIGNAL = 327;
+    public static final short DELETE_STORED_MEASURE_SIGNAL = 328;
 
     public static final short GET_SPORT_MODE = 2371;
     public static final short GET_WORKOUT_GPS_STATUS = 323;

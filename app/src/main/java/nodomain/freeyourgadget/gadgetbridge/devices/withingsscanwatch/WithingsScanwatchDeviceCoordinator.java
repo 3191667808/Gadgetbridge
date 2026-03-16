@@ -28,11 +28,15 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.WithingsScanwatchActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingsscanwatch.WithingsScanwatchDeviceSupport;
 
@@ -45,8 +49,9 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
-        final Map<AbstractDao<?, ?>, Property> map = new HashMap<>(1);
+        final Map<AbstractDao<?, ?>, Property> map = new HashMap<>(2);
         map.put(session.getWithingsScanwatchActivitySampleDao(), WithingsScanwatchActivitySampleDao.Properties.DeviceId);
+        map.put(session.getGenericSpo2SampleDao(), GenericSpo2SampleDao.Properties.DeviceId);
         return map;
     }
 
@@ -81,6 +86,16 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     }
 
     @Override
+    public boolean supportsActiveCalories(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsSpo2(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public boolean supportsRecordedActivities(final GBDevice device) {
         return true;
     }
@@ -88,6 +103,11 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
         return new WithingsScanwatchSampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends Spo2Sample> getSpo2SampleProvider(final GBDevice device, final DaoSession session) {
+        return new GenericSpo2SampleProvider(device, session);
     }
 
     @Override

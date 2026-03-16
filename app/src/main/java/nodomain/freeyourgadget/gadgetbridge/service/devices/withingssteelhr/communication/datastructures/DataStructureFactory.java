@@ -101,6 +101,21 @@ public class DataStructureFactory {
                 case WithingsStructureType.ACTIVITY_SAMPLE_UNKNOWN:
                     structure = new ActivitySampleUnknown();
                     break;
+                case WithingsStructureType.STORED_MEASURE_META:
+                    structure = new StoredMeasureMeta();
+                    break;
+                case WithingsStructureType.STORED_MEASURE_DATA:
+                    structure = new StoredMeasureData();
+                    break;
+                case WithingsStructureType.STORED_SIGNAL_META:
+                    structure = new StoredSignalMeta();
+                    break;
+                case WithingsStructureType.VASISTAS_TYPE:
+                    structure = new VasistasType();
+                    break;
+                case WithingsStructureType.VASISTAS_SPO2:
+                    structure = new VasistasSpo2();
+                    break;
                 case WithingsStructureType.END_OF_TRANSMISSION:
                     structure = new EndOfTransmission();
                     break;

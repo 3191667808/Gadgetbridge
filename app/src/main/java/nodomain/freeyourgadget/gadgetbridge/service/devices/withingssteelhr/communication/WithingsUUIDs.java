@@ -34,21 +34,25 @@ public class WithingsUUIDs {
     public final UUID CONTROL_POINT_CHARACTERISTIC_UUID;
     public final UUID DATA_SOURCE_CHARACTERISTIC_UUID;
 
-    public WithingsUUIDs(final String suffix) {
-        WITHINGS_SERVICE_UUID                 = UUID.fromString("00000020-5749-5448-" + suffix + "-000000000000");
-        WITHINGS_WRITE_CHARACTERISTIC_UUID    = UUID.fromString("00000024-5749-5448-" + suffix + "-000000000000");
-        WITHINGS_APP_CHARACTERISTIC_UUID      = UUID.fromString("10000059-5749-5448-" + suffix + "-000000000000");
-        WITHINGS_APP_CHARACTERISTIC2_UUID     = UUID.fromString("10000028-5749-5448-" + suffix + "-000000000000");
+    public WithingsUUIDs(final String protocolSuffix) {
+        this(protocolSuffix, protocolSuffix);
+    }
+
+    public WithingsUUIDs(final String protocolSuffix, final String ancsSuffix) {
+        WITHINGS_SERVICE_UUID                 = UUID.fromString("00000020-5749-5448-" + protocolSuffix + "-000000000000");
+        WITHINGS_WRITE_CHARACTERISTIC_UUID    = UUID.fromString("00000024-5749-5448-" + protocolSuffix + "-000000000000");
+        WITHINGS_APP_CHARACTERISTIC_UUID      = UUID.fromString("10000059-5749-5448-" + protocolSuffix + "-000000000000");
+        WITHINGS_APP_CHARACTERISTIC2_UUID     = UUID.fromString("10000028-5749-5448-" + protocolSuffix + "-000000000000");
         CCC_DESCRIPTOR_UUID                   = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-        WITHINGS_ANCS_SERVICE_UUID            = UUID.fromString("10000057-5749-5448-" + suffix + "-000000000000");
-        NOTIFICATION_SOURCE_CHARACTERISTIC_UUID = UUID.fromString("10000059-5749-5448-" + suffix + "-000000000000");
-        CONTROL_POINT_CHARACTERISTIC_UUID     = UUID.fromString("10000058-5749-5448-" + suffix + "-000000000000");
-        DATA_SOURCE_CHARACTERISTIC_UUID       = UUID.fromString("1000005a-5749-5448-" + suffix + "-000000000000");
+        WITHINGS_ANCS_SERVICE_UUID            = UUID.fromString("10000057-5749-5448-" + ancsSuffix + "-000000000000");
+        NOTIFICATION_SOURCE_CHARACTERISTIC_UUID = UUID.fromString("10000059-5749-5448-" + ancsSuffix + "-000000000000");
+        CONTROL_POINT_CHARACTERISTIC_UUID     = UUID.fromString("10000058-5749-5448-" + ancsSuffix + "-000000000000");
+        DATA_SOURCE_CHARACTERISTIC_UUID       = UUID.fromString("1000005a-5749-5448-" + ancsSuffix + "-000000000000");
     }
 
     /** Steel HR UUID set */
     public static final WithingsUUIDs STEEL_HR = new WithingsUUIDs("0037");
 
     /** Scanwatch UUID set */
-    public static final WithingsUUIDs SCANWATCH = new WithingsUUIDs("005d");
+    public static final WithingsUUIDs SCANWATCH = new WithingsUUIDs("005d", "0037");
 }
