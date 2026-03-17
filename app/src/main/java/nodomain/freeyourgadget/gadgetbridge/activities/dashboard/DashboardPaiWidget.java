@@ -127,7 +127,7 @@ public class DashboardPaiWidget extends AbstractGaugeWidget {
     protected void draw(final DashboardFragment.DashboardData dashboardData) {
         final PaiData paiData = (PaiData) dashboardData.get(DATA_KEY);
 
-        if (paiData == null || paiData.target <= 0) {
+        if (paiData == null || paiData.target <= 0 || paiData.total == 0) {
             // No data available — render an empty gauge rather than crashing.
             drawSimpleGauge(0, -1);
             setText("0");
@@ -175,14 +175,17 @@ public class DashboardPaiWidget extends AbstractGaugeWidget {
             // gauge drawn in PaiChartFragment#updateChartsnUIThread where
             //   segments[0] = (total - today) / maxPai
             //   segments[1] = today           / maxPai
-            // The unfilled remainder of the arc is implicit in drawSegmentedGauge
-            // because the segments sum to less than 1.
+            //   segments[2] = remaining portion (unfilled portion of the arc)
             final float todayFraction   = (float) paiData.today                        / paiData.target;
             final float weeklyFraction  = (float) (paiData.total - paiData.today)      / paiData.target;
+            final float remainingFraction = 1f - weeklyFraction - todayFraction;
+
+            final int colorEmpty = ContextCompat.getColor(
+                    GBApplication.getContext(), R.color.gauge_line_color);
 
             drawSegmentedGauge(
-                    new int[]   { colorWeekly,     colorToday   },
-                    new float[] { weeklyFraction,  todayFraction },
+                    new int[]   { colorWeekly,     colorToday,  colorEmpty          },
+                    new float[] { weeklyFraction,  todayFraction, remainingFraction },
                     /* markerValue= */ -1,
                     /* showMarker=  */ false,
                     /* segment gap=     */ false
