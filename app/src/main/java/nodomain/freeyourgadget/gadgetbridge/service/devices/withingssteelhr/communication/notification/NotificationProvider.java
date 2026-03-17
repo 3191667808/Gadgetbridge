@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
@@ -31,6 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 public class NotificationProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
+    private static final Pattern WITHINGS_SOURCE_APP_SUFFIX = Pattern.compile("-(msg|ringing|missed)$", Pattern.CASE_INSENSITIVE);
     private final WithingsBaseDeviceSupport support;
     private final Map<Integer, NotificationSpec> pendingNotifications = new HashMap<>();
 
@@ -113,13 +115,21 @@ public class NotificationProvider {
     }
 
     public NotificationSpec getNotificationSpecForSourceAppId(String sourceAppId) {
+        final String normalizedSourceAppId = normalizeSourceAppId(sourceAppId);
         for (NotificationSpec notificationSpec : pendingNotifications.values()) {
-            if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(sourceAppId)) {
+            if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(normalizedSourceAppId)) {
                 return notificationSpec;
             }
         }
 
         return null;
+    }
+
+    private String normalizeSourceAppId(final String sourceAppId) {
+        if (sourceAppId == null) {
+            return null;
+        }
+        return WITHINGS_SOURCE_APP_SUFFIX.matcher(sourceAppId).replaceFirst("");
     }
 
     private byte mapNotificationType(NotificationType type) {

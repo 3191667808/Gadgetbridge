@@ -74,15 +74,16 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
             NotificationSpec notificationSpec = support.getNotificationProvider().getNotificationSpecForSourceAppId(sourceAppId);
             if (notificationSpec != null) {
                 int iconId = notificationSpec.iconId;
+                final String packageName = notificationSpec.sourceAppId != null ? notificationSpec.sourceAppId : sourceAppId;
                 try {
                     Drawable icon = null;
                     if (notificationSpec.iconId != 0) {
-                        Context sourcePackageContext = support.getContext().createPackageContext(sourceAppId, 0);
+                        Context sourcePackageContext = support.getContext().createPackageContext(packageName, 0);
                         icon = sourcePackageContext.getResources().getDrawable(notificationSpec.iconId);
                     }
                     if (icon == null) {
                         PackageManager pm = support.getContext().getPackageManager();
-                        icon = pm.getApplicationIcon(sourceAppId);
+                        icon = pm.getApplicationIcon(packageName);
                     }
 
                     imageData = IconHelper.getIconBytesFromDrawable(icon);

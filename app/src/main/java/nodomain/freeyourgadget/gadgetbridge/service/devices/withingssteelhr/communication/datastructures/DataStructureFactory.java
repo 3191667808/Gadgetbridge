@@ -141,7 +141,7 @@ public class DataStructureFactory {
                     structure = new GlyphId();
                     break;
                 case WithingsStructureType.NOTIFICATION_APP_ID:
-                    structure = new GlyphId();
+                    structure = new SourceAppId();
                     break;
                 case WithingsStructureType.SHORTCUT_ACTION:
                     structure = new ShortcutAction();
