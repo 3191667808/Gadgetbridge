@@ -35,7 +35,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,6 +77,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.pinetime.weather.WeatherData
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.PineTimeActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -105,6 +105,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.alertnotificat
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfoProfile;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implements DfuLogListener {
     private static final Logger LOG = LoggerFactory.getLogger(PineTimeJFSupport.class);
@@ -327,13 +328,18 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
 
     @Override
     public void onNotification(NotificationSpec notificationSpec) {
+        if (notificationSpec.type == NotificationType.GENERIC_ALARM_CLOCK) {
+            sendPhoneAlarm(notificationSpec);
+            return;
+        }
+
         TransactionBuilder builder = createTransactionBuilder("notification");
 
         String message;
         String source = null;
-        String bodyOrSubject = nodomain.freeyourgadget.gadgetbridge.util.StringUtils.getFirstOf(notificationSpec.body, notificationSpec.subject);
-        String senderOrTitle = nodomain.freeyourgadget.gadgetbridge.util.StringUtils.getFirstOf(notificationSpec.sender, notificationSpec.title);
-        if (!nodomain.freeyourgadget.gadgetbridge.util.StringUtils.isNullOrEmpty(notificationSpec.sourceName)) {
+        String bodyOrSubject = StringUtils.getFirstOf(notificationSpec.body, notificationSpec.subject);
+        String senderOrTitle = StringUtils.getFirstOf(notificationSpec.sender, notificationSpec.title);
+        if (!StringUtils.isNullOrEmpty(notificationSpec.sourceName)) {
             source = notificationSpec.sourceName;
         } else if (notificationSpec.type == NotificationType.GENERIC_SMS) {
             source = getContext().getString(R.string.pref_title_notifications_sms);
@@ -349,7 +355,7 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
                     for (; cutLength > 0 && senderOrTitle.charAt(cutLength - 1) == ' '; cutLength--);
                     senderOrTitle = senderOrTitle.substring(0, cutLength) + ">";
                 }
-                message = nodomain.freeyourgadget.gadgetbridge.util.StringUtils.join(": ", source, senderOrTitle) + "\0" + bodyOrSubject;
+                message = StringUtils.join(": ", source, senderOrTitle) + "\0" + bodyOrSubject;
             } else {
                 message = bodyOrSubject;
             }
@@ -362,6 +368,18 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
         }
 
         NewAlert alert = new NewAlert(AlertCategory.CustomHuami, 1, message);
+        AlertNotificationProfile<?> profile = new AlertNotificationProfile<>(this);
+        profile.setMaxLength(MaxNotificationLength);
+        profile.newAlert(builder, alert, OverflowStrategy.TRUNCATE);
+        builder.queue();
+    }
+
+    private void sendPhoneAlarm(NotificationSpec notificationSpec) {
+        TransactionBuilder builder = createTransactionBuilder("phonealarm");
+        // Dummy byte prefix to account for InfiniTime's headerSize=3 (2-byte ANS header + 1 padding)
+        String label = StringUtils.getFirstOf(notificationSpec.title, "Alarm");
+        String message = "\0" + label;
+        NewAlert alert = new NewAlert(AlertCategory.HighPriorityAlert, 1, message);
         AlertNotificationProfile<?> profile = new AlertNotificationProfile<>(this);
         profile.setMaxLength(MaxNotificationLength);
         profile.newAlert(builder, alert, OverflowStrategy.TRUNCATE);
@@ -442,7 +460,17 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
 
     @Override
     public void onDeleteNotification(int id) {
+    }
 
+    private void handleAlarmResponse(byte action) {
+        android.content.Context context = getContext();
+        if (action == 0x00) {
+            context.sendBroadcast(new Intent(AlarmClockReceiver.ALARM_DISMISS_ACTION));
+            context.sendBroadcast(new Intent("com.google.android.deskclock.action.ALARM_DISMISS"));
+        } else if (action == 0x01) {
+            context.sendBroadcast(new Intent(AlarmClockReceiver.ALARM_SNOOZE_ACTION));
+            context.sendBroadcast(new Intent("com.google.android.deskclock.action.ALARM_SNOOZE"));
+        }
     }
 
     @Override
@@ -759,6 +787,10 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
             evaluateGBDeviceEvent(deviceEventMusicControl);
             return true;
         } else if (characteristicUUID.equals(PineTimeJFConstants.UUID_CHARACTERISTIC_ALERT_NOTIFICATION_EVENT)) {
+            if (value.length >= 2 && value[0] == 0x01) {
+                handleAlarmResponse(value[1]);
+                return true;
+            }
             GBDeviceEventCallControl deviceEventCallControl = new GBDeviceEventCallControl();
             switch (value[0]) {
                 case 0:
@@ -1055,7 +1087,7 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
         currentPacket.putShort(12, (short) ((weatherSpec.getTodayMinTemp() - 273.15) * 100));
         currentPacket.putShort(14, (short) ((weatherSpec.getTodayMaxTemp() - 273.15) * 100));
         if (weatherSpec.getLocation() != null) {
-            byte[] locationBytes = nodomain.freeyourgadget.gadgetbridge.util.StringUtils.truncateToBytes(weatherSpec.getLocation(), 32);
+            byte[] locationBytes = StringUtils.truncateToBytes(weatherSpec.getLocation(), 32);
             for (int i = 0; i < locationBytes.length; i++) {
                 currentPacket.put(16 + i, locationBytes[i]);
             }
@@ -1158,7 +1190,7 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
 
         if (versionCmd.fwVersion != null && !versionCmd.fwVersion.isEmpty()) {
             // FW version format : "major.minor.patch". Ex : "0.8.2"
-            String[] tokens = StringUtils.split(versionCmd.fwVersion, ".");
+            String[] tokens = versionCmd.fwVersion.split("\\.");
             if (tokens.length == 3) {
                 firmwareVersionMajor = Integer.parseInt(tokens[0]);
                 firmwareVersionMinor = Integer.parseInt(tokens[1]);
