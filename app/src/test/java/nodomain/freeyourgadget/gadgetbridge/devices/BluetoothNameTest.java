@@ -56,6 +56,7 @@ public class BluetoothNameTest extends TestBase {
             put("IMIKI FRAME 2", DeviceType.IMIKI_FRAME_2);
             put("Watch Kr Pro-4DBC", DeviceType.KIESLECT_CALLING_SMARTWATCH_KR_PRO);
             put("HAYLOU Watch 2 Pro", DeviceType.HAYLOU_WATCH_2_PRO);
+            put("MYND", DeviceType.TEUFEL_MYND); // #5743 docs
             put("Y6(ID-28A8)", DeviceType.Y6); // #3949
             put("Y66(ID-AB01)", DeviceType.Y66);
             put("D3(ID-417F)", DeviceType.D3);

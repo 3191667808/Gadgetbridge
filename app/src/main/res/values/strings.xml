@@ -5101,6 +5101,7 @@
     <string name="devicetype_victron_smartshunt" translatable="false">Victron SmartShunt</string>
     <string name="devicetype_dji_osmo_action_4" translatable="false">DJI Osmo Action 4</string>
     <string name="devicetype_sinilink" translatable="false">Sinilink</string>
+    <string name="devicetype_teufel_mynd" translatable="false">Teufel Mynd</string>
     <string name="devicetype_onetouch" translatable="false">OneTouch Glucose Meter</string>
     <string name="equalizer_preset_standard">Standard</string>
     <string name="media_playback_mode">Playback mode</string>
