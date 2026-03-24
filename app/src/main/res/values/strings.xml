@@ -4704,4 +4704,6 @@
     <string name="health_connect_sleep_session_notes">Sleep data from Gadgetbridge device: %1$s.</string>
     <string name="infinitime_filesystem_access_disabled">Filesystem access is disabled in InfiniTime</string>
     <string name="infinitime_resource_upload_progress_status">Performing action %d of %d\n%s %s</string>
+    <string name="privacy_message_override">Override Message Privacy</string>
+    <string name="pref_message_privacy_override_default">No override</string>
 </resources>
