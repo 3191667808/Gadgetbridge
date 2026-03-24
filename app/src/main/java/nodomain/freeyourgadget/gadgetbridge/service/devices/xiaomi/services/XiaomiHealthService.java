@@ -911,7 +911,14 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
         if (!realtimeOneShot && !realtimeStarted) {
             // Failsafe in case it gets out of sync, stop it
-            enableRealtimeStats(false);
+            LOG.warn("Received realtime stats but they are supposed to be stopped. Forcing STOP command.");
+            getSupport().sendCommand(
+                    "realtime data (failsafe stop)",
+                    XiaomiProto.Command.newBuilder()
+                            .setType(COMMAND_TYPE)
+                            .setSubtype(CMD_REALTIME_STATS_STOP)
+                            .build()
+            );
             return;
         }
 

@@ -1117,6 +1117,14 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity-alias>
+
+        <receiver
+            android:name=".externalevents.LocusPeriodicUpdateReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="locus.api.android.ACTION_PERIODIC_UPDATE" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <queries>
