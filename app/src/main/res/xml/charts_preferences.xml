@@ -70,6 +70,14 @@
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="charts_show_historic_average"
+            android:layout="@layout/preference_checkbox"
+            android:title="Show historical averages"
+            android:summary="Some charts have historical averages available, can impact performance"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
             android:defaultValue="false"
             android:key="charts_range"
             android:layout="@layout/preference_checkbox"

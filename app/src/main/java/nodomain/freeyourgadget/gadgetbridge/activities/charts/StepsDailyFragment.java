@@ -113,7 +113,7 @@ public class StepsDailyFragment extends StepsFragment<StepsDailyFragment.StepsDa
             stepsDay = stepsDayList.get(0);
         }
         List<? extends ActivitySample> samplesOfDay = getSamplesOfDay(db, day, 0, device);
-        List<List<? extends ActivitySample>> historicalData = GBApplication.getPrefs().getBoolean("charts_show_average", true) ? getHistoricalStepsData(db, device, DAYS_FOR_AVERAGE) : new ArrayList<>();
+        List<List<? extends ActivitySample>> historicalData = GBApplication.getPrefs().getBoolean("charts_show_historic_average", true) ? getHistoricalStepsData(db, device, DAYS_FOR_AVERAGE) : new ArrayList<>();
         return new StepsDailyFragment.StepsData(stepsDay, samplesOfDay, historicalData);
     }
 
