@@ -76,7 +76,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(129, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(130, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 

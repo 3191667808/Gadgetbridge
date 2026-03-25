@@ -150,7 +150,7 @@ public class C60DeviceCoordinator extends AbstractDeviceCoordinator  {
     }
 
     @Override
-    public boolean supportsActivityDataFetching(final GBDevice device) {
+    public boolean supportsRecordedActivities(final GBDevice device) {
         return true;
     }
 
