@@ -60,6 +60,11 @@
             android:key="pref_key_header_locus_map"
             android:title="@string/pref_category_locus_map">
 
+            <Preference
+                android:icon="@drawable/ic_warning"
+                android:key="pref_proprietary_app_warning_locus"
+                android:summary="@string/proprietary_app_warning" />
+
             <SwitchPreferenceCompat
                 android:defaultValue="false"
                 android:key="locus_map_hr_enabled"
