@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -258,7 +259,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
     private DeviceSupportFactory mFactory;
     private final ArrayList<DeviceStruct> deviceStructs = new ArrayList<>(1);
-    private final java.util.concurrent.ConcurrentHashMap<String, nodomain.freeyourgadget.gadgetbridge.service.IntentHeartRateBroadcaster> intentHrBroadcasters = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, IntentHeartRateBroadcaster> intentHrBroadcasters = new ConcurrentHashMap<>();
     private final HashMap<String, ArrayList<Intent>> cachedNotifications = new HashMap<>();
 
     private PhoneCallReceiver mPhoneCallReceiver = null;
@@ -436,14 +437,16 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 if (subject == GBDevice.DeviceUpdateSubject.DEVICE_STATE && device.isInitialized()) {
                     sendDeviceConnectedBroadcast(device.getAddress());
                     sendCachedNotifications(device);
-                    nodomain.freeyourgadget.gadgetbridge.service.IntentHeartRateBroadcaster server = intentHrBroadcasters.get(device.getAddress());
-                    if (server == null) {
-                        server = new nodomain.freeyourgadget.gadgetbridge.service.IntentHeartRateBroadcaster(nodomain.freeyourgadget.gadgetbridge.service.DeviceCommunicationService.this, device);
-                        intentHrBroadcasters.put(device.getAddress(), server);
+                    if (GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()).getBoolean("locus_map_hr_enabled", false)) {
+                        IntentHeartRateBroadcaster server = intentHrBroadcasters.get(device.getAddress());
+                        if (server == null) {
+                            server = new IntentHeartRateBroadcaster(DeviceCommunicationService.this, device);
+                            intentHrBroadcasters.put(device.getAddress(), server);
+                        }
+                        server.start();
                     }
-                    server.start();
                 } else if (subject == GBDevice.DeviceUpdateSubject.DEVICE_STATE && !device.isInitialized()) {
-                    nodomain.freeyourgadget.gadgetbridge.service.IntentHeartRateBroadcaster server = intentHrBroadcasters.remove(device.getAddress());
+                    IntentHeartRateBroadcaster server = intentHrBroadcasters.remove(device.getAddress());
                     if (server != null) server.stop();
                 } else if(subject == GBDevice.DeviceUpdateSubject.DEVICE_STATE && (device.getState() == GBDevice.State.SCANNED)) {
                     sendDeviceAPIBroadcast(device.getAddress(), API_LEGACY_ACTION_DEVICE_SCANNED);
