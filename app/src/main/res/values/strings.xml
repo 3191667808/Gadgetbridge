@@ -4712,7 +4712,7 @@
     <!-- Locus Map Integration -->
     <string name="pref_category_locus_map">Locus Map Integration</string>
     <string name="pref_title_locus_map_hr">Broadcast Heart Rate to Locus Map</string>
-    <string name="pref_summary_locus_map_hr">Automatically enable and broadcast live heart rate during Locus Map track recording.</string>
+    <string name="pref_summary_locus_map_hr">Automatically enable and broadcast live heart rate during Locus Map track recording.\nRequires \"Connect with add-ons\" enabled in Locus Map (Settings -> Miscellaneous).</string>
     <string name="pref_title_locus_watchdog">Locus Map status polling frequency</string>
-    <string name="pref_summary_locus_watchdog">How long to wait for Locus Map awake signal before stopping the HR broadcast. 0 to disable.\nRequires \"Connect with add-ons\" enabled in Locus Map (Settings -> Miscellaneous).</string>
+    <string name="pref_summary_locus_watchdog">How long to wait for Locus Map awake signal before stopping the HR broadcast (15 to 600 seconds).</string>
 </resources>

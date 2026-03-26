@@ -199,15 +199,18 @@ public class IntentHeartRateBroadcaster implements SharedPreferences.OnSharedPre
 
             if (isHrSubscribed) {
                 SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
-                String timeoutStr = prefs.getString(PREF_WATCHDOG_TIMEOUT, "0");
-                int timeoutSec;
+                String timeoutStr = prefs.getString(PREF_WATCHDOG_TIMEOUT, "15");
+                int timeoutSec = 15;
                 try {
                     timeoutSec = Integer.parseInt(timeoutStr);
                 } catch (NumberFormatException e) {
-                    timeoutSec = 0;
+                    LOG.warn("Invalid watchdog timeout format, defaulting to 15s");
                 }
                 
-                if (timeoutSec > 0 && lastLocusPingTime > 0) {
+                if (timeoutSec < 15) timeoutSec = 15;
+                if (timeoutSec > 600) timeoutSec = 600;
+                
+                if (lastLocusPingTime > 0) {
                     long elapsed = System.currentTimeMillis() - lastLocusPingTime;
                     if (elapsed > timeoutSec * 1000L) {
                         LOG.warn("Locus Map watchdog timeout ({} ms > {} ms limit), disabling HR stream as Locus seems dead.", elapsed, timeoutSec * 1000L);

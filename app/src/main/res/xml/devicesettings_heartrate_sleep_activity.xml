@@ -38,7 +38,7 @@
                 android:title="@string/pref_title_locus_map_hr" />
 
             <EditTextPreference
-                android:defaultValue="0"
+                android:defaultValue="15"
                 android:dependency="locus_map_hr_enabled"
                 android:inputType="number"
                 android:key="locus_map_watchdog_timeout"
