@@ -888,7 +888,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     public void enableRealtimeStats(final boolean enable) {
         LOG.debug("Enable realtime stats: {}", enable);
 
-        if (realtimeStarted == enable) {
+        if (enable && realtimeStarted) {
             // same state, ignore
             return;
         }
@@ -912,13 +912,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         if (!realtimeOneShot && !realtimeStarted) {
             // Failsafe in case it gets out of sync, stop it
             LOG.warn("Received realtime stats but they are supposed to be stopped. Forcing STOP command.");
-            getSupport().sendCommand(
-                    "realtime data (failsafe stop)",
-                    XiaomiProto.Command.newBuilder()
-                            .setType(COMMAND_TYPE)
-                            .setSubtype(CMD_REALTIME_STATS_STOP)
-                            .build()
-            );
+            enableRealtimeStats(false);
             return;
         }
 
