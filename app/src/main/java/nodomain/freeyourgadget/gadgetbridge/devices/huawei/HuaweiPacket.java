@@ -692,6 +692,10 @@ public class HuaweiPacket {
                         return new Watchface.WatchfaceConfirm.Response(paramsProvider).fromPacket(this);
                     case Watchface.WatchfaceNameInfo.id:
                         return new Watchface.WatchfaceNameInfo.Response(paramsProvider).fromPacket(this);
+                    case Watchface.WatchfacePhotoParams.id:
+                        return new Watchface.WatchfacePhotoParams.Response(paramsProvider).fromPacket(this);
+                    case Watchface.WatchfacePhotoInfo.id:
+                        return new Watchface.WatchfacePhotoInfo.Response(paramsProvider).fromPacket(this);
                     default:
                         this.isEncrypted = this.attemptDecrypt(); // Helps with debugging
                         return this;

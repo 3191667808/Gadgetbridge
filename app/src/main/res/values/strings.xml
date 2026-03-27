@@ -710,6 +710,9 @@
     <string name="app_install_info">You are about to install the following app:\n\n%1$s\nVersion %2$s by %3$s\n</string>
     <string name="watchface_install_info">You are about to install the following watchface:\n\n%1$s\nVersion %2$s by %3$s\n</string>
     <string name="music_upload_info">You are about to upload the following music file:\n\n%1$s\nSong title: %2$s\nAlbum: %3$s\n</string>
+    <string name="photo_watchface_background">Photo watchface background</string>
+    <string name="photo_watchface_not_connected">Background image cannot be uploaded (not connected)</string>
+    <string name="photo_watchface_upload_prompt">Upload this image as the photo watchface background?</string>
     <string name="n_a">N/A</string>
     <string name="initialized">initialized</string>
     <string name="appversion_by_creator">%1$s by %2$s</string>

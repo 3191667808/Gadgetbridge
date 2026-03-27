@@ -273,4 +273,106 @@ public class Watchface {
             }
         }
     }
+
+    public static class WatchfacePhotoParams {
+        public static final byte id = 0x08;
+
+        public static class Request extends HuaweiPacket {
+            public Request(ParamsProvider paramsProvider) {
+                super(paramsProvider);
+                this.serviceId = Watchface.id;
+                this.commandId = id;
+
+                this.tlv = new HuaweiTLV()
+                        .put(0x01)
+                        .put(0x02)
+                        .put(0x03)
+                        .put(0x04)
+                        .put(0x08)
+                        .put(0x09);
+
+                this.complete = true;
+            }
+        }
+
+        public static class Response extends HuaweiPacket {
+            public int maxBackgroundImages = -1;
+            public int canIntellectColor = -1;
+            public int backgroundImageType = -1;
+            public int positionIndex = -1;
+            public int styleIndex = -1;
+            public int backgroundImageOption = -1;
+            public int valueTypeIndex = -1;
+
+            public Response(ParamsProvider paramsProvider) {
+                super(paramsProvider);
+            }
+
+            @Override
+            public void parseTlv() throws HuaweiPacket.ParseException {
+                if (this.tlv.contains(0x01))
+                    this.maxBackgroundImages = this.tlv.getAsInteger(0x01);
+                if (this.tlv.contains(0x02))
+                    this.canIntellectColor = this.tlv.getAsInteger(0x02);
+                if (this.tlv.contains(0x03))
+                    this.backgroundImageType = this.tlv.getAsInteger(0x03);
+                if (this.tlv.contains(0x08))
+                    this.positionIndex = this.tlv.getAsInteger(0x08);
+                if (this.tlv.contains(0x09))
+                    this.styleIndex = this.tlv.getAsInteger(0x09);
+                if (this.tlv.contains(0x0a))
+                    this.valueTypeIndex = this.tlv.getAsInteger(0x0a);
+                if (this.tlv.contains(0x0b))
+                    this.backgroundImageOption = this.tlv.getAsInteger(0x0b);
+            }
+        }
+    }
+
+    public static class WatchfacePhotoInfo {
+        public static final byte id = 0x09;
+
+        public static class Request extends HuaweiPacket {
+            public Request(ParamsProvider paramsProvider, String backgroundName,
+                           int positionIndex, int styleIndex, int valueTypeIndex) {
+                super(paramsProvider);
+                this.serviceId = Watchface.id;
+                this.commandId = id;
+
+                HuaweiTLV bgEntry = new HuaweiTLV()
+                        .put(0x04, (byte) 0)
+                        .put(0x05, backgroundName);
+
+                HuaweiTLV bgList = new HuaweiTLV()
+                        .put(0x83, bgEntry);
+
+                this.tlv = new HuaweiTLV()
+                        .put(0x01, (byte) 1)
+                        .put(0x82, bgList)
+                        .put(0x06, (byte) positionIndex)
+                        .put(0x07, (byte) styleIndex)
+                        .put(0x09, (byte) valueTypeIndex);
+
+                this.complete = true;
+            }
+        }
+
+        public static class Response extends HuaweiPacket {
+            public int result = 0;
+            public int transferCount = 0;
+
+            public Response(ParamsProvider paramsProvider) {
+                super(paramsProvider);
+            }
+
+            @Override
+            public void parseTlv() throws HuaweiPacket.ParseException {
+                if (this.tlv.contains(0x7f)) {
+                    this.result = this.tlv.getInteger(0x7f);
+                }
+                if (this.tlv.contains(0x08)) {
+                    this.transferCount = this.tlv.getAsInteger(0x08);
+                }
+            }
+        }
+    }
 }

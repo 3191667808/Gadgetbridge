@@ -244,6 +244,37 @@ public class HuaweiInstallHandler implements InstallHandler {
             installActivity.setInfoText(context.getString(R.string.app_install_info, installItem.getName(), config.version, config.vendor));
 
             LOG.debug("Initialized HuaweiInstallHandler: App");
+        } else if (helper.isBackgroundImage()) {
+            this.valid = true;
+
+            installActivity.setInstallEnabled(true);
+
+            GenericItem installItem = new GenericItem();
+
+            if (helper.getPreviewBitmap() != null) {
+                installItem.setPreview(helper.getPreviewBitmap());
+            }
+
+            installItem.setName(context.getString(R.string.photo_watchface_background));
+            installActivity.setInstallItem(installItem);
+
+            if (device.isBusy()) {
+                installActivity.setInfoText(device.getBusyTask());
+                installActivity.setInstallEnabled(false);
+                return;
+            }
+
+            if (!device.isConnected()) {
+                LOG.error("Background image cannot be uploaded (not connected)");
+                installActivity.setInfoText(context.getString(R.string.photo_watchface_not_connected));
+                installActivity.setInstallEnabled(false);
+                return;
+            }
+
+            installItem.setIcon(R.drawable.ic_watchface);
+            installActivity.setInfoText(context.getString(R.string.photo_watchface_upload_prompt));
+
+            LOG.debug("Initialized HuaweiInstallHandler: Background Image");
         } else if (helper.isMusic()) {
             HuaweiMusicUtils.MusicCapabilities capabilities = huaweiDeviceState.getExtendedMusicInfoParams();
             if (capabilities == null) {

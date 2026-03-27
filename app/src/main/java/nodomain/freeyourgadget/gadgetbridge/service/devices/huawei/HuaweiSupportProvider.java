@@ -25,6 +25,8 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -40,6 +42,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
@@ -88,6 +91,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTrueSleepSequen
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.CameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.GpsAndTime;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Notifications;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.FileUpload;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Watchface;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.ui.HuaweiStressCalibrationFragment;
@@ -165,7 +170,10 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.Send
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendFitnessUserInfoRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendGetDefaultSwitch;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendGpsDataRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetWatchfacePhotoParams;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendFileUploadInfo;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendWatchfaceOperation;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendWatchfacePhotoInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendHeartRateZonesConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendOTASetAutoUpdate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SendReverseCapabilitiesRequest;
@@ -2387,12 +2395,36 @@ public class HuaweiSupportProvider {
         }
 
         fileInfo.setFileType(huaweiFwHelper.getFileType());
-        if (huaweiFwHelper.isWatchface()) {
+
+        if (huaweiFwHelper.isBackgroundImage()) {
+            // Background image upload is fully async - query params first, then upload
+            final byte[] rawImageBytes = huaweiFwHelper.getBytes();
+            final String photoWfId = findPhotoWatchfaceId();
+            final String photoWfFullName = findPhotoWatchfaceFullName();
+            if (photoWfId == null) {
+                LOG.error("No photo watchface slot found on device");
+                GB.toast(context, "No photo watchface found on device", Toast.LENGTH_SHORT, GB.ERROR);
+                return;
+            }
+            try {
+                GetWatchfacePhotoParams photoParams = new GetWatchfacePhotoParams(this,
+                        (bgImageType, bgImageOption, posIdx, styleIdx, valTypeIdx) -> {
+                            performBackgroundImageUpload(rawImageBytes, photoWfId, photoWfFullName,
+                                    bgImageType, bgImageOption, posIdx, styleIdx, valTypeIdx);
+                        });
+                photoParams.doPerform();
+            } catch (IOException e) {
+                LOG.error("Failed to query photo params", e);
+                GB.toast(context, "Failed to query photo params", Toast.LENGTH_SHORT, GB.ERROR);
+            }
+            return;
+        } else if (huaweiFwHelper.isWatchface()) {
             fileInfo.setFileName(huaweiWatchfaceManager.getRandomName());
+            fileInfo.setBytes(huaweiFwHelper.getBytes());
         } else {
             fileInfo.setFileName(huaweiFwHelper.getFileName());
+            fileInfo.setBytes(huaweiFwHelper.getBytes());
         }
-        fileInfo.setBytes(huaweiFwHelper.getBytes());
 
         fileInfo.setFileUploadCallback(new HuaweiUploadManager.FileUploadCallback() {
             @Override
@@ -2434,6 +2466,280 @@ public class HuaweiSupportProvider {
         } catch (IOException e) {
             GB.toast(context, "Failed to send file upload info", Toast.LENGTH_SHORT, GB.ERROR, e);
             LOG.error("Failed to send file upload info", e);
+        }
+    }
+
+    private void performBackgroundImageUpload(byte[] rawImageBytes, String photoWatchfaceId,
+                                                String photoWatchfaceFullName,
+                                                int bgImageType, int bgImageOption,
+                                                int positionIndex, int styleIndex, int valueTypeIndex) {
+        HuaweiState deviceState = getDeviceState();
+        int width = deviceState.getWidth();
+        int height = deviceState.getHeight();
+
+        Bitmap original = BitmapFactory.decodeByteArray(rawImageBytes, 0, rawImageBytes.length);
+        if (original == null) {
+            LOG.error("Failed to decode background image");
+            GB.toast(context, "Failed to decode image", Toast.LENGTH_SHORT, GB.ERROR);
+            return;
+        }
+
+        Bitmap resized = resizeAndCropBitmap(original, width, height);
+
+        int samplePixel = resized.getPixel(width / 2, height / 2);
+        LOG.info("Device: {}x{}, original: {}x{}, resized: {}x{}, centerPixel: 0x{}, bgImageType: {}, bgImageOption: {}",
+                width, height, original.getWidth(), original.getHeight(),
+                resized.getWidth(), resized.getHeight(), Integer.toHexString(samplePixel),
+                bgImageType, bgImageOption);
+
+        byte[] imageBytes;
+        if (bgImageType == 2) {
+            imageBytes = encodeHuaweiImage(resized, bgImageOption);
+            LOG.info("Using BIN format (option {}), size: {}", bgImageOption, imageBytes.length);
+        } else {
+            ByteArrayOutputStream pngStream = new ByteArrayOutputStream();
+            resized.compress(Bitmap.CompressFormat.PNG, 100, pngStream);
+            imageBytes = pngStream.toByteArray();
+            LOG.info("Using PNG format, size: {}", imageBytes.length);
+        }
+
+        // Use a new filename so the device requests a transfer (existing names are skipped)
+        final String bgName = "bg_" + System.currentTimeMillis() + ".png";
+
+        HuaweiUploadManager.FileUploadInfo fileInfo = new HuaweiUploadManager.FileUploadInfo();
+        fileInfo.setFileType(FileUpload.Filetype.backgroundImage);
+        fileInfo.setFileName(bgName);
+        fileInfo.setBytes(imageBytes);
+
+        fileInfo.setFileUploadCallback(new HuaweiUploadManager.FileUploadCallback() {
+            @Override
+            public void onUploadStart() {
+                HuaweiSupportProvider.this.huaweiUploadManager.setDeviceBusy();
+            }
+
+            @Override
+            public void onUploadProgress(int progress) {
+                HuaweiSupportProvider.this.onUploadProgress(R.string.updatefirmwareoperation_update_in_progress, progress, true);
+            }
+
+            @Override
+            public void onUploadComplete() {
+                HuaweiSupportProvider.this.huaweiUploadManager.unsetDeviceBusy();
+                HuaweiSupportProvider.this.onUploadProgress(R.string.updatefirmwareoperation_update_complete, 100, false);
+                if (photoWatchfaceFullName != null) {
+                    try {
+                        LOG.info("Activating photo watchface: {}", photoWatchfaceFullName);
+                        SendWatchfaceOperation activate = new SendWatchfaceOperation(
+                                HuaweiSupportProvider.this, photoWatchfaceFullName,
+                                Watchface.WatchfaceOperation.operationActive);
+                        activate.doPerform();
+                    } catch (IOException e) {
+                        LOG.error("Failed to activate photo watchface", e);
+                    }
+                }
+            }
+
+            @Override
+            public void onError(int code) {
+                LOG.error("Background image upload error: {}", code);
+            }
+        });
+
+        huaweiUploadManager.setFileUploadInfo(fileInfo);
+
+        try {
+            LOG.info("Sending photo info: bgName={}, pos={}, style={}, valType={}",
+                    bgName, positionIndex, styleIndex, valueTypeIndex);
+            SendWatchfacePhotoInfo sendPhotoInfo = new SendWatchfacePhotoInfo(
+                    this, bgName, positionIndex, styleIndex, valueTypeIndex,
+                    (status, transferCount) -> {
+                        LOG.info("Photo info accepted: status={}, transferCount={}", status, transferCount);
+                        if (status == 100000 && transferCount > 0) {
+                            // Device wants files — start upload
+                            try {
+                                SendFileUploadInfo sendFileUploadInfo = new SendFileUploadInfo(
+                                        HuaweiSupportProvider.this, huaweiUploadManager);
+                                sendFileUploadInfo.doPerform();
+                            } catch (IOException e) {
+                                LOG.error("Failed to send file upload info", e);
+                            }
+                        } else if (status == 100000) {
+                            LOG.info("Device accepted photo info, no transfer needed");
+                        } else {
+                            LOG.error("Photo info rejected: status={}", status);
+                        }
+                    });
+            sendPhotoInfo.doPerform();
+        } catch (IOException e) {
+            LOG.error("Failed to send photo info", e);
+        }
+    }
+
+
+    private String findPhotoWatchfaceId() {
+        List<Watchface.InstalledWatchfaceInfo> installed =
+                huaweiWatchfaceManager.getInstalledWatchfaceInfoList();
+        if (installed != null) {
+            for (Watchface.InstalledWatchfaceInfo info : installed) {
+                if (info.isPhoto()) {
+                    return info.fileName;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String findPhotoWatchfaceFullName() {
+        List<Watchface.InstalledWatchfaceInfo> installed =
+                huaweiWatchfaceManager.getInstalledWatchfaceInfoList();
+        if (installed != null) {
+            for (Watchface.InstalledWatchfaceInfo info : installed) {
+                if (info.isPhoto()) {
+                    return info.fileName + "_" + info.version;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Bitmap resizeAndCropBitmap(Bitmap source, int targetWidth, int targetHeight) {
+        float targetRatio = (float) targetWidth / targetHeight;
+        float sourceRatio = (float) source.getWidth() / source.getHeight();
+
+        int cropWidth, cropHeight;
+        if (sourceRatio > targetRatio) {
+            cropHeight = source.getHeight();
+            cropWidth = (int) (cropHeight * targetRatio);
+        } else {
+            cropWidth = source.getWidth();
+            cropHeight = (int) (cropWidth / targetRatio);
+        }
+
+        int offsetX = (source.getWidth() - cropWidth) / 2;
+        int offsetY = (source.getHeight() - cropHeight) / 2;
+
+        Bitmap cropped = Bitmap.createBitmap(source, offsetX, offsetY, cropWidth, cropHeight);
+        return Bitmap.createScaledBitmap(cropped, targetWidth, targetHeight, true);
+    }
+
+    /**
+     * Encodes a bitmap into Huawei's proprietary BIN format.
+     * Uses DataOutputStream to exactly match the original Huawei Health app encoding.
+     */
+    private byte[] encodeHuaweiImage(Bitmap bmp, int option) {
+        int width = bmp.getWidth();
+        int height = bmp.getHeight();
+        int imageSize = width * height;
+
+        int[] pixels = new int[imageSize];
+        bmp.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream(imageSize * 4 + 8);
+            java.io.DataOutputStream dos = new java.io.DataOutputStream(baos);
+
+            // Header: two big-endian shorts (matching original DataOutputStream.writeShort)
+            dos.writeShort(0x4523);  // magic
+            if (option == 2) {
+                dos.writeShort(0x65F5);
+            } else if (option == 1) {
+                dos.writeShort(0x8808);
+            } else {
+                dos.writeShort(0x8888);
+            }
+
+            // Width and height as little-endian shorts
+            writeShortLE(dos, width);
+            writeShortLE(dos, height);
+
+            if (option == 2) {
+                encodeRgb565Pixels(dos, pixels);
+            } else {
+                encodeArgbPixels(dos, pixels);
+            }
+
+            dos.flush();
+            return baos.toByteArray();
+        } catch (java.io.IOException e) {
+            LOG.error("Failed to encode Huawei image", e);
+            return new byte[0];
+        }
+    }
+
+    private static void writeShortLE(java.io.DataOutputStream dos, int v) throws java.io.IOException {
+        dos.writeByte(v & 0xFF);
+        dos.writeByte((v >> 8) & 0xFF);
+    }
+
+    private static void writeIntLE(java.io.DataOutputStream dos, int v) throws java.io.IOException {
+        dos.writeByte(v & 0xFF);
+        dos.writeByte((v >> 8) & 0xFF);
+        dos.writeByte((v >> 16) & 0xFF);
+        dos.writeByte((v >> 24) & 0xFF);
+    }
+
+    private static void writeRgb565(java.io.DataOutputStream dos, int argb) throws java.io.IOException {
+        int rgb565 = (((argb >> 19) & 0x1F) << 11) | (((argb >> 10) & 0x3F) << 5) | ((argb >> 3) & 0x1F);
+        writeShortLE(dos, rgb565);
+    }
+
+    private void encodeRgb565Pixels(java.io.DataOutputStream dos, int[] pixels) throws java.io.IOException {
+        int i = 0;
+        int runLen = 1;
+        while (i < pixels.length) {
+            if (i == pixels.length - 1 || pixels[i] != pixels[i + 1]) {
+                if (runLen == 1) {
+                    writeRgb565(dos, pixels[i]);
+                    if (i < pixels.length - 1) {
+                        writeRgb565(dos, pixels[i + 1]);
+                    } else {
+                        writeRgb565(dos, 0);
+                    }
+                    i++;
+                } else if (runLen % 2 != 0) {
+                    writeRgb565Run(dos, pixels[i], runLen - 1);
+                    i--;
+                } else {
+                    writeRgb565Run(dos, pixels[i], runLen);
+                }
+                runLen = 1;
+            } else {
+                runLen++;
+            }
+            i++;
+        }
+    }
+
+    private void writeRgb565Run(java.io.DataOutputStream dos, int pixel, int count) throws java.io.IOException {
+        if (count < 8) {
+            for (int k = 0; k < count; k++) {
+                writeRgb565(dos, pixel);
+            }
+        } else {
+            writeIntLE(dos, 0x23456789);
+            writeRgb565(dos, pixel);
+            writeRgb565(dos, pixel);
+            writeIntLE(dos, count / 2);
+        }
+    }
+
+    private void encodeArgbPixels(java.io.DataOutputStream dos, int[] pixels) throws java.io.IOException {
+        int runLen = 1;
+        for (int j = 0; j < pixels.length; j++) {
+            if (j == pixels.length - 1 || pixels[j] != pixels[j + 1]) {
+                if (runLen < 4) {
+                    for (int k = 0; k < runLen; k++) {
+                        writeIntLE(dos, pixels[j]);
+                    }
+                } else {
+                    writeIntLE(dos, 0x23456789);
+                    writeIntLE(dos, pixels[j]);
+                    writeIntLE(dos, runLen);
+                }
+                runLen = 1;
+            } else {
+                runLen++;
+            }
         }
     }
 

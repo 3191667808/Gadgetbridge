@@ -17,6 +17,7 @@
 
 package nodomain.freeyourgadget.gadgetbridge.service.devices.huawei;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -76,6 +77,8 @@ public class HuaweiFwHelper {
             isFirmware = true;
         } else if (parseAsMusic()) {
             fileType = FileUpload.Filetype.music;
+        } else if (parseAsBackgroundImage()) {
+            fileType = FileUpload.Filetype.backgroundImage;
         } else if (parseAsApp()) {
             assert appConfig != null;
             assert appConfig.bundleName != null;
@@ -185,6 +188,37 @@ public class HuaweiFwHelper {
         return false;
     }
 
+
+    boolean parseAsBackgroundImage() {
+        try {
+            ContentResolver cr = mContext.getContentResolver();
+            String mimeType = cr.getType(uri);
+            if (mimeType == null || !mimeType.startsWith("image/")) {
+                return false;
+            }
+
+            final UriHelper uriHelper = UriHelper.get(uri, mContext);
+            fw = getFileData(uriHelper);
+            fileSize = fw.length;
+
+            previewBitmap = BitmapFactory.decodeByteArray(fw, 0, fw.length);
+            if (previewBitmap == null) {
+                LOG.error("BackgroundImage: Failed to decode image");
+                fw = null;
+                fileSize = 0;
+                return false;
+            }
+
+            return true;
+        } catch (FileNotFoundException e) {
+            LOG.error("BackgroundImage: File was not found {}", e.getMessage());
+        } catch (IOException e) {
+            LOG.error("BackgroundImage: General IO error occurred {}", e.getMessage());
+        } catch (Exception e) {
+            LOG.error("BackgroundImage: Unknown error occurred", e);
+        }
+        return false;
+    }
 
     boolean parseAsApp() {
 
@@ -306,8 +340,12 @@ public class HuaweiFwHelper {
         return fileType == FileUpload.Filetype.music;
     }
 
+    public boolean isBackgroundImage() {
+        return fileType == FileUpload.Filetype.backgroundImage;
+    }
+
     public boolean isValid() {
-        return isWatchface() || isAPP() || isMusic() || isFirmware;
+        return isWatchface() || isAPP() || isMusic() || isBackgroundImage() || isFirmware;
     }
 
     public Bitmap getPreviewBitmap() {
