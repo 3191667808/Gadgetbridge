@@ -57,4 +57,9 @@ public class MageneCoordinator extends AbstractBLEDeviceCoordinator {
             return mageneGpxRouteInstallHandler;
         return null;
     }
+
+    @Override
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.BIKE_COMPUTER;
+    };
 }
