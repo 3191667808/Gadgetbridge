@@ -318,8 +318,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         LOG.debug("Got goal notification config");
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
-                .withPreference(XiaomiPreferences.FEAT_GOAL_NOTIFICATION, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_USER_FITNESS_GOAL_NOTIFICATION, goalNotification.getEnabled());
+                .withPreference(XiaomiPreferences.FEAT_GOAL_NOTIFICATION, true);
+        if (goalNotification.hasEnabled()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_USER_FITNESS_GOAL_NOTIFICATION, goalNotification.getEnabled());
+        }
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
     }
@@ -447,12 +449,18 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         LOG.debug("Got SpO2 config");
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
-                .withPreference(XiaomiPreferences.FEAT_SPO2, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, spo2.getAllDayTracking())
-                .withPreference(
-                        DeviceSettingsPreferenceConst.PREF_SPO2_LOW_ALERT_THRESHOLD,
-                        String.valueOf(spo2.getAlarmLow().getAlarmLowEnabled() ? spo2.getAlarmLow().getAlarmLowThreshold() : 0)
-                );
+                .withPreference(XiaomiPreferences.FEAT_SPO2, true);
+
+        if (spo2.hasAllDayTracking()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, spo2.getAllDayTracking());
+        }
+
+        if (spo2.hasAlarmLow()) {
+            eventUpdatePreferences.withPreference(
+                    DeviceSettingsPreferenceConst.PREF_SPO2_LOW_ALERT_THRESHOLD,
+                    String.valueOf(spo2.getAlarmLow().getAlarmLowEnabled() ? spo2.getAlarmLow().getAlarmLowThreshold() : 0)
+            );
+        }
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
     }
@@ -490,27 +498,39 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         LOG.debug("Got heart rate config");
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences();
-        if (heartRate.getDisabled()) {
+
+        if (heartRate.hasDisabled() && heartRate.getDisabled()) {
             eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, "0");
-        } else if (heartRate.getInterval() == 0) {
-            // smart
-            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, "-1");
-        } else {
-            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, String.valueOf(heartRate.getInterval()));
+        } else if (heartRate.hasInterval()) {
+            if (heartRate.getInterval() == 0) {
+                // smart
+                eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, "-1");
+            } else {
+                eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, String.valueOf(heartRate.getInterval()));
+            }
         }
 
-        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION, heartRate.getAdvancedMonitoring().getEnabled());
-        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, heartRate.getBreathingScore() == 1);
+        if (heartRate.hasAdvancedMonitoring() && heartRate.getAdvancedMonitoring().hasEnabled()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION, heartRate.getAdvancedMonitoring().getEnabled());
+        }
 
-        eventUpdatePreferences.withPreference(
-                DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD,
-                String.valueOf(heartRate.getAlarmHighEnabled() ? heartRate.getAlarmHighThreshold() : 0)
-        );
+        if (heartRate.hasBreathingScore()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, heartRate.getBreathingScore() == 1);
+        }
 
-        eventUpdatePreferences.withPreference(
-                DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_LOW_THRESHOLD,
-                String.valueOf(heartRate.getHeartRateAlarmLow().getAlarmLowEnabled() ? heartRate.getHeartRateAlarmLow().getAlarmLowThreshold() : 0)
-        );
+        if (heartRate.hasAlarmHighEnabled() && heartRate.hasAlarmHighThreshold()) {
+            eventUpdatePreferences.withPreference(
+                    DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD,
+                    String.valueOf(heartRate.getAlarmHighEnabled() ? heartRate.getAlarmHighThreshold() : 0)
+            );
+        }
+
+        if (heartRate.hasHeartRateAlarmLow()) {
+            eventUpdatePreferences.withPreference(
+                    DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_LOW_THRESHOLD,
+                    String.valueOf(heartRate.getHeartRateAlarmLow().getAlarmLowEnabled() ? heartRate.getHeartRateAlarmLow().getAlarmLowThreshold() : 0)
+            );
+        }
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
     }
@@ -567,19 +587,32 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleStandingReminderConfig(final XiaomiProto.StandingReminder standingReminder) {
         LOG.debug("Got standing reminder config");
 
-        final String start = XiaomiPreferences.prefFromHourMin(standingReminder.getStart());
-        final String end = XiaomiPreferences.prefFromHourMin(standingReminder.getEnd());
-        final String dndStart = XiaomiPreferences.prefFromHourMin(standingReminder.getDndStart());
-        final String dndEnd = XiaomiPreferences.prefFromHourMin(standingReminder.getDndEnd());
-
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
-                .withPreference(XiaomiPreferences.FEAT_INACTIVITY, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, standingReminder.getEnabled())
-                .withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, start)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, end)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_DND, standingReminder.getDnd())
-                .withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_DND_START, dndStart)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_DND_END, dndEnd);
+                .withPreference(XiaomiPreferences.FEAT_INACTIVITY, true);
+
+        if (standingReminder.hasEnabled()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, standingReminder.getEnabled());
+        }
+
+        if (standingReminder.hasStart()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, XiaomiPreferences.prefFromHourMin(standingReminder.getStart()));
+        }
+
+        if (standingReminder.hasEnd()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, XiaomiPreferences.prefFromHourMin(standingReminder.getEnd()));
+        }
+
+        if (standingReminder.hasDnd()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_DND, standingReminder.getDnd());
+        }
+
+        if (standingReminder.hasDndStart()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_DND_START, XiaomiPreferences.prefFromHourMin(standingReminder.getDndStart()));
+        }
+
+        if (standingReminder.hasDndEnd()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_INACTIVITY_DND_END, XiaomiPreferences.prefFromHourMin(standingReminder.getDndEnd()));
+        }
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
     }
@@ -618,9 +651,15 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         LOG.debug("Got stress config");
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
-                .withPreference(XiaomiPreferences.FEAT_STRESS, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_MONITORING, stress.getAllDayTracking())
-                .withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_RELAXATION_REMINDER, stress.getRelaxReminder().getEnabled());
+                .withPreference(XiaomiPreferences.FEAT_STRESS, true);
+
+        if (stress.hasAllDayTracking()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_MONITORING, stress.getAllDayTracking());
+        }
+
+        if (stress.hasRelaxReminder() && stress.getRelaxReminder().hasEnabled()) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_RELAXATION_REMINDER, stress.getRelaxReminder().getEnabled());
+        }
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
     }
