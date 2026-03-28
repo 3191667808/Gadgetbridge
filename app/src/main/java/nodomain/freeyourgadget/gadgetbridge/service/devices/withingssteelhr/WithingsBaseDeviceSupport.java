@@ -127,6 +127,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     private static final Logger logger = LoggerFactory.getLogger(WithingsBaseDeviceSupport.class);
     public static final String LAST_ACTIVITY_SYNC = "lastActivitySync";
+    private static final long ACTIVITY_SYNC_OVERLAP_MILLIS = 6L * 60L * 60L * 1000L;
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
@@ -795,7 +796,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         SharedPreferences settings = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         long lastSyncTime =  settings.getLong(LAST_ACTIVITY_SYNC, 0);
         if (lastSyncTime > 0) {
-            return lastSyncTime;
+            return Math.max(0, lastSyncTime - ACTIVITY_SYNC_OVERLAP_MILLIS);
         } else {
             Date currentDate = new Date();
             Calendar c = Calendar.getInstance();

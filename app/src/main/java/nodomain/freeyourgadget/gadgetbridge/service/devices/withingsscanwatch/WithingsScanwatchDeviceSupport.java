@@ -81,6 +81,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     static final String PREF_SCREENS_SORTABLE = "withings_scanwatch_screens_sortable";
     private static final String PREF_SCREENS_LAST_SENT = "withings_scanwatch_screens_last_sent";
+    private static final String PREF_FEATURE_TAGS_LAST_SENT = "withings_scanwatch_feature_tags_last_sent";
+    private static final String PREF_LOCAL_NOTIFICATIONS_LAST_SENT = "withings_scanwatch_local_notifications_last_sent";
+    private static final String PREF_HR_ALERT_LAST_SENT = "withings_scanwatch_hr_alert_last_sent";
+    private static final String PREF_RESPIRATORY_AUTO_LAST_START = "withings_scanwatch_respiratory_auto_last_start";
+    private static final String PREF_RESPIRATORY_AUTO_LAST_END = "withings_scanwatch_respiratory_auto_last_end";
 
     @Override
     protected WithingsUUIDs getWithingsUUIDs() {
@@ -175,9 +180,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 new GetWearPosHandler(this)
         );
 
-        // Re-push feature tags, HR alert thresholds, and local notifications on every sync so
-        // the watch retains the correct state after a Bluetooth reconnect or reboot.
-        // HR alert commands are only sent if the user has explicitly enabled the feature in settings.
+        // Only send feature-related settings when their effective preference state changed.
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
         final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
@@ -187,11 +190,9 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
         final boolean hrAlertsOn = !"off".equals(hrMode);
 
-        addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
-        if (hrAlertsOn) {
-            addHrAlertCommand(hrMode, prefs);
-        }
-        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+        queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+        queueHrAlertCommandIfChanged(prefs, hrMode);
+        queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
     }
 
     @Override
@@ -231,8 +232,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
-            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+            queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
         }
@@ -247,9 +248,9 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(spo2Mode, respScan, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
-            addHrAlertCommand(hrMode, prefs);
-            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+            queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            queueHrAlertCommandIfChanged(prefs, hrMode);
+            queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
         }
@@ -320,6 +321,90 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         sendQueue();
     }
 
+    private void queueFeatureTagsCommandIfChanged(final SharedPreferences prefs,
+                                                  final String spo2Mode,
+                                                  final String respiratoryScan,
+                                                  final boolean afibDayEnabled,
+                                                  final boolean afibNightEnabled,
+                                                  final boolean hrAlertsOn) {
+        final String currentState = serializeFeatureTagsState(spo2Mode, respiratoryScan, afibDayEnabled,
+                afibNightEnabled, hrAlertsOn);
+        final String lastSentState = prefs.getString(PREF_FEATURE_TAGS_LAST_SENT, null);
+        final boolean respiratoryAutomatic = "automatic".equals(respiratoryScan);
+
+        if (respiratoryAutomatic) {
+            // Automatic respiratory scheduling depends on time windows, not only on static toggles.
+            // Re-send on each sync so the app can advance the next scan window when needed.
+            addFeatureTagsCommand(prefs, spo2Mode, respiratoryScan, afibDayEnabled, afibNightEnabled,
+                    hrAlertsOn);
+            prefs.edit().putString(PREF_FEATURE_TAGS_LAST_SENT, currentState).apply();
+            return;
+        }
+
+        if (Objects.equals(currentState, lastSentState)) {
+            logger.debug("Feature tags unchanged ({}), skipping", currentState);
+            return;
+        }
+
+        addFeatureTagsCommand(prefs, spo2Mode, respiratoryScan, afibDayEnabled, afibNightEnabled,
+                hrAlertsOn);
+        prefs.edit().putString(PREF_FEATURE_TAGS_LAST_SENT, currentState).apply();
+    }
+
+    private void queueLocalNotificationsCommandIfChanged(final SharedPreferences prefs,
+                                                         final boolean afibDayEnabled,
+                                                         final boolean afibNightEnabled,
+                                                         final boolean hrAlertsOn,
+                                                         final boolean activityReminderEnabled) {
+        final String currentState = serializeLocalNotificationsState(afibDayEnabled, afibNightEnabled,
+                hrAlertsOn, activityReminderEnabled);
+        final String lastSentState = prefs.getString(PREF_LOCAL_NOTIFICATIONS_LAST_SENT, null);
+        if (Objects.equals(currentState, lastSentState)) {
+            logger.debug("Local notifications unchanged ({}), skipping", currentState);
+            return;
+        }
+
+        addLocalNotificationsCommand(afibDayEnabled, afibNightEnabled, hrAlertsOn, activityReminderEnabled);
+        prefs.edit().putString(PREF_LOCAL_NOTIFICATIONS_LAST_SENT, currentState).apply();
+    }
+
+    private void queueHrAlertCommandIfChanged(final SharedPreferences prefs, final String hrMode) {
+        final String currentState = serializeHrAlertState(prefs, hrMode);
+        final String lastSentState = prefs.getString(PREF_HR_ALERT_LAST_SENT, null);
+        if (Objects.equals(currentState, lastSentState)) {
+            logger.debug("HR alert settings unchanged ({}), skipping", currentState);
+            return;
+        }
+
+        addHrAlertCommand(hrMode, prefs);
+        prefs.edit().putString(PREF_HR_ALERT_LAST_SENT, currentState).apply();
+    }
+
+    private static String serializeFeatureTagsState(final String spo2Mode,
+                                                    final String respiratoryScan,
+                                                    final boolean afibDayEnabled,
+                                                    final boolean afibNightEnabled,
+                                                    final boolean hrAlertsOn) {
+        return spo2Mode + '|' + respiratoryScan + '|' + afibDayEnabled + '|'
+                + afibNightEnabled + '|' + hrAlertsOn;
+    }
+
+    private static String serializeLocalNotificationsState(final boolean afibDayEnabled,
+                                                           final boolean afibNightEnabled,
+                                                           final boolean hrAlertsOn,
+                                                           final boolean activityReminderEnabled) {
+        return afibDayEnabled + "|" + afibNightEnabled + "|" + hrAlertsOn + "|" + activityReminderEnabled;
+    }
+
+    private static String serializeHrAlertState(final SharedPreferences prefs, final String hrMode) {
+        if ("custom".equals(hrMode)) {
+            return hrMode + '|' + prefs.getString(PREF_HR_ALERT_LOW, "40") + '|'
+                    + prefs.getString(PREF_HR_ALERT_HIGH, "100");
+        }
+
+        return hrMode;
+    }
+
     /**
      * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
      * feature tags required for ECG, SpO2, respiratory scan, AFib, notifications, and/or resting HR alerts.
@@ -329,18 +414,18 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      *   <li>ECG always enabled: tag 0x0004</li>
      *   <li>SpO2 sleep mode: tag 0x0005</li>
      *   <li>Respiratory off:       tag 0x000A only if respiratory was previously activated</li>
-     *   <li>Respiratory automatic: tags 0x0009 (start=now, end=noon-next-day), 0x000A, 0x000B</li>
+     *   <li>Respiratory automatic: tags 0x0009, 0x000A, 0x000B with app-driven schedule windows</li>
      *   <li>Respiratory always-on: tags 0x0009 (start=0, end=0), 0x000A</li>
      *   <li>AFib on: tags 0x000E, 0x0011</li>
-     *   <li>Activity reminder on: tag 0x0014 (HIGH_HR in previous naming)</li>
      *   <li>HR alerts on: tag 0x0016 (LOW_HR)</li>
      * </ul>
      * 0x000F (SpO2 measurement), 0x0035 and 0x0058 are always sent.
      * Official captures use userId=0 in the 0x0145 feature-tag header for this command.
      */
-    private void addFeatureTagsCommand(final String spo2Mode, final String respiratoryScan,
+    private void addFeatureTagsCommand(final SharedPreferences prefs,
+                                       final String spo2Mode, final String respiratoryScan,
                                        final boolean afibDayEnabled, final boolean afibNightEnabled,
-                                       final boolean hrAlertsOn, final boolean activityReminderEnabled) {
+                                       final boolean hrAlertsOn) {
         final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         final SharedPreferences featurePrefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         msg.addDataStructure(new FeatureTagsUserId(0));
@@ -366,16 +451,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         }
         // Respiratory scan tags
         if (respAutomatic) {
-            // Automatic: TAG_RESP_SCAN with start=now, end=noon-next-day
-            final int now = (int) (System.currentTimeMillis() / 1000);
-            final Calendar cal = Calendar.getInstance();
-            cal.add(Calendar.DAY_OF_YEAR, 1);
-            cal.set(Calendar.HOUR_OF_DAY, 12);
-            cal.set(Calendar.MINUTE, 0);
-            cal.set(Calendar.SECOND, 0);
-            cal.set(Calendar.MILLISECOND, 0);
-            final int noonNextDay = (int) (cal.getTimeInMillis() / 1000);
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_SCAN, now, noonNextDay));
+            final int[] window = computeAutomaticRespiratoryWindow(prefs);
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_SCAN, window[0], window[1]));
         } else if (respAlways) {
             // Always-on: TAG_RESP_SCAN with start=0, end=0
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_RESP_SCAN));
@@ -400,9 +477,6 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         if (afibDayEnabled || afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_2));
         }
-        if (activityReminderEnabled) {
-            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_HIGH_HR));
-        }
         if (hrAlertsOn) {
             // TAG_LOW_HR (0x0016) is sent when resting HR alerts are enabled.
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_LOW_HR));
@@ -412,6 +486,78 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
         msg.addDataStructure(new EndOfTransmission());
         addSimpleConversationToQueue(msg);
+    }
+
+    private int[] computeAutomaticRespiratoryWindow(final SharedPreferences prefs) {
+        final int now = (int) (System.currentTimeMillis() / 1000);
+        final int lastStart = prefs.getInt(PREF_RESPIRATORY_AUTO_LAST_START, 0);
+        final int lastEnd = prefs.getInt(PREF_RESPIRATORY_AUTO_LAST_END, 0);
+
+        final int start;
+        final int end;
+        if (lastStart > 0 && lastEnd > lastStart) {
+            if (lastStart < now && isPreviousWindowLastNight(lastStart, now)) {
+                final int duration = Math.max(1, lastEnd - lastStart);
+                start = addMonthsToEpochSeconds(lastStart, 1);
+                end = start + duration;
+                logger.debug("Respiratory automatic: previous window was last night, scheduling next in one month {} -> {}", start, end);
+            } else if (lastEnd > now) {
+                start = lastStart;
+                end = lastEnd;
+            } else {
+                final int[] fallback = computeDefaultAutomaticRespiratoryWindow(now);
+                start = fallback[0];
+                end = fallback[1];
+            }
+        } else {
+            final int[] fallback = computeDefaultAutomaticRespiratoryWindow(now);
+            start = fallback[0];
+            end = fallback[1];
+        }
+
+        prefs.edit()
+                .putInt(PREF_RESPIRATORY_AUTO_LAST_START, start)
+                .putInt(PREF_RESPIRATORY_AUTO_LAST_END, end)
+                .apply();
+        return new int[]{start, end};
+    }
+
+    private static int[] computeDefaultAutomaticRespiratoryWindow(final int now) {
+        final Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_YEAR, 1);
+        cal.set(Calendar.HOUR_OF_DAY, 12);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        final int noonNextDay = (int) (cal.getTimeInMillis() / 1000);
+        return new int[]{now, noonNextDay};
+    }
+
+    private static int addMonthsToEpochSeconds(final int epochSeconds, final int months) {
+        final Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(epochSeconds * 1000L);
+        cal.add(Calendar.MONTH, months);
+        return (int) (cal.getTimeInMillis() / 1000);
+    }
+
+    private static boolean isPreviousWindowLastNight(final int startEpochSeconds, final int nowEpochSeconds) {
+        final Calendar start = Calendar.getInstance();
+        start.setTimeInMillis(startEpochSeconds * 1000L);
+        final Calendar now = Calendar.getInstance();
+        now.setTimeInMillis(nowEpochSeconds * 1000L);
+
+        final Calendar yesterday = (Calendar) now.clone();
+        yesterday.add(Calendar.DAY_OF_YEAR, -1);
+        final boolean startedYesterday = start.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR)
+                && start.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR);
+
+        // When the automatic window starts shortly after midnight, it still represents
+        // the scan for the previous night.
+        final boolean startedEarlyToday = start.get(Calendar.YEAR) == now.get(Calendar.YEAR)
+                && start.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
+                && start.get(Calendar.HOUR_OF_DAY) < 6;
+
+        return startedYesterday || startedEarlyToday;
     }
 
     /**

@@ -103,6 +103,17 @@ public class ConversationQueue implements ConversationObserver
             if (conversation != null) {
                 logger.debug("processResponse: remapping transfer-complete type=0x100 to pending EOT conversation type={} (0x{})",
                         conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff));
+            } else {
+                final Conversation head = queue.peekFirst();
+                if (head != null && head.getRequest() != null
+                        && head.getRequest().getType() == WithingsMessageType.SET_HR_ALERT_THRESHOLDS
+                        && head.getRequest().needsResponse()) {
+                    logger.warn("processResponse: transfer-complete type=0x100 while waiting for type={} (0x{}), treating as command error and skipping stalled conversation",
+                            head.getRequest().getType(), Integer.toHexString(head.getRequest().getType() & 0xffff));
+                    queue.removeFirst();
+                    send();
+                    return;
+                }
             }
         }
 
