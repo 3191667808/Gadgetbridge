@@ -355,6 +355,8 @@ public class XiaomiCharacteristicV1 {
                                     // chunk indices start at 1
                                     sendChunk(builder, chunkIndex - 1, maxWriteSizeForCurrentMessage - 2);
                                 }
+                                builder.queue();
+                                return;
                             } else {
                                 LOG.warn("Got chunk request, no chunk indices requested");
 
