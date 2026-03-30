@@ -50,4 +50,9 @@ public class MiWatchColorSportCoordinator extends XiaomiCoordinator {
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.WATCH;
     }
+
+    @Override
+    public boolean supportsBodyEnergy(@NonNull GBDevice device) {
+        return true;
+    }
 }
