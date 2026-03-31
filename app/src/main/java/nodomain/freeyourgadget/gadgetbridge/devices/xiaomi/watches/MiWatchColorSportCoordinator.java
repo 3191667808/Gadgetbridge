@@ -55,4 +55,14 @@ public class MiWatchColorSportCoordinator extends XiaomiCoordinator {
     public boolean supportsBodyEnergy(@NonNull GBDevice device) {
         return true;
     }
+
+    @Override
+    public int[] getStressRanges() {
+        return new int[]{1, 30, 60, 80};
+    }
+
+    @Override
+    public int[] getStressChartParameters() {
+        return new int[]{60, 0, 0};
+    }
 }
