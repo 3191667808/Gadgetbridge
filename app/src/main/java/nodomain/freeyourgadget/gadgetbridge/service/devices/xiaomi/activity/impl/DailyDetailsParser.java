@@ -138,7 +138,16 @@ public class DailyDetailsParser extends XiaomiActivityParser {
             }
 
             if (complexParser.nextGroup(16)) {
-                // TODO
+                if (version == 2 && complexParser.hasFirst()) {
+                    // stress, 16 bits
+                    final int val = complexParser.get(0, 16);
+                    if (val > 0) {
+                        final int stress = val / 100;
+                        if (stress > 0 && stress <= 100) {
+                            sample.setStress(stress);
+                        }
+                    }
+                }
             }
 
             if (version >= 3) {
