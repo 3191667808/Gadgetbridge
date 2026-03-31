@@ -46,8 +46,7 @@ public class ManualSamplesParser extends XiaomiActivityParser {
     @Override
     public boolean parse(final Context context, final GBDevice gbDevice, final XiaomiActivityFileId fileId, final byte[] bytes) {
         if (fileId.getVersion() != 2) {
-            LOG.warn("Unknown manual samples version {}", fileId.getVersion());
-            return false;
+            LOG.warn("Unknown manual samples version {}, but trying to parse anyway", fileId.getVersion());
         }
 
         final ByteBuffer buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
@@ -72,28 +71,40 @@ public class ManualSamplesParser extends XiaomiActivityParser {
             final int timestamp = buf.getInt();
             final int type = buf.get() & 0xff;
 
-            final int value;
-            // FIXME: This is incomplete - the type is actually composed of 2 nibbles that
-            // define the data length + type
-            // see https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/3517#issuecomment-1516353
+            final int typeLength = (type >> 4) & 0x0f;
+
+            if (typeLength == 0) {
+                LOG.warn("Length 0 for manual sample type {}. Aborting.", type);
+                return false;
+            }
+
+            int value = 0;
+            if (typeLength == 1) {
+                value = buf.get() & 0xff;
+            } else if (typeLength == 2) {
+                value = buf.getShort() & 0xffff;
+            } else if (typeLength == 4) {
+                value = buf.getInt();
+            } else {
+                for (int i = 0; i < typeLength; i++) {
+                    buf.get();
+                }
+            }
+
+            boolean knownType = false;
             switch (type) {
                 case XiaomiManualSampleProvider.TYPE_HR:
                 case XiaomiManualSampleProvider.TYPE_SPO2:
                 case XiaomiManualSampleProvider.TYPE_STRESS:
-                    value = buf.get() & 0xff;
-                    break;
                 case XiaomiManualSampleProvider.TYPE_TEMPERATURE:
-                    // FIXME: This is actually 2 2-byte values, see the comment linked above
-                    value = buf.getInt();
+                    knownType = true;
                     break;
-                // TODO blood pressure, see the comment linked above
                 default:
-                    LOG.warn("Unknown sample type {}", type);
-                    // We need to abort parsing, as we don't know the sample size
-                    return false;
+                    LOG.warn("Unknown sample type {} with length {}", type, typeLength);
+                    break;
             }
 
-            if (value == 0) {
+            if (!knownType || value == 0) {
                 continue;
             }
 
