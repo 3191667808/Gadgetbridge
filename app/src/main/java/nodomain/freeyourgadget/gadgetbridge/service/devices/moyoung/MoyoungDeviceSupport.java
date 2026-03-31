@@ -1245,6 +1245,8 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             int previousDistance = 0;
             int previousCalories = 0;
             for (MoyoungActivitySample sample : provider.getAllActivitySamples(startOfDayTimestamp, thisSampleTimestamp)) {
+                if (sample.getTimestamp() == thisSampleTimestamp)
+                    continue;
                 if (sample.getSteps() != ActivitySample.NOT_MEASURED)
                     previousSteps += sample.getSteps();
                 if (sample.getDistanceMeters() != ActivitySample.NOT_MEASURED)
