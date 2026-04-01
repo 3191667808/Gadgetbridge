@@ -72,11 +72,37 @@ public class XiaomiCharacteristicV1 {
     private final Map<Integer, byte[]> receivedChunks = new HashMap<>();
 
     // Scheduling
-    // TODO timeouts
+    private final Handler sendTimeoutHandler = new Handler(Looper.getMainLooper());
+    private static final long SEND_TIMEOUT_DELAY = 10000L;
+
     private final Queue<Payload> payloadQueue = new LinkedList<>();
     private boolean waitingAck = false;
     private boolean sendingChunked = false;
     private Payload currentPayload = null;
+
+    private final Runnable sendTimeoutTask = () -> {
+        LOG.warn("Timeout waiting for ACK or chunked ACK! Dropping payload {}", currentPayload != null ? currentPayload.getTaskName() : "null");
+        if (currentPayload != null && currentPayload.getCallback() != null) {
+            try {
+                currentPayload.getCallback().onNack();
+            } catch (Exception e) {
+                LOG.error("Error in onNack callback", e);
+            }
+        }
+        currentPayload = null;
+        sendingChunked = false;
+        waitingAck = false;
+        sendNext(null);
+    };
+
+    private void rescheduleSendTimeout() {
+        sendTimeoutHandler.removeCallbacksAndMessages(null);
+        sendTimeoutHandler.postDelayed(sendTimeoutTask, SEND_TIMEOUT_DELAY);
+    }
+
+    private void cancelSendTimeout() {
+        sendTimeoutHandler.removeCallbacksAndMessages(null);
+    }
 
     private XiaomiChannelHandler channelHandler = null;
 
@@ -115,6 +141,7 @@ public class XiaomiCharacteristicV1 {
         this.sendingChunked = false;
         this.currentPayload = null;
         cancelTimeoutTask();
+        cancelSendTimeout();
     }
 
     /**
@@ -309,6 +336,7 @@ public class XiaomiCharacteristicV1 {
                     switch (subtype) {
                         case 0: {
                             LOG.debug("Got chunked ack end");
+                            cancelSendTimeout();
                             if (currentPayload != null && currentPayload.getCallback() != null) {
                                 currentPayload.getCallback().onSend();
                             }
@@ -319,6 +347,7 @@ public class XiaomiCharacteristicV1 {
                         }
                         case 1: {
                             LOG.debug("Got chunked ack start");
+                            rescheduleSendTimeout();
                             final TransactionBuilder builder = mSupport.createTransactionBuilder("send chunks for " + currentPayload.getTaskName());
                             final byte[] payload = currentPayload.getBytesToSend();
                             final int chunkPayloadSize = maxWriteSizeForCurrentMessage - 2;
@@ -332,6 +361,7 @@ public class XiaomiCharacteristicV1 {
                         }
                         case 2: {
                             LOG.warn("Got chunked nack for {}", currentPayload.getTaskName());
+                            cancelSendTimeout();
                             if (currentPayload != null && currentPayload.getCallback() != null) {
                                 currentPayload.getCallback().onNack();
                             }
@@ -349,6 +379,7 @@ public class XiaomiCharacteristicV1 {
                                 }
 
                                 LOG.info("Got chunk request, requested chunks: {}", Arrays.toString(invalidChunks));
+                                rescheduleSendTimeout();
                                 final TransactionBuilder builder = mSupport.createTransactionBuilder("resend chunks for " + currentPayload.getTaskName());
 
                                 for (short chunkIndex : invalidChunks) {
@@ -365,6 +396,7 @@ public class XiaomiCharacteristicV1 {
                                     ((LinkedList<Payload>) payloadQueue).addFirst(currentPayload);
                                     currentPayload = null;
                                     sendingChunked = false;
+                                    cancelSendTimeout();
                                     sendNext(null);
                                     return;
                                 }
@@ -415,6 +447,7 @@ public class XiaomiCharacteristicV1 {
 
                     currentPayload = null;
                     waitingAck = false;
+                    cancelSendTimeout();
                     sendNext(null);
                     return;
             }
@@ -460,6 +493,7 @@ public class XiaomiCharacteristicV1 {
             LOG.debug("Sending {} - chunked", currentPayload.getTaskName());
 
             sendingChunked = true;
+            rescheduleSendTimeout();
 
             final ByteBuffer buf = ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN);
             buf.putShort((short) 0);
@@ -492,6 +526,7 @@ public class XiaomiCharacteristicV1 {
             buf.put(currentPayload.getBytesToSend()); // it's already encrypted
 
             waitingAck = true;
+            rescheduleSendTimeout();
 
             final TransactionBuilder builder = b == null ? mSupport.createTransactionBuilder("send single command for " + currentPayload.getTaskName()) : b;
             builder.write(bluetoothGattCharacteristic, buf.array());
