@@ -74,15 +74,12 @@ public class StoredMeasureData extends WithingsStructure {
             // Preferred path: explicit SpO2 type from captures/spec.
             if (measurementType == TYPE_SPO2 && scaledPercent >= 1 && scaledPercent <= 100) {
                 spo2Percent = scaledPercent;
-            } else if (scaledPercent >= 70 && scaledPercent <= 100) {
-                // Unknown measurement type but value is in a plausible SpO2 range.
-                spo2Percent = scaledPercent;
             } else {
                 spo2Percent = -1;
             }
         } else {
             // Legacy fallback for short payload variants.
-            spo2Percent = (lowBytePercent >= 70 && lowBytePercent <= 100) ? lowBytePercent : -1;
+            spo2Percent = (lowBytePercent >= 1 && lowBytePercent <= 100) ? lowBytePercent : -1;
         }
 
         logger.debug("Parsed StoredMeasureData: type={} exponent={} rawValue={} spo2Percent={}", measurementType, exponent, rawValue, getSpo2Percent());

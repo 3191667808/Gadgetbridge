@@ -22,32 +22,40 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureMeta;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalMeta;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 
 public class StoredMeasureSignalHandler implements ResponseHandler {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureSignalHandler.class);
     private static final int MEASUREMENT_TYPE_SPO2 = 54;
+    private static final int MAX_DELETE_ATTEMPTS = 32;
+    private static final int MAX_REPEATED_PAGE_RETRIES = 4;
 
     private final WithingsBaseDeviceSupport support;
     private final GBDevice device;
     private final int signalType;
-    private int lastCompletedCursor = -1;
-    private int lastQueuedCursor = -1;
     private int pendingPageCursor = -1;
     private int pendingPageSignalFlags = 0;
     private boolean pendingSawSignalMeta = false;
     private boolean pendingSawStoredData = false;
+    private long pendingLastSampleTimestampMs = -1;
+    private int pendingLastSampleSpo2 = -1;
+    private int lastDeletedCursor = -1;
+    private int lastDeletedSignalFlags = -1;
+    private long lastDeletedTimestampMs = -1;
+    private int lastDeletedSpo2 = -1;
+    private int repeatedPageRetries;
+    private boolean forceSequentialCursor = false;
 
     public StoredMeasureSignalHandler(final WithingsBaseDeviceSupport support, final GBDevice device, final int signalType) {
         this.support = support;
@@ -107,7 +115,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             }
 
             final int spo2 = data.getSpo2Percent();
-            if (spo2 < 70 || spo2 > 100) {
+            if (spo2 < 1 || spo2 > 100) {
                 continue;
             }
 
@@ -119,6 +127,8 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             logger.debug("Collected Withings SpO2 sample: ts={} spo2={} metaType={} dataType={}",
                     timestampMs, spo2, currentMeta.getMeasurementType(), data.getMeasurementType());
             collectedSamples.add(new long[]{timestampMs, spo2});
+            pendingLastSampleTimestampMs = timestampMs;
+            pendingLastSampleSpo2 = spo2;
         }
 
         if (!collectedSamples.isEmpty()) {
@@ -162,28 +172,59 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             return;
         }
 
-        support.queueDeleteStoredMeasureSignal(signalType, pendingPageSignalFlags, pendingPageCursor);
-
-        if (!pendingSawStoredData) {
-            resetPendingPageState();
-            return;
-        }
-
-        if (pendingPageCursor <= lastCompletedCursor) {
-            resetPendingPageState();
-            return;
-        }
-
-        final int nextCursor = pendingPageCursor + 1;
-        if (nextCursor == lastQueuedCursor) {
-            resetPendingPageState();
-            return;
-        }
-
-        lastCompletedCursor = pendingPageCursor;
-        lastQueuedCursor = nextCursor;
-        support.queueGetStoredMeasureSignal(signalType, nextCursor);
+        final int currentCursor = pendingPageCursor;
+        final int currentSignalFlags = pendingPageSignalFlags;
+        final boolean sawStoredData = pendingSawStoredData;
+        final long lastSampleTimestampMs = pendingLastSampleTimestampMs;
+        final int lastSampleSpo2 = pendingLastSampleSpo2;
         resetPendingPageState();
+
+        if (isRepeatedPage(currentCursor, currentSignalFlags, lastSampleTimestampMs, lastSampleSpo2)) {
+            if (!sawStoredData) {
+                logger.warn("Stopping stored measure loop for signalType={} after repeated empty page cursor={}", signalType, currentCursor);
+                return;
+            }
+            if (repeatedPageRetries >= MAX_REPEATED_PAGE_RETRIES) {
+                logger.warn("Watch refused to advance after deletes. Bypassing stuck record by forcing sequential cursor from {}", currentCursor);
+                repeatedPageRetries = 0;
+                forceSequentialCursor = true;
+                support.queueGetStoredMeasureSignal(signalType, currentCursor + 1, StoredMeasureSignalHandler.this);
+                return;
+            }
+
+            repeatedPageRetries++;
+            final int deleteAttempts = support.incrementStoredMeasureDeleteAttempts();
+            if (deleteAttempts > MAX_DELETE_ATTEMPTS) {
+                logger.warn("Stopping stored measure loop for signalType={} after {} delete attempts", signalType, deleteAttempts);
+                return;
+            }
+
+            logger.warn("Retrying delete for repeated stored measure page signalType={} cursor={} flags={} ts={} spo2={} retry={}",
+                    signalType, currentCursor, currentSignalFlags, lastSampleTimestampMs, lastSampleSpo2, repeatedPageRetries);
+            support.queueDeleteStoredMeasureSignal(signalType, currentSignalFlags, currentCursor, deleteResponse ->
+                    support.queueGetStoredMeasureSignal(signalType, 0, StoredMeasureSignalHandler.this));
+            return;
+        }
+
+        repeatedPageRetries = 0;
+
+        lastDeletedCursor = currentCursor;
+        lastDeletedSignalFlags = currentSignalFlags;
+        lastDeletedTimestampMs = lastSampleTimestampMs;
+        lastDeletedSpo2 = lastSampleSpo2;
+
+        final int deleteAttempts = support.incrementStoredMeasureDeleteAttempts();
+        if (deleteAttempts > MAX_DELETE_ATTEMPTS) {
+            logger.warn("Stopping stored measure loop for signalType={} after {} delete attempts", signalType, deleteAttempts);
+            return;
+        }
+
+        support.queueDeleteStoredMeasureSignal(signalType, currentSignalFlags, currentCursor, deleteResponse -> {
+            if (sawStoredData) {
+                final int nextReqCursor = forceSequentialCursor ? (currentCursor + 1) : 0;
+                support.queueGetStoredMeasureSignal(signalType, nextReqCursor, StoredMeasureSignalHandler.this);
+            }
+        });
     }
 
     private void resetPendingPageState() {
@@ -191,6 +232,18 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         pendingPageSignalFlags = 0;
         pendingSawSignalMeta = false;
         pendingSawStoredData = false;
+        pendingLastSampleTimestampMs = -1;
+        pendingLastSampleSpo2 = -1;
+    }
+
+    private boolean isRepeatedPage(final int cursor,
+                                   final int signalFlags,
+                                   final long timestampMs,
+                                   final int spo2) {
+        return cursor == lastDeletedCursor
+                && signalFlags == lastDeletedSignalFlags
+                && timestampMs == lastDeletedTimestampMs
+                && spo2 == lastDeletedSpo2;
     }
 
     private static boolean isLikelySpo2Measurement(final StoredMeasureMeta meta, final StoredMeasureData data) {
@@ -198,12 +251,6 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             return true;
         }
 
-        final int measurementType = meta.getMeasurementType();
-        if (measurementType == MEASUREMENT_TYPE_SPO2) {
-            return true;
-        }
-
-        final int spo2 = data.getSpo2Percent();
-        return measurementType == 259 && spo2 >= 70 && spo2 <= 100;
+        return meta.getMeasurementType() == MEASUREMENT_TYPE_SPO2;
     }
 }

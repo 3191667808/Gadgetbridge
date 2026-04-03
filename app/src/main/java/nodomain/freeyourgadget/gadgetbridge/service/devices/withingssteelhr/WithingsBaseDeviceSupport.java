@@ -156,6 +156,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      */
     protected abstract WithingsUUIDs getWithingsUUIDs();
     private boolean syncInProgress;
+    private int storedMeasureDeleteRequestId;
+    private int storedMeasureDeleteAttempts;
     private final ActivityUser activityUser;
     private final NotificationProvider notificationProvider;
     private final IncomingMessageHandlerFactory incomingMessageHandlerFactory;
@@ -293,6 +295,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
             if (shoudSync()) {
                 logger.debug("Doing full sync...");
+                storedMeasureDeleteRequestId = 0;
+                storedMeasureDeleteAttempts = 0;
                 final User user = getUser();
                 // Store the userId we're about to send to the watch so that all subsequent
                 // commands built in addExtraSyncCommands() (ScreenSettings, FeatureTagsUserId, etc.)
@@ -748,17 +752,43 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     public void queueDeleteStoredMeasureSignal(final int signalType, final int signalFlags, final int cursor) {
-        Message deleteMessage = new WithingsMessage(WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL, ExpectedResponse.NONE);
-        // Official app includes a 0x0145 user-id TLV (value 0) before 0x0143 for delete requests.
-        deleteMessage.addDataStructure(new FeatureTagsUserId(0));
+        queueDeleteStoredMeasureSignal(signalType, signalFlags, cursor, null);
+    }
+
+    public void queueDeleteStoredMeasureSignal(final int signalType,
+                                               final int signalFlags,
+                                               final int cursor,
+                                               final ResponseHandler handler) {
+        queueDeleteStoredMeasureSignal(signalType, signalFlags, cursor, storedMeasureDeleteRequestId++, handler);
+    }
+
+    public void queueDeleteStoredMeasureSignal(final int signalType,
+                                               final int signalFlags,
+                                               final int cursor,
+                                               final int deleteRequestId,
+                                               final ResponseHandler handler) {
+        Message deleteMessage = new WithingsMessage(WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL, ExpectedResponse.SIMPLE);
+        // Official captures include a 0x0145 TLV before 0x0143, and successful multi-page
+        // manual SpO2 syncs increment it across successive delete requests in the same session.
+        deleteMessage.addDataStructure(new FeatureTagsUserId(deleteRequestId));
         deleteMessage.addDataStructure(new StoredSignalMeta(signalType, signalFlags, cursor));
-        addSimpleConversationFirst(deleteMessage, null);
+        addSimpleConversationFirst(deleteMessage, handler);
     }
 
     public void queueGetStoredMeasureSignal(final int signalType, final int cursor) {
+        queueGetStoredMeasureSignal(signalType, cursor, new StoredMeasureSignalHandler(this, gbDevice, signalType));
+    }
+
+    public void queueGetStoredMeasureSignal(final int signalType,
+                                            final int cursor,
+                                            final ResponseHandler handler) {
         Message getMessage = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
         getMessage.addDataStructure(new StoredSignalMeta(signalType, cursor));
-        addSimpleConversationFirst(getMessage, new StoredMeasureSignalHandler(this, gbDevice, signalType));
+        addSimpleConversationFirst(getMessage, handler);
+    }
+
+    public int incrementStoredMeasureDeleteAttempts() {
+        return ++storedMeasureDeleteAttempts;
     }
 
     public boolean hasEndOfTransmission(final Message response) {
