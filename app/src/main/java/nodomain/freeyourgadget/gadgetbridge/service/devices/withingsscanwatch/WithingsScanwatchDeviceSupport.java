@@ -78,6 +78,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     private static final Logger logger = LoggerFactory.getLogger(WithingsScanwatchDeviceSupport.class);
+    private static final int SCANWATCH_IMAGE_DATA_CHUNK_SIZE = 64;
 
     static final String PREF_SCREENS_SORTABLE = "withings_scanwatch_screens_sortable";
     private static final String PREF_SCREENS_LAST_SENT = "withings_scanwatch_screens_last_sent";
@@ -737,9 +738,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         meta0.setHeight((byte) 20);
         message.addDataStructure(meta0);
 
-        ImageData data0 = new ImageData();
-        data0.setImageData(IconHelper.getIconBytesFromDrawable(drawable, 20, 20));
-        message.addDataStructure(data0);
+        addImageDataStructures(message, IconHelper.getIconBytesFromDrawable(drawable, 20, 20));
 
         // Icon 1: 28x28
         ImageMetaData meta1 = new ImageMetaData();
@@ -748,11 +747,17 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         meta1.setHeight((byte) 28);
         message.addDataStructure(meta1);
 
-        ImageData data1 = new ImageData();
-        data1.setImageData(IconHelper.getIconBytesFromDrawable(drawable, 28, 28));
-        message.addDataStructure(data1);
+        addImageDataStructures(message, IconHelper.getIconBytesFromDrawable(drawable, 28, 28));
 
         return message;
+    }
+
+    private void addImageDataStructures(final Message message, final byte[] imageData) {
+        for (final byte[] chunk : IconHelper.splitImageData(imageData, SCANWATCH_IMAGE_DATA_CHUNK_SIZE)) {
+            final ImageData imageChunk = new ImageData();
+            imageChunk.setImageData(chunk);
+            message.addDataStructure(imageChunk);
+        }
     }
 
     /**

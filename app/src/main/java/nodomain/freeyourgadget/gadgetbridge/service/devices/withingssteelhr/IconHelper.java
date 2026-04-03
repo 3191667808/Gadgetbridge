@@ -19,7 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.Icon;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.util.BitmapUtil;
 
@@ -33,6 +35,23 @@ public class IconHelper {
         Bitmap bitmap = BitmapUtil.toBitmap(drawable);
         Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true);
         return toByteArray(scaledBitmap);
+    }
+
+    public static List<byte[]> splitImageData(byte[] imageData, int maxChunkSize) {
+        List<byte[]> chunks = new ArrayList<>();
+        if (imageData == null || imageData.length == 0) {
+            chunks.add(new byte[0]);
+            return chunks;
+        }
+
+        for (int offset = 0; offset < imageData.length; offset += maxChunkSize) {
+            final int chunkLength = Math.min(maxChunkSize, imageData.length - offset);
+            final byte[] chunk = new byte[chunkLength];
+            System.arraycopy(imageData, offset, chunk, 0, chunkLength);
+            chunks.add(chunk);
+        }
+
+        return chunks;
     }
 
     public static byte[] toByteArray(Bitmap bitmap) {
