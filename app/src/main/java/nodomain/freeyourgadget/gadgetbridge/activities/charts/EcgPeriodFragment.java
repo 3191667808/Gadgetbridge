@@ -36,10 +36,9 @@ import java.util.Locale;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
-import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.database.repository.EcgRepository;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.EcgRecord;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 
 public class EcgPeriodFragment extends AbstractChartFragment<EcgPeriodFragment.EcgPeriodData> {
@@ -126,18 +125,7 @@ public class EcgPeriodFragment extends AbstractChartFragment<EcgPeriodFragment.E
     protected EcgPeriodData refreshInBackground(final ChartsHost chartsHost, final DBHandler db, final GBDevice device) {
         final long periodStart = getStartTimestamp();
         final long periodEnd = ((long) getTSEnd() * 1000L) + 999L;
-        final long deviceId = DBHelper.getDevice(device, db.getDaoSession()).getId();
-
-        final List<HuaweiEcgSummarySample> summaries = db.getDaoSession().getHuaweiEcgSummarySampleDao()
-                .queryBuilder()
-                .where(
-                        HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId),
-                        HuaweiEcgSummarySampleDao.Properties.StartTimestamp.ge(periodStart),
-                        HuaweiEcgSummarySampleDao.Properties.StartTimestamp.le(periodEnd)
-                )
-                .orderAsc(HuaweiEcgSummarySampleDao.Properties.StartTimestamp)
-                .build()
-                .list();
+        final List<EcgRecord> summaries = EcgRepository.getSessions(db, device, periodStart, periodEnd);
 
         final List<EcgDayData> days = new ArrayList<>(totalDays);
         for (int i = 0; i < totalDays; i++) {
@@ -149,7 +137,7 @@ public class EcgPeriodFragment extends AbstractChartFragment<EcgPeriodFragment.E
         int minimumHeartRate = Integer.MAX_VALUE;
         int maximumHeartRate = Integer.MIN_VALUE;
 
-        for (final HuaweiEcgSummarySample summary : summaries) {
+        for (final EcgRecord summary : summaries) {
             final int index = (int) ((summary.getStartTimestamp() - periodStart) / MILLIS_PER_DAY);
             if (index < 0 || index >= totalDays) {
                 continue;

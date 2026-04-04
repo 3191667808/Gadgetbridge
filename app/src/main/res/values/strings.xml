@@ -1086,6 +1086,17 @@
     <string name="p_bloodpressure" translatable="false">bloodpressure</string>
     <string name="getting_heart_rate">Measuring</string>
     <string name="heart_rate_result">Measurement results</string>
+    <string name="ecg_device_hint">Device hint</string>
+    <string name="ecg_gadgetbridge_interpretation">Gadgetbridge interpretation</string>
+    <string name="ecg_interpretation_combined">%1$s, %2$s</string>
+    <string name="ecg_smoothing_mode_watch_style">Watch-style smoothing</string>
+    <string name="ecg_smoothing_mode_precise">Detailed smoothing</string>
+    <string name="ecg_rhythm_regular">Regular rhythm</string>
+    <string name="ecg_rhythm_irregular">Irregular rhythm</string>
+    <string name="ecg_signal_quality_good">Good signal</string>
+    <string name="ecg_signal_quality_noisy">Noisy signal</string>
+    <string name="ecg_interpretation_inconclusive">Inconclusive</string>
+    <string name="irregular">Irregular</string>
     <string name="movement_intensity">Movement intensity</string>
     <string name="battery">Battery</string>
     <string name="no_limit">No limit</string>
@@ -3916,7 +3927,7 @@
     <string name="withings_scanwatch_pref_afib_day_summary">Enable daytime atrial fibrillation detection</string>
     <string name="withings_scanwatch_pref_afib_night_title">AFib Detection (Night)</string>
     <string name="withings_scanwatch_pref_afib_night_summary">Enable night-time atrial fibrillation detection</string>
-    <string name="withings_ecg_result_seek_help">Seek medical advice</string>
+    <string name="withings_ecg_result_seek_help">Irregular</string>
     <string name="withings_scanwatch_alarm_smart_wakeup_description">The watch will find the best moment to wake you up between the smart wakeup window start and your alarm time, based on your sleep cycle. Set the window to 0 to wake up exactly at the alarm time.</string>
 
     <!-- Quicklook / glance (raise-to-wake) -->

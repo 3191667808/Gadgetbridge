@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DeviceChartsProvider;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
+import nodomain.freeyourgadget.gadgetbridge.database.repository.EcgRepository;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
@@ -38,9 +39,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.WithingsScanwatchActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -67,12 +65,7 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     protected void deleteDevice(@NonNull final GBDevice gbDevice, @NonNull final Device device, @NonNull final DaoSession session) throws GBException {
         final long deviceId = device.getId();
 
-        final QueryBuilder<HuaweiEcgSummarySample> qbEcgSummary = session.getHuaweiEcgSummarySampleDao().queryBuilder();
-        final List<HuaweiEcgSummarySample> ecgSummary = qbEcgSummary.where(HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId)).build().list();
-        for (final HuaweiEcgSummarySample sample : ecgSummary) {
-            deleteBy(session.getHuaweiEcgDataSampleDao(), HuaweiEcgDataSampleDao.Properties.EcgId, sample.getEcgId());
-        }
-        deleteBy(session.getHuaweiEcgSummarySampleDao(), HuaweiEcgSummarySampleDao.Properties.DeviceId, deviceId);
+        EcgRepository.deleteForDevice(session, deviceId);
 
         super.deleteDevice(gbDevice, device, session);
     }
