@@ -97,7 +97,22 @@
 
             <LinearLayout
                 style="@style/GridTile"
-                android:layout_marginStart="1dp" />
+                android:layout_marginStart="1dp">
+
+                <TextView
+                    android:id="@+id/ecg_result"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/stats_empty_value"
+                    android:textColor="?attr/textColorPrimary"
+                    android:textSize="20sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/heart_rate_result"
+                    android:textSize="12sp" />
+            </LinearLayout>
         </GridLayout>
 
         <LinearLayout

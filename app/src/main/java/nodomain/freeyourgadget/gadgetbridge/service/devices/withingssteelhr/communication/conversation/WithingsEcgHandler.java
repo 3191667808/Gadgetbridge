@@ -53,6 +53,7 @@ public class WithingsEcgHandler implements ResponseHandler {
 
     private static final int ECG_MEASUREMENT_TYPE = 0x0103;
     private static final int ECG_AVERAGE_HR_TYPE = 0x000b;
+    private static final int ECG_RESULT_TYPE = 0x0082;
     private static final int ECG_WAVEFORM_SIGNAL_TYPE = 0x0001;
     private static final int ECG_SAMPLE_RATE_HZ = 300;
     private static final String APP_VERSION_PLACEHOLDER = "withings";
@@ -240,6 +241,7 @@ public class WithingsEcgHandler implements ResponseHandler {
         private StoredSignalMeta deleteKey;
         private long startTimestampMs;
         private int averageHeartRate = -1;
+        private long arrhythmiaType = 0;
 
         private EcgWaveformHandler(final StoredMeasureMeta requestedRecordKey,
                                    final boolean storeWaveformAfterFetch,
@@ -270,6 +272,8 @@ public class WithingsEcgHandler implements ResponseHandler {
                     final StoredMeasureData data = (StoredMeasureData) structure;
                     if (data.getMeasurementType() == ECG_AVERAGE_HR_TYPE) {
                         averageHeartRate = data.getRawValue();
+                    } else if (data.getMeasurementType() == ECG_RESULT_TYPE) {
+                        arrhythmiaType = data.getRawValue();
                     }
                 } else if (structure instanceof StoredSignalMeta) {
                     final StoredSignalMeta signalMeta = (StoredSignalMeta) structure;
@@ -310,7 +314,7 @@ public class WithingsEcgHandler implements ResponseHandler {
 
             if (!waveform.isEmpty()) {
                 final long endTimestampMs = startTimestampMs + Math.round((waveform.size() * 1000d) / ECG_SAMPLE_RATE_HZ);
-                storeWaveform(startTimestampMs, endTimestampMs, averageHeartRate, waveform);
+                storeWaveform(startTimestampMs, endTimestampMs, averageHeartRate, arrhythmiaType, waveform);
             } else if (storeWaveformAfterFetch) {
                 logger.warn("Expected Withings ECG waveform for ts={} but got none", startTimestampMs);
             }
@@ -344,6 +348,7 @@ public class WithingsEcgHandler implements ResponseHandler {
     private void storeWaveform(final long start,
                                final long end,
                                final int avgHr,
+                               final long arrhythmiaType,
                                final List<Float> samples) {
         try (DBHandler db = GBApplication.acquireDB()) {
             final Long userId = DBHelper.getUser(db.getDaoSession()).getId();
@@ -368,7 +373,7 @@ public class WithingsEcgHandler implements ResponseHandler {
                     end,
                     APP_VERSION_PLACEHOLDER,
                     Math.max(avgHr, 0),
-                    0,
+                    arrhythmiaType,
                     0
             );
             db.getDaoSession().getHuaweiEcgSummarySampleDao().insertOrReplace(summary);

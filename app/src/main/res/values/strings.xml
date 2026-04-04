@@ -3916,6 +3916,7 @@
     <string name="withings_scanwatch_pref_afib_day_summary">Enable daytime atrial fibrillation detection</string>
     <string name="withings_scanwatch_pref_afib_night_title">AFib Detection (Night)</string>
     <string name="withings_scanwatch_pref_afib_night_summary">Enable night-time atrial fibrillation detection</string>
+    <string name="withings_ecg_result_seek_help">Seek medical advice</string>
     <string name="withings_scanwatch_alarm_smart_wakeup_description">The watch will find the best moment to wake you up between the smart wakeup window start and your alarm time, based on your sleep cycle. Set the window to 0 to wake up exactly at the alarm time.</string>
 
     <!-- Quicklook / glance (raise-to-wake) -->

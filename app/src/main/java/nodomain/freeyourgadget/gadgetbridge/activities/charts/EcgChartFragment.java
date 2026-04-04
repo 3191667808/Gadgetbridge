@@ -1,10 +1,13 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.charts;
 
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
@@ -45,36 +48,48 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     private int backgroundColor;
     private int chartTextColor;
     private int ecgColor;
+    private int selectedSessionBackgroundColor;
+    private int selectedSessionTextColor;
 
     private TextView dateView;
     private LineChart chart;
     private TextView averageHeartRateView;
     private TextView durationView;
     private TextView measurementCountView;
+    private TextView resultView;
+    private ScrollView scrollView;
     private LinearLayout sessionsContainer;
     private LinearLayout sessionsList;
+    private Long selectedSessionStartTimestamp;
 
     @Override
     protected void init() {
         backgroundColor = GBApplication.getBackgroundColor(requireContext());
         chartTextColor = GBApplication.getSecondaryTextColor(requireContext());
         ecgColor = ContextCompat.getColor(requireContext(), R.color.chart_line_heart_rate);
+        selectedSessionBackgroundColor = resolveThemeColor(com.google.android.material.R.attr.colorPrimaryContainer);
+        selectedSessionTextColor = resolveThemeColor(com.google.android.material.R.attr.colorOnPrimaryContainer);
     }
 
     @Override
     public View onCreateView(final LayoutInflater inflater, final ViewGroup container, final Bundle savedInstanceState) {
         final View rootView = inflater.inflate(R.layout.fragment_ecg, container, false);
 
+        scrollView = (ScrollView) rootView;
+        scrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) ->
+                getChartsHost().enableSwipeRefresh(scrollY == 0));
         dateView = rootView.findViewById(R.id.date_view);
         chart = rootView.findViewById(R.id.ecg_line_chart);
         averageHeartRateView = rootView.findViewById(R.id.ecg_average);
         durationView = rootView.findViewById(R.id.ecg_duration);
         measurementCountView = rootView.findViewById(R.id.ecg_measurement_count);
+        resultView = rootView.findViewById(R.id.ecg_result);
         sessionsContainer = rootView.findViewById(R.id.ecgSessions);
         sessionsList = rootView.findViewById(R.id.ecgSessionsList);
 
         sessionsContainer.setVisibility(View.GONE);
         setupLineChart();
+        setupChartTouchHandling();
         return rootView;
     }
 
@@ -89,13 +104,14 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
 
         final long startTimestamp = day.getTimeInMillis();
         final long endTimestamp = startTimestamp + TimeUnit.DAYS.toMillis(1) - 1;
-        return fetchEcgData(db, device, startTimestamp, endTimestamp);
+        return fetchEcgData(db, device, startTimestamp, endTimestamp, selectedSessionStartTimestamp);
     }
 
     private EcgChartData fetchEcgData(final DBHandler db,
                                       final GBDevice device,
                                       final long startTimestamp,
-                                      final long endTimestamp) {
+                                      final long endTimestamp,
+                                      final Long selectedSessionTimestamp) {
         final long deviceId = DBHelper.getDevice(device, db.getDaoSession()).getId();
         final List<HuaweiEcgSummarySample> summaries = db.getDaoSession().getHuaweiEcgSummarySampleDao()
                 .queryBuilder()
@@ -111,21 +127,20 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         HuaweiEcgSummarySample selectedSummary = null;
         List<HuaweiEcgDataSample> waveform = Collections.emptyList();
 
-        for (int i = summaries.size() - 1; i >= 0; i--) {
-            final HuaweiEcgSummarySample candidate = summaries.get(i);
-            if (candidate.getEcgId() == null) {
-                continue;
-            }
-            final List<HuaweiEcgDataSample> candidateWaveform = db.getDaoSession().getHuaweiEcgDataSampleDao()
-                    .queryBuilder()
-                    .where(HuaweiEcgDataSampleDao.Properties.EcgId.eq(candidate.getEcgId()))
-                    .orderAsc(HuaweiEcgDataSampleDao.Properties.TimeDelta)
-                    .build()
-                    .list();
-            selectedSummary = candidate;
-            waveform = candidateWaveform;
-            if (!candidateWaveform.isEmpty()) {
-                break;
+        if (selectedSessionTimestamp != null) {
+            selectedSummary = findSummaryByTimestamp(summaries, selectedSessionTimestamp);
+            waveform = loadWaveform(db, selectedSummary);
+        }
+
+        if (selectedSummary == null) {
+            for (int i = summaries.size() - 1; i >= 0; i--) {
+                final HuaweiEcgSummarySample candidate = summaries.get(i);
+                final List<HuaweiEcgDataSample> candidateWaveform = loadWaveform(db, candidate);
+                selectedSummary = candidate;
+                waveform = candidateWaveform;
+                if (!candidateWaveform.isEmpty()) {
+                    break;
+                }
             }
         }
 
@@ -140,11 +155,13 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     protected void updateChartsnUIThread(final EcgChartData data) {
         sessionsList.removeAllViews();
         sessionsContainer.setVisibility(View.GONE);
+        selectedSessionStartTimestamp = data.selectedSummary != null ? data.selectedSummary.getStartTimestamp() : null;
 
         final String emptyValue = requireContext().getString(R.string.stats_empty_value);
         averageHeartRateView.setText(formatAverageHeartRate(data.selectedSummary, emptyValue));
         durationView.setText(formatDuration(data.selectedSummary, emptyValue));
         measurementCountView.setText(String.valueOf(data.summaries.size()));
+        resultView.setText(formatResult(data.selectedSummary, emptyValue));
         dateView.setText(new SimpleDateFormat("E, MMM dd", Locale.getDefault()).format(new Date((long) getTSEnd() * 1000L)));
 
         chart.setData(null);
@@ -195,12 +212,31 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             final LayoutInflater inflater = LayoutInflater.from(requireContext());
             for (int i = data.summaries.size() - 1; i >= 0; i--) {
                 final HuaweiEcgSummarySample summary = data.summaries.get(i);
-                final View row = inflater.inflate(R.layout.item_spo2_manual_measurment, sessionsList, false);
+                final View row = inflater.inflate(R.layout.item_ecg_session, sessionsList, false);
                 final TextView timeText = row.findViewById(R.id.timeText);
                 final TextView valueText = row.findViewById(R.id.valueText);
+                final View clickableRow = row.findViewById(R.id.ecg_session_row);
+                final boolean isSelected = data.selectedSummary != null
+                        && data.selectedSummary.getStartTimestamp() == summary.getStartTimestamp();
 
-                timeText.setText(formatSessionRange(summary));
-                valueText.setText(formatAverageHeartRate(summary, emptyValue));
+                timeText.setText(formatResult(summary, emptyValue));
+                valueText.setText(formatSessionStartTime(summary));
+                row.setActivated(isSelected);
+                row.setBackgroundColor(isSelected ? selectedSessionBackgroundColor : backgroundColor);
+                timeText.setTextColor(isSelected ? selectedSessionTextColor : chartTextColor);
+                valueText.setTextColor(isSelected ? selectedSessionTextColor : averageHeartRateView.getCurrentTextColor());
+
+                if (summary.getEcgId() != null) {
+                    clickableRow.setOnClickListener(v -> {
+                        selectedSessionStartTimestamp = summary.getStartTimestamp();
+                        scrollToTop();
+                        refresh();
+                    });
+                } else {
+                    clickableRow.setAlpha(0.6f);
+                    clickableRow.setClickable(false);
+                }
+
                 sessionsList.addView(row);
             }
 
@@ -210,13 +246,9 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         }
     }
 
-    private String formatSessionRange(final HuaweiEcgSummarySample summary) {
+    private String formatSessionStartTime(final HuaweiEcgSummarySample summary) {
         final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
-        return getString(
-                R.string.date_placeholders__start_time__end_time,
-                timeFormat.format(new Date(summary.getStartTimestamp())),
-                timeFormat.format(new Date(summary.getEndTimestamp()))
-        );
+        return timeFormat.format(new Date(summary.getStartTimestamp()));
     }
 
     private String formatAverageHeartRate(final HuaweiEcgSummarySample summary, final String emptyValue) {
@@ -231,6 +263,18 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             return emptyValue;
         }
         return DateTimeUtils.formatDurationHoursMinutes(summary.getEndTimestamp() - summary.getStartTimestamp(), TimeUnit.MILLISECONDS);
+    }
+
+    private String formatResult(final HuaweiEcgSummarySample summary, final String emptyValue) {
+        if (summary == null) {
+            return emptyValue;
+        }
+
+        if (summary.getArrhythmiaType() == 0) {
+            return getString(R.string.normal);
+        }
+
+        return getString(R.string.withings_ecg_result_seek_help);
     }
 
     private LineDataSet createDataSet(final List<Entry> values) {
@@ -272,6 +316,80 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         rightAxis.setDrawLabels(false);
         rightAxis.setDrawGridLines(false);
         rightAxis.setDrawAxisLine(true);
+    }
+
+    private void setupChartTouchHandling() {
+        chart.setOnTouchListener(new View.OnTouchListener() {
+            private float downX;
+            private float downY;
+
+            @Override
+            public boolean onTouch(final View v, final MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        downX = event.getX();
+                        downY = event.getY();
+                        getChartsHost().enableSwipeRefresh(scrollView != null && scrollView.getScrollY() == 0);
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
+                        break;
+                    case MotionEvent.ACTION_POINTER_DOWN:
+                        getChartsHost().enableSwipeRefresh(false);
+                        v.getParent().requestDisallowInterceptTouchEvent(true);
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        final float dx = event.getX() - downX;
+                        final float dy = event.getY() - downY;
+                        final boolean chartGesture = event.getPointerCount() > 1 || Math.abs(dx) > Math.abs(dy);
+                        final boolean atTop = scrollView != null && scrollView.getScrollY() == 0;
+                        final boolean pullToRefreshGesture = atTop && dy > 0 && Math.abs(dy) > Math.abs(dx);
+                        getChartsHost().enableSwipeRefresh(!chartGesture && atTop);
+                        v.getParent().requestDisallowInterceptTouchEvent(chartGesture && !pullToRefreshGesture);
+                        break;
+                    case MotionEvent.ACTION_CANCEL:
+                    case MotionEvent.ACTION_UP:
+                        getChartsHost().enableSwipeRefresh(scrollView != null && scrollView.getScrollY() == 0);
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
+                        break;
+                    default:
+                        break;
+                }
+                return false;
+            }
+        });
+    }
+
+    private void scrollToTop() {
+        if (scrollView != null) {
+            scrollView.post(() -> scrollView.smoothScrollTo(0, 0));
+        }
+    }
+
+    private HuaweiEcgSummarySample findSummaryByTimestamp(final List<HuaweiEcgSummarySample> summaries,
+                                                          final long timestamp) {
+        for (final HuaweiEcgSummarySample summary : summaries) {
+            if (summary.getStartTimestamp() == timestamp) {
+                return summary;
+            }
+        }
+        return null;
+    }
+
+    private List<HuaweiEcgDataSample> loadWaveform(final DBHandler db, final HuaweiEcgSummarySample summary) {
+        if (summary == null || summary.getEcgId() == null) {
+            return Collections.emptyList();
+        }
+        return db.getDaoSession().getHuaweiEcgDataSampleDao()
+                .queryBuilder()
+                .where(HuaweiEcgDataSampleDao.Properties.EcgId.eq(summary.getEcgId()))
+                .orderAsc(HuaweiEcgDataSampleDao.Properties.TimeDelta)
+                .build()
+                .list();
+    }
+
+    private int resolveThemeColor(final int attr) {
+        final TypedValue typedValue = new TypedValue();
+        requireContext().getTheme().resolveAttribute(attr, typedValue, true);
+        return typedValue.data;
     }
 
     @Override
