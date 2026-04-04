@@ -110,6 +110,12 @@ public class DataStructureFactory {
                 case WithingsStructureType.STORED_SIGNAL_META:
                     structure = new StoredSignalMeta();
                     break;
+                case WithingsStructureType.STORED_SIGNAL_DATA:
+                    structure = new StoredSignalData();
+                    break;
+                case WithingsStructureType.STORED_SIGNAL_META_EXTEND:
+                    structure = new StoredSignalMetaExtended();
+                    break;
                 case WithingsStructureType.VASISTAS_TYPE:
                     structure = new VasistasType();
                     break;
@@ -177,7 +183,7 @@ public class DataStructureFactory {
                     structure = new User();
                     break;
                 default:
-                    structure = null;
+                    structure = new RawWithingsStructure(structureTypeFromResponse);
                     logger.info("Received yet unknown structure type: " + structureTypeFromResponse);
             }
 

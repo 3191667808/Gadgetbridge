@@ -30,6 +30,7 @@ public class ConversationQueue implements ConversationObserver
     private static final Logger logger = LoggerFactory.getLogger(ConversationQueue.class);
     private final LinkedList<Conversation> queue = new LinkedList<>();
     private WithingsBaseDeviceSupport support;
+    private Conversation activeConversation;
 
     public ConversationQueue(WithingsBaseDeviceSupport support) {
         this.support = support;
@@ -37,19 +38,37 @@ public class ConversationQueue implements ConversationObserver
 
     @Override
     public void onConversationCompleted(short conversationType) {
-        queue.remove(getConversation(conversationType));
+        if (activeConversation != null
+                && activeConversation.getRequest() != null
+                && activeConversation.getRequest().getType() == conversationType) {
+            queue.remove(activeConversation);
+            activeConversation = null;
+        } else {
+            queue.remove(getConversation(conversationType));
+        }
         send();
     }
 
     public void clear() {
         queue.clear();
+        activeConversation = null;
     }
 
     public void send() {
         logger.debug("Sending of queued messages has been requested.");
+        if (activeConversation != null && !activeConversation.isComplete()) {
+            final Message activeRequest = activeConversation.getRequest();
+            if (activeRequest != null) {
+                logger.debug("A conversation is already active: type={} (0x{})",
+                        activeRequest.getType(), Integer.toHexString(activeRequest.getType() & 0xffff));
+            }
+            return;
+        }
+
         if (!queue.isEmpty()) {
             Conversation nextInLine = queue.peek();
             if (nextInLine!= null) {
+                activeConversation = nextInLine;
                 logger.debug("Sending next queued message type={} (0x{})", nextInLine.getRequest().getType(), Integer.toHexString(nextInLine.getRequest().getType() & 0xffff));
                 Message request = nextInLine.getRequest();
                 support.sendToDevice(request);
@@ -90,30 +109,29 @@ public class ConversationQueue implements ConversationObserver
     }
 
     public void processResponse(Message response) {
-        logger.debug("processResponse: type={} (0x{}), queue size={}", response.getType(), Integer.toHexString(response.getType() & 0xffff), queue.size());
-        for (Conversation c : queue) {
-            if (c.getRequest() != null) {
-                logger.debug("  queued conversation request type={} (0x{})", c.getRequest().getType(), Integer.toHexString(c.getRequest().getType() & 0xffff));
-            }
+        Conversation conversation = null;
+
+        if (matchesActiveConversation(response)) {
+            conversation = activeConversation;
+        } else {
+            conversation = getConversation(response.getType());
         }
 
-        Conversation conversation = getConversation(response.getType());
         if (conversation == null && response.getType() == WithingsMessageType.TRANSFER_COMPLETE) {
-            conversation = getHeadEotConversation();
+            conversation = getActiveEotConversation();
             if (conversation != null) {
                 logger.debug("processResponse: remapping transfer-complete type=0x100 to pending EOT conversation type={} (0x{})",
                         conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff));
-            } else {
-                final Conversation head = queue.peekFirst();
-                if (head != null && head.getRequest() != null
-                        && head.getRequest().getType() == WithingsMessageType.SET_HR_ALERT_THRESHOLDS
-                        && head.getRequest().needsResponse()) {
-                    logger.warn("processResponse: transfer-complete type=0x100 while waiting for type={} (0x{}), treating as command error and skipping stalled conversation",
-                            head.getRequest().getType(), Integer.toHexString(head.getRequest().getType() & 0xffff));
-                    queue.removeFirst();
-                    send();
-                    return;
-                }
+            }
+        }
+
+        if (conversation == null && response.getType() == WithingsMessageType.MEASURE_STOP) {
+            final Conversation head = activeConversation != null ? activeConversation : queue.peekFirst();
+            if (head != null && head.getRequest() != null
+                    && head.getRequest().getType() == WithingsMessageType.MEASURE_START
+                    && head.getRequest().needsEOT()) {
+                logger.debug("processResponse: remapping measure-stop type=0x974 to pending measure-start conversation type=0x973");
+                conversation = head;
             }
         }
 
@@ -135,10 +153,40 @@ public class ConversationQueue implements ConversationObserver
         return null;
     }
 
-    private Conversation getHeadEotConversation() {
-        final Conversation head = queue.peekFirst();
-        if (head != null && head.getRequest() != null && head.getRequest().needsEOT()) {
-            return head;
+    private boolean matchesActiveConversation(final Message response) {
+        if (activeConversation == null || activeConversation.getRequest() == null) {
+            return false;
+        }
+
+        final Message request = activeConversation.getRequest();
+        final short requestType = request.getType();
+        final short responseType = response.getType();
+
+        if (responseType == requestType) {
+            return true;
+        }
+
+        if (request.needsEOT() && responseType == WithingsMessageType.TRANSFER_COMPLETE) {
+            return true;
+        }
+
+        if (request.needsResponse()
+                && requestType == WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL
+                && responseType == WithingsMessageType.TRANSFER_COMPLETE) {
+            return true;
+        }
+
+        return request.needsEOT()
+                && requestType == WithingsMessageType.MEASURE_START
+                && responseType == WithingsMessageType.MEASURE_STOP;
+    }
+
+    private Conversation getActiveEotConversation() {
+        if (activeConversation != null
+                && activeConversation.getRequest() != null
+                && (activeConversation.getRequest().needsEOT()
+                || activeConversation.getRequest().getType() == WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL)) {
+            return activeConversation;
         }
         return null;
     }

@@ -26,6 +26,7 @@ public class StoredMeasureData extends WithingsStructure {
     private static final int TYPE_SPO2 = 54;
 
     private int spo2Percent;
+    private int rawValue;
     private int measurementType = -1;
     private short exponent = 0;
 
@@ -39,6 +40,10 @@ public class StoredMeasureData extends WithingsStructure {
 
     public int getMeasurementType() {
         return measurementType;
+    }
+
+    public int getRawValue() {
+        return rawValue;
     }
 
     public short getExponent() {
@@ -62,7 +67,7 @@ public class StoredMeasureData extends WithingsStructure {
             return;
         }
 
-        final int rawValue = rawDataBuffer.getInt();
+        rawValue = rawDataBuffer.getInt();
         final int lowBytePercent = rawValue & 0xff;
 
         if (rawDataBuffer.remaining() >= 4) {

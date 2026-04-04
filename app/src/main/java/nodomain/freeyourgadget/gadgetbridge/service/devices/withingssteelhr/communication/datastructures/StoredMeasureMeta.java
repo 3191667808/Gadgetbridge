@@ -24,8 +24,13 @@ import java.nio.ByteBuffer;
 public class StoredMeasureMeta extends WithingsStructure {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureMeta.class);
 
+    private byte[] rawPayload = new byte[23];
     private int measurementType;
     private int timestampUtc;
+
+    public byte[] getRawPayload() {
+        return rawPayload.clone();
+    }
 
     public int getMeasurementType() {
         return measurementType;
@@ -42,7 +47,7 @@ public class StoredMeasureMeta extends WithingsStructure {
 
     @Override
     protected void fillinTypeSpecificData(final ByteBuffer buffer) {
-        buffer.put(new byte[23]);
+        buffer.put(rawPayload);
     }
 
     @Override
@@ -51,6 +56,11 @@ public class StoredMeasureMeta extends WithingsStructure {
             logger.debug("StoredMeasureMeta too short: {} bytes", rawDataBuffer.remaining());
             return;
         }
+
+        rawPayload = new byte[rawDataBuffer.remaining()];
+        rawDataBuffer.mark();
+        rawDataBuffer.get(rawPayload);
+        rawDataBuffer.reset();
 
         rawDataBuffer.getInt(); // sequence index
 

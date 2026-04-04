@@ -45,6 +45,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetLuminosityHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetMoveHandsHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.GetWearPosHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.WithingsEcgHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagDeprecated;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagsUserId;
@@ -194,6 +195,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
         queueHrAlertCommandIfChanged(prefs, hrMode);
         queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+    }
+
+    @Override
+    protected WithingsEcgHandler createEcgHandler() {
+        return new WithingsEcgHandler(this, gbDevice);
     }
 
     @Override

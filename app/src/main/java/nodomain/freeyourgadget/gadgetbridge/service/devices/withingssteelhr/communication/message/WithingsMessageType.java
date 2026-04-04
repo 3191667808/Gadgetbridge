@@ -97,6 +97,11 @@ public final class WithingsMessageType {
      */
     public static final short SET_HR_ALERT_THRESHOLDS = (short) 0x098e;  // 2446
 
+    /** Start/query health measurement flow (cmd 0x0973). */
+    public static final short MEASURE_START = (short) 0x0973;  // 2419
+    /** Acknowledge/stop health measurement flow (cmd 0x0974). */
+    public static final short MEASURE_STOP = (short) 0x0974;  // 2420
+
     /** Get quicklook / glance (raise-to-wake) status (cmd 0x097B). */
     public static final short GLANCE_GET = (short) 0x097B;  // 2427
     /** Set quicklook / glance (raise-to-wake) status (cmd 0x0971). */

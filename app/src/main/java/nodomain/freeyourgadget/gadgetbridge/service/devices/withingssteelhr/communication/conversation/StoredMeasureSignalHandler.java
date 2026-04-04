@@ -38,6 +38,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.With
 public class StoredMeasureSignalHandler implements ResponseHandler {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureSignalHandler.class);
     private static final int MEASUREMENT_TYPE_SPO2 = 54;
+    private static final int ECG_MEASUREMENT_TYPE = 0x0103;
     private static final int MAX_DELETE_ATTEMPTS = 32;
     private static final int MAX_REPEATED_PAGE_RETRIES = 4;
 
@@ -87,6 +88,11 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
             if (structure instanceof StoredMeasureMeta) {
                 currentMeta = (StoredMeasureMeta) structure;
+                if (support.isEcgWaveformFetchActive() && currentMeta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
+                    logger.debug("Skipping ECG waveform page in StoredMeasureSignalHandler: metaType={} signalType={}",
+                            currentMeta.getMeasurementType(), signalType);
+                    return;
+                }
                 sawAnyStoredData = true;
                 continue;
             }

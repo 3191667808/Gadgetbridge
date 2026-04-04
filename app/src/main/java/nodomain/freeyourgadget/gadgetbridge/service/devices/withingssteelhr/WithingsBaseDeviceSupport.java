@@ -74,6 +74,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.SyncFinishedHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.ScreenSettingsHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.StoredMeasureSignalHandler;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.WithingsEcgHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation.WorkoutScreenListHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityTarget;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmName;
@@ -158,6 +159,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private boolean syncInProgress;
     private int storedMeasureDeleteRequestId;
     private int storedMeasureDeleteAttempts;
+    private WithingsEcgHandler withingsEcgHandler;
     private final ActivityUser activityUser;
     private final NotificationProvider notificationProvider;
     private final IncomingMessageHandlerFactory incomingMessageHandlerFactory;
@@ -287,6 +289,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
             getDevice().setBusyTask(R.string.busy_task_syncing, getContext());
             syncInProgress = true;
+            if (withingsEcgHandler == null) {
+                withingsEcgHandler = createEcgHandler();
+            }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.INITIAL_CONNECT));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
@@ -333,6 +338,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new TypeVersion());
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
+                if (withingsEcgHandler != null) {
+                    withingsEcgHandler.start();
+                }
+
                 message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
                 message.addDataStructure(new StoredSignalMeta(0x0001, 0));
                 addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0001));
@@ -378,6 +387,13 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 }
             } else {
                 logger.debug("received response message: type={} (0x{})", message.getType(), Integer.toHexString(message.getType() & 0xffff));
+                if (withingsEcgHandler == null &&
+                        (message.getType() == WithingsMessageType.MEASURE_START || message.getType() == WithingsMessageType.MEASURE_STOP)) {
+                    withingsEcgHandler = createEcgHandler();
+                }
+                if (withingsEcgHandler != null) {
+                    withingsEcgHandler.maybeHandleMeasurementMessage(message);
+                }
                 conversationQueue.processResponse(message);
             }
         }
@@ -735,11 +751,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         addSupportedServerService(withingsGATTService);
     }
 
-    protected void addSimpleConversationToQueue(Message message) {
+    public void addSimpleConversationToQueue(Message message) {
         addSimpleConversationToQueue(message, null);
     }
 
-    protected void addSimpleConversationToQueue(Message message, ResponseHandler handler) {
+    public void addSimpleConversationToQueue(Message message, ResponseHandler handler) {
         Conversation conversation = new SimpleConversation(handler);
         conversation.setRequest(message);
         conversationQueue.addConversation(conversation);
@@ -890,6 +906,14 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      */
     protected void addExtraSyncCommands() {
         // no-op by default
+    }
+
+    protected WithingsEcgHandler createEcgHandler() {
+        return null;
+    }
+
+    public boolean isEcgWaveformFetchActive() {
+        return withingsEcgHandler != null && withingsEcgHandler.isWaveformFetchActive();
     }
 
     private void setWorkoutActivityTypes() {
