@@ -1,4 +1,4 @@
-/*  Copyright (C) 2025 Arjan Schrijver
+/*  Copyright (C) 2025 Lucas Stegman
 
     This file is part of Gadgetbridge.
 
@@ -51,22 +51,156 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
     }
 
     @Override
-    public int getWorldClocksSlotCount() {
-        return 6;
-    }
-
-    @Override
-    public int getWorldClocksLabelLength() {
-        return 30;
-    }
-
-    @Override
-    public boolean supportsRemSleep(@NonNull GBDevice device) {
+    public boolean supportsActivityTracking(@NonNull GBDevice device) {
         return true;
     }
 
     @Override
+    public boolean supportsDataFetching(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsCalendarEvents(@NonNull GBDevice device) {
+        return false;
+    }
+
+    }
+     @Override
+    public boolean  supportsFindDevice(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsHeartrateRestingMeasureMent(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsHeartRateStats(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsManualHeartRateMeasurement(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsMusicInfo(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsRealtimeData(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsRecordedActivities(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsRemSleep(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsSleepAsAndroid(@NonNull GBDevice device) {
+        return true;
+    }
+    
+    }
+     @Override
+    public boolean supportsSleepMeasurement(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsSleepScore(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsSpeedzones(@NonNull GBDevice device) {
+        return false;
+    }
+   
+    }
+     @Override
+    public boolean supportsSpo2(@NonNull GBDevice device) {
+        return false;
+    }
+
+    }
+     @Override
+    public boolean supportsStepCounter(@NonNull GBDevice device) {
+        return true;
+    }
+ 
+    }
+     @Override
     public boolean supportsStressMeasurement(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsWatchfaceManagement(@NonNull GBDevice device) {
+        return true;
+    }
+    
+    }
+     @Override
+    public boolean supportsWeather(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsDisabledWorldClocks(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsDebugLogs(@NonNull GBDevice device) {
+        return false;
+    }
+
+    }
+     @Override
+    public boolean supportsCyclingData(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsAwakeSleep(@NonNull GBDevice device) {
+        return true;
+    }
+
+    }
+     @Override
+    public boolean supportsActiveCalories(@NonNull GBDevice device) {
         return true;
     }
 }
