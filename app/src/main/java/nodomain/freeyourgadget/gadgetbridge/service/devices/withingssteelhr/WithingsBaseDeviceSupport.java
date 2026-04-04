@@ -132,6 +132,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
+    private static final String LEGACY_PREF_WITHINGS_SPO2_SKIP_CURSOR = "withings_spo2_skip_cursor";
     /**
      * Device-specific SharedPreferences key for the userId sent to the watch in SET_USER.
      * Used by ScreenSettings and FeatureTagsUserId to ensure a consistent, non-zero userId.
@@ -280,13 +281,17 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     public void doSync() {
+        if (syncInProgress) {
+            return;
+        }
+
         activitySampleHandler = new ActivitySampleHandler(this);
         conversationQueue.clear();
-        try {
-            if (syncInProgress) {
-                return;
-            }
+        if (withingsEcgHandler != null) {
+            withingsEcgHandler.reset();
+        }
 
+        try {
             getDevice().setBusyTask(R.string.busy_task_syncing, getContext());
             syncInProgress = true;
             if (withingsEcgHandler == null) {
@@ -302,6 +307,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 logger.debug("Doing full sync...");
                 storedMeasureDeleteRequestId = 0;
                 storedMeasureDeleteAttempts = 0;
+                GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).edit()
+                        .remove(LEGACY_PREF_WITHINGS_SPO2_SKIP_CURSOR)
+                        .apply();
                 final User user = getUser();
                 // Store the userId we're about to send to the watch so that all subsequent
                 // commands built in addExtraSyncCommands() (ScreenSettings, FeatureTagsUserId, etc.)
@@ -338,10 +346,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new TypeVersion());
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
-                if (withingsEcgHandler != null) {
-                    withingsEcgHandler.start();
-                }
-
                 message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
                 message.addDataStructure(new StoredSignalMeta(0x0001, 0));
                 addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0001));
@@ -353,6 +357,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
                 message.addDataStructure(new StoredSignalMeta(0x0005, 0));
                 addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0005));
+
+                if (withingsEcgHandler != null) {
+                    withingsEcgHandler.start();
+                }
             }
         } catch (Exception e) {
             logger.error("Could not synchronize! ", e);
@@ -391,8 +399,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                         (message.getType() == WithingsMessageType.MEASURE_START || message.getType() == WithingsMessageType.MEASURE_STOP)) {
                     withingsEcgHandler = createEcgHandler();
                 }
-                if (withingsEcgHandler != null) {
-                    withingsEcgHandler.maybeHandleMeasurementMessage(message);
+                if (withingsEcgHandler != null
+                        && !conversationQueue.matchesActiveConversation(message)
+                        && withingsEcgHandler.maybeHandleMeasurementMessage(message)) {
+                    return true;
                 }
                 conversationQueue.processResponse(message);
             }
@@ -792,14 +802,21 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     public void queueGetStoredMeasureSignal(final int signalType, final int cursor) {
-        queueGetStoredMeasureSignal(signalType, cursor, new StoredMeasureSignalHandler(this, gbDevice, signalType));
+        queueGetStoredMeasureSignal(signalType, 0, cursor, new StoredMeasureSignalHandler(this, gbDevice, signalType));
     }
 
     public void queueGetStoredMeasureSignal(final int signalType,
                                             final int cursor,
                                             final ResponseHandler handler) {
+        queueGetStoredMeasureSignal(signalType, 0, cursor, handler);
+    }
+
+    public void queueGetStoredMeasureSignal(final int signalType,
+                                            final int signalFlags,
+                                            final int cursor,
+                                            final ResponseHandler handler) {
         Message getMessage = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
-        getMessage.addDataStructure(new StoredSignalMeta(signalType, cursor));
+        getMessage.addDataStructure(new StoredSignalMeta(signalType, signalFlags, cursor));
         addSimpleConversationFirst(getMessage, handler);
     }
 
@@ -912,8 +929,18 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         return null;
     }
 
-    public boolean isEcgWaveformFetchActive() {
-        return withingsEcgHandler != null && withingsEcgHandler.isWaveformFetchActive();
+    public void notifyEcgRecordDiscovered(nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureMeta meta,
+                                          int originatingSignalType) {
+        if (withingsEcgHandler != null) {
+            withingsEcgHandler.handleDiscoveredRecord(meta, originatingSignalType);
+        }
+    }
+
+    public boolean hasDiscoveredEcgRecord(nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureMeta meta) {
+        if (withingsEcgHandler != null) {
+            return withingsEcgHandler.hasDiscoveredRecord(meta);
+        }
+        return false;
     }
 
     private void setWorkoutActivityTypes() {

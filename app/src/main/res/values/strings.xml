@@ -2699,6 +2699,7 @@
     <string name="steps_avg">Steps AVG</string>
     <string name="steps_total">Steps Total</string>
     <string name="manual_measurements">Manual measurements</string>
+    <string name="ecg_sessions">ECG sessions</string>
     <string name="distance_avg">Distance AVG</string>
     <string name="distance_total">Distance Total</string>
     <string name="activeSeconds">Active</string>

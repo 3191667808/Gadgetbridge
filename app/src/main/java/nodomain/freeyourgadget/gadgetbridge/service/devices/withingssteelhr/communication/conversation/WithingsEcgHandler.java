@@ -51,13 +51,13 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 public class WithingsEcgHandler implements ResponseHandler {
     private static final Logger logger = LoggerFactory.getLogger(WithingsEcgHandler.class);
 
-    private static final int ECG_SIGNAL_TYPE = 0x0004;
     private static final int ECG_MEASUREMENT_TYPE = 0x0103;
     private static final int ECG_AVERAGE_HR_TYPE = 0x000b;
     private static final int ECG_WAVEFORM_SIGNAL_TYPE = 0x0001;
     private static final int ECG_SAMPLE_RATE_HZ = 300;
-    private static final int MAX_DISCOVERY_PAGES = 32;
     private static final String APP_VERSION_PLACEHOLDER = "withings";
+
+    private static final int MAX_DISCOVERY_PAGES = 10;
 
     private final WithingsBaseDeviceSupport support;
     private final GBDevice device;
@@ -84,31 +84,71 @@ public class WithingsEcgHandler implements ResponseHandler {
         queueDiscoveryProbe(true);
     }
 
-    public boolean isWaveformFetchActive() {
-        return activeWaveformHandler != null;
+    public boolean hasDiscoveredRecord(final StoredMeasureMeta recordKey) {
+        if (recordKey == null) {
+            return false;
+        }
+        for (final byte[] seenKey : seenRecordKeys) {
+            if (Arrays.equals(seenKey, recordKey.getRawPayload())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void handleDiscoveredRecord(final StoredMeasureMeta recordKey, final int originatingSignalType) {
+        final boolean alreadyStored = recordKey != null && isRecordAlreadyStored(recordKey.getTimestampMs());
+        final boolean isNewRecord = recordKey != null && !alreadyStored && isNewRecordKey(recordKey);
+        logger.info("handleDiscoveredRecord called: recordKey != null = {}, isNewRecordKey = {}, alreadyStored = {}, seenRecordKeys.size = {}",
+                recordKey != null,
+                isNewRecord,
+                alreadyStored,
+                seenRecordKeys.size());
+
+        if (recordKey == null) {
+            return;
+        }
+
+        if (isNewRecord) {
+            seenRecordKeys.add(recordKey.getRawPayload());
+            logger.info("Discovered Withings ECG record via fallback ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
+        } else {
+            logger.info("Re-fetching previously seen Withings ECG record ts={} so it can still be deleted", recordKey.getTimestampMs());
+        }
+
+        activeWaveformHandler = new EcgWaveformHandler(recordKey, isNewRecord, false, true, originatingSignalType);
+        final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+        message.addDataStructure(recordKey);
+        support.addSimpleConversationFirst(message, activeWaveformHandler);
+    }
+
+    public void reset() {
+        activeWaveformHandler = null;
+        seenRecordKeys.clear();
     }
 
     @Override
     public void handleResponse(final Message response) {
-        if (response.getType() == WithingsMessageType.MEASURE_STOP) {
+        if (response.getType() == WithingsMessageType.MEASURE_START
+                || response.getType() == WithingsMessageType.MEASURE_STOP) {
             handleDiscoveryResponse(response);
         }
-    }
-
-    private void queueDiscoveryProbe(final boolean initial) {
-        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.EOT);
-        message.addDataStructure(new MeasureCategory(MeasureCategory.ECG));
-        message.addDataStructure(new MeasureLiveAppStatus(initial ? 1 : 0));
-        support.addSimpleConversationFirst(message, null);
     }
 
     public boolean maybeHandleMeasurementMessage(final Message response) {
-        if (response.getType() == WithingsMessageType.MEASURE_STOP) {
+        if (response.getType() == WithingsMessageType.MEASURE_START
+                || response.getType() == WithingsMessageType.MEASURE_STOP) {
             handleDiscoveryResponse(response);
             return true;
         }
-
         return false;
+    }
+
+    private void queueDiscoveryProbe(final boolean initial) {
+        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.SIMPLE);
+        message.addDataStructure(new MeasureCategory(MeasureCategory.ECG));
+        message.addDataStructure(new MeasureLiveAppStatus(initial ? 1 : 0));
+        support.addSimpleConversationFirst(message, this);
     }
 
     private void handleDiscoveryResponse(final Message response) {
@@ -118,28 +158,18 @@ public class WithingsEcgHandler implements ResponseHandler {
         }
 
         StoredMeasureMeta recordKey = null;
-        boolean hasEcgMarkers = false;
         boolean hasEot = false;
+        boolean hasEcgMarkers = false;
 
         for (final WithingsStructure structure : structures) {
-            if (structure instanceof StoredMeasureMeta) {
+            if (structure instanceof EndOfTransmission) {
+                hasEot = true;
+            } else if (structure instanceof StoredMeasureMeta) {
+                hasEcgMarkers = true;
                 final StoredMeasureMeta meta = (StoredMeasureMeta) structure;
                 if (meta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
                     recordKey = meta;
-                    hasEcgMarkers = true;
                 }
-            } else if (structure instanceof StoredMeasureData) {
-                final StoredMeasureData data = (StoredMeasureData) structure;
-                if (data.getMeasurementType() != 54) {
-                    hasEcgMarkers = true;
-                }
-            } else if (structure instanceof RawWithingsStructure) {
-                final short type = structure.getType();
-                if (type == (short) 0x0149 || type == (short) 0x014a || type == (short) 0x097e || type == (short) 0x097b) {
-                    hasEcgMarkers = true;
-                }
-            } else if (structure instanceof EndOfTransmission) {
-                hasEot = true;
             }
         }
 
@@ -147,10 +177,17 @@ public class WithingsEcgHandler implements ResponseHandler {
             seenRecordKeys.add(recordKey.getRawPayload());
             logger.info("Discovered Withings ECG record ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
             waveformFetchQueued = true;
-            queueWaveformFetch(recordKey);
+            activeWaveformHandler = new EcgWaveformHandler(recordKey, true, false, false, -1);
+            final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+            message.addDataStructure(recordKey);
+            support.addSimpleConversationToQueue(message, activeWaveformHandler);
         }
 
-        acknowledgeMeasurementStop();
+        if (response.getType() == WithingsMessageType.MEASURE_STOP) {
+            final WithingsMessage ack = new WithingsMessage(WithingsMessageType.MEASURE_STOP, ExpectedResponse.NONE);
+            ack.addDataStructure(new EndOfTransmission());
+            support.addSimpleConversationFirst(ack, null);
+        }
 
         if (hasEot) {
             discoveryPagesSeen++;
@@ -158,24 +195,6 @@ public class WithingsEcgHandler implements ResponseHandler {
                 queueDiscoveryProbe(false);
             }
         }
-    }
-
-    private void acknowledgeMeasurementStop() {
-        final WithingsMessage ack = new WithingsMessage(WithingsMessageType.MEASURE_STOP, ExpectedResponse.NONE);
-        ack.addDataStructure(new EndOfTransmission());
-        support.addSimpleConversationFirst(ack, null);
-    }
-
-    private void queueWaveformFetch(final StoredMeasureMeta recordKey) {
-        queueWaveformFetch(recordKey, false);
-    }
-
-    private void queueWaveformFetch(final StoredMeasureMeta recordKey, final boolean verifyDeletion) {
-        activeWaveformHandler = new EcgWaveformHandler(recordKey, verifyDeletion);
-
-        final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
-        message.addDataStructure(recordKey);
-        support.addSimpleConversationToQueue(message, activeWaveformHandler);
     }
 
     private boolean isNewRecordKey(final StoredMeasureMeta recordKey) {
@@ -188,17 +207,50 @@ public class WithingsEcgHandler implements ResponseHandler {
         return true;
     }
 
+    private boolean isRecordAlreadyStored(final long startTimestampMs) {
+        if (startTimestampMs <= 0) {
+            return false;
+        }
+
+        try (DBHandler db = GBApplication.acquireDB()) {
+            final Long userId = DBHelper.getUser(db.getDaoSession()).getId();
+            final Long deviceId = DBHelper.getDevice(device, db.getDaoSession()).getId();
+
+            final long existingCount = db.getDaoSession().getHuaweiEcgSummarySampleDao().queryBuilder()
+                    .where(
+                            HuaweiEcgSummarySampleDao.Properties.UserId.eq(userId),
+                            HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId),
+                            HuaweiEcgSummarySampleDao.Properties.StartTimestamp.eq(startTimestampMs)
+                    )
+                    .count();
+            return existingCount > 0;
+        } catch (final Exception e) {
+            logger.warn("Failed checking whether Withings ECG ts={} already exists", startTimestampMs, e);
+            return false;
+        }
+    }
+
     private final class EcgWaveformHandler implements ResponseHandler {
         private final StoredMeasureMeta requestedRecordKey;
+        private final boolean storeWaveformAfterFetch;
         private final boolean verifyDeletion;
+        private final boolean foundViaSpO2Loop;
+        private final int originatingSignalType;
         private final List<Float> waveform = new ArrayList<>();
         private StoredSignalMeta deleteKey;
         private long startTimestampMs;
         private int averageHeartRate = -1;
 
-        private EcgWaveformHandler(final StoredMeasureMeta requestedRecordKey, final boolean verifyDeletion) {
+        private EcgWaveformHandler(final StoredMeasureMeta requestedRecordKey,
+                                   final boolean storeWaveformAfterFetch,
+                                   final boolean verifyDeletion,
+                                   final boolean foundViaSpO2Loop,
+                                   final int originatingSignalType) {
             this.requestedRecordKey = requestedRecordKey;
+            this.storeWaveformAfterFetch = storeWaveformAfterFetch;
             this.verifyDeletion = verifyDeletion;
+            this.foundViaSpO2Loop = foundViaSpO2Loop;
+            this.originatingSignalType = originatingSignalType;
         }
 
         @Override
@@ -243,10 +295,14 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (verifyDeletion) {
                 if (!waveform.isEmpty()) {
                     logger.warn("Withings ECG delete verification still returned waveform data for ts={} samples={}", startTimestampMs, waveform.size());
+                } else {
+                    logger.info("Withings ECG delete verification: waveform gone for ts={}", startTimestampMs);
                 }
                 activeWaveformHandler = null;
                 waveformFetchQueued = false;
-                if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
+                if (foundViaSpO2Loop) {
+                    support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+                } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                     queueDiscoveryProbe(false);
                 }
                 return;
@@ -255,6 +311,8 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (!waveform.isEmpty()) {
                 final long endTimestampMs = startTimestampMs + Math.round((waveform.size() * 1000d) / ECG_SAMPLE_RATE_HZ);
                 storeWaveform(startTimestampMs, endTimestampMs, averageHeartRate, waveform);
+            } else if (storeWaveformAfterFetch) {
+                logger.warn("Expected Withings ECG waveform for ts={} but got none", startTimestampMs);
             }
 
             if (deleteKey != null) {
@@ -262,15 +320,22 @@ public class WithingsEcgHandler implements ResponseHandler {
                         deleteKey.getSignalType(),
                         deleteKey.getSignalFlags(),
                         deleteKey.getCursor(),
-                        0,
-                        deleteResponse -> queueWaveformFetch(requestedRecordKey, true)
+                        deleteResponse -> {
+                            activeWaveformHandler = new EcgWaveformHandler(requestedRecordKey, false, true, foundViaSpO2Loop, originatingSignalType);
+                            final WithingsMessage deleteVerifyMsg = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+                            deleteVerifyMsg.addDataStructure(requestedRecordKey);
+                            support.addSimpleConversationFirst(deleteVerifyMsg, activeWaveformHandler);
+                        }
                 );
                 return;
             }
 
             activeWaveformHandler = null;
             waveformFetchQueued = false;
-            if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
+            logger.warn("Missing delete key for Withings ECG record ts={}, unable to delete from watch", startTimestampMs);
+            if (foundViaSpO2Loop) {
+                support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+            } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                 queueDiscoveryProbe(false);
             }
         }

@@ -67,12 +67,15 @@ public abstract class AbstractConversation implements Conversation {
         final boolean transferCompleteForDelete = request.needsResponse()
                 && requestType == WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL
                 && response.getType() == WithingsMessageType.TRANSFER_COMPLETE;
+        final boolean transferCompleteForMeasureStart = request.needsResponse()
+                && requestType == WithingsMessageType.MEASURE_START
+                && response.getType() == WithingsMessageType.TRANSFER_COMPLETE;
         final boolean measureStopForMeasureStart = request.needsEOT()
                 && requestType == WithingsMessageType.MEASURE_START
                 && response.getType() == WithingsMessageType.MEASURE_STOP;
-        if (response.getType() == requestType || transferCompleteForEot || transferCompleteForDelete || measureStopForMeasureStart) {
+        if (response.getType() == requestType || transferCompleteForEot || transferCompleteForDelete || transferCompleteForMeasureStart || measureStopForMeasureStart) {
             if (request.needsResponse()) {
-                complete = response.getType() == requestType || transferCompleteForDelete;
+                complete = response.getType() == requestType || transferCompleteForDelete || transferCompleteForMeasureStart;
             } else if (request.needsEOT()) {
                 complete = transferCompleteForEot || measureStopForMeasureStart || hasEOT(response);
             }

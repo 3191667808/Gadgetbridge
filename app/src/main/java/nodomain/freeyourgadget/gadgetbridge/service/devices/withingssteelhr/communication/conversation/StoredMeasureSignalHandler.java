@@ -39,6 +39,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureSignalHandler.class);
     private static final int MEASUREMENT_TYPE_SPO2 = 54;
     private static final int ECG_MEASUREMENT_TYPE = 0x0103;
+    private static final int ECG_WAVEFORM_SIGNAL_TYPE = 0x0001;
     private static final int MAX_DELETE_ATTEMPTS = 32;
     private static final int MAX_REPEATED_PAGE_RETRIES = 4;
 
@@ -49,6 +50,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private int pendingPageSignalFlags = 0;
     private boolean pendingSawSignalMeta = false;
     private boolean pendingSawStoredData = false;
+    private StoredMeasureMeta pendingEcgMeta = null;
     private long pendingLastSampleTimestampMs = -1;
     private int pendingLastSampleSpo2 = -1;
     private int lastDeletedCursor = -1;
@@ -56,7 +58,6 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private long lastDeletedTimestampMs = -1;
     private int lastDeletedSpo2 = -1;
     private int repeatedPageRetries;
-    private boolean forceSequentialCursor = false;
 
     public StoredMeasureSignalHandler(final WithingsBaseDeviceSupport support, final GBDevice device, final int signalType) {
         this.support = support;
@@ -88,12 +89,10 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
             if (structure instanceof StoredMeasureMeta) {
                 currentMeta = (StoredMeasureMeta) structure;
-                if (support.isEcgWaveformFetchActive() && currentMeta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
-                    logger.debug("Skipping ECG waveform page in StoredMeasureSignalHandler: metaType={} signalType={}",
-                            currentMeta.getMeasurementType(), signalType);
-                    return;
-                }
                 sawAnyStoredData = true;
+                if (currentMeta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
+                    pendingEcgMeta = currentMeta;
+                }
                 continue;
             }
 
@@ -181,9 +180,23 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         final int currentCursor = pendingPageCursor;
         final int currentSignalFlags = pendingPageSignalFlags;
         final boolean sawStoredData = pendingSawStoredData;
+        final StoredMeasureMeta ecgMetaToNotify = pendingEcgMeta;
         final long lastSampleTimestampMs = pendingLastSampleTimestampMs;
         final int lastSampleSpo2 = pendingLastSampleSpo2;
         resetPendingPageState();
+
+        if (ecgMetaToNotify != null) {
+            if (signalType != ECG_WAVEFORM_SIGNAL_TYPE) {
+                logger.info("Ignoring ECG markers on stored-measure signalType={} cursor={} so mixed SpO2 pages can advance without invalid ECG fetch fallback",
+                        signalType, currentCursor);
+            } else if (support.hasDiscoveredEcgRecord(ecgMetaToNotify)) {
+                logger.info("Stored-measure page at cursor={} contains an already-seen ECG record; ignoring marker so SpO2 loop retry logic can delete it", currentCursor);
+            } else {
+                logger.info("Stored-measure page at cursor={} contains ECG markers; scheduling ECG fetch and stopping SpO2 loop to allow ECG fetch to complete and delete the cursor", currentCursor);
+                support.notifyEcgRecordDiscovered(ecgMetaToNotify, signalType);
+                return;
+            }
+        }
 
         if (isRepeatedPage(currentCursor, currentSignalFlags, lastSampleTimestampMs, lastSampleSpo2)) {
             if (!sawStoredData) {
@@ -191,10 +204,8 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                 return;
             }
             if (repeatedPageRetries >= MAX_REPEATED_PAGE_RETRIES) {
-                logger.warn("Watch refused to advance after deletes. Bypassing stuck record by forcing sequential cursor from {}", currentCursor);
-                repeatedPageRetries = 0;
-                forceSequentialCursor = true;
-                support.queueGetStoredMeasureSignal(signalType, currentCursor + 1, StoredMeasureSignalHandler.this);
+                logger.warn("Watch refused to advance after {} delete retries for signalType={} cursor={} flags={}; stopping stored measure loop instead of skipping ahead",
+                        repeatedPageRetries, signalType, currentCursor, currentSignalFlags);
                 return;
             }
 
@@ -207,8 +218,9 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
             logger.warn("Retrying delete for repeated stored measure page signalType={} cursor={} flags={} ts={} spo2={} retry={}",
                     signalType, currentCursor, currentSignalFlags, lastSampleTimestampMs, lastSampleSpo2, repeatedPageRetries);
+            final int resumeCursor = getResumeCursor(currentCursor);
             support.queueDeleteStoredMeasureSignal(signalType, currentSignalFlags, currentCursor, deleteResponse ->
-                    support.queueGetStoredMeasureSignal(signalType, 0, StoredMeasureSignalHandler.this));
+                    support.queueGetStoredMeasureSignal(signalType, resumeCursor, StoredMeasureSignalHandler.this));
             return;
         }
 
@@ -225,10 +237,10 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             return;
         }
 
+        final int resumeCursor = getResumeCursor(currentCursor);
         support.queueDeleteStoredMeasureSignal(signalType, currentSignalFlags, currentCursor, deleteResponse -> {
             if (sawStoredData) {
-                final int nextReqCursor = forceSequentialCursor ? (currentCursor + 1) : 0;
-                support.queueGetStoredMeasureSignal(signalType, nextReqCursor, StoredMeasureSignalHandler.this);
+                support.queueGetStoredMeasureSignal(signalType, resumeCursor, StoredMeasureSignalHandler.this);
             }
         });
     }
@@ -238,6 +250,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         pendingPageSignalFlags = 0;
         pendingSawSignalMeta = false;
         pendingSawStoredData = false;
+        pendingEcgMeta = null;
         pendingLastSampleTimestampMs = -1;
         pendingLastSampleSpo2 = -1;
     }
@@ -250,6 +263,14 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                 && signalFlags == lastDeletedSignalFlags
                 && timestampMs == lastDeletedTimestampMs
                 && spo2 == lastDeletedSpo2;
+    }
+
+    private int getResumeCursor(final int currentCursor) {
+        if (signalType == ECG_WAVEFORM_SIGNAL_TYPE) {
+            return 0;
+        }
+
+        return currentCursor + 1;
     }
 
     private static boolean isLikelySpo2Measurement(final StoredMeasureMeta meta, final StoredMeasureData data) {

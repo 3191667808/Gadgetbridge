@@ -37,7 +37,7 @@ public class ConversationQueue implements ConversationObserver
     }
 
     @Override
-    public void onConversationCompleted(short conversationType) {
+    public synchronized void onConversationCompleted(short conversationType) {
         if (activeConversation != null
                 && activeConversation.getRequest() != null
                 && activeConversation.getRequest().getType() == conversationType) {
@@ -49,12 +49,12 @@ public class ConversationQueue implements ConversationObserver
         send();
     }
 
-    public void clear() {
+    public synchronized void clear() {
         queue.clear();
         activeConversation = null;
     }
 
-    public void send() {
+    public synchronized void send() {
         logger.debug("Sending of queued messages has been requested.");
         if (activeConversation != null && !activeConversation.isComplete()) {
             final Message activeRequest = activeConversation.getRequest();
@@ -78,7 +78,7 @@ public class ConversationQueue implements ConversationObserver
         }
     }
 
-    public void addConversation(Conversation conversation) {
+    public synchronized void addConversation(Conversation conversation) {
         if (conversation == null) {
             return;
         }
@@ -93,14 +93,21 @@ public class ConversationQueue implements ConversationObserver
         }
     }
 
-    public void addConversationFirst(Conversation conversation) {
+    public synchronized void addConversationFirst(Conversation conversation) {
         if (conversation == null) {
             return;
         }
 
         if (conversation.getRequest().needsResponse() || conversation.getRequest().needsEOT()) {
             logger.debug("addConversationFirst: queuing type={} (0x{}) needsResponse={} needsEOT={}", conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff), conversation.getRequest().needsResponse(), conversation.getRequest().needsEOT());
-            queue.addFirst(conversation);
+            
+            // Insert after the active conversation if there is one, otherwise at the very front
+            if (activeConversation != null && queue.peek() == activeConversation) {
+                queue.add(1, conversation);
+            } else {
+                queue.addFirst(conversation);
+            }
+            
             conversation.registerObserver(this);
         } else {
             logger.debug("addConversationFirst: fire-and-forget type={} (0x{})", conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff));
@@ -108,7 +115,7 @@ public class ConversationQueue implements ConversationObserver
         }
     }
 
-    public void processResponse(Message response) {
+    public synchronized void processResponse(Message response) {
         Conversation conversation = null;
 
         if (matchesActiveConversation(response)) {
@@ -122,6 +129,16 @@ public class ConversationQueue implements ConversationObserver
             if (conversation != null) {
                 logger.debug("processResponse: remapping transfer-complete type=0x100 to pending EOT conversation type={} (0x{})",
                         conversation.getRequest().getType(), Integer.toHexString(conversation.getRequest().getType() & 0xffff));
+            }
+        }
+
+        if (conversation == null && response.getType() == WithingsMessageType.TRANSFER_COMPLETE) {
+            final Conversation head = activeConversation != null ? activeConversation : queue.peekFirst();
+            if (head != null && head.getRequest() != null
+                    && head.getRequest().getType() == WithingsMessageType.MEASURE_START
+                    && head.getRequest().needsResponse()) {
+                logger.debug("processResponse: remapping transfer-complete type=0x100 to pending measure-start conversation type=0x973");
+                conversation = head;
             }
         }
 
@@ -143,7 +160,7 @@ public class ConversationQueue implements ConversationObserver
         }
     }
 
-    private Conversation getConversation(short requestType) {
+    private synchronized Conversation getConversation(short requestType) {
         for (Conversation conversation : queue) {
             if (conversation.getRequest() != null && conversation.getRequest().getType() == requestType) {
                 return conversation;
@@ -153,7 +170,7 @@ public class ConversationQueue implements ConversationObserver
         return null;
     }
 
-    private boolean matchesActiveConversation(final Message response) {
+    public synchronized boolean matchesActiveConversation(final Message response) {
         if (activeConversation == null || activeConversation.getRequest() == null) {
             return false;
         }
@@ -181,7 +198,7 @@ public class ConversationQueue implements ConversationObserver
                 && responseType == WithingsMessageType.MEASURE_STOP;
     }
 
-    private Conversation getActiveEotConversation() {
+    private synchronized Conversation getActiveEotConversation() {
         if (activeConversation != null
                 && activeConversation.getRequest() != null
                 && (activeConversation.getRequest().needsEOT()

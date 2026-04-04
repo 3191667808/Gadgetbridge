@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 public class StoredMeasureData extends WithingsStructure {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureData.class);
     private static final int TYPE_SPO2 = 54;
+    private static final int TYPE_SPO2_ALT = 11;
 
     private int spo2Percent;
     private int rawValue;
@@ -77,7 +78,7 @@ public class StoredMeasureData extends WithingsStructure {
             final int scaledPercent = (int) Math.round(rawValue * Math.pow(10d, exponent));
 
             // Preferred path: explicit SpO2 type from captures/spec.
-            if (measurementType == TYPE_SPO2 && scaledPercent >= 1 && scaledPercent <= 100) {
+            if ((measurementType == TYPE_SPO2 || measurementType == TYPE_SPO2_ALT) && scaledPercent >= 1 && scaledPercent <= 100) {
                 spo2Percent = scaledPercent;
             } else {
                 spo2Percent = -1;
