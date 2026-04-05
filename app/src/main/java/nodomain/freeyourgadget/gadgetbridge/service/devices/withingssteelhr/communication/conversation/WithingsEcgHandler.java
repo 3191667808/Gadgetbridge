@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.repository.EcgRepository;
@@ -70,15 +71,19 @@ public class WithingsEcgHandler implements ResponseHandler {
     private boolean waveformFetchQueued;
     private EcgWaveformHandler activeWaveformHandler;
     private int repeatedSpo2FallbackRetries;
+    private int discoveredEcgCount;
+    private int fetchedEcgCount;
+    private int deletedEcgCount;
 
     /**
      * Mirrors the official ECG sync split seen in HCI captures:
      * first discover stored ECG record keys via MEASURE_* responses, then fetch each waveform by
      * replaying the exact 0x0116 key returned by discovery.
      *
-     * This discovery stage means ECG progress is theoretically knowable because the watch tells
+     * <p>This discovery stage means ECG progress is theoretically knowable because the watch tells
      * us how many ECG record keys exist up front. The current implementation uses discovery for
-     * fetching order and dedupe, but it does not yet surface a user-visible 0-100 progress value.
+     * fetching order and dedupe, and reports a best-effort ECG-only transfer percentage via logs
+     * and the generic transfer notification.
      */
 
     public WithingsEcgHandler(final WithingsBaseDeviceSupport support, final GBDevice device) {
@@ -97,6 +102,10 @@ public class WithingsEcgHandler implements ResponseHandler {
         discoveryPagesSeen = 0;
         waveformFetchQueued = false;
         repeatedSpo2FallbackRetries = 0;
+        discoveredEcgCount = 0;
+        fetchedEcgCount = 0;
+        deletedEcgCount = 0;
+        updateEcgProgress("Scanning for ECG records", 0, true);
         queueDiscoveryProbe(true);
     }
 
@@ -135,12 +144,14 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (timestampMs > 0 && !seenRecordTimestamps.contains(timestampMs)) {
                 seenRecordTimestamps.add(timestampMs);
             }
+            discoveredEcgCount++;
             logger.info("Discovered Withings ECG record via fallback ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
+            updateEcgProgress("Discovered ECG record via stored-signal fallback", computeEcgProgressPercent(), true);
         } else {
             logger.info("Re-fetching previously seen Withings ECG record ts={} so it can still be deleted", recordKey.getTimestampMs());
         }
 
-        activeWaveformHandler = new EcgWaveformHandler(recordKey, isNewRecord, false, true, originatingSignalType);
+        activeWaveformHandler = new EcgWaveformHandler(recordKey, isNewRecord, isNewRecord, false, true, originatingSignalType);
         final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
         message.addDataStructure(recordKey);
         support.addSimpleConversationFirst(message, activeWaveformHandler);
@@ -153,6 +164,14 @@ public class WithingsEcgHandler implements ResponseHandler {
         discoveryPagesSeen = 0;
         waveformFetchQueued = false;
         repeatedSpo2FallbackRetries = 0;
+        discoveredEcgCount = 0;
+        fetchedEcgCount = 0;
+        deletedEcgCount = 0;
+        clearEcgProgressNotification();
+    }
+
+    public void onSyncFinished() {
+        clearEcgProgressNotification();
     }
 
     @Override
@@ -175,7 +194,10 @@ public class WithingsEcgHandler implements ResponseHandler {
     }
 
     private void queueDiscoveryProbe(final boolean initial) {
-        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.SIMPLE);
+        // Keep the discovery conversation active until its trailing MEASURE_STOP / TRANSFER_COMPLETE.
+        // Otherwise that trailing completion marker can get mis-bound to the next queued 0x0147
+        // request, causing the actual ECG waveform stream to be routed into a stored-measure handler.
+        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.EOT);
         message.addDataStructure(new MeasureCategory(MeasureCategory.ECG));
         message.addDataStructure(new MeasureLiveAppStatus(initial ? 1 : 0));
         support.addSimpleConversationFirst(message, this);
@@ -209,11 +231,13 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (timestampMs > 0 && !seenRecordTimestamps.contains(timestampMs)) {
                 seenRecordTimestamps.add(timestampMs);
             }
+            discoveredEcgCount++;
             // Discovery gives us the same record key the official app later replays in
             // GET_STORED_MEASURE_SIGNAL to fetch the full waveform.
             logger.info("Discovered Withings ECG record ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
+            updateEcgProgress("Discovered ECG record", computeEcgProgressPercent(), true);
             waveformFetchQueued = true;
-            activeWaveformHandler = new EcgWaveformHandler(recordKey, true, false, false, -1);
+            activeWaveformHandler = new EcgWaveformHandler(recordKey, true, true, false, false, -1);
             final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
             message.addDataStructure(recordKey);
             support.addSimpleConversationFirst(message, activeWaveformHandler);
@@ -227,10 +251,62 @@ public class WithingsEcgHandler implements ResponseHandler {
 
         if (hasEot) {
             discoveryPagesSeen++;
+            if (!hasEcgMarkers && discoveredEcgCount == 0) {
+                updateEcgProgress("No ECG records to sync", 100, false);
+            }
             if (!waveformFetchQueued && hasEcgMarkers && discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                 queueDiscoveryProbe(false);
             }
         }
+    }
+
+    private int computeEcgProgressPercent() {
+        if (discoveredEcgCount <= 0) {
+            return 0;
+        }
+
+        if (deletedEcgCount >= discoveredEcgCount) {
+            return 100;
+        }
+
+        if (fetchedEcgCount <= 0) {
+            return 0;
+        }
+
+        return Math.min(99, (fetchedEcgCount * 100) / discoveredEcgCount);
+    }
+
+    private void updateEcgProgress(final String stage, final int percent, final boolean ongoing) {
+        final int clamped = Math.max(0, Math.min(100, percent));
+        final String details;
+        if (discoveredEcgCount > 0) {
+            details = String.format("%s (%d/%d fetched, %d deleted)",
+                    stage,
+                    Math.min(fetchedEcgCount, discoveredEcgCount),
+                    discoveredEcgCount,
+                    Math.min(deletedEcgCount, discoveredEcgCount));
+        } else {
+            details = stage;
+        }
+
+        logger.info("Withings ECG sync progress: {}% - {}", clamped, details);
+        GB.updateTransferNotification(
+                support.getContext().getString(R.string.busy_task_syncing),
+                details,
+                ongoing,
+                clamped,
+                support.getContext()
+        );
+    }
+
+    private void clearEcgProgressNotification() {
+        GB.updateTransferNotification(
+                support.getContext().getString(R.string.busy_task_syncing),
+                "",
+                false,
+                100,
+                support.getContext()
+        );
     }
 
     private boolean isNewRecordKey(final StoredMeasureMeta recordKey) {
@@ -264,6 +340,7 @@ public class WithingsEcgHandler implements ResponseHandler {
 
     private final class EcgWaveformHandler implements ResponseHandler {
         private final StoredMeasureMeta requestedRecordKey;
+        private final boolean countTowardsProgress;
         private final boolean storeWaveformAfterFetch;
         private final boolean verifyDeletion;
         private final boolean foundViaSpO2Loop;
@@ -277,11 +354,13 @@ public class WithingsEcgHandler implements ResponseHandler {
         private long arrhythmiaType = 0;
 
         private EcgWaveformHandler(final StoredMeasureMeta requestedRecordKey,
+                                   final boolean countTowardsProgress,
                                    final boolean storeWaveformAfterFetch,
                                    final boolean verifyDeletion,
                                    final boolean foundViaSpO2Loop,
                                    final int originatingSignalType) {
             this.requestedRecordKey = requestedRecordKey;
+            this.countTowardsProgress = countTowardsProgress;
             this.storeWaveformAfterFetch = storeWaveformAfterFetch;
             this.verifyDeletion = verifyDeletion;
             this.foundViaSpO2Loop = foundViaSpO2Loop;
@@ -341,6 +420,14 @@ public class WithingsEcgHandler implements ResponseHandler {
                     logger.warn("Withings ECG delete verification still returned waveform data for ts={} samples={}", startTimestampMs, waveform.size());
                 } else {
                     logger.info("Withings ECG delete verification: waveform gone for ts={}", startTimestampMs);
+                    if (countTowardsProgress) {
+                        deletedEcgCount = Math.max(deletedEcgCount + 1, fetchedEcgCount);
+                        updateEcgProgress(
+                                deletedEcgCount >= discoveredEcgCount ? "Completed ECG sync" : "Deleted ECG from watch",
+                                computeEcgProgressPercent(),
+                                deletedEcgCount < discoveredEcgCount
+                        );
+                    }
                 }
                 activeWaveformHandler = null;
                 waveformFetchQueued = false;
@@ -359,6 +446,10 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (!waveform.isEmpty()) {
                 final long endTimestampMs = startTimestampMs + Math.round((waveform.size() * 1000d) / ECG_SAMPLE_RATE_HZ);
                 storeWaveform(startTimestampMs, endTimestampMs, averageHeartRate, arrhythmiaType, waveform);
+                if (countTowardsProgress) {
+                    fetchedEcgCount = Math.max(fetchedEcgCount + 1, deletedEcgCount + 1);
+                    updateEcgProgress("Fetched ECG waveform", computeEcgProgressPercent(), true);
+                }
             } else if (storeWaveformAfterFetch) {
                 logger.warn("Expected Withings ECG waveform for ts={} but got none", startTimestampMs);
             }
@@ -370,7 +461,7 @@ public class WithingsEcgHandler implements ResponseHandler {
                         deleteKey.getSignalFlags(),
                         deleteKey.getCursor(),
                         deleteResponse -> {
-                            activeWaveformHandler = new EcgWaveformHandler(requestedRecordKey, false, true, foundViaSpO2Loop, originatingSignalType);
+                            activeWaveformHandler = new EcgWaveformHandler(requestedRecordKey, countTowardsProgress, false, true, foundViaSpO2Loop, originatingSignalType);
                             final WithingsMessage deleteVerifyMsg = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
                             deleteVerifyMsg.addDataStructure(requestedRecordKey);
                             support.addSimpleConversationFirst(deleteVerifyMsg, activeWaveformHandler);

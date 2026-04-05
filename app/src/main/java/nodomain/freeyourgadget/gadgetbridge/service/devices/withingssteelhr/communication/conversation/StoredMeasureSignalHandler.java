@@ -65,7 +65,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     /**
      * Handles the head-based stored-measure queues used for SpO2 and mixed stored signals.
      *
-     * Based on official app HCI captures, these queues do not behave like classic pagination.
+     * <p>Based on official app HCI captures, these queues do not behave like classic pagination.
      * Gadgetbridge re-requests cursor 0, parses the returned head page, stores any SpO2 / HR
      * samples, and then deletes that exact page using the returned 0x0143 key. Some head pages
      * are mixed and contain both ECG metadata and SpO2 values, so this handler may hand off ECG

@@ -420,6 +420,15 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                         (message.getType() == WithingsMessageType.MEASURE_START || message.getType() == WithingsMessageType.MEASURE_STOP)) {
                     withingsEcgHandler = createEcgHandler();
                 }
+                if (!syncInProgress
+                        && (message.getType() == WithingsMessageType.MEASURE_START
+                        || message.getType() == WithingsMessageType.MEASURE_STOP
+                        || message.getType() == WithingsMessageType.TRANSFER_COMPLETE)
+                        && !conversationQueue.matchesActiveConversation(message)) {
+                    logger.info("Received unsolicited ECG discovery message while idle, starting sync");
+                    doSync("unsolicited-ecg-discovery");
+                    return true;
+                }
                 if (withingsEcgHandler != null
                         && !conversationQueue.matchesActiveConversation(message)
                         && withingsEcgHandler.maybeHandleMeasurementMessage(message)) {
@@ -663,12 +672,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     public void finishSync() {
         syncInProgress = false;
+        if (withingsEcgHandler != null) {
+            withingsEcgHandler.onSyncFinished();
+        }
         if (getDevice().isBusy()) {
             getDevice().unsetBusyTask();
             getDevice().sendDeviceUpdateIntent(getContext());
         }
         activitySampleHandler.onSyncFinished();
         saveLastSyncTimestamp(new Date().getTime());
+    }
+
+    public boolean isSyncInProgress() {
+        return syncInProgress;
     }
 
     void onAuthenticationFinished() {
