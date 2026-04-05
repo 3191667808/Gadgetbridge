@@ -10,12 +10,14 @@ import nodomain.freeyourgadget.gadgetbridge.model.EcgSample;
 
 public final class EcgInterpretationUtil {
     private static final int MIN_SAMPLES_FOR_ANALYSIS = 600;
-    private static final int MIN_RR_INTERVALS_FOR_IRREGULAR = 5;
-    private static final float MIN_SIGNAL_RANGE = 12f;
-    private static final float MAX_DERIVED_HR_DELTA_BPM = 10f;
-    private static final float MAX_DERIVED_HR_DELTA_RATIO = 0.18f;
-    private static final float RELAXED_DERIVED_HR_DELTA_BPM = 14f;
-    private static final float RELAXED_DERIVED_HR_DELTA_RATIO = 0.22f;
+    private static final int MIN_RR_INTERVALS_FOR_IRREGULAR = 4;
+    private static final int MIN_RR_INTERVALS_FOR_NORMAL_HINT = 3;
+    private static final float MIN_SIGNAL_RANGE = 0.4f;
+    private static final float MIN_SIGNAL_RANGE_FOR_NORMAL_HINT = 0.3f;
+    private static final float MAX_DERIVED_HR_DELTA_BPM = 12f;
+    private static final float MAX_DERIVED_HR_DELTA_RATIO = 0.20f;
+    private static final float RELAXED_DERIVED_HR_DELTA_BPM = 16f;
+    private static final float RELAXED_DERIVED_HR_DELTA_RATIO = 0.25f;
     private static final float STRONG_IRREGULAR_RR_CV = 0.40f;
     private static final float STRONG_IRREGULAR_RR_SPREAD_SECONDS = 0.50f;
     private static final float STRONG_IRREGULAR_RR_SPREAD_RATIO = 0.60f;
@@ -35,7 +37,7 @@ public final class EcgInterpretationUtil {
 
     public static EcgInterpretation interpret(final EcgRecord record, final List<EcgSample> waveform) {
         final EcgInterpretation.DeviceHint deviceHint = toDeviceHint(record.getDeviceHintCode());
-        if (waveform == null || waveform.size() < MIN_SAMPLES_FOR_ANALYSIS) {
+        if (waveform == null || waveform.isEmpty()) {
             return new EcgInterpretation(deviceHint, EcgInterpretation.SignalQuality.INCONCLUSIVE, EcgInterpretation.Rhythm.INCONCLUSIVE);
         }
 
@@ -43,7 +45,6 @@ public final class EcgInterpretationUtil {
         float min = Float.MAX_VALUE;
         float max = -Float.MAX_VALUE;
         float totalAbsDiff = 0f;
-        float clippedSamples = 0f;
         float previous = waveform.get(0).getValue();
         values[0] = previous;
 
@@ -55,34 +56,52 @@ public final class EcgInterpretationUtil {
             if (i > 0) {
                 totalAbsDiff += Math.abs(value - previous);
             }
-            if (Math.abs(value) >= 120f) {
-                clippedSamples++;
-            }
             previous = value;
         }
 
         final float range = max - min;
         final float averageAbsDiff = totalAbsDiff / Math.max(1, waveform.size() - 1);
+
+        // Detect ADC clipping: count samples at the top/bottom 0.5% of the range.
+        // A high fraction there indicates signal saturation rather than legitimate peaks.
+        final float clipWindow = range * 0.005f;
+        float clippedSamples = 0f;
+        for (int i = 0; i < waveform.size(); i++) {
+            final float value = values[i];
+            if (value >= max - clipWindow || value <= min + clipWindow) {
+                clippedSamples++;
+            }
+        }
         final float clippedRatio = clippedSamples / waveform.size();
 
         final EcgInterpretation.SignalQuality signalQuality;
-        if (range < MIN_SIGNAL_RANGE) {
+        if (range < MIN_SIGNAL_RANGE_FOR_NORMAL_HINT) {
             signalQuality = EcgInterpretation.SignalQuality.NOISY;
-        } else if (clippedRatio > 0.12f || averageAbsDiff > range * 0.45f) {
+        } else if (clippedRatio > 0.40f || averageAbsDiff > range * 1.10f) {
             signalQuality = EcgInterpretation.SignalQuality.NOISY;
         } else {
             signalQuality = EcgInterpretation.SignalQuality.GOOD;
+        }
+
+        final boolean normalHintWithUsableSignal = deviceHint == EcgInterpretation.DeviceHint.NORMAL
+                && signalQuality == EcgInterpretation.SignalQuality.GOOD
+                && range >= MIN_SIGNAL_RANGE_FOR_NORMAL_HINT;
+
+        if (waveform.size() < MIN_SAMPLES_FOR_ANALYSIS) {
+            final EcgInterpretation.Rhythm rhythm = normalHintWithUsableSignal
+                    ? EcgInterpretation.Rhythm.REGULAR
+                    : EcgInterpretation.Rhythm.INCONCLUSIVE;
+            return new EcgInterpretation(deviceHint, signalQuality, rhythm);
         }
 
         final float sampleRateHz = estimateSampleRate(record, waveform);
         final float[] smoothedValues = smooth(values, Math.max(7, Math.round(sampleRateHz * 0.04f) | 1));
         final List<Integer> peaks = detectPeaks(smoothedValues, sampleRateHz, record.getAverageHeartRate());
         if (peaks.size() < 3) {
-            return new EcgInterpretation(deviceHint, signalQuality, EcgInterpretation.Rhythm.INCONCLUSIVE);
-        }
-
-        if (record.getAverageHeartRate() > 0 && !hasPlausiblePeakCount(record, peaks.size(), 0.55f, 1.45f)) {
-            return new EcgInterpretation(deviceHint, signalQuality, EcgInterpretation.Rhythm.INCONCLUSIVE);
+            final EcgInterpretation.Rhythm rhythm = normalHintWithUsableSignal && peaks.size() >= 2
+                    ? EcgInterpretation.Rhythm.REGULAR
+                    : EcgInterpretation.Rhythm.INCONCLUSIVE;
+            return new EcgInterpretation(deviceHint, signalQuality, rhythm);
         }
 
         final List<Float> rrIntervals = new ArrayList<>(peaks.size() - 1);
@@ -109,13 +128,13 @@ public final class EcgInterpretationUtil {
         final float rrCoeffVar = rrMean > 0 ? rrStdDev / rrMean : 0f;
         final float derivedHeartRate = rrMean > 0 ? 60f / rrMean : 0f;
 
-        final boolean strictPeakCountPlausible = record.getAverageHeartRate() <= 0 || hasPlausiblePeakCount(record, peaks.size(), 0.55f, 1.45f);
-        final boolean relaxedPeakCountPlausible = record.getAverageHeartRate() <= 0 || hasPlausiblePeakCount(record, peaks.size(), 0.50f, 1.50f);
+        final boolean strictPeakCountPlausible = record.getAverageHeartRate() <= 0 || hasPlausiblePeakCount(record, peaks.size(), 0.50f, 1.50f);
+        final boolean relaxedPeakCountPlausible = record.getAverageHeartRate() <= 0 || hasPlausiblePeakCount(record, peaks.size(), 0.45f, 1.55f);
         final boolean strictHeartRateMatch = record.getAverageHeartRate() <= 0
                 || Math.abs(derivedHeartRate - record.getAverageHeartRate()) <= Math.max(MAX_DERIVED_HR_DELTA_BPM, record.getAverageHeartRate() * MAX_DERIVED_HR_DELTA_RATIO);
         final boolean relaxedHeartRateMatch = record.getAverageHeartRate() <= 0
                 || Math.abs(derivedHeartRate - record.getAverageHeartRate()) <= Math.max(RELAXED_DERIVED_HR_DELTA_BPM, record.getAverageHeartRate() * RELAXED_DERIVED_HR_DELTA_RATIO);
-        final boolean looksRegular = rrCoeffVar <= 0.18f && (rrMax - rrMin) <= Math.max(0.22f, rrMean * 0.28f);
+        final boolean looksRegular = rrCoeffVar <= 0.20f && (rrMax - rrMin) <= Math.max(0.25f, rrMean * 0.32f);
         final boolean irregular = rrCoeffVar > 0.34f || (rrMax - rrMin) > Math.max(0.45f, rrMean * 0.55f);
         final boolean stronglyIrregular = rrCoeffVar > STRONG_IRREGULAR_RR_CV
                 || (rrMax - rrMin) > Math.max(STRONG_IRREGULAR_RR_SPREAD_SECONDS, rrMean * STRONG_IRREGULAR_RR_SPREAD_RATIO);
@@ -123,23 +142,23 @@ public final class EcgInterpretationUtil {
         final boolean normalHint = deviceHint == EcgInterpretation.DeviceHint.NORMAL;
         final boolean canTrustNormalHint = normalHint
                 && signalQuality == EcgInterpretation.SignalQuality.GOOD
-                && relaxedPeakCountPlausible
-                && relaxedHeartRateMatch;
+                && rrIntervals.size() >= MIN_RR_INTERVALS_FOR_NORMAL_HINT;
 
         final EcgInterpretation.Rhythm rhythm;
         if (signalQuality == EcgInterpretation.SignalQuality.NOISY) {
             rhythm = EcgInterpretation.Rhythm.INCONCLUSIVE;
-        } else if (rrIntervals.size() < MIN_RR_INTERVALS_FOR_IRREGULAR) {
-            rhythm = EcgInterpretation.Rhythm.INCONCLUSIVE;
-        } else if (canTrustNormalHint && !stronglyIrregular) {
+        } else if (canTrustNormalHint) {
+            // Device says Normal, signal is good, enough RR intervals detected - trust the device
             rhythm = EcgInterpretation.Rhythm.REGULAR;
+        } else if (rrIntervals.size() < MIN_RR_INTERVALS_FOR_IRREGULAR) {
+            rhythm = normalHintWithUsableSignal ? EcgInterpretation.Rhythm.REGULAR : EcgInterpretation.Rhythm.INCONCLUSIVE;
+        } else if (stronglyIrregular && !normalHint) {
+            rhythm = EcgInterpretation.Rhythm.IRREGULAR;
         } else if (irregular && !canTrustNormalHint) {
             rhythm = EcgInterpretation.Rhythm.IRREGULAR;
         } else if (strictPeakCountPlausible && strictHeartRateMatch) {
             rhythm = EcgInterpretation.Rhythm.REGULAR;
-        } else if (canTrustNormalHint && looksRegular) {
-            rhythm = EcgInterpretation.Rhythm.REGULAR;
-        } else if (canTrustNormalHint) {
+        } else if (normalHintWithUsableSignal && (relaxedPeakCountPlausible || relaxedHeartRateMatch || looksRegular)) {
             rhythm = EcgInterpretation.Rhythm.REGULAR;
         } else {
             rhythm = EcgInterpretation.Rhythm.INCONCLUSIVE;

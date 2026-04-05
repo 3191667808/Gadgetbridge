@@ -38,6 +38,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleMovement;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleSleep;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleTime;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleWalk;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityHeartrate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructureType;
@@ -146,6 +147,13 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     }
 
     private void handleWalk(WithingsStructure data) {
+        final ActivitySampleWalk walk = (ActivitySampleWalk) data;
+        if (isLikelyAwakeSleep(walk)) {
+            activityEntry.setRawKind(ActivityKind.AWAKE_SLEEP.getCode());
+            activityEntry.setRawIntensity(5);
+            return;
+        }
+
         activityEntry.setRawKind(ActivityKind.WALKING.getCode());
     }
 
@@ -269,5 +277,12 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
             heartRateEntry.setDistance(activityEntry.getDistance());
             heartRateEntry.setCalories(activityEntry.getCalories());
         }
+    }
+
+    private boolean isLikelyAwakeSleep(final ActivitySampleWalk walk) {
+        return walk.getLevel() == 0
+                && activityEntry.getSteps() == 0
+                && activityEntry.getDistance() == 0
+                && activityEntry.getRawKind() == ActivityKind.UNKNOWN.getCode();
     }
 }

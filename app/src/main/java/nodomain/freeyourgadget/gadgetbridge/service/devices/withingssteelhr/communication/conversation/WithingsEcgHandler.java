@@ -297,7 +297,12 @@ public class WithingsEcgHandler implements ResponseHandler {
                 activeWaveformHandler = null;
                 waveformFetchQueued = false;
                 if (foundViaSpO2Loop) {
-                    support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+                    if (originatingSignalType == ECG_WAVEFORM_SIGNAL_TYPE && !waveform.isEmpty()) {
+                        logger.warn("Stopping ECG waveform paging loop after failed delete verification for ts={} so sync can finish; ECG may remain on watch",
+                                startTimestampMs);
+                    } else {
+                        support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+                    }
                 } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                     queueDiscoveryProbe(false);
                 }

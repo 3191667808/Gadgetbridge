@@ -189,10 +189,12 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             if (signalType != ECG_WAVEFORM_SIGNAL_TYPE) {
                 logger.info("Ignoring ECG markers on stored-measure signalType={} cursor={} so mixed SpO2 pages can advance without invalid ECG fetch fallback",
                         signalType, currentCursor);
-            } else if (support.hasDiscoveredEcgRecord(ecgMetaToNotify)) {
-                logger.info("Stored-measure page at cursor={} contains an already-seen ECG record; ignoring marker so SpO2 loop retry logic can delete it", currentCursor);
             } else {
-                logger.info("Stored-measure page at cursor={} contains ECG markers; scheduling ECG fetch and stopping SpO2 loop to allow ECG fetch to complete and delete the cursor", currentCursor);
+                if (support.hasDiscoveredEcgRecord(ecgMetaToNotify)) {
+                    logger.info("Stored-measure ECG waveform page at cursor={} contains an already-seen ECG record; re-fetching it so the dedicated ECG delete path can retry", currentCursor);
+                } else {
+                    logger.info("Stored-measure page at cursor={} contains ECG markers; scheduling ECG fetch and stopping SpO2 loop to allow ECG fetch to complete and delete the cursor", currentCursor);
+                }
                 support.notifyEcgRecordDiscovered(ecgMetaToNotify, signalType);
                 return;
             }

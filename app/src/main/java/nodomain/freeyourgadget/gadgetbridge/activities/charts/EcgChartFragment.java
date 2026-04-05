@@ -1,6 +1,8 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.charts;
 
 import android.os.Bundle;
+import android.graphics.Color;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -56,6 +58,13 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     private static final int DISPLAY_RESAMPLE_MS = 20;
     private static final int WATCH_STYLE_RESAMPLE_MS = 28;
     private static final int WATCH_STYLE_AVERAGE_WINDOW = 5;
+    private static final float ECG_MAJOR_X_GRID_SECONDS = 0.2f;
+    private static final float ECG_MINOR_X_GRID_SECONDS = 0.04f;
+    private static final float ECG_MAJOR_Y_GRID = 0.5f;
+    private static final float ECG_MINOR_Y_GRID = 0.1f;
+    private static final int ECG_PAPER_BACKGROUND = 0xFFFFFCFC;
+    private static final int ECG_MAJOR_GRID_COLOR = 0x33E57373;
+    private static final int ECG_MINOR_GRID_COLOR = 0x1AE57373;
 
     private int backgroundColor;
     private int chartTextColor;
@@ -216,7 +225,10 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             dataSets.add(createDataSet(entries));
             chart.setData(new LineData(dataSets));
 
-            final float durationSeconds = Math.max(maxDelta / 1000f, 1f);
+            final long recordDurationMs = data.selectedSummary.getEndTimestamp() - data.selectedSummary.getStartTimestamp();
+            final float durationSeconds = recordDurationMs > 0
+                    ? Math.max(maxDelta / 1000f, recordDurationMs / 1000f)
+                    : Math.max(maxDelta / 1000f, 1f);
             chart.getXAxis().setAxisMaximum(durationSeconds);
             chart.getXAxis().setLabelCount(6, true);
             chart.getXAxis().setValueFormatter(new SessionXAxisFormatter(data.selectedSummary.getStartTimestamp()));
@@ -226,6 +238,9 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             final float halfRange = Math.max(DISPLAY_Y_AXIS_HALF_RANGE, maxAbs * 1.25f);
             leftAxis.setAxisMinimum(-halfRange);
             leftAxis.setAxisMaximum(halfRange);
+            applyEcgGrid(0f, durationSeconds, halfRange);
+            Log.d("EcgChart", "durationSeconds=" + durationSeconds + " maxDelta=" + maxDelta + " recordDurationMs=" + recordDurationMs + " limitLineCount=" + chart.getXAxis().getLimitLines().size());
+            chart.fitScreen();
         }
 
         if (!data.summaries.isEmpty()) {
@@ -592,7 +607,7 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     }
 
     private void setupLineChart() {
-        chart.setBackgroundColor(backgroundColor);
+        chart.setBackgroundColor(ECG_PAPER_BACKGROUND);
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);
         chart.setDoubleTapToZoomEnabled(false);
@@ -609,18 +624,59 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         xAxis.setAxisMinimum(0f);
         xAxis.setAxisMaximum(30f);
         xAxis.setLabelCount(6, true);
+        xAxis.setGranularity(1f);
+        xAxis.setDrawLimitLinesBehindData(true);
 
         final YAxis leftAxis = chart.getAxisLeft();
-        leftAxis.setDrawGridLines(true);
+        leftAxis.setDrawGridLines(false);
         leftAxis.setTextColor(chartTextColor);
         leftAxis.setAxisMinimum(-2f);
         leftAxis.setAxisMaximum(2f);
+        leftAxis.setDrawLimitLinesBehindData(true);
 
         final YAxis rightAxis = chart.getAxisRight();
         rightAxis.setEnabled(true);
         rightAxis.setDrawLabels(false);
         rightAxis.setDrawGridLines(false);
         rightAxis.setDrawAxisLine(true);
+
+        applyEcgGrid(0f, 30f, 2f);
+    }
+
+    private void applyEcgGrid(final float minX, final float maxX, final float halfRange) {
+        final XAxis xAxis = chart.getXAxis();
+        xAxis.removeAllLimitLines();
+        final int minorPerMajorX = Math.round(ECG_MAJOR_X_GRID_SECONDS / ECG_MINOR_X_GRID_SECONDS);
+        final int firstMinorIndex = (int) Math.floor(minX / ECG_MINOR_X_GRID_SECONDS);
+        for (int i = firstMinorIndex; ; i++) {
+            final float second = i * ECG_MINOR_X_GRID_SECONDS;
+            if (second > maxX + 0.0001f) break;
+            final boolean major = (i % minorPerMajorX) == 0;
+            xAxis.addLimitLine(createGridLine(second, major ? ECG_MAJOR_GRID_COLOR : ECG_MINOR_GRID_COLOR, major ? 0.9f : 0.45f));
+        }
+
+        final YAxis leftAxis = chart.getAxisLeft();
+        leftAxis.removeAllLimitLines();
+        final int minorPerMajorY = Math.round(ECG_MAJOR_Y_GRID / ECG_MINOR_Y_GRID);
+        for (int i = 0; ; i++) {
+            final float value = i * ECG_MINOR_Y_GRID;
+            if (value > halfRange + 0.0001f) break;
+            final boolean major = (i % minorPerMajorY) == 0;
+            leftAxis.addLimitLine(createGridLine(value, major ? ECG_MAJOR_GRID_COLOR : ECG_MINOR_GRID_COLOR, major ? 0.9f : 0.45f));
+            if (i > 0) {
+                leftAxis.addLimitLine(createGridLine(-value, major ? ECG_MAJOR_GRID_COLOR : ECG_MINOR_GRID_COLOR, major ? 0.9f : 0.45f));
+            }
+        }
+    }
+
+    private com.github.mikephil.charting.components.LimitLine createGridLine(final float value,
+                                                                             final int color,
+                                                                             final float width) {
+        final com.github.mikephil.charting.components.LimitLine line = new com.github.mikephil.charting.components.LimitLine(value);
+        line.setLineColor(color);
+        line.setLineWidth(width);
+        line.setLabel("");
+        return line;
     }
 
     private void setupChartTouchHandling() {

@@ -91,6 +91,11 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     }
 
     @Override
+    public boolean supportsAwakeSleep(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public boolean supportsDataFetching(@NonNull final GBDevice device) {
         return true;
     }
