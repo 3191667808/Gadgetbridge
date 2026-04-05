@@ -71,6 +71,16 @@ public class WithingsEcgHandler implements ResponseHandler {
     private EcgWaveformHandler activeWaveformHandler;
     private int repeatedSpo2FallbackRetries;
 
+    /**
+     * Mirrors the official ECG sync split seen in HCI captures:
+     * first discover stored ECG record keys via MEASURE_* responses, then fetch each waveform by
+     * replaying the exact 0x0116 key returned by discovery.
+     *
+     * This discovery stage means ECG progress is theoretically knowable because the watch tells
+     * us how many ECG record keys exist up front. The current implementation uses discovery for
+     * fetching order and dedupe, but it does not yet surface a user-visible 0-100 progress value.
+     */
+
     public WithingsEcgHandler(final WithingsBaseDeviceSupport support, final GBDevice device) {
         this.support = support;
         this.device = device;
@@ -199,6 +209,8 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (timestampMs > 0 && !seenRecordTimestamps.contains(timestampMs)) {
                 seenRecordTimestamps.add(timestampMs);
             }
+            // Discovery gives us the same record key the official app later replays in
+            // GET_STORED_MEASURE_SIGNAL to fetch the full waveform.
             logger.info("Discovered Withings ECG record ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
             waveformFetchQueued = true;
             activeWaveformHandler = new EcgWaveformHandler(recordKey, true, false, false, -1);
@@ -379,6 +391,8 @@ public class WithingsEcgHandler implements ResponseHandler {
                     logger.warn("Stopping repeated ECG fallback for ts={} after {} missing-delete-key retries; not advancing cursor because official app behavior appears head-page based",
                             startTimestampMs, repeatedSpo2FallbackRetries - 1);
                 } else {
+                    // Retry from cursor 0 because mixed stored-signal pages behave as a queue head,
+                    // not a pageable list. Advancing the cursor risks skipping a stubborn head page.
                     support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
                 }
             } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {

@@ -363,6 +363,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new TypeVersion());
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
+                // Official-app-like stored-measure sync is split into two pieces:
+                // 1) queue polling for signal types 0x0001/0x0004/0x0005, always starting from cursor 0
+                // 2) a separate ECG discovery flow that enumerates stored ECG record keys before fetching
+                //    waveforms. Mixed 0x0004 pages can still surface ECG metadata, so both paths cooperate.
                 message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
                 message.addDataStructure(new StoredSignalMeta(0x0001, 0));
                 addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0001));
@@ -813,6 +817,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         Message deleteMessage = new WithingsMessage(WithingsMessageType.DELETE_STORED_MEASURE_SIGNAL, ExpectedResponse.SIMPLE);
         // Official captures include a 0x0145 TLV before 0x0143, and successful multi-page
         // manual SpO2 syncs increment it across successive delete requests in the same session.
+        // The cursor in 0x0143 is treated as an opaque delete token for the current head page,
+        // not as a "next page" pointer.
         deleteMessage.addDataStructure(new FeatureTagsUserId(deleteRequestId));
         deleteMessage.addDataStructure(new StoredSignalMeta(signalType, signalFlags, cursor));
         addSimpleConversationFirst(deleteMessage, handler);
@@ -833,6 +839,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                                             final int cursor,
                                             final ResponseHandler handler) {
         Message getMessage = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+        // For stored-measure queues the official app repeatedly re-reads the queue head with
+        // cursor 0. The returned StoredSignalMeta carries the delete key for the current head item.
         getMessage.addDataStructure(new StoredSignalMeta(signalType, signalFlags, cursor));
         addSimpleConversationFirst(getMessage, handler);
     }

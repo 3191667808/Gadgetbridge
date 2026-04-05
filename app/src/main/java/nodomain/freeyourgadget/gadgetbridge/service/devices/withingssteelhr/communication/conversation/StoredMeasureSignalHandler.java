@@ -62,6 +62,16 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private int lastDeletedSpo2 = -1;
     private int repeatedPageRetries;
 
+    /**
+     * Handles the head-based stored-measure queues used for SpO2 and mixed stored signals.
+     *
+     * Based on official app HCI captures, these queues do not behave like classic pagination.
+     * Gadgetbridge re-requests cursor 0, parses the returned head page, stores any SpO2 / HR
+     * samples, and then deletes that exact page using the returned 0x0143 key. Some head pages
+     * are mixed and contain both ECG metadata and SpO2 values, so this handler may hand off ECG
+     * retrieval to {@link WithingsEcgHandler} before resuming deletion of the same queue head.
+     */
+
     public StoredMeasureSignalHandler(final WithingsBaseDeviceSupport support, final GBDevice device, final int signalType) {
         this.support = support;
         this.device = device;
@@ -221,6 +231,9 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                 logger.info("Stored-measure page signalType={} cursor={} contains an already-seen ECG record; continuing with page deletion instead of re-fetching it again",
                         signalType, currentCursor);
             } else {
+                // Mixed signalType=0x0004 pages can contain an ECG record key plus SpO2 data.
+                // Match the official app by fetching the ECG waveform first, then returning to
+                // the same stored-measure queue head so the mixed page can still be deleted.
                 logger.info("Stored-measure page signalType={} cursor={} contains ECG markers; scheduling ECG fetch before continuing this stored-measure loop",
                         signalType, currentCursor);
                 support.notifyEcgRecordDiscovered(ecgMetaToNotify, signalType);
