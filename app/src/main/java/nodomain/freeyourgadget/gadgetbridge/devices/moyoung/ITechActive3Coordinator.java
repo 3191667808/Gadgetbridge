@@ -86,12 +86,6 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
 
     }
      @Override
-    public boolean supportsHeartRateStats(@NonNull GBDevice device) {
-        return true;
-    }
-
-    }
-     @Override
     public boolean supportsManualHeartRateMeasurement(@NonNull GBDevice device) {
         return true;
     }
@@ -117,12 +111,6 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
     }
      @Override
     public boolean supportsRemSleep(@NonNull GBDevice device) {
-        return true;
-    }
-
-    }
-     @Override
-    public boolean supportsSleepAsAndroid(@NonNull GBDevice device) {
         return true;
     }
     
