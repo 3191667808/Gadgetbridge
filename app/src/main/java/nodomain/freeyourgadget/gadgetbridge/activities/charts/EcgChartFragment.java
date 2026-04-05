@@ -62,15 +62,14 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     private static final float ECG_MINOR_X_GRID_SECONDS = 0.04f;
     private static final float ECG_MAJOR_Y_GRID = 0.5f;
     private static final float ECG_MINOR_Y_GRID = 0.1f;
-    private static final int ECG_PAPER_BACKGROUND = 0xFFFFFCFC;
-    private static final int ECG_MAJOR_GRID_COLOR = 0x33E57373;
-    private static final int ECG_MINOR_GRID_COLOR = 0x1AE57373;
-
     private int backgroundColor;
     private int chartTextColor;
     private int ecgColor;
     private int selectedSessionBackgroundColor;
     private int selectedSessionTextColor;
+    private int ecgPaperBackgroundColor;
+    private int ecgMajorGridColor;
+    private int ecgMinorGridColor;
 
     private TextView dateView;
     private LineChart chart;
@@ -93,6 +92,12 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         ecgColor = ContextCompat.getColor(requireContext(), R.color.chart_line_heart_rate);
         selectedSessionBackgroundColor = resolveThemeColor(com.google.android.material.R.attr.colorPrimaryContainer);
         selectedSessionTextColor = resolveThemeColor(com.google.android.material.R.attr.colorOnPrimaryContainer);
+        final boolean darkTheme = (requireContext().getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        ecgPaperBackgroundColor = darkTheme ? 0xFF151313 : 0xFFFFFCFC;
+        ecgMajorGridColor = darkTheme ? 0x40FF8A8A : 0x33E57373;
+        ecgMinorGridColor = darkTheme ? 0x20FF8A8A : 0x1AE57373;
     }
 
     @Override
@@ -123,6 +128,7 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         // updateSmoothingModeLabel();
         setupLineChart();
         setupChartTouchHandling();
+        refresh();
         return rootView;
     }
 
@@ -614,7 +620,7 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     }
 
     private void setupLineChart() {
-        chart.setBackgroundColor(ECG_PAPER_BACKGROUND);
+        chart.setBackgroundColor(ecgPaperBackgroundColor);
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);
         chart.setDoubleTapToZoomEnabled(false);
@@ -659,7 +665,7 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             final float second = i * ECG_MINOR_X_GRID_SECONDS;
             if (second > maxX + 0.0001f) break;
             final boolean major = (i % minorPerMajorX) == 0;
-            xAxis.addLimitLine(createGridLine(second, major ? ECG_MAJOR_GRID_COLOR : ECG_MINOR_GRID_COLOR, major ? 0.9f : 0.45f));
+            xAxis.addLimitLine(createGridLine(second, major ? ecgMajorGridColor : ecgMinorGridColor, major ? 0.9f : 0.45f));
         }
 
         final YAxis leftAxis = chart.getAxisLeft();
@@ -669,9 +675,9 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             final float value = i * ECG_MINOR_Y_GRID;
             if (value > halfRange + 0.0001f) break;
             final boolean major = (i % minorPerMajorY) == 0;
-            leftAxis.addLimitLine(createGridLine(value, major ? ECG_MAJOR_GRID_COLOR : ECG_MINOR_GRID_COLOR, major ? 0.9f : 0.45f));
+            leftAxis.addLimitLine(createGridLine(value, major ? ecgMajorGridColor : ecgMinorGridColor, major ? 0.9f : 0.45f));
             if (i > 0) {
-                leftAxis.addLimitLine(createGridLine(-value, major ? ECG_MAJOR_GRID_COLOR : ECG_MINOR_GRID_COLOR, major ? 0.9f : 0.45f));
+                leftAxis.addLimitLine(createGridLine(-value, major ? ecgMajorGridColor : ecgMinorGridColor, major ? 0.9f : 0.45f));
             }
         }
     }

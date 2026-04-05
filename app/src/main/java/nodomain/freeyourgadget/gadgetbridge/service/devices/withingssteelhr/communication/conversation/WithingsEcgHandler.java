@@ -39,11 +39,13 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureMeta;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalMeta;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalMetaExtended;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.ExpectedResponse;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.WithingsEcgWaveformUtil;
 
 public class WithingsEcgHandler implements ResponseHandler {
@@ -57,14 +59,17 @@ public class WithingsEcgHandler implements ResponseHandler {
     private static final String APP_VERSION_PLACEHOLDER = "withings";
 
     private static final int MAX_DISCOVERY_PAGES = 10;
+    private static final int MAX_SPO2_FALLBACK_RETRIES = 3;
 
     private final WithingsBaseDeviceSupport support;
     private final GBDevice device;
     private final List<byte[]> seenRecordKeys = new ArrayList<>();
+    private final List<Long> seenRecordTimestamps = new ArrayList<>();
 
     private int discoveryPagesSeen;
     private boolean waveformFetchQueued;
     private EcgWaveformHandler activeWaveformHandler;
+    private int repeatedSpo2FallbackRetries;
 
     public WithingsEcgHandler(final WithingsBaseDeviceSupport support, final GBDevice device) {
         this.support = support;
@@ -78,8 +83,10 @@ public class WithingsEcgHandler implements ResponseHandler {
         }
 
         seenRecordKeys.clear();
+        seenRecordTimestamps.clear();
         discoveryPagesSeen = 0;
         waveformFetchQueued = false;
+        repeatedSpo2FallbackRetries = 0;
         queueDiscoveryProbe(true);
     }
 
@@ -91,6 +98,10 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (Arrays.equals(seenKey, recordKey.getRawPayload())) {
                 return true;
             }
+        }
+        final long timestampMs = recordKey.getTimestampMs();
+        if (timestampMs > 0 && seenRecordTimestamps.contains(timestampMs)) {
+            return true;
         }
         return false;
     }
@@ -110,6 +121,10 @@ public class WithingsEcgHandler implements ResponseHandler {
 
         if (isNewRecord) {
             seenRecordKeys.add(recordKey.getRawPayload());
+            final long timestampMs = recordKey.getTimestampMs();
+            if (timestampMs > 0 && !seenRecordTimestamps.contains(timestampMs)) {
+                seenRecordTimestamps.add(timestampMs);
+            }
             logger.info("Discovered Withings ECG record via fallback ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
         } else {
             logger.info("Re-fetching previously seen Withings ECG record ts={} so it can still be deleted", recordKey.getTimestampMs());
@@ -124,19 +139,25 @@ public class WithingsEcgHandler implements ResponseHandler {
     public void reset() {
         activeWaveformHandler = null;
         seenRecordKeys.clear();
+        seenRecordTimestamps.clear();
+        discoveryPagesSeen = 0;
+        waveformFetchQueued = false;
+        repeatedSpo2FallbackRetries = 0;
     }
 
     @Override
     public void handleResponse(final Message response) {
         if (response.getType() == WithingsMessageType.MEASURE_START
-                || response.getType() == WithingsMessageType.MEASURE_STOP) {
+                || response.getType() == WithingsMessageType.MEASURE_STOP
+                || response.getType() == WithingsMessageType.TRANSFER_COMPLETE) {
             handleDiscoveryResponse(response);
         }
     }
 
     public boolean maybeHandleMeasurementMessage(final Message response) {
         if (response.getType() == WithingsMessageType.MEASURE_START
-                || response.getType() == WithingsMessageType.MEASURE_STOP) {
+                || response.getType() == WithingsMessageType.MEASURE_STOP
+                || response.getType() == WithingsMessageType.TRANSFER_COMPLETE) {
             handleDiscoveryResponse(response);
             return true;
         }
@@ -174,12 +195,16 @@ public class WithingsEcgHandler implements ResponseHandler {
 
         if (recordKey != null && isNewRecordKey(recordKey)) {
             seenRecordKeys.add(recordKey.getRawPayload());
+            final long timestampMs = recordKey.getTimestampMs();
+            if (timestampMs > 0 && !seenRecordTimestamps.contains(timestampMs)) {
+                seenRecordTimestamps.add(timestampMs);
+            }
             logger.info("Discovered Withings ECG record ts={} type={}", recordKey.getTimestampMs(), recordKey.getMeasurementType());
             waveformFetchQueued = true;
             activeWaveformHandler = new EcgWaveformHandler(recordKey, true, false, false, -1);
             final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
             message.addDataStructure(recordKey);
-            support.addSimpleConversationToQueue(message, activeWaveformHandler);
+            support.addSimpleConversationFirst(message, activeWaveformHandler);
         }
 
         if (response.getType() == WithingsMessageType.MEASURE_STOP) {
@@ -202,6 +227,10 @@ public class WithingsEcgHandler implements ResponseHandler {
             if (Arrays.equals(seen, rawPayload)) {
                 return false;
             }
+        }
+        final long timestampMs = recordKey.getTimestampMs();
+        if (timestampMs > 0 && seenRecordTimestamps.contains(timestampMs)) {
+            return false;
         }
         return true;
     }
@@ -230,6 +259,7 @@ public class WithingsEcgHandler implements ResponseHandler {
         private final List<Float> waveform = new ArrayList<>();
         private final WithingsEcgWaveformUtil.StreamingDecoder waveformDecoder = new WithingsEcgWaveformUtil.StreamingDecoder();
         private StoredSignalMeta deleteKey;
+        private byte[] deleteKeyExtendedRaw;
         private long startTimestampMs;
         private int averageHeartRate = -1;
         private long arrhythmiaType = 0;
@@ -270,7 +300,13 @@ public class WithingsEcgHandler implements ResponseHandler {
                     final StoredSignalMeta signalMeta = (StoredSignalMeta) structure;
                     if (signalMeta.getSignalType() == ECG_WAVEFORM_SIGNAL_TYPE) {
                         deleteKey = signalMeta;
+                        logger.info("Withings ECG fetch got delete key: signalType={} signalFlags={} cursor={}",
+                                signalMeta.getSignalType(), signalMeta.getSignalFlags(), signalMeta.getCursor());
                     }
+                } else if (structure instanceof StoredSignalMetaExtended) {
+                    deleteKeyExtendedRaw = ((StoredSignalMetaExtended) structure).getRawPayload();
+                    logger.info("Withings ECG fetch got 0x0146 extended signal meta: len={} payload={}",
+                            deleteKeyExtendedRaw.length, GB.hexdump(deleteKeyExtendedRaw));
                 } else if (structure instanceof StoredSignalData) {
                     final StoredSignalData signalData = (StoredSignalData) structure;
                     final List<Float> decodedSamples = WithingsEcgWaveformUtil.decodePacket(signalData.getSampleBytes(), waveformDecoder);
@@ -297,12 +333,11 @@ public class WithingsEcgHandler implements ResponseHandler {
                 activeWaveformHandler = null;
                 waveformFetchQueued = false;
                 if (foundViaSpO2Loop) {
-                    if (originatingSignalType == ECG_WAVEFORM_SIGNAL_TYPE && !waveform.isEmpty()) {
-                        logger.warn("Stopping ECG waveform paging loop after failed delete verification for ts={} so sync can finish; ECG may remain on watch",
-                                startTimestampMs);
-                    } else {
-                        support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+                    if (!waveform.isEmpty()) {
+                        logger.warn("Resuming stored-measure head-page loop for signalType={} after ECG delete verification still returned waveform for ts={}",
+                                originatingSignalType, startTimestampMs);
                     }
+                    support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
                 } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                     queueDiscoveryProbe(false);
                 }
@@ -317,6 +352,7 @@ public class WithingsEcgHandler implements ResponseHandler {
             }
 
             if (deleteKey != null) {
+                repeatedSpo2FallbackRetries = 0;
                 support.queueDeleteStoredMeasureSignal(
                         deleteKey.getSignalType(),
                         deleteKey.getSignalFlags(),
@@ -333,12 +369,48 @@ public class WithingsEcgHandler implements ResponseHandler {
 
             activeWaveformHandler = null;
             waveformFetchQueued = false;
-            logger.warn("Missing delete key for Withings ECG record ts={}, unable to delete from watch", startTimestampMs);
+            logger.warn("Missing delete key for Withings ECG record ts={}, unable to delete from watch (0x0146={}; structures={})",
+                    startTimestampMs,
+                    deleteKeyExtendedRaw == null ? "none" : GB.hexdump(deleteKeyExtendedRaw),
+                    describeStructures(structures));
             if (foundViaSpO2Loop) {
-                support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+                repeatedSpo2FallbackRetries++;
+                if (repeatedSpo2FallbackRetries > MAX_SPO2_FALLBACK_RETRIES) {
+                    logger.warn("Stopping repeated ECG fallback for ts={} after {} missing-delete-key retries; not advancing cursor because official app behavior appears head-page based",
+                            startTimestampMs, repeatedSpo2FallbackRetries - 1);
+                } else {
+                    support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
+                }
             } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                 queueDiscoveryProbe(false);
             }
+        }
+
+        private String describeStructures(final List<WithingsStructure> structures) {
+            final List<String> descriptions = new ArrayList<>(structures.size());
+            for (final WithingsStructure structure : structures) {
+                if (structure instanceof StoredMeasureMeta) {
+                    final StoredMeasureMeta meta = (StoredMeasureMeta) structure;
+                    descriptions.add("0116(type=" + meta.getMeasurementType() + ",ts=" + meta.getTimestampMs() + ")");
+                } else if (structure instanceof StoredMeasureData) {
+                    final StoredMeasureData data = (StoredMeasureData) structure;
+                    descriptions.add("0117(type=" + data.getMeasurementType() + ",raw=" + data.getRawValue() + ")");
+                } else if (structure instanceof StoredSignalMeta) {
+                    final StoredSignalMeta meta = (StoredSignalMeta) structure;
+                    descriptions.add("0143(signalType=" + meta.getSignalType() + ",flags=" + meta.getSignalFlags() + ",cursor=" + meta.getCursor() + ")");
+                } else if (structure instanceof StoredSignalMetaExtended) {
+                    final byte[] rawPayload = ((StoredSignalMetaExtended) structure).getRawPayload();
+                    descriptions.add("0146(" + GB.hexdump(rawPayload) + ")");
+                } else if (structure instanceof StoredSignalData) {
+                    descriptions.add("0144(samples)");
+                } else if (structure instanceof RawWithingsStructure) {
+                    final RawWithingsStructure raw = (RawWithingsStructure) structure;
+                    descriptions.add(String.format("0x%04x(raw=%s)", raw.getType() & 0xffff, GB.hexdump(raw.getRawData())));
+                } else {
+                    descriptions.add(String.format("0x%04x", structure.getType() & 0xffff));
+                }
+            }
+            return descriptions.toString();
         }
     }
 

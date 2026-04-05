@@ -103,6 +103,7 @@ public class EcgPeriodFragment extends AbstractChartFragment<EcgPeriodFragment.E
 
         setupChart();
         setupLegend(chart);
+        refresh();
         return rootView;
     }
 

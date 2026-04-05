@@ -23,9 +23,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureData;
@@ -38,10 +40,11 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.With
 public class StoredMeasureSignalHandler implements ResponseHandler {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureSignalHandler.class);
     private static final int MEASUREMENT_TYPE_SPO2 = 54;
+    private static final int MEASUREMENT_TYPE_HEART_RATE = 11;
     private static final int ECG_MEASUREMENT_TYPE = 0x0103;
     private static final int ECG_WAVEFORM_SIGNAL_TYPE = 0x0001;
-    private static final int MAX_DELETE_ATTEMPTS = 32;
-    private static final int MAX_REPEATED_PAGE_RETRIES = 4;
+    private static final int MAX_DELETE_ATTEMPTS = 256;
+    private static final int MAX_REPEATED_PAGE_RETRIES = 16;
 
     private final WithingsBaseDeviceSupport support;
     private final GBDevice device;
@@ -72,9 +75,10 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         boolean sawSignalMetaThisPage = false;
         int pageCursor = -1;
 
-        // Collect all valid SpO2 samples from this response; there may be multiple
+        // Collect all valid samples from this response; there may be multiple
         // (StoredMeasureMeta, StoredMeasureData) pairs in a single BLE message.
         final List<long[]> collectedSamples = new ArrayList<>(); // [timestampMs, spo2]
+        final List<long[]> collectedHeartRates = new ArrayList<>(); // [timestampMs, bpm]
 
         for (final WithingsStructure structure : response.getDataStructures()) {
             if (structure instanceof StoredSignalMeta) {
@@ -109,6 +113,17 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             }
 
             if (!isLikelySpo2Measurement(currentMeta, data)) {
+                if (isLikelyHeartRateMeasurement(currentMeta, data)) {
+                    final int heartRate = data.getRawValue();
+                    final long timestampMs = currentMeta.getTimestampMs();
+                    if (heartRate >= 20 && heartRate <= 250 && timestampMs > 0) {
+                        logger.debug("Collected Withings heart rate sample from stored measures: ts={} bpm={} metaType={} dataType={}",
+                                timestampMs, heartRate, currentMeta.getMeasurementType(), data.getMeasurementType());
+                        collectedHeartRates.add(new long[]{timestampMs, heartRate});
+                    }
+                    continue;
+                }
+
                 logger.debug(
                         "Skipping stored measure sample: metaType={} dataType={} spo2Percent={} hasEOT={}",
                         currentMeta.getMeasurementType(),
@@ -152,6 +167,22 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             }
         }
 
+        if (!collectedHeartRates.isEmpty()) {
+            try (DBHandler dbHandler = GBApplication.acquireDB()) {
+                final Long userId = DBHelper.getUser(dbHandler.getDaoSession()).getId();
+                final Long deviceId = DBHelper.getDevice(device, dbHandler.getDaoSession()).getId();
+                final GenericHeartRateSampleProvider provider = new GenericHeartRateSampleProvider(device, dbHandler.getDaoSession());
+                final List<GenericHeartRateSample> samples = new ArrayList<>(collectedHeartRates.size());
+                for (final long[] entry : collectedHeartRates) {
+                    samples.add(new GenericHeartRateSample(entry[0], deviceId, userId, (int) entry[1]));
+                }
+                provider.addSamples(samples);
+                logger.debug("Stored {} Withings heart rate sample(s) from stored measures", samples.size());
+            } catch (final Exception ex) {
+                logger.warn("Failed storing Withings heart rate samples from stored measures", ex);
+            }
+        }
+
         if (!sawAnyStoredData) {
             logger.debug(
                     "Skipping stored measure response: hasMetaOrData=false hasEOT={}",
@@ -186,15 +217,12 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         resetPendingPageState();
 
         if (ecgMetaToNotify != null) {
-            if (signalType != ECG_WAVEFORM_SIGNAL_TYPE) {
-                logger.info("Ignoring ECG markers on stored-measure signalType={} cursor={} so mixed SpO2 pages can advance without invalid ECG fetch fallback",
+            if (support.hasDiscoveredEcgRecord(ecgMetaToNotify)) {
+                logger.info("Stored-measure page signalType={} cursor={} contains an already-seen ECG record; continuing with page deletion instead of re-fetching it again",
                         signalType, currentCursor);
             } else {
-                if (support.hasDiscoveredEcgRecord(ecgMetaToNotify)) {
-                    logger.info("Stored-measure ECG waveform page at cursor={} contains an already-seen ECG record; re-fetching it so the dedicated ECG delete path can retry", currentCursor);
-                } else {
-                    logger.info("Stored-measure page at cursor={} contains ECG markers; scheduling ECG fetch and stopping SpO2 loop to allow ECG fetch to complete and delete the cursor", currentCursor);
-                }
+                logger.info("Stored-measure page signalType={} cursor={} contains ECG markers; scheduling ECG fetch before continuing this stored-measure loop",
+                        signalType, currentCursor);
                 support.notifyEcgRecordDiscovered(ecgMetaToNotify, signalType);
                 return;
             }
@@ -202,11 +230,11 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
         if (isRepeatedPage(currentCursor, currentSignalFlags, lastSampleTimestampMs, lastSampleSpo2)) {
             if (!sawStoredData) {
-                logger.warn("Stopping stored measure loop for signalType={} after repeated empty page cursor={}", signalType, currentCursor);
+                logger.warn("Stopping stored measure loop for signalType={} after repeated empty head page cursor={}", signalType, currentCursor);
                 return;
             }
             if (repeatedPageRetries >= MAX_REPEATED_PAGE_RETRIES) {
-                logger.warn("Watch refused to advance after {} delete retries for signalType={} cursor={} flags={}; stopping stored measure loop instead of skipping ahead",
+                logger.warn("Watch refused to clear head page after {} delete retries for signalType={} cursor={} flags={}; stopping stored measure loop",
                         repeatedPageRetries, signalType, currentCursor, currentSignalFlags);
                 return;
             }
@@ -218,7 +246,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                 return;
             }
 
-            logger.warn("Retrying delete for repeated stored measure page signalType={} cursor={} flags={} ts={} spo2={} retry={}",
+            logger.warn("Retrying delete for repeated stored measure head page signalType={} cursor={} flags={} ts={} spo2={} retry={}",
                     signalType, currentCursor, currentSignalFlags, lastSampleTimestampMs, lastSampleSpo2, repeatedPageRetries);
             final int resumeCursor = getResumeCursor(currentCursor);
             support.queueDeleteStoredMeasureSignal(signalType, currentSignalFlags, currentCursor, deleteResponse ->
@@ -268,11 +296,10 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     }
 
     private int getResumeCursor(final int currentCursor) {
-        if (signalType == ECG_WAVEFORM_SIGNAL_TYPE) {
-            return 0;
-        }
-
-        return currentCursor + 1;
+        // Official app behavior in the captured sessions is head-queue based: it re-requests
+        // stored-signal pages from cursor 0 and uses the returned cursor only as an opaque
+        // delete key for the current head page.
+        return 0;
     }
 
     private static boolean isLikelySpo2Measurement(final StoredMeasureMeta meta, final StoredMeasureData data) {
@@ -281,5 +308,16 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         }
 
         return meta.getMeasurementType() == MEASUREMENT_TYPE_SPO2;
+    }
+
+    private static boolean isLikelyHeartRateMeasurement(final StoredMeasureMeta meta, final StoredMeasureData data) {
+        // In current Withings mixed ECG/SpO2 pages, type 11 consistently carries values like 65/66
+        // while true SpO2 arrives as type 54 with exponent scaling (for example 941 -> 94.1%).
+        // Treat type 11 as pulse / heart rate so we do not mis-store it as SpO2.
+        if (data.getMeasurementType() == MEASUREMENT_TYPE_HEART_RATE) {
+            return true;
+        }
+
+        return meta.getMeasurementType() == MEASUREMENT_TYPE_HEART_RATE;
     }
 }

@@ -193,6 +193,12 @@ public class ConversationQueue implements ConversationObserver
             return true;
         }
 
+        if (request.needsResponse()
+                && requestType == WithingsMessageType.MEASURE_START
+                && responseType == WithingsMessageType.TRANSFER_COMPLETE) {
+            return true;
+        }
+
         return request.needsEOT()
                 && requestType == WithingsMessageType.MEASURE_START
                 && responseType == WithingsMessageType.MEASURE_STOP;

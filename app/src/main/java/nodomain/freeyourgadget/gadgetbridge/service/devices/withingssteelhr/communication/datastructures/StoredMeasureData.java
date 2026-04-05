@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 public class StoredMeasureData extends WithingsStructure {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureData.class);
     private static final int TYPE_SPO2 = 54;
-    private static final int TYPE_SPO2_ALT = 11;
 
     private int spo2Percent;
     private int rawValue;
@@ -78,7 +77,10 @@ public class StoredMeasureData extends WithingsStructure {
             final int scaledPercent = (int) Math.round(rawValue * Math.pow(10d, exponent));
 
             // Preferred path: explicit SpO2 type from captures/spec.
-            if ((measurementType == TYPE_SPO2 || measurementType == TYPE_SPO2_ALT) && scaledPercent >= 1 && scaledPercent <= 100) {
+            // Current Withings mixed ECG/SpO2 captures also contain measurement type 11 with
+            // values like 65/66; those line up with pulse / heart rate rather than SpO2 and are
+            // handled in StoredMeasureSignalHandler instead of being mapped to spo2Percent here.
+            if (measurementType == TYPE_SPO2 && scaledPercent >= 1 && scaledPercent <= 100) {
                 spo2Percent = scaledPercent;
             } else {
                 spo2Percent = -1;

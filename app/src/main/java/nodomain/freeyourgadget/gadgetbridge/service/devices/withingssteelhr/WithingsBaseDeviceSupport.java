@@ -129,6 +129,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private static final Logger logger = LoggerFactory.getLogger(WithingsBaseDeviceSupport.class);
     public static final String LAST_ACTIVITY_SYNC = "lastActivitySync";
     private static final long ACTIVITY_SYNC_OVERLAP_MILLIS = 6L * 60L * 60L * 1000L;
+    private static final long MIN_SYNC_TRIGGER_INTERVAL_MS = 15_000L;
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
@@ -161,6 +162,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private int storedMeasureDeleteRequestId;
     private int storedMeasureDeleteAttempts;
     private WithingsEcgHandler withingsEcgHandler;
+    private long lastSyncTriggerTimestamp;
+    private String lastSyncTriggerSource;
     private final ActivityUser activityUser;
     private final NotificationProvider notificationProvider;
     private final IncomingMessageHandlerFactory incomingMessageHandlerFactory;
@@ -281,9 +284,23 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     public void doSync() {
+        doSync("unspecified");
+    }
+
+    public void doSync(final String triggerSource) {
         if (syncInProgress) {
+            logger.debug("Ignoring sync trigger '{}' because sync is already in progress", triggerSource);
             return;
         }
+
+        final long now = System.currentTimeMillis();
+        if (now - lastSyncTriggerTimestamp < MIN_SYNC_TRIGGER_INTERVAL_MS) {
+            logger.info("Ignoring duplicate sync trigger '{}' {} ms after '{}'", triggerSource, now - lastSyncTriggerTimestamp, lastSyncTriggerSource);
+            return;
+        }
+
+        lastSyncTriggerTimestamp = now;
+        lastSyncTriggerSource = triggerSource;
 
         activitySampleHandler = new ActivitySampleHandler(this);
         conversationQueue.clear();
@@ -304,7 +321,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
 
             if (shoudSync()) {
-                logger.debug("Doing full sync...");
+                logger.debug("Doing full sync... trigger={}", triggerSource);
                 storedMeasureDeleteRequestId = 0;
                 storedMeasureDeleteAttempts = 0;
                 GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).edit()
@@ -491,7 +508,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     @Override
     public void onFetchRecordedData(int dataTypes) {
-        doSync();
+        doSync("manual-fetch");
     }
 
     @Override
@@ -653,7 +670,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     void onAuthenticationFinished() {
         if (!firstTimeConnect) {
             finishInitialization();
-            doSync();
+            doSync("post-auth");
         } else {
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
