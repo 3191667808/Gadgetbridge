@@ -7,8 +7,11 @@ import java.util.List;
 import nodomain.freeyourgadget.gadgetbridge.model.EcgInterpretation;
 import nodomain.freeyourgadget.gadgetbridge.model.EcgRecord;
 import nodomain.freeyourgadget.gadgetbridge.model.EcgSample;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class EcgInterpretationUtil {
+    private static final Logger LOG = LoggerFactory.getLogger(EcgInterpretationUtil.class);
     private static final int MIN_SAMPLES_FOR_ANALYSIS = 600;
     private static final int MIN_RR_INTERVALS_FOR_IRREGULAR = 4;
     private static final int MIN_RR_INTERVALS_FOR_NORMAL_HINT = 3;
@@ -76,8 +79,10 @@ public final class EcgInterpretationUtil {
 
         final EcgInterpretation.SignalQuality signalQuality;
         if (range < MIN_SIGNAL_RANGE_FOR_NORMAL_HINT) {
+            LOG.info("ECG NOISY: range {} < {}", range, MIN_SIGNAL_RANGE_FOR_NORMAL_HINT);
             signalQuality = EcgInterpretation.SignalQuality.NOISY;
         } else if (clippedRatio > 0.40f || averageAbsDiff > range * 1.10f) {
+            LOG.info("ECG NOISY: clippedRatio {} > 0.40, averageAbsDiff {} > range {} * 1.10", clippedRatio, averageAbsDiff, range);
             signalQuality = EcgInterpretation.SignalQuality.NOISY;
         } else {
             signalQuality = EcgInterpretation.SignalQuality.GOOD;
@@ -95,13 +100,22 @@ public final class EcgInterpretationUtil {
         }
 
         final float sampleRateHz = estimateSampleRate(record, waveform);
-        final float[] smoothedValues = smooth(values, Math.max(7, Math.round(sampleRateHz * 0.04f) | 1));
+        
+        final int baselineWindow = Math.max(3, Math.round(sampleRateHz * 0.75f) | 1);
+        final float[] baseline = smooth(values, baselineWindow);
+        final float[] detrendedValues = new float[values.length];
+        for (int i = 0; i < values.length; i++) {
+            detrendedValues[i] = values[i] - baseline[i];
+        }
+        
+        final float[] smoothedValues = smooth(detrendedValues, Math.max(7, Math.round(sampleRateHz * 0.04f) | 1));
         final List<Integer> peaks = detectPeaks(smoothedValues, sampleRateHz, record.getAverageHeartRate());
         if (peaks.size() < 3) {
             final EcgInterpretation.Rhythm rhythm = normalHintWithUsableSignal && peaks.size() >= 2
                     ? EcgInterpretation.Rhythm.REGULAR
                     : EcgInterpretation.Rhythm.INCONCLUSIVE;
-            return new EcgInterpretation(deviceHint, signalQuality, rhythm);
+            LOG.info("ECG rhythm fast exit: {} peaks={}, normalHintWithUsableSignal={}", rhythm, peaks.size(), normalHintWithUsableSignal);
+            return new EcgInterpretation(deviceHint, signalQuality, rhythm, peaks.size());
         }
 
         final List<Float> rrIntervals = new ArrayList<>(peaks.size() - 1);
@@ -142,10 +156,18 @@ public final class EcgInterpretationUtil {
         final boolean normalHint = deviceHint == EcgInterpretation.DeviceHint.NORMAL;
         final boolean canTrustNormalHint = normalHint
                 && signalQuality == EcgInterpretation.SignalQuality.GOOD
-                && rrIntervals.size() >= MIN_RR_INTERVALS_FOR_NORMAL_HINT;
+                && rrIntervals.size() >= 2;
+                
+        final boolean isPeakCountPlausible = hasPlausiblePeakCount(record, peaks.size(), 0.70f, 1.40f);
+
+        LOG.info("ECG interpret: deviceHint={}, signalQuality={}, peaks={}, rrSize={}, canTrust={}, hrMatch={}, relaxedMatch={}, looksReg={}, ir={}, strongIr={}, peakPlausible={}",
+                deviceHint, signalQuality, peaks.size(), rrIntervals.size(), canTrustNormalHint, strictHeartRateMatch, relaxedHeartRateMatch, looksRegular, irregular, stronglyIrregular, isPeakCountPlausible);
+
 
         final EcgInterpretation.Rhythm rhythm;
         if (signalQuality == EcgInterpretation.SignalQuality.NOISY) {
+            rhythm = EcgInterpretation.Rhythm.INCONCLUSIVE;
+        } else if (!isPeakCountPlausible) {
             rhythm = EcgInterpretation.Rhythm.INCONCLUSIVE;
         } else if (canTrustNormalHint) {
             // Device says Normal, signal is good, enough RR intervals detected - trust the device
@@ -164,7 +186,7 @@ public final class EcgInterpretationUtil {
             rhythm = EcgInterpretation.Rhythm.INCONCLUSIVE;
         }
 
-        return new EcgInterpretation(deviceHint, signalQuality, rhythm);
+        return new EcgInterpretation(deviceHint, signalQuality, rhythm, peaks.size());
     }
 
     private static float estimateSampleRate(final EcgRecord record, final List<EcgSample> waveform) {
@@ -239,13 +261,23 @@ public final class EcgInterpretationUtil {
         final float variance = Math.max(0f, (sumSquares / values.length) - (mean * mean));
         final float stdDev = (float) Math.sqrt(variance);
         final float range = max - min;
-        final float threshold = mean + Math.max(stdDev * 1.5f, range * 0.24f);
+        
+        final float[] sorted = java.util.Arrays.copyOf(values, values.length);
+        java.util.Arrays.sort(sorted);
+        final float robustMin = sorted[Math.max(0, (int) (sorted.length * 0.05f))];
+        final float robustMax = sorted[Math.min(sorted.length - 1, (int) (sorted.length * 0.95f))];
+        final float robustRange = Math.max(0.0001f, robustMax - robustMin);
+
+        final float threshold = mean + Math.min(stdDev * 1.5f, robustRange * 0.50f);
 
         final float expectedRrSeconds = averageHeartRate > 0 ? 60f / Math.max(averageHeartRate, 1) : 0.85f;
         final float minDistanceSeconds = Math.max(0.38f, Math.min(0.95f, expectedRrSeconds * 0.58f));
         final int minDistanceSamples = Math.max(1, Math.round(sampleRateHz * minDistanceSeconds));
         final int prominenceWindow = Math.max(1, Math.round(sampleRateHz * 0.12f));
-        final float minProminence = Math.max(stdDev * 0.60f, range * 0.12f);
+        final float minProminence = Math.min(stdDev * 0.60f, robustRange * 0.20f);
+
+        LOG.info("ECG peaks debug: mean={}, stdDev={}, robustRange={}, threshold={}, minProminence={}, minDistSmp={}",
+                 mean, stdDev, robustRange, threshold, minProminence, minDistanceSamples);
 
         final List<Integer> peaks = new ArrayList<>();
         int lastPeak = -minDistanceSamples;

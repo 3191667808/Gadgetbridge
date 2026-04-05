@@ -48,15 +48,15 @@ import nodomain.freeyourgadget.gadgetbridge.util.WithingsEcgWaveformUtil;
 
 public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.EcgChartData> {
     private static final int DATA_INVALID = -1;
-    private static final int DISPLAY_MEDIAN_WINDOW = 9;
+    private static final int DISPLAY_MEDIAN_WINDOW = 15;
     private static final int DISPLAY_AVERAGE_WINDOW = 7;
-    private static final int DISPLAY_BASELINE_WINDOW = 121;
-    private static final int DISPLAY_OUTLIER_WINDOW = 11;
+    private static final int DISPLAY_BASELINE_WINDOW = 151;
+    private static final int DISPLAY_OUTLIER_WINDOW = 15;
     private static final float DISPLAY_TARGET_AMPLITUDE = 0.95f;
     private static final float DISPLAY_MAX_AMPLITUDE = 1.25f;
     private static final float DISPLAY_Y_AXIS_HALF_RANGE = 1.5f;
     private static final int DISPLAY_RESAMPLE_MS = 20;
-    private static final int WATCH_STYLE_RESAMPLE_MS = 28;
+    private static final int WATCH_STYLE_RESAMPLE_MS = 24;
     private static final int WATCH_STYLE_AVERAGE_WINDOW = 5;
     private static final float ECG_MAJOR_X_GRID_SECONDS = 0.2f;
     private static final float ECG_MINOR_X_GRID_SECONDS = 0.04f;
@@ -84,7 +84,7 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
     private LinearLayout sessionsContainer;
     private LinearLayout sessionsList;
     private Long selectedSessionStartTimestamp;
-    private boolean watchStyleDisplayEnabled = true;
+    private final boolean watchStyleDisplayEnabled = true;
 
     @Override
     protected void init() {
@@ -114,12 +114,13 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         sessionsList = rootView.findViewById(R.id.ecgSessionsList);
 
         sessionsContainer.setVisibility(View.GONE);
-        smoothingModeToggleView.setOnClickListener(v -> {
-            watchStyleDisplayEnabled = !watchStyleDisplayEnabled;
-            updateSmoothingModeLabel();
-            refresh();
-        });
-        updateSmoothingModeLabel();
+        smoothingModeToggleView.setVisibility(View.GONE);
+        // smoothingModeToggleView.setOnClickListener(v -> {
+        //     watchStyleDisplayEnabled = !watchStyleDisplayEnabled;
+        //     updateSmoothingModeLabel();
+        //     refresh();
+        // });
+        // updateSmoothingModeLabel();
         setupLineChart();
         setupChartTouchHandling();
         return rootView;
@@ -322,16 +323,22 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
 
         final String rhythm = formatRhythm(interpretation.getRhythm());
         final String quality = formatSignalQuality(interpretation.getSignalQuality());
+        
+        String combined = null;
         if (rhythm == null && quality == null) {
-            return emptyValue;
+            combined = emptyValue;
+        } else if (rhythm == null) {
+            combined = quality;
+        } else if (quality == null) {
+            combined = rhythm;
+        } else {
+            combined = getString(R.string.ecg_interpretation_combined, rhythm, quality);
         }
-        if (rhythm == null) {
-            return quality;
+        
+        if (interpretation.getPeakCount() > 0) {
+            return combined + " (" + interpretation.getPeakCount() + " peaks)";
         }
-        if (quality == null) {
-            return rhythm;
-        }
-        return getString(R.string.ecg_interpretation_combined, rhythm, quality);
+        return combined;
     }
 
     private String formatRhythm(final EcgInterpretation.Rhythm rhythm) {
@@ -405,10 +412,10 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
             watchValues[i] = resampled.get(i).getValue();
         }
         final float[] watchSmoothed = applyMovingAverage(watchValues, WATCH_STYLE_AVERAGE_WINDOW);
-        final float[] watchShaped = softenBaselineForWatchStyle(watchSmoothed);
+        
         final List<EcgSample> watchStyleWaveform = new ArrayList<>(resampled.size());
         for (int i = 0; i < resampled.size(); i++) {
-            watchStyleWaveform.add(new EcgSample(resampled.get(i).getTimeDeltaMs(), watchShaped[i]));
+            watchStyleWaveform.add(new EcgSample(resampled.get(i).getTimeDeltaMs(), watchSmoothed[i]));
         }
         return watchStyleWaveform;
     }
