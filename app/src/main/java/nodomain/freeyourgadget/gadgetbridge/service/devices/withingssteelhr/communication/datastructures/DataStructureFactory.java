@@ -107,6 +107,9 @@ public class DataStructureFactory {
                 case WithingsStructureType.STORED_MEASURE_DATA:
                     structure = new StoredMeasureData();
                     break;
+                case WithingsStructureType.STORED_MEASURE_DATA_EXTEND:
+                    structure = new StoredMeasureDataExtend();
+                    break;
                 case WithingsStructureType.STORED_SIGNAL_META:
                     structure = new StoredSignalMeta();
                     break;

@@ -37,6 +37,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.MeasureLiveAppStatus;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.RawWithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureData;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureDataExtend;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureMeta;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalMeta;
@@ -387,6 +388,22 @@ public class WithingsEcgHandler implements ResponseHandler {
                     } else if (data.getMeasurementType() == ECG_RESULT_TYPE) {
                         arrhythmiaType = data.getRawValue();
                     }
+                } else if (structure instanceof StoredMeasureDataExtend) {
+                    final StoredMeasureDataExtend dataExt = (StoredMeasureDataExtend) structure;
+                    if (dataExt.getMeasurementType() == ECG_RESULT_TYPE) {
+                        long hint = dataExt.getExtraData();
+                        // The actual device hint (Normal vs AFib, etc.) is encoded in the 0x0149
+                        // (STORED_MEASURE_DATA_EXTEND) TLV's extraData, rather than the 0x0117 raw value
+                        // which is usually just 0.
+                        // 0x01020401 (16909313) is the specific code for "Normal Sinus Rhythm".
+                        if (hint == 16909313L) { // 0x01020401
+                            arrhythmiaType = 0;
+                            logger.info("Withings ECG Device Hint matched Normal code (0x01020401), mapped to 0.");
+                        } else {
+                            arrhythmiaType = hint;
+                            logger.warn("Withings ECG Device Hint unknown code: " + hint + " (" + Long.toHexString(hint) + ")");
+                        }
+                    }
                 } else if (structure instanceof StoredSignalMeta) {
                     final StoredSignalMeta signalMeta = (StoredSignalMeta) structure;
                     if (signalMeta.getSignalType() == ECG_WAVEFORM_SIGNAL_TYPE) {
@@ -500,6 +517,9 @@ public class WithingsEcgHandler implements ResponseHandler {
                 } else if (structure instanceof StoredMeasureData) {
                     final StoredMeasureData data = (StoredMeasureData) structure;
                     descriptions.add("0117(type=" + data.getMeasurementType() + ",raw=" + data.getRawValue() + ")");
+                } else if (structure instanceof StoredMeasureDataExtend) {
+                    final StoredMeasureDataExtend dataExt = (StoredMeasureDataExtend) structure;
+                    descriptions.add("0149(type=" + dataExt.getMeasurementType() + ",extra=" + dataExt.getExtraData() + ")");
                 } else if (structure instanceof StoredSignalMeta) {
                     final StoredSignalMeta meta = (StoredSignalMeta) structure;
                     descriptions.add("0143(signalType=" + meta.getSignalType() + ",flags=" + meta.getSignalFlags() + ",cursor=" + meta.getCursor() + ")");
