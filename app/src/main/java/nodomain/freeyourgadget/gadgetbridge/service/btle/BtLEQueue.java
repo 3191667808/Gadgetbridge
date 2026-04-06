@@ -327,7 +327,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         LOG.info("Attempting to connect to {}", mGbDevice.getName());
 
         mGattConnectTimeoutHandler.postDelayed(() -> {
-            LOG.warn("Timed out connecting to GATT for {}", mGbDevice.getName());
+            LOG.warn("Timed out connecting to GATT for {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
             handleDisconnected(0x93 /* BluetoothGatt.GATT_CONNECTION_TIMEOUT */);
         }, 5000L);
 
@@ -396,7 +396,13 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
     }
 
     private void handleDisconnected(int status) {
-        LOG.debug("handleDisconnected: {}", BleNamesResolver.getStatusString(status));
+        LOG.warn("handleDisconnected: device={} ({}) status={} state={} autoReconnect={} scanReconnect={}",
+                mGbDevice.getName(),
+                mGbDevice.getAddress(),
+                BleNamesResolver.getStatusString(status),
+                mGbDevice.getState(),
+                mDeviceSupport.getAutoReconnect(),
+                mDeviceSupport.getScanReconnect());
         internalGattCallback.Delegate.reset();
         mTransactions.clear();
         mPauseTransaction = false;
@@ -632,7 +638,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
 
             switch (newState) {
                 case BluetoothProfile.STATE_CONNECTED:
-                    LOG.info("Connected to GATT server.");
+                    LOG.info("Connected to GATT server: {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
                     mGattConnectTimeoutHandler.removeCallbacksAndMessages(null);
                     setDeviceConnectionState(State.CONNECTED);
 
@@ -657,13 +663,13 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                     }, delayMillis);
                     break;
                 case BluetoothProfile.STATE_DISCONNECTED:
-                    LOG.info("Disconnected from GATT server.");
+                    LOG.info("Disconnected from GATT server: {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
                     synchronized (mGattMonitor) {
                         handleDisconnected(status);
                     }
                     break;
                 case BluetoothProfile.STATE_CONNECTING:
-                    LOG.info("Connecting to GATT server...");
+                    LOG.info("Connecting to GATT server: {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
                     setDeviceConnectionState(State.CONNECTING);
                     break;
             }
