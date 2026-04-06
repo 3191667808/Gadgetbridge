@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch;
 
+import android.content.Context;
+
 import androidx.annotation.NonNull;
 
 import java.util.HashMap;
@@ -42,8 +44,10 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.WithingsScanwatchActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.WithingsActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingsscanwatch.WithingsScanwatchDeviceSupport;
 
 public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordinator {
@@ -118,6 +122,11 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     @Override
     public boolean supportsRecordedActivities(final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public ActivitySummaryParser getActivitySummaryParser(final GBDevice device, final Context context) {
+        return new WithingsActivitySummaryParser();
     }
 
     @Override

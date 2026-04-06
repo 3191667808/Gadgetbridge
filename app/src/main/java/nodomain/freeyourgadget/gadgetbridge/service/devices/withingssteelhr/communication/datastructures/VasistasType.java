@@ -23,6 +23,13 @@ public class VasistasType extends WithingsStructure {
 
     private int value;
 
+    public VasistasType() {
+    }
+
+    public VasistasType(int value) {
+        this.value = value;
+    }
+
     public int getValue() {
         return value;
     }

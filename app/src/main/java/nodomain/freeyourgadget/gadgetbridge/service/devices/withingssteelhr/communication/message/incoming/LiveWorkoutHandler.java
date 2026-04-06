@@ -91,6 +91,8 @@ public class LiveWorkoutHandler implements IncomingMessageHandler {
         }
 
         baseActivitySummary.setStartTime(workoutStart.getStarttime());
+        logger.info("Withings live workout start: startTime={} activityKind={}",
+                baseActivitySummary.getStartTime(), baseActivitySummary.getActivityKind());
     }
 
     private void handlePause(LiveWorkoutPauseState workoutPause) {
@@ -107,8 +109,27 @@ public class LiveWorkoutHandler implements IncomingMessageHandler {
     }
 
     private void handleEnd(LiveWorkoutEnd workoutEnd) {
-        OpenTracksController.stopRecording(support.getContext());
+        if (baseActivitySummary == null) {
+            baseActivitySummary = new BaseActivitySummary();
+        }
+
+        try {
+            OpenTracksController.stopRecording(support.getContext());
+        } catch (Exception ex) {
+            logger.warn("OpenTracks stop failed for Withings live workout", ex);
+        }
+
         baseActivitySummary.setEndTime(workoutEnd.getEndtime());
+        if (baseActivitySummary.getStartTime() == null) {
+            logger.warn("Withings live workout end received without start time, falling back to end time={}",
+                    workoutEnd.getEndtime());
+            baseActivitySummary.setStartTime(workoutEnd.getEndtime());
+        }
+
+        logger.info("Withings live workout end: startTime={} endTime={} activityKind={}",
+                baseActivitySummary.getStartTime(),
+                baseActivitySummary.getEndTime(),
+                baseActivitySummary.getActivityKind());
         saveBaseActivitySummary();
         baseActivitySummary = null;
     }
@@ -121,6 +142,8 @@ public class LiveWorkoutHandler implements IncomingMessageHandler {
         }
 
         baseActivitySummary.setActivityKind(withingsWorkoutType.toActivityKind().getCode());
+        logger.info("Withings live workout type: withingsType={} activityKind={}",
+                workoutType.getActivityType(), baseActivitySummary.getActivityKind());
     }
 
     private void sendGpsState() {
@@ -141,7 +164,19 @@ public class LiveWorkoutHandler implements IncomingMessageHandler {
             baseActivitySummary.setDevice(device);
             baseActivitySummary.setUser(user);
             session.getBaseActivitySummaryDao().insertOrReplace(baseActivitySummary);
+            logger.info("Saved Withings live workout summary: id={} startTime={} endTime={} activityKind={} deviceId={} userId={}",
+                    baseActivitySummary.getId(),
+                    baseActivitySummary.getStartTime(),
+                    baseActivitySummary.getEndTime(),
+                    baseActivitySummary.getActivityKind(),
+                    device != null ? device.getId() : null,
+                    user != null ? user.getId() : null);
         } catch (Exception ex) {
+            logger.error("Failed to save Withings live workout summary: startTime={} endTime={} activityKind={}",
+                    baseActivitySummary != null ? baseActivitySummary.getStartTime() : null,
+                    baseActivitySummary != null ? baseActivitySummary.getEndTime() : null,
+                    baseActivitySummary != null ? baseActivitySummary.getActivityKind() : null,
+                    ex);
             GB.toast(support.getContext(), "Error saving activity summary", Toast.LENGTH_LONG, GB.ERROR, ex);
         }
     }

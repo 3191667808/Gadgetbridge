@@ -53,7 +53,12 @@ public class IncomingMessageHandlerFactory {
             case WithingsMessageType.STOP_LIVE_WORKOUT:
             case WithingsMessageType.GET_WORKOUT_GPS_STATUS:
                 if (handler == null) {
-                    handlers.put(message.getType(), new LiveWorkoutHandler(support));
+                    // Use a single shared handler for all live workout messages to preserve state
+                    LiveWorkoutHandler sharedHandler = new LiveWorkoutHandler(support);
+                    handlers.put(WithingsMessageType.START_LIVE_WORKOUT, sharedHandler);
+                    handlers.put(WithingsMessageType.STOP_LIVE_WORKOUT, sharedHandler);
+                    handlers.put(WithingsMessageType.GET_WORKOUT_GPS_STATUS, sharedHandler);
+                    handler = sharedHandler;
                 }
                 break;
             case WithingsMessageType.LIVE_WORKOUT_DATA:

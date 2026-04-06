@@ -38,6 +38,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleMovement;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleSleep;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleTime;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleUnknown;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleWalk;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityHeartrate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
@@ -107,7 +108,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                     handleWorkoutType(data);
                     break;
                 default:
-                    logger.info("Received yet unhandled activity data of type '{}' with data '{}'.", data.getType(), GB.hexdump(data.getRawData()));
+                    logUnhandledActivityData(data);
             }
         }
 
@@ -141,7 +142,9 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     }
 
     private void handleMovement(WithingsStructure data) {
-        activityEntry.setRawKind(ActivityKind.UNKNOWN.getCode());
+        if (activityEntry.getRawKind() == ActivityKind.NOT_MEASURED.getCode()) {
+            activityEntry.setRawKind(ActivityKind.UNKNOWN.getCode());
+        }
         activityEntry.setSteps(((ActivitySampleMovement) data).getSteps());
         activityEntry.setDistance(((ActivitySampleMovement) data).getDistance());
     }
@@ -190,6 +193,21 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
         activityEntry.setRawIntensity(((ActivitySampleCalories2) data).getMet());
         activityEntry.setCalories(((ActivitySampleCalories2) data).getCalories());
 
+    }
+
+    private void logUnhandledActivityData(final WithingsStructure data) {
+        if (data instanceof ActivitySampleUnknown) {
+            final ActivitySampleUnknown unknown = (ActivitySampleUnknown) data;
+            logger.info("Unhandled Withings activity TLV type={} ts={} rawKind={} {} rawHex={}",
+                    data.getType(),
+                    activityEntry != null ? activityEntry.getTimestamp() : null,
+                    activityEntry != null ? activityEntry.getRawKind() : null,
+                    unknown.describePayload(),
+                    GB.hexdump(unknown.getPayload()));
+            return;
+        }
+
+        logger.info("Received yet unhandled activity data of type '{}' with data '{}'.", data.getType(), GB.hexdump(data.getRawData()));
     }
 
     private void addToList(ActivityEntry activityEntry) {

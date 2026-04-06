@@ -97,6 +97,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.Time;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.TypeVersion;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.User;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.UserUnit;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.UserUnitConstants;
@@ -353,13 +354,45 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 addExtraSyncCommands();
                 Calendar c = Calendar.getInstance();
                 c.setTimeInMillis(getLastSyncTimestamp());
+
+                // Mimic official app's request sequence for GET_ACTIVITY_SAMPLES with different Vasistas types.
+                // If these specific modifiers (Vasistas types 6, 5, 9, 8) and TypeVersion/VasistasType modifiers
+                // for GET_MOVEMENT_SAMPLES are omitted, the watch sends a default payload that is missing the
+                // explicit WORKOUT_TYPE TLV (0x0969/2409). By mimicking the official app's exact requests,
+                // the watch includes the correct workout type (e.g., Weightlifting, Cycling, Running) during
+                // historical sync, preventing explicit workout types from being lost.
                 message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
                 message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                message.addDataStructure(new VasistasType(6));
                 addSimpleConversationToQueue(message, activitySampleHandler);
+
+                message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
+                message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                message.addDataStructure(new VasistasType(5));
+                addSimpleConversationToQueue(message, activitySampleHandler);
+
+                message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
+                message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                message.addDataStructure(new VasistasType(9));
+                addSimpleConversationToQueue(message, activitySampleHandler);
+
+                message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
+                message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                message.addDataStructure(new VasistasType(8));
+                addSimpleConversationToQueue(message, activitySampleHandler);
+
+                // Mimic GET_MOVEMENT_SAMPLES with TypeVersion 3
                 message = new WithingsMessage(WithingsMessageType.GET_MOVEMENT_SAMPLES, ExpectedResponse.EOT);
                 message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
-                message.addDataStructure(new TypeVersion());
+                message.addDataStructure(new TypeVersion((byte) 3));
                 addSimpleConversationToQueue(message, activitySampleHandler);
+
+                // Mimic GET_MOVEMENT_SAMPLES with VasistasType 4
+                message = new WithingsMessage(WithingsMessageType.GET_MOVEMENT_SAMPLES, ExpectedResponse.EOT);
+                message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                message.addDataStructure(new VasistasType(4));
+                addSimpleConversationToQueue(message, activitySampleHandler);
+
                 message = new WithingsMessage(WithingsMessageType.GET_HEARTRATE_SAMPLES, ExpectedResponse.EOT);
                 message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
                 message.addDataStructure(new TypeVersion());
@@ -715,6 +748,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             getDevice().sendDeviceUpdateIntent(getContext());
         }
         activitySampleHandler.onSyncFinished();
+        GB.signalActivityDataFinish(getDevice());
         saveLastSyncTimestamp(new Date().getTime());
     }
 
