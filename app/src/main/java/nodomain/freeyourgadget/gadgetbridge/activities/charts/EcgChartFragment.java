@@ -95,7 +95,7 @@ public class EcgChartFragment extends AbstractChartFragment<EcgChartFragment.Ecg
         final boolean darkTheme = (requireContext().getResources().getConfiguration().uiMode
                 & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                 == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        ecgPaperBackgroundColor = darkTheme ? 0xFF151313 : 0xFFFFFCFC;
+        ecgPaperBackgroundColor = backgroundColor;
         ecgMajorGridColor = darkTheme ? 0x40FF8A8A : 0x33E57373;
         ecgMinorGridColor = darkTheme ? 0x20FF8A8A : 0x1AE57373;
     }
