@@ -75,7 +75,7 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsHeartrateRestingMeasureMent(@NonNull GBDevice device) {
+    public boolean supportsHeartRateRestingMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
