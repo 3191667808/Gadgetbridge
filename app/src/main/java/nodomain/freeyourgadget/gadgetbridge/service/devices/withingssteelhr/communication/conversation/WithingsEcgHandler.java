@@ -106,6 +106,7 @@ public class WithingsEcgHandler implements ResponseHandler {
         discoveredEcgCount = 0;
         fetchedEcgCount = 0;
         deletedEcgCount = 0;
+        logger.info("Starting Withings ECG discovery");
         updateEcgProgress("Scanning for ECG records", 0, true);
         queueDiscoveryProbe(true);
     }
@@ -198,6 +199,8 @@ public class WithingsEcgHandler implements ResponseHandler {
         // Keep the discovery conversation active until its trailing MEASURE_STOP / TRANSFER_COMPLETE.
         // Otherwise that trailing completion marker can get mis-bound to the next queued 0x0147
         // request, causing the actual ECG waveform stream to be routed into a stored-measure handler.
+        logger.debug("Queueing Withings ECG discovery probe, initial={}, discoveryPagesSeen={}, waveformFetchQueued={}",
+                initial, discoveryPagesSeen, waveformFetchQueued);
         final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.EOT);
         message.addDataStructure(new MeasureCategory(MeasureCategory.ECG));
         message.addDataStructure(new MeasureLiveAppStatus(initial ? 1 : 0));
@@ -207,6 +210,7 @@ public class WithingsEcgHandler implements ResponseHandler {
     private void handleDiscoveryResponse(final Message response) {
         final List<WithingsStructure> structures = response.getDataStructures();
         if (structures == null || structures.isEmpty()) {
+            logger.warn("Withings ECG discovery response type={} had no structures", response.getType());
             return;
         }
 
@@ -225,6 +229,9 @@ public class WithingsEcgHandler implements ResponseHandler {
                 }
             }
         }
+
+        logger.debug("Withings ECG discovery response type={} hasEot={} hasEcgMarkers={} discovered={} fetched={} deleted={} structures={}",
+                response.getType(), hasEot, hasEcgMarkers, discoveredEcgCount, fetchedEcgCount, deletedEcgCount, describeStructures(structures));
 
         if (recordKey != null && isNewRecordKey(recordKey)) {
             seenRecordKeys.add(recordKey.getRawPayload());
@@ -257,8 +264,42 @@ public class WithingsEcgHandler implements ResponseHandler {
             }
             if (!waveformFetchQueued && hasEcgMarkers && discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
                 queueDiscoveryProbe(false);
+            } else if (!waveformFetchQueued && hasEcgMarkers) {
+                logger.warn("Withings ECG discovery stopped after {} pages without queueing waveform fetch", discoveryPagesSeen);
+            }
+        } else if (!hasEot) {
+            logger.debug("Withings ECG discovery awaiting more packets for response type={}", response.getType());
+        }
+    }
+
+    private String describeStructures(final List<WithingsStructure> structures) {
+        final List<String> descriptions = new ArrayList<>(structures.size());
+        for (final WithingsStructure structure : structures) {
+            if (structure instanceof StoredMeasureMeta) {
+                final StoredMeasureMeta meta = (StoredMeasureMeta) structure;
+                descriptions.add("0116(type=" + meta.getMeasurementType() + ",ts=" + meta.getTimestampMs() + ")");
+            } else if (structure instanceof StoredMeasureData) {
+                final StoredMeasureData data = (StoredMeasureData) structure;
+                descriptions.add("0117(type=" + data.getMeasurementType() + ",raw=" + data.getRawValue() + ")");
+            } else if (structure instanceof StoredMeasureDataExtend) {
+                final StoredMeasureDataExtend dataExt = (StoredMeasureDataExtend) structure;
+                descriptions.add("0149(type=" + dataExt.getMeasurementType() + ",extra=" + dataExt.getExtraData() + ")");
+            } else if (structure instanceof StoredSignalMeta) {
+                final StoredSignalMeta meta = (StoredSignalMeta) structure;
+                descriptions.add("0143(signalType=" + meta.getSignalType() + ",flags=" + meta.getSignalFlags() + ",cursor=" + meta.getCursor() + ")");
+            } else if (structure instanceof StoredSignalMetaExtended) {
+                final byte[] rawPayload = ((StoredSignalMetaExtended) structure).getRawPayload();
+                descriptions.add("0146(" + GB.hexdump(rawPayload) + ")");
+            } else if (structure instanceof StoredSignalData) {
+                descriptions.add("0144(samples)");
+            } else if (structure instanceof RawWithingsStructure) {
+                final RawWithingsStructure raw = (RawWithingsStructure) structure;
+                descriptions.add(String.format("0x%04x(raw=%s)", raw.getType() & 0xffff, GB.hexdump(raw.getRawData())));
+            } else {
+                descriptions.add(String.format("0x%04x", structure.getType() & 0xffff));
             }
         }
+        return descriptions.toString();
     }
 
     private int computeEcgProgressPercent() {
@@ -425,8 +466,18 @@ public class WithingsEcgHandler implements ResponseHandler {
             }
 
             if (!support.hasEndOfTransmission(response)) {
+                logger.debug("Withings ECG waveform response awaiting more packets for ts={} structures={}",
+                        startTimestampMs > 0 ? startTimestampMs : requestedRecordKey.getTimestampMs(),
+                        describeStructures(structures));
                 return;
             }
+
+            logger.debug("Withings ECG waveform response reached EOT for ts={} deleteKeyPresent={} verifyDeletion={} samples={} structures={}",
+                    startTimestampMs > 0 ? startTimestampMs : requestedRecordKey.getTimestampMs(),
+                    deleteKey != null,
+                    verifyDeletion,
+                    waveform.size(),
+                    describeStructures(structures));
 
             if (startTimestampMs <= 0) {
                 startTimestampMs = requestedRecordKey.getTimestampMs();
@@ -508,35 +559,6 @@ public class WithingsEcgHandler implements ResponseHandler {
             }
         }
 
-        private String describeStructures(final List<WithingsStructure> structures) {
-            final List<String> descriptions = new ArrayList<>(structures.size());
-            for (final WithingsStructure structure : structures) {
-                if (structure instanceof StoredMeasureMeta) {
-                    final StoredMeasureMeta meta = (StoredMeasureMeta) structure;
-                    descriptions.add("0116(type=" + meta.getMeasurementType() + ",ts=" + meta.getTimestampMs() + ")");
-                } else if (structure instanceof StoredMeasureData) {
-                    final StoredMeasureData data = (StoredMeasureData) structure;
-                    descriptions.add("0117(type=" + data.getMeasurementType() + ",raw=" + data.getRawValue() + ")");
-                } else if (structure instanceof StoredMeasureDataExtend) {
-                    final StoredMeasureDataExtend dataExt = (StoredMeasureDataExtend) structure;
-                    descriptions.add("0149(type=" + dataExt.getMeasurementType() + ",extra=" + dataExt.getExtraData() + ")");
-                } else if (structure instanceof StoredSignalMeta) {
-                    final StoredSignalMeta meta = (StoredSignalMeta) structure;
-                    descriptions.add("0143(signalType=" + meta.getSignalType() + ",flags=" + meta.getSignalFlags() + ",cursor=" + meta.getCursor() + ")");
-                } else if (structure instanceof StoredSignalMetaExtended) {
-                    final byte[] rawPayload = ((StoredSignalMetaExtended) structure).getRawPayload();
-                    descriptions.add("0146(" + GB.hexdump(rawPayload) + ")");
-                } else if (structure instanceof StoredSignalData) {
-                    descriptions.add("0144(samples)");
-                } else if (structure instanceof RawWithingsStructure) {
-                    final RawWithingsStructure raw = (RawWithingsStructure) structure;
-                    descriptions.add(String.format("0x%04x(raw=%s)", raw.getType() & 0xffff, GB.hexdump(raw.getRawData())));
-                } else {
-                    descriptions.add(String.format("0x%04x", structure.getType() & 0xffff));
-                }
-            }
-            return descriptions.toString();
-        }
     }
 
     private void storeWaveform(final long start,

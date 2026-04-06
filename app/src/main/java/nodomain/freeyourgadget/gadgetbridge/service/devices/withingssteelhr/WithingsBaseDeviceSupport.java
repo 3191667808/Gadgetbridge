@@ -310,7 +310,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
         try {
             getDevice().setBusyTask(R.string.busy_task_syncing, getContext());
+            getDevice().sendDeviceUpdateIntent(getContext());
             syncInProgress = true;
+            logger.info("Starting Withings sync, trigger={}, shouldSync={}", triggerSource, shoudSync());
             if (withingsEcgHandler == null) {
                 withingsEcgHandler = createEcgHandler();
             }
@@ -388,6 +390,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             conversationQueue.clear();
         } finally {
             // This must be done in all cases or the watch won't respond anymore!
+            logger.debug("Queueing SYNC_OK terminator for trigger={}", triggerSource);
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SYNC_OK), new SyncFinishedHandler(this));
         }
         conversationQueue.send();
@@ -452,6 +455,17 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             notificationProvider.notifyClient(notificationSpec);
         } else {
             logger.info("Received yet unhandled call command: " + callSpec.command);
+        }
+    }
+
+    @Override
+    public void onConnectionStateChange(final BluetoothGatt gatt, final int status, final int newState) {
+        super.onConnectionStateChange(gatt, status, newState);
+
+        if (newState == BluetoothGatt.STATE_CONNECTED) {
+            clearStaleSyncState("connect");
+        } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+            clearStaleSyncState("disconnect");
         }
     }
 
@@ -670,7 +684,28 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         logger.debug("Finished initialization.");
     }
 
+    private void clearStaleSyncState(final String reason) {
+        if (withingsEcgHandler != null) {
+            withingsEcgHandler.reset();
+        } else {
+            GB.updateTransferNotification(null, "", false, 100, getContext());
+        }
+
+        if (syncInProgress) {
+            logger.info("Clearing stale Withings sync state on {}", reason);
+            syncInProgress = false;
+            conversationQueue.clear();
+        }
+
+        final String syncingTask = getContext().getString(R.string.busy_task_syncing);
+        if (syncingTask.equals(getDevice().getBusyTask())) {
+            getDevice().unsetBusyTask();
+            getDevice().sendDeviceUpdateIntent(getContext());
+        }
+    }
+
     public void finishSync() {
+        logger.info("Finishing Withings sync, busyTask={}, syncInProgress={}", getDevice().getBusyTask(), syncInProgress);
         syncInProgress = false;
         if (withingsEcgHandler != null) {
             withingsEcgHandler.onSyncFinished();

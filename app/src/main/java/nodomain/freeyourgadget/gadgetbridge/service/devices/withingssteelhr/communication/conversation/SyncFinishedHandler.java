@@ -16,11 +16,15 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 
 public class SyncFinishedHandler extends AbstractResponseHandler {
+    private static final Logger logger = LoggerFactory.getLogger(SyncFinishedHandler.class);
 
     public SyncFinishedHandler(WithingsBaseDeviceSupport support) {
         super(support);
@@ -30,6 +34,7 @@ public class SyncFinishedHandler extends AbstractResponseHandler {
 
     @Override
     public void handleResponse(Message response) {
+        logger.info("SyncFinishedHandler received response type={} (0x{})", response.getType(), Integer.toHexString(response.getType() & 0xffff));
         if (response.getType() == WithingsMessageType.SYNC_OK) {
             support.finishSync();
         }
