@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.moyoung;
 
-import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;
@@ -60,134 +59,112 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsCalendarEvents(@NonNull GBDevice device) {
         return false;
     }
 
-    }
-     @Override
-    public boolean  supportsFindDevice(@NonNull GBDevice device) {
+    @Override
+    public boolean supportsFindDevice(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsHeartrateRestingMeasureMent(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsManualHeartRateMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsMusicInfo(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsRealtimeData(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsRecordedActivities(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsRemSleep(@NonNull GBDevice device) {
         return true;
     }
-    
-    }
-     @Override
+
+    @Override
     public boolean supportsSleepMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsSleepScore(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsSpeedzones(@NonNull GBDevice device) {
         return false;
     }
-   
-    }
-     @Override
+
+    @Override
     public boolean supportsSpo2(@NonNull GBDevice device) {
         return false;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsStepCounter(@NonNull GBDevice device) {
         return true;
     }
- 
-    }
-     @Override
+
+    @Override
     public boolean supportsStressMeasurement(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsWatchfaceManagement(@NonNull GBDevice device) {
         return true;
     }
-    
-    }
-     @Override
+
+    @Override
     public boolean supportsWeather(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsDisabledWorldClocks(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsDebugLogs(@NonNull GBDevice device) {
         return false;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsCyclingData(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsAwakeSleep(@NonNull GBDevice device) {
         return true;
     }
 
-    }
-     @Override
+    @Override
     public boolean supportsActiveCalories(@NonNull GBDevice device) {
         return true;
     }
