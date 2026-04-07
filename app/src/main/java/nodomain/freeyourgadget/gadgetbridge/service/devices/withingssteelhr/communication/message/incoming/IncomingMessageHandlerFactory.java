@@ -30,20 +30,11 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 public class IncomingMessageHandlerFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(IncomingMessageHandlerFactory.class);
-    private static IncomingMessageHandlerFactory instance;
     private final WithingsBaseDeviceSupport support;
     private Map<Short, IncomingMessageHandler> handlers = new HashMap<>();
 
-    private IncomingMessageHandlerFactory(WithingsBaseDeviceSupport support) {
+    public IncomingMessageHandlerFactory(WithingsBaseDeviceSupport support) {
         this.support = support;
-    }
-
-    public static IncomingMessageHandlerFactory getInstance(WithingsBaseDeviceSupport support) {
-        if (instance == null) {
-            instance = new IncomingMessageHandlerFactory(support);
-        }
-
-        return instance;
     }
 
     public IncomingMessageHandler getHandler(Message message) {

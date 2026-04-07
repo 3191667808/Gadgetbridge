@@ -112,7 +112,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming.IncomingMessageHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming.IncomingMessageHandlerFactory;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming.LiveWorkoutHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.GetNotificationAttributes;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.GetNotificationAttributesResponse;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.NotificationProvider;
@@ -141,7 +140,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      */
     public static final String PREF_WITHINGS_USER_ID = "withings_user_id";
     private final MessageBuilder messageBuilder;
-    private LiveWorkoutHandler liveWorkoutHandler;
     private ActivitySampleHandler activitySampleHandler;
     private final ConversationQueue conversationQueue;
     private boolean firstTimeConnect;
@@ -175,8 +173,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         conversationQueue = new ConversationQueue(this);
         notificationProvider = new NotificationProvider(this);
         messageBuilder = new MessageBuilder(this, new MessageFactory(new DataStructureFactory()));
-        liveWorkoutHandler = new LiveWorkoutHandler(this);
-        incomingMessageHandlerFactory = IncomingMessageHandlerFactory.getInstance(this);
+        incomingMessageHandlerFactory = new IncomingMessageHandlerFactory(this);
         addSupportedService(getWithingsUUIDs().WITHINGS_SERVICE_UUID);
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ACCESS);
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ATTRIBUTE);
