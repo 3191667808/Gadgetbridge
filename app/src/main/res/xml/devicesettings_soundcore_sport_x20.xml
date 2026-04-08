@@ -52,6 +52,13 @@
             android:key="pref_soundcore_auto_power_off"
             android:summary="@string/soundcore_auto_power_off_summary"
             android:title="@string/soundcore_auto_power_off_title" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_soundcore_touch_tone"
+            android:layout="@layout/preference_checkbox"
+            android:summary="@string/pref_touch_tone_summary"
+            android:title="@string/pref_touch_tone" />
     </PreferenceCategory>
 
 </androidx.preference.PreferenceScreen>

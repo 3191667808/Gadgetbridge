@@ -66,6 +66,10 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
                 final int duration = Integer.parseInt(prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF, "3"));
                 return encodeAutoPowerOff(duration);
 
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE:
+                final boolean pressAlert = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE, false);
+                return new SoundcorePacket((short) 0x8301, new byte[]{encodeBoolean(pressAlert)}).encode();
+
             default:
                 return super.encodeSendConfiguration(config);
         }
