@@ -37,6 +37,7 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
         switch (config) {
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AMBIENT_SOUND_CONTROL:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_WIND_NOISE_REDUCTION:
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TRANSPARENCY_VOCAL_MODE:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ADAPTIVE_NOISE_CANCELLING:
             case DeviceSettingsPreferenceConst.PREF_SONY_AMBIENT_SOUND_LEVEL:
                 return encodeAncAudioMode();
@@ -142,21 +143,19 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             ambientSoundMode = "noise_cancelling";
         } else if (payload[0] == 0x01) {
             ambientSoundMode = "ambient_sound";
+        } else if (payload[0] == 0x02) {
+            ambientSoundMode = "off";
         }
 
-        int ancStrength = 0;
-        final byte strength = (byte) (payload[1] & 0x30);
-        if (strength == 0x20) {
-            ancStrength = 1;
-        } else if (strength == 0x30) {
-            ancStrength = 2;
-        }
+        int ancStrength = ((payload[1] & 0x30) >> 4) - 1;
 
+        final boolean vocalMode = (payload[2] == 0x01);
         final boolean adaptiveAnc = (payload[3] == 0x01);
         final boolean windNoiseReduction = (payload[4] == 0x01);
 
         editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AMBIENT_SOUND_CONTROL, ambientSoundMode);
         editor.putInt(DeviceSettingsPreferenceConst.PREF_SONY_AMBIENT_SOUND_LEVEL, ancStrength);
+        editor.putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TRANSPARENCY_VOCAL_MODE, vocalMode);
         editor.putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ADAPTIVE_NOISE_CANCELLING, adaptiveAnc);
         editor.putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_WIND_NOISE_REDUCTION, windNoiseReduction);
         editor.apply();
@@ -165,48 +164,37 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private byte[] encodeAncAudioMode() {
         final Prefs prefs = getDevicePrefs();
 
-        final byte ambientSoundMode;
-        switch (prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AMBIENT_SOUND_CONTROL, "off")) {
+        final String ambientMode = prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AMBIENT_SOUND_CONTROL, "off");
+        final int ancStrengthValue = prefs.getInt(DeviceSettingsPreferenceConst.PREF_SONY_AMBIENT_SOUND_LEVEL, 0);
+        final boolean vocalMode = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TRANSPARENCY_VOCAL_MODE, false);
+        final boolean adaptive = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ADAPTIVE_NOISE_CANCELLING, true);
+        final boolean windReduction = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_WIND_NOISE_REDUCTION, false);
+
+        if (ancStrengthValue < 0 || ancStrengthValue > 2) {
+            return null;
+        }
+        final byte ancStrengthByte = (byte) ((ancStrengthValue + 1) << 4);
+
+        final byte ambientModeByte;
+        switch (ambientMode) {
             case "noise_cancelling":
-                ambientSoundMode = 0x00;
+                ambientModeByte = 0x00;
                 break;
             case "ambient_sound":
-                ambientSoundMode = 0x01;
+                ambientModeByte = 0x01;
                 break;
             case "off":
-                ambientSoundMode = 0x02;
+                ambientModeByte = 0x02;
                 break;
             default:
                 return null;
         }
 
-        byte ancStrength = 0x10;
-        switch (prefs.getInt(DeviceSettingsPreferenceConst.PREF_SONY_AMBIENT_SOUND_LEVEL, 0)) {
-            case 0:
-                ancStrength = 0x10;
-                break;
-            case 1:
-                ancStrength = 0x20;
-                break;
-            case 2:
-                ancStrength = 0x30;
-                break;
-        }
+        final byte adaptiveByte = encodeBoolean(adaptive);
+        final byte vocalModeByte = encodeBoolean(vocalMode);
+        final byte windReductionByte = encodeBoolean(windReduction);
 
-        final boolean adaptive = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ADAPTIVE_NOISE_CANCELLING, true);
-        final boolean windReduction = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_WIND_NOISE_REDUCTION, false);
-        final byte adaptiveAnc = encodeBoolean(adaptive);
-        final byte windNoiseReduction = encodeBoolean(windReduction);
-
-        if (adaptive) {
-            ancStrength = 0x30;
-            if (windReduction) {
-                // RFCOMM pattern on Sport X20: adaptive+wind toggles 0x30 -> 0x32.
-                ancStrength = 0x32;
-            }
-        }
-
-        final byte[] payload = new byte[]{ambientSoundMode, ancStrength, 0x00, adaptiveAnc, windNoiseReduction};
+        final byte[] payload = new byte[]{ambientModeByte, ancStrengthByte, vocalModeByte, adaptiveByte, windReductionByte};
         return new SoundcorePacket((short) 0x8106, payload).encode();
     }
 }

@@ -38,6 +38,13 @@
             android:key="pref_soundcore_wind_noise_reduction"
             android:layout="@layout/preference_checkbox"
             android:title="@string/sony_ambient_sound_wind_noise_reduction" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:icon="@drawable/ic_voice"
+            android:key="pref_soundcore_transparency_vocal_mode"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/sony_ambient_sound_focus_voice" />
     </PreferenceCategory>
 
     <PreferenceCategory
