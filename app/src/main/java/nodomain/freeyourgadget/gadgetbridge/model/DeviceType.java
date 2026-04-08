@@ -36,6 +36,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.bandwpseries.BandWPSeriesDev
 import nodomain.freeyourgadget.gadgetbridge.devices.banglejs.BangleJSCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.binary_sensor.coordinator.BinarySensorCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.braun.BraunBPW4500DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.canon.CanonEOS200DDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.ecbs100.CasioECBS100DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.gb6900.CasioGB6900DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.gbx100.CasioGBX100DeviceCoordinator;
@@ -977,6 +978,7 @@ public enum DeviceType {
     IGPSPORT_IGS630S(IGPSportiGS630SCoordinator.class),
     IGPSPORT_IGS800(IGPSportiGS800Coordinator.class),
     IGPSPORT_BINAVI_AIR(IGPSportBiNaviAirCoordinator.class),
+    CANON_EOS_200D(CanonEOS200DDeviceCoordinator.class),
     TEST(TestDeviceCoordinator.class);
 
     private DeviceCoordinator coordinator;
