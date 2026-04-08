@@ -49,9 +49,15 @@ public class VasistasSpo2 extends WithingsStructure {
 
     @Override
     protected void fillFromRawDataAsBuffer(final ByteBuffer rawDataBuffer) {
-        error = rawDataBuffer.getInt();
-        quality = rawDataBuffer.getInt();
-        spo2 = rawDataBuffer.getInt();
+        if (rawDataBuffer.remaining() >= 12) {
+            error = rawDataBuffer.getInt();
+            quality = rawDataBuffer.getInt();
+            spo2 = rawDataBuffer.getInt();
+        } else if (rawDataBuffer.remaining() >= 6) {
+            error = rawDataBuffer.getShort() & 0xFFFF;
+            quality = rawDataBuffer.getShort() & 0xFFFF;
+            spo2 = rawDataBuffer.getShort() & 0xFFFF;
+        }
     }
 
     @Override

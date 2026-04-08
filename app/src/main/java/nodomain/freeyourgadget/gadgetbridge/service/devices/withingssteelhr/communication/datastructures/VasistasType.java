@@ -46,7 +46,11 @@ public class VasistasType extends WithingsStructure {
 
     @Override
     protected void fillFromRawDataAsBuffer(final ByteBuffer rawDataBuffer) {
-        value = rawDataBuffer.getInt();
+        if (rawDataBuffer.remaining() >= 4) {
+            value = rawDataBuffer.getInt();
+        } else if (rawDataBuffer.remaining() >= 2) {
+            value = rawDataBuffer.getShort() & 0xFFFF;
+        }
     }
 
     @Override
