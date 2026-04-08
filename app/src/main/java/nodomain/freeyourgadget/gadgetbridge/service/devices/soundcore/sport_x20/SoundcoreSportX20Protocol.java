@@ -71,14 +71,13 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
         final byte functionByte;
         switch (action) {
             case SINGLE_TAP:
-            case DOUBLE_TAP:
                 functionByte = (byte) (16 * 6 + function.getCode());
                 break;
-            case TRIPLE_TAP:
-                functionByte = (byte) (16 * 4 + function.getCode());
+            case DOUBLE_TAP:
+                functionByte = (byte) (16 * 3 + function.getCode());
                 break;
             case LONG_PRESS:
-                functionByte = (byte) (16 * 5 + function.getCode());
+                functionByte = (byte) (16 * 4 + function.getCode());
                 break;
             default:
                 return null;
