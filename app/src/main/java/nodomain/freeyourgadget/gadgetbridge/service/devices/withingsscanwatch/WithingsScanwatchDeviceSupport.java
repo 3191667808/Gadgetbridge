@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -92,6 +93,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     @Override
     protected WithingsUUIDs getWithingsUUIDs() {
         return WithingsUUIDs.SCANWATCH;
+    }
+
+    @Override
+    protected Collection<WithingsUUIDs> getWithingsUUIDCandidates() {
+        return Arrays.asList(WithingsUUIDs.SCANWATCH, WithingsUUIDs.SCANWATCH_2);
     }
 
     @Override

@@ -43,6 +43,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -159,6 +161,21 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      * Steel HR uses suffix "0037"; Scanwatch uses suffix "005d".
      */
     protected abstract WithingsUUIDs getWithingsUUIDs();
+
+    protected Collection<WithingsUUIDs> getWithingsUUIDCandidates() {
+        return Collections.singleton(getWithingsUUIDs());
+    }
+
+    protected WithingsUUIDs getActiveWithingsUUIDs() {
+        for (final WithingsUUIDs withingsUUIDs : getWithingsUUIDCandidates()) {
+            if (getCharacteristic(withingsUUIDs.WITHINGS_WRITE_CHARACTERISTIC_UUID) != null) {
+                return withingsUUIDs;
+            }
+        }
+
+        return getWithingsUUIDs();
+    }
+
     private boolean syncInProgress;
     private int storedMeasureDeleteRequestId;
     private int storedMeasureDeleteAttempts;
@@ -176,7 +193,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         notificationProvider = new NotificationProvider(this);
         messageBuilder = new MessageBuilder(this, new MessageFactory(new DataStructureFactory()));
         incomingMessageHandlerFactory = new IncomingMessageHandlerFactory(this);
-        addSupportedService(getWithingsUUIDs().WITHINGS_SERVICE_UUID);
+        for (final WithingsUUIDs withingsUUIDs : getWithingsUUIDCandidates()) {
+            addSupportedService(withingsUUIDs.WITHINGS_SERVICE_UUID);
+        }
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ACCESS);
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ATTRIBUTE);
         addANCSService();
@@ -238,7 +257,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     private void postConnectInitialization() {
         final TransactionBuilder builder = createTransactionBuilder("delayed initialization");
-        builder.notify(getWithingsUUIDs().WITHINGS_WRITE_CHARACTERISTIC_UUID, true);
+        builder.notify(getActiveWithingsUUIDs().WITHINGS_WRITE_CHARACTERISTIC_UUID, true);
         builder.requestMtu(512);
         builder.queue();
     }
@@ -673,9 +692,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         try {
             TransactionBuilder builder = createTransactionBuilder("conversation");
             builder.setCallback(this);
-            BluetoothGattCharacteristic characteristic = getCharacteristic(getWithingsUUIDs().WITHINGS_WRITE_CHARACTERISTIC_UUID);
+            final WithingsUUIDs withingsUUIDs = getActiveWithingsUUIDs();
+            BluetoothGattCharacteristic characteristic = getCharacteristic(withingsUUIDs.WITHINGS_WRITE_CHARACTERISTIC_UUID);
             if (characteristic == null) {
-                logger.info("Characteristic with UUID " + getWithingsUUIDs().WITHINGS_WRITE_CHARACTERISTIC_UUID + " not found.");
+                logger.info("Characteristic with UUID {} not found.", withingsUUIDs.WITHINGS_WRITE_CHARACTERISTIC_UUID);
                 return;
             }
 
@@ -885,18 +905,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     private void addANCSService() {
+        final WithingsUUIDs withingsUUIDs = getActiveWithingsUUIDs();
         logger.info("Adding ANCS service with UUIDs: service={}, notifSource={}, controlPoint={}, dataSource={}",
-                getWithingsUUIDs().WITHINGS_ANCS_SERVICE_UUID,
-                getWithingsUUIDs().NOTIFICATION_SOURCE_CHARACTERISTIC_UUID,
-                getWithingsUUIDs().CONTROL_POINT_CHARACTERISTIC_UUID,
-                getWithingsUUIDs().DATA_SOURCE_CHARACTERISTIC_UUID);
-        BluetoothGattService withingsGATTService = new BluetoothGattService(getWithingsUUIDs().WITHINGS_ANCS_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-        notificationSourceCharacteristic = new BluetoothGattCharacteristic(getWithingsUUIDs().NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
-        notificationSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(getWithingsUUIDs().CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
+                withingsUUIDs.WITHINGS_ANCS_SERVICE_UUID,
+                withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID,
+                withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID,
+                withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID);
+        BluetoothGattService withingsGATTService = new BluetoothGattService(withingsUUIDs.WITHINGS_ANCS_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+        notificationSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
+        notificationSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(notificationSourceCharacteristic);
-        withingsGATTService.addCharacteristic(new BluetoothGattCharacteristic(getWithingsUUIDs().CONTROL_POINT_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE));
-        dataSourceCharacteristic = new BluetoothGattCharacteristic(getWithingsUUIDs().DATA_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
-        dataSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(getWithingsUUIDs().CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
+        withingsGATTService.addCharacteristic(new BluetoothGattCharacteristic(withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE));
+        dataSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
+        dataSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(dataSourceCharacteristic);
         addSupportedServerService(withingsGATTService);
     }

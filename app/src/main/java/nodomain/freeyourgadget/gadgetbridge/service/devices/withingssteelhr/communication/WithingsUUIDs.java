@@ -39,10 +39,37 @@ public class WithingsUUIDs {
     }
 
     public WithingsUUIDs(final String protocolSuffix, final String ancsSuffix) {
-        WITHINGS_SERVICE_UUID                 = UUID.fromString("00000020-5749-5448-" + protocolSuffix + "-000000000000");
-        WITHINGS_WRITE_CHARACTERISTIC_UUID    = UUID.fromString("00000024-5749-5448-" + protocolSuffix + "-000000000000");
-        WITHINGS_APP_CHARACTERISTIC_UUID      = UUID.fromString("10000059-5749-5448-" + protocolSuffix + "-000000000000");
-        WITHINGS_APP_CHARACTERISTIC2_UUID     = UUID.fromString("10000028-5749-5448-" + protocolSuffix + "-000000000000");
+        this(
+                UUID.fromString("00000020-5749-5448-" + protocolSuffix + "-000000000000"),
+                UUID.fromString("00000024-5749-5448-" + protocolSuffix + "-000000000000"),
+                UUID.fromString("10000059-5749-5448-" + protocolSuffix + "-000000000000"),
+                UUID.fromString("10000028-5749-5448-" + protocolSuffix + "-000000000000"),
+                ancsSuffix
+        );
+    }
+
+    /**
+     * Constructor for V2 namespace which uses a base suffix and characteristic offsets.
+     */
+    public WithingsUUIDs(final String baseSuffix, final int serviceOffset, final int writeOffset, final int app1Offset, final int app2Offset, final String ancsSuffix) {
+        this(
+                UUID.fromString(String.format("%08x", serviceOffset) + baseSuffix),
+                UUID.fromString(String.format("%08x", writeOffset) + baseSuffix),
+                UUID.fromString(String.format("%08x", app1Offset) + baseSuffix),
+                UUID.fromString(String.format("%08x", app2Offset) + baseSuffix),
+                ancsSuffix
+        );
+    }
+
+    public WithingsUUIDs(final UUID withingsServiceUuid,
+                         final UUID withingsWriteCharacteristicUuid,
+                         final UUID withingsAppCharacteristicUuid,
+                         final UUID withingsAppCharacteristic2Uuid,
+                         final String ancsSuffix) {
+        WITHINGS_SERVICE_UUID                 = withingsServiceUuid;
+        WITHINGS_WRITE_CHARACTERISTIC_UUID    = withingsWriteCharacteristicUuid;
+        WITHINGS_APP_CHARACTERISTIC_UUID      = withingsAppCharacteristicUuid;
+        WITHINGS_APP_CHARACTERISTIC2_UUID     = withingsAppCharacteristic2Uuid;
         CCC_DESCRIPTOR_UUID                   = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
         WITHINGS_ANCS_SERVICE_UUID            = UUID.fromString("10000057-5749-5448-" + ancsSuffix + "-000000000000");
         NOTIFICATION_SOURCE_CHARACTERISTIC_UUID = UUID.fromString("10000059-5749-5448-" + ancsSuffix + "-000000000000");
@@ -55,4 +82,16 @@ public class WithingsUUIDs {
 
     /** Scanwatch UUID set */
     public static final WithingsUUIDs SCANWATCH = new WithingsUUIDs("005d", "0037");
+
+    /** Scanwatch 2 UUID set */
+    public static final String V2_BASE_SUFFIX = "-0000-5749-5448-494e47530000";
+
+    public static final WithingsUUIDs SCANWATCH_2 = new WithingsUUIDs(
+            V2_BASE_SUFFIX,
+            0x00, // Service
+            0x03, // Write
+            0x04, // App1
+            0x05, // App2
+            "0037"
+    );
 }
