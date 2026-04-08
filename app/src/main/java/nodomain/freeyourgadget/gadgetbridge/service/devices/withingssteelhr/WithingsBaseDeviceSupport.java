@@ -83,6 +83,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AncsStatus;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.DataStructureFactory;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagDeprecated;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagsUserId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.GetActivitySamples;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ImageData;
@@ -267,7 +268,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, activityUser.getStepsGoal())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
-            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+            enableNotifications();
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SETUP_FINISHED), new SetupFinishedHandler(this));
         } else {
@@ -315,7 +316,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 withingsEcgHandler = createEcgHandler();
             }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.INITIAL_CONNECT));
-            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+            enableNotifications();
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
@@ -758,7 +759,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             finishInitialization();
             doSync("post-auth");
         } else {
-            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+            enableNotifications();
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             conversationQueue.send();
@@ -862,6 +863,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         dataSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(getWithingsUUIDs().CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(dataSourceCharacteristic);
         addSupportedServerService(withingsGATTService);
+    }
+
+    private void enableNotifications() {
+        // Enable ANCS bridge
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+        
+        // Register the TAG_NOTIFICATIONS feature tag
+        WithingsMessage featureTagsMsg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
+        featureTagsMsg.addDataStructure(new FeatureTagsUserId(0));
+        featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
+        featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0035));
+        featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
+        addSimpleConversationToQueue(featureTagsMsg);
     }
 
     public void addSimpleConversationToQueue(Message message) {

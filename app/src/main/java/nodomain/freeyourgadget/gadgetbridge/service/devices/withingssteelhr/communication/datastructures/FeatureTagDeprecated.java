@@ -146,4 +146,9 @@ public class FeatureTagDeprecated extends WithingsStructure {
     public short getType() {
         return WithingsStructureType.FEATURE_TAG_DEPRECATED;
     }
+
+    @Override
+    public boolean withEndOfMessage() {
+        return true;
+    }
 }

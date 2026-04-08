@@ -60,4 +60,9 @@ public class FeatureTagsUserId extends WithingsStructure {
     public short getType() {
         return WithingsStructureType.FEATURE_TAGS_USER_ID;
     }
+
+    @Override
+    public boolean withEndOfMessage() {
+        return true;
+    }
 }

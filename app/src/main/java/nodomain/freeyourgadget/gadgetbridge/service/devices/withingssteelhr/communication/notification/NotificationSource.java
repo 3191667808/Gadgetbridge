@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Locale;
 import java.util.Random;
 
@@ -32,7 +33,7 @@ public class NotificationSource {
         this.eventFlags = eventFlags;
         this.categoryId = categoryId;
         this.categoryCount = categoryCount;
-        this.notificationUID = Integer.valueOf(new Random().nextInt());
+        this.notificationUID = notificationUID;
     }
 
     public int getNotificationUID() {
@@ -45,6 +46,7 @@ public class NotificationSource {
 
     public byte[] serialize() {
         ByteBuffer buffer = ByteBuffer.allocate(8);
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
         buffer.put(eventID);
         buffer.put(eventFlags);
         buffer.put(categoryId);
