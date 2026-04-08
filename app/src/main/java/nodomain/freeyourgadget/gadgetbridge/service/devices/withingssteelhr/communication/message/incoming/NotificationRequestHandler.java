@@ -54,12 +54,16 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         try {
             SourceAppId appId = message.getStructureByType(SourceAppId.class);
             ImageMetaData imageMetaData = message.getStructureByType(ImageMetaData.class);
-            Message reply = new WithingsMessage(WithingsMessageType.GET_NOTIFICATION);
+            Message reply = new WithingsMessage((short) (WithingsMessageType.GET_NOTIFICATION | 0x4000));
             reply.addDataStructure(appId);
             reply.addDataStructure(imageMetaData);
-            ImageData imageData = new ImageData();
-            imageData.setImageData(getImageData(appId.getAppId()));
-            reply.addDataStructure(imageData);
+
+            byte[] imageData = getImageData(appId.getAppId(), imageMetaData);
+
+            ImageData imageDataStructure = new ImageData();
+            imageDataStructure.setImageData(imageData);
+            reply.addDataStructure(imageDataStructure);
+
             logger.info("Sending reply to notification request: " + reply);
             support.sendToDevice(reply);
         } catch (Exception e) {
@@ -68,35 +72,73 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         }
     }
 
-    private byte[] getImageData(String sourceAppId) {
-        byte[] imageData = appIconCache.get(sourceAppId);
+    private byte[] getImageData(String sourceAppId, ImageMetaData imageMetaData) {
+        int width = imageMetaData.getWidth() & 0xFF;
+        int height = imageMetaData.getHeight() & 0xFF;
+        if (width == 0 || height == 0) {
+            width = 22;
+            height = 24;
+        }
+        String cacheKey = sourceAppId + "_" + width + "x" + height;
+        byte[] imageData = appIconCache.get(cacheKey);
         if (imageData == null) {
+            String packageName = sourceAppId;
+            if (packageName != null) {
+                packageName = packageName.replace("-msg", "").replace("-ringing", "").replace("-missed", "").replace("-gb", "");
+            }
+            
             NotificationSpec notificationSpec = support.getNotificationProvider().getNotificationSpecForSourceAppId(sourceAppId);
-            if (notificationSpec != null) {
-                int iconId = notificationSpec.iconId;
-                final String packageName = notificationSpec.sourceAppId != null ? notificationSpec.sourceAppId : sourceAppId;
-                try {
-                    Drawable icon = null;
-                    if (notificationSpec.iconId != 0) {
+            if (notificationSpec != null && notificationSpec.sourceAppId != null) {
+                packageName = notificationSpec.sourceAppId;
+            }
+            
+            logger.info("Resolving icon for sourceAppId='{}', packageName='{}'", sourceAppId, packageName);
+            
+            try {
+                Drawable icon = null;
+                if (notificationSpec != null && notificationSpec.iconId != 0) {
+                    try {
                         Context sourcePackageContext = support.getContext().createPackageContext(packageName, 0);
                         icon = sourcePackageContext.getResources().getDrawable(notificationSpec.iconId);
+                        logger.info("Loaded specific iconId={} from package {}", notificationSpec.iconId, packageName);
+                    } catch (Exception ex) {
+                        logger.warn("Failed to load specific iconId={} from package {}, falling back to app icon", notificationSpec.iconId, packageName);
                     }
-                    if (icon == null) {
-                        PackageManager pm = support.getContext().getPackageManager();
-                        icon = pm.getApplicationIcon(packageName);
-                    }
+                }
+                if (icon == null) {
+                    logger.info("Loading default application icon for package {}", packageName);
+                    PackageManager pm = support.getContext().getPackageManager();
+                    icon = pm.getApplicationIcon(packageName);
+                }
 
-                    imageData = IconHelper.getIconBytesFromDrawable(icon);
-                    appIconCache.put(sourceAppId, imageData);
-                } catch (PackageManager.NameNotFoundException e) {
-                    logger.error("Error while updating notification icons", e);
+                imageData = IconHelper.getIconBytesFromDrawable(icon, width, height);
+                appIconCache.put(cacheKey, imageData);
+                logger.info("Successfully rendered icon for package {} (size {}x{})", packageName, width, height);
+            } catch (PackageManager.NameNotFoundException e) {
+                logger.error("Error while updating notification icons for package " + packageName, e);
+                try {
+                    // Fallback to Gadgetbridge icon if package not found
+                    logger.info("Falling back to Gadgetbridge icon");
+                    PackageManager pm = support.getContext().getPackageManager();
+                    Drawable icon = pm.getApplicationIcon(support.getContext().getPackageName());
+                    imageData = IconHelper.getIconBytesFromDrawable(icon, width, height);
+                    appIconCache.put(cacheKey, imageData);
+                } catch (Exception ex) {
                     imageData = new byte[0];
                 }
-            } else {
-                imageData = new byte[0];
+            } catch (Exception e) {
+                logger.error("Unexpected error getting icon for " + packageName, e);
+                try {
+                    logger.info("Unexpected error, falling back to Gadgetbridge icon for {}", packageName);
+                    PackageManager pm = support.getContext().getPackageManager();
+                    Drawable icon = pm.getApplicationIcon(support.getContext().getPackageName());
+                    imageData = IconHelper.getIconBytesFromDrawable(icon, width, height);
+                    appIconCache.put(cacheKey, imageData);
+                } catch (Exception ex) {
+                    imageData = new byte[0];
+                }
             }
         }
-
         return imageData;
     }
 }

@@ -227,11 +227,23 @@ public class BitmapUtil {
         if (drawable instanceof BitmapDrawable) {
             return ((BitmapDrawable) drawable).getBitmap();
         }
+        
+        Drawable renderDrawable = drawable;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            if (renderDrawable instanceof android.graphics.drawable.AdaptiveIconDrawable) {
+                renderDrawable = ((android.graphics.drawable.AdaptiveIconDrawable) renderDrawable).getForeground();
+            }
+        }
 
-        final Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        int width = renderDrawable.getIntrinsicWidth();
+        int height = renderDrawable.getIntrinsicHeight();
+        if (width <= 0) width = 128;
+        if (height <= 0) height = 128;
+
+        final Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         final Canvas canvas = new Canvas(bitmap);
-        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-        drawable.draw(canvas);
+        renderDrawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        renderDrawable.draw(canvas);
         return bitmap;
     }
 

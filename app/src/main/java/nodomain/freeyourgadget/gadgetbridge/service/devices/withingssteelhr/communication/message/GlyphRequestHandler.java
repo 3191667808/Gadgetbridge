@@ -46,7 +46,7 @@ public class GlyphRequestHandler implements IncomingMessageHandler {
         try {
             GlyphId glyphId = message.getStructureByType(GlyphId.class);
             ImageMetaData imageMetaData = message.getStructureByType(ImageMetaData.class);
-            Message reply = new WithingsMessage(WithingsMessageType.GET_UNICODE_GLYPH);
+            Message reply = new WithingsMessage((short) (WithingsMessageType.GET_UNICODE_GLYPH | 0x4000));
             reply.addDataStructure(glyphId);
             reply.addDataStructure(imageMetaData);
             ImageData imageData = new ImageData();

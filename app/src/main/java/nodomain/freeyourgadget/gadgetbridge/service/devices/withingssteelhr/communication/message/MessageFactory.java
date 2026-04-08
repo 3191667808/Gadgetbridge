@@ -42,7 +42,7 @@ public class MessageFactory {
 
         short messageTypeFromResponse = (short) (BLETypeConversions.toInt16(rawData[2], rawData[1]) & 16383);
         short totalDataLength = (short) BLETypeConversions.toInt16(rawData[4], rawData[3]);
-        boolean isIncoming = rawData[1] == 65 || rawData[1] == -127;
+        boolean isIncoming = (rawData[1] & 0xC0) != 0;
         logger.debug("createMessageFromRawData: rawData[1]=0x{} rawData[2]=0x{} -> type={} (0x{}) isIncoming={} dataLen={}",
                 Integer.toHexString(rawData[1] & 0xff),
                 Integer.toHexString(rawData[2] & 0xff),

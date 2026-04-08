@@ -19,9 +19,10 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
@@ -33,34 +34,62 @@ public class NotificationProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
     private static final Pattern WITHINGS_SOURCE_APP_SUFFIX = Pattern.compile("-(msg|ringing|missed)$", Pattern.CASE_INSENSITIVE);
+    private static final String UNKNOWN_DEVICE_KEY = "unknown-withings-device";
+    private static final Map<String, NotificationState> NOTIFICATION_STATES = new ConcurrentHashMap<>();
     private final WithingsBaseDeviceSupport support;
-    private final Map<Integer, NotificationSpec> pendingNotifications = new HashMap<>();
+    private static final int RECENT_NOTIFICATION_CACHE_SIZE = 256;
 
     public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 
     public void notifyClient(NotificationSpec spec) {
+        final NotificationState state = getState();
+        if (spec.sourceAppId != null) {
+            state.latestNotificationByApp.put(normalizeSourceAppId(spec.sourceAppId), spec);
+        }
         NotificationSource notificationSource = new NotificationSource(spec.getId(),
                                                                         AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
                                                                         AncsConstants.EVENT_FLAGS_IMPORTANT,
                                                                         mapNotificationType(spec.type),
                                                                         (byte)1);
-        pendingNotifications.put(notificationSource.getNotificationUID(), spec);
+        state.pendingNotifications.put(notificationSource.getNotificationUID(), spec);
         support.sendAncsNotificationSourceNotification(notificationSource);
+    }
+
+    public void onDeleteNotification(final int notificationUID) {
+        final NotificationState state = getState();
+        sendNotificationRemoved(notificationUID);
+        state.pendingNotifications.remove(notificationUID);
+        synchronized (state.recentlyCompletedNotifications) {
+            state.recentlyCompletedNotifications.remove(notificationUID);
+        }
     }
 
     public void handleNotificationAttributeRequest(GetNotificationAttributes request) {
         logger.debug("Request has ID: " + request.getNotificationUID());
-        NotificationSpec spec = pendingNotifications.get(request.getNotificationUID());
+        final NotificationState state = getState();
+        NotificationSpec spec = state.pendingNotifications.get(request.getNotificationUID());
+        if (spec == null) {
+            synchronized (state.recentlyCompletedNotifications) {
+                spec = state.recentlyCompletedNotifications.get(request.getNotificationUID());
+            }
+        }
         if (spec == null) {
             logger.info("No pending notification with notificationUID " + request.getNotificationUID());
-            NotificationSource notificationSource = new NotificationSource(request.getNotificationUID(),
-                                                                            AncsConstants.EVENT_ID_NOTIFICATION_REMOVED,
-                                                                            AncsConstants.EVENT_FLAGS_IMPORTANT,
-                                                                            (byte)0,
-                                                                            (byte)1);
-            support.sendAncsNotificationSourceNotification(notificationSource);
+
+            // Reply on the Data Source to unblock the watch's ANCS state machine
+            GetNotificationAttributesResponse emptyResponse = new GetNotificationAttributesResponse(request.getNotificationUID());
+            for (RequestedNotificationAttribute requestedAttribute : request.getAttributes()) {
+                NotificationAttribute attr = new NotificationAttribute();
+                attr.setAttributeID(requestedAttribute.getAttributeID());
+                attr.setAttributeMaxLength(requestedAttribute.getAttributeMaxLength());
+                attr.setValue("");
+                emptyResponse.addAttribute(attr);
+            }
+            support.sendAncsDataSourceNotification(emptyResponse);
+
+            sendNotificationRemoved(request.getNotificationUID());
             return;
         }
 
@@ -77,7 +106,13 @@ public class NotificationProvider {
             logger.debug("Handling attribute " + attribute.getAttributeID() + " with maxLength " + attribute.getAttributeLength());
             String value = "";
             if (requestedAttribute.getAttributeID() == 0) {
-                value = spec.sourceAppId;
+                if (spec.type == NotificationType.GENERIC_PHONE) {
+                    value = spec.sourceAppId + "-ringing";
+                } else if (spec.type == NotificationType.MAILBOX) {
+                    value = spec.sourceAppId + "-missed";
+                } else {
+                    value = spec.sourceAppId + "-msg";
+                }
             }
             if (requestedAttribute.getAttributeID() == 1) {
                 complete = true;
@@ -110,19 +145,56 @@ public class NotificationProvider {
         support.sendAncsDataSourceNotification(response);
 
         if (complete) {
-            pendingNotifications.remove(request.getNotificationUID());
+            NotificationSpec completedSpec = state.pendingNotifications.remove(request.getNotificationUID());
+            if (completedSpec != null) {
+                cacheCompletedNotification(state, request.getNotificationUID(), completedSpec);
+            }
+        }
+    }
+
+    private void sendNotificationRemoved(final int notificationUID) {
+        NotificationSource notificationSource = new NotificationSource(notificationUID,
+                                                                        AncsConstants.EVENT_ID_NOTIFICATION_REMOVED,
+                                                                        AncsConstants.EVENT_FLAGS_IMPORTANT,
+                                                                        (byte)0,
+                                                                        (byte)0);
+        support.sendAncsNotificationSourceNotification(notificationSource);
+    }
+
+    private void cacheCompletedNotification(final NotificationState state, final int notificationUID, final NotificationSpec completedSpec) {
+        synchronized (state.recentlyCompletedNotifications) {
+            state.recentlyCompletedNotifications.put(notificationUID, completedSpec);
+            while (state.recentlyCompletedNotifications.size() > RECENT_NOTIFICATION_CACHE_SIZE) {
+                final Integer eldestKey = state.recentlyCompletedNotifications.keySet().iterator().next();
+                state.recentlyCompletedNotifications.remove(eldestKey);
+            }
         }
     }
 
     public NotificationSpec getNotificationSpecForSourceAppId(String sourceAppId) {
         final String normalizedSourceAppId = normalizeSourceAppId(sourceAppId);
-        for (NotificationSpec notificationSpec : pendingNotifications.values()) {
+        final NotificationState state = getState();
+        
+        // First try finding it in pending notifications (if still active)
+        for (NotificationSpec notificationSpec : state.pendingNotifications.values()) {
             if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(normalizedSourceAppId)) {
                 return notificationSpec;
             }
         }
 
-        return null;
+        // Fallback to the latest known notification spec for this app
+        return state.latestNotificationByApp.get(normalizedSourceAppId);
+    }
+
+    private NotificationState getState() {
+        return NOTIFICATION_STATES.computeIfAbsent(getDeviceKey(), ignored -> new NotificationState());
+    }
+
+    private String getDeviceKey() {
+        if (support.getDevice() != null && support.getDevice().getAddress() != null) {
+            return support.getDevice().getAddress();
+        }
+        return UNKNOWN_DEVICE_KEY;
     }
 
     private String normalizeSourceAppId(final String sourceAppId) {
@@ -179,6 +251,12 @@ public class NotificationProvider {
             default:
                 return AncsConstants.CATEGORY_ID_OTHER;
         }
+    }
+
+    private static final class NotificationState {
+        private final Map<Integer, NotificationSpec> pendingNotifications = new ConcurrentHashMap<>();
+        private final Map<String, NotificationSpec> latestNotificationByApp = new ConcurrentHashMap<>();
+        private final LinkedHashMap<Integer, NotificationSpec> recentlyCompletedNotifications = new LinkedHashMap<>(RECENT_NOTIFICATION_CACHE_SIZE + 1, 0.75f, true);
     }
     
 }

@@ -506,6 +506,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     @Override
+    public void onDeleteNotification(int id) {
+        notificationProvider.onDeleteNotification(id);
+    }
+
+    @Override
     public void onSetAlarms(ArrayList<? extends Alarm> alarms) {
         if (alarms.size() == 0) {
             return;
@@ -696,7 +701,16 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         try {
             ServerTransactionBuilder builder = performServer("dataSourceNotification");
             byte[] data = response.serialize();
-            builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, data);
+            int chunkSize = getMTU() - 3;
+            if (chunkSize <= 0) {
+                chunkSize = 20; // Fallback just in case getMTU() is 0 or too small
+            }
+            for (int i = 0; i < data.length; i += chunkSize) {
+                int length = Math.min(chunkSize, data.length - i);
+                byte[] chunk = new byte[length];
+                System.arraycopy(data, i, chunk, 0, length);
+                builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
+            }
             builder.queue(getQueue());
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
