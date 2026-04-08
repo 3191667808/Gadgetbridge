@@ -55,23 +55,8 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsDataFetching(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
     public boolean supportsCalendarEvents(@NonNull GBDevice device) {
         return false;
-    }
-
-    @Override
-    public boolean supportsFindDevice(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
-    public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) {
-        return true;
     }
 
     @Override
@@ -81,21 +66,6 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
 
     @Override
     public boolean supportsManualHeartRateMeasurement(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
-    public boolean supportsMusicInfo(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
-    public boolean supportsRealtimeData(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
-    public boolean supportsRecordedActivities(@NonNull GBDevice device) {
         return true;
     }
 
@@ -136,11 +106,6 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
 
     @Override
     public boolean supportsWatchfaceManagement(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
-    public boolean supportsWeather(@NonNull GBDevice device) {
         return true;
     }
 
