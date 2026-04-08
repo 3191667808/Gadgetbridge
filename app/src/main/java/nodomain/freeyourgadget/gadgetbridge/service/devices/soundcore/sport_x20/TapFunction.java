@@ -1,14 +1,15 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.sport_x20;
 
 enum TapFunction {
-    VOLUME_DOWN(0x01),
-    VOLUME_UP(0x00),
-    MEDIA_NEXT(0x03),
-    MEDIA_PREV(0x02),
-    PLAYPAUSE(0x06),
-    VOICE_ASSISTANT(0x05),
-    AMBIENT_SOUND_CONTROL(0x04),
-    NONE(0x0f);
+    VOLUME_DOWN(1),
+    VOLUME_UP(0),
+    MEDIA_NEXT(3),
+    MEDIA_PREV(2),
+    PLAYPAUSE(6),
+    VOICE_ASSISTANT(5),
+    AMBIENT_SOUND_CONTROL(4),
+    NONE(15)
+    ;
 
     private final int code;
 
@@ -18,13 +19,5 @@ enum TapFunction {
 
     public int getCode() {
         return code;
-    }
-
-    public static TapFunction fromPreferenceValue(final String value) {
-        try {
-            return TapFunction.valueOf(value);
-        } catch (final IllegalArgumentException ex) {
-            return null;
-        }
     }
 }
