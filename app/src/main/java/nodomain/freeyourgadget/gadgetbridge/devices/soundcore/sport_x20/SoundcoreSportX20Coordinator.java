@@ -58,7 +58,7 @@ public class SoundcoreSportX20Coordinator extends AbstractBLClassicDeviceCoordin
         final DeviceSpecificSettings deviceSpecificSettings = new DeviceSpecificSettings();
         deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.TOUCH_OPTIONS);
         deviceSpecificSettings.addSubScreen(DeviceSpecificSettingsScreen.TOUCH_OPTIONS, R.xml.devicesettings_sony_headphones_ambient_sound_control_button_modes);
-        deviceSpecificSettings.addSubScreen(DeviceSpecificSettingsScreen.TOUCH_OPTIONS, R.xml.devicesettings_soundcore_liberty_touch_options);
+        deviceSpecificSettings.addSubScreen(DeviceSpecificSettingsScreen.TOUCH_OPTIONS, R.xml.devicesettings_soundcore_sport_x20_touch_options);
         deviceSpecificSettings.addRootScreen(R.xml.devicesettings_soundcore_sport_x20);
         deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS);
         deviceSpecificSettings.addSubScreen(DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS, R.xml.devicesettings_headphones);

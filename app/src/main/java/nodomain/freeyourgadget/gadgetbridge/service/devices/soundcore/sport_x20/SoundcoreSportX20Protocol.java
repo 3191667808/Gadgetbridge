@@ -31,15 +31,79 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
 
     @Override
     public byte[] encodeSendConfiguration(final String config) {
+        final Prefs prefs = getDevicePrefs();
+
         switch (config) {
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AMBIENT_SOUND_CONTROL:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_WIND_NOISE_REDUCTION:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ADAPTIVE_NOISE_CANCELLING:
             case DeviceSettingsPreferenceConst.PREF_SONY_AMBIENT_SOUND_LEVEL:
                 return encodeAncAudioMode();
+
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_LEFT:
+                return encodeControlFunctionMessage(
+                    TapAction.SINGLE_TAP,
+                    false,
+                    TapFunction.fromPreferenceValue(
+                        prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_LEFT, "PLAYPAUSE")
+                    )
+                );
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_RIGHT:
+                return encodeControlFunctionMessage(
+                    TapAction.SINGLE_TAP,
+                    true,
+                    TapFunction.fromPreferenceValue(
+                        prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_RIGHT, "PLAYPAUSE")
+                    )
+                );
+
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_LEFT:
+                return encodeControlFunctionMessage(
+                    TapAction.DOUBLE_TAP,
+                    false,
+                    TapFunction.fromPreferenceValue(
+                        prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_LEFT, "MEDIA_PREV")
+                    )
+                );
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_RIGHT:
+                return encodeControlFunctionMessage(
+                    TapAction.DOUBLE_TAP,
+                    true,
+                    TapFunction.fromPreferenceValue(
+                        prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_RIGHT, "MEDIA_NEXT")
+                    )
+                );
+
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_LEFT:
+                return encodeControlFunctionMessage(
+                    TapAction.LONG_PRESS,
+                    false,
+                    TapFunction.fromPreferenceValue(
+                        prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_LEFT, "AMBIENT_SOUND_CONTROL")
+                    )
+                );
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT:
+                return encodeControlFunctionMessage(
+                    TapAction.LONG_PRESS,
+                    true,
+                    TapFunction.fromPreferenceValue(
+                        prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT, "AMBIENT_SOUND_CONTROL")
+                    )
+                );
+
             default:
                 return super.encodeSendConfiguration(config);
         }
+    }
+
+    private byte[] encodeControlFunctionMessage(final TapAction action, final boolean right, final TapFunction function) {
+        if (function == null) {
+            return null;
+        }
+
+        final byte encodedFunction = (byte) (action.getFunctionPrefix() + function.getCode());
+        final byte[] payload = new byte[]{encodeBoolean(right), action.getCode(), encodedFunction};
+        return new SoundcorePacket((short) 0x810d, payload).encode();
     }
 
     private void decodeAncAudioMode(final byte[] payload) {
