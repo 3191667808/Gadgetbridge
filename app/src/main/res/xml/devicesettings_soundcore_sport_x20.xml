@@ -59,6 +59,11 @@
             android:layout="@layout/preference_checkbox"
             android:summary="@string/pref_touch_tone_summary"
             android:title="@string/pref_touch_tone" />
+
+        <Preference
+            android:key="pref_soundcore_enable_pairing_mode"
+            android:summary="@string/soundcore_enable_pairing_mode_summary"
+            android:title="@string/bluetooth_multipoint_pair_new" />
     </PreferenceCategory>
 
 </androidx.preference.PreferenceScreen>
