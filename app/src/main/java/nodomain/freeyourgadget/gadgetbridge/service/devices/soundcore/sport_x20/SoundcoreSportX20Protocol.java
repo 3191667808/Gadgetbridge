@@ -34,8 +34,16 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
 
     private static final String PRESET_CHANNEL_SEPARATOR = "00";
     private static final String PRESET_SUFFIX = "0000";
+    private static final String PRESET_COMMON_REPEATED_BLOCK = "9fa18a998a8077643c3c";
+    private static final String PRESET_COMMON_PREFIX = "00000200";
+    private static final String PRESET_COMMON_MIDDLE = "69d64e6a00";
     private static final String PRESET_COMMON_SECTION =
-        "000002009fa18a998a8077643c3c9fa18a998a8077643c3c69d64e6a009fa18a998a8077643c3c9fa18a998a8077643c3c";
+        PRESET_COMMON_PREFIX
+            + PRESET_COMMON_REPEATED_BLOCK
+            + PRESET_COMMON_REPEATED_BLOCK
+            + PRESET_COMMON_MIDDLE
+            + PRESET_COMMON_REPEATED_BLOCK
+            + PRESET_COMMON_REPEATED_BLOCK;
 
     private static final Map<Integer, byte[]> EQ_PRESET_PAYLOADS = buildPresetPayloads();
 
