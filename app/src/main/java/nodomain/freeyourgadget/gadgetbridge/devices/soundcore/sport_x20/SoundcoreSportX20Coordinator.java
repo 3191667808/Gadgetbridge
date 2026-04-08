@@ -46,6 +46,11 @@ public class SoundcoreSportX20Coordinator extends AbstractBLClassicDeviceCoordin
     }
 
     @Override
+    public boolean supportsFindDevice(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public BatteryConfig[] getBatteryConfig(final GBDevice device) {
         final BatteryConfig battery1 = new BatteryConfig(0, R.drawable.ic_buds_pro_case, R.string.battery_case);
         final BatteryConfig battery2 = new BatteryConfig(1, R.drawable.ic_nothing_ear_l, R.string.left_earbud);

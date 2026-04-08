@@ -67,6 +67,14 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
         }
     }
 
+    @Override
+    public byte[] encodeFindDevice(final boolean start) {
+        final boolean findLeft = start;
+        final boolean findRight = start;
+        final byte[] payload = new byte[]{encodeBoolean(findLeft), encodeBoolean(findRight), 0x00};
+        return new SoundcorePacket((short) 0x8910, payload).encode();
+    }
+
     private byte[] encodeControlFunctionMessage(final TapAction action, final boolean right, final TapFunction function) {
         final byte functionByte;
         switch (action) {
