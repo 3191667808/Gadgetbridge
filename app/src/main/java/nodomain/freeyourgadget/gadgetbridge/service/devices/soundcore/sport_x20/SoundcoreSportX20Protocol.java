@@ -62,6 +62,10 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
                 prefString = prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT, "AMBIENT_SOUND_CONTROL");
                 return encodeControlFunctionMessage(TapAction.LONG_PRESS, true, TapFunction.valueOf(prefString));
 
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF:
+                final int duration = Integer.parseInt(prefs.getString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF, "3"));
+                return encodeAutoPowerOff(duration);
+
             default:
                 return super.encodeSendConfiguration(config);
         }
@@ -93,6 +97,25 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
 
         final byte[] payload = new byte[]{encodeBoolean(right), action.getCode(), functionByte};
         return new SoundcorePacket((short) 0x8104, payload).encode();
+    }
+
+    /**
+     * 0: No Auto Power off
+     * 1: Auto Power off 10 min
+     * 2: Auto Power off 20 min
+     * 3: Auto Power off 30 min
+     * 4: Auto Power off 60 min
+     */
+    private byte[] encodeAutoPowerOff(final int duration) {
+        final byte[] payload;
+
+        if (duration > 0) {
+            payload = new byte[]{(byte) 0x01, (byte) (duration - 1)};
+        } else {
+            payload = new byte[]{(byte) 0x00, (byte) 0x03};
+        }
+
+        return new SoundcorePacket((short) 0x8601, payload).encode();
     }
 
     private void decodeAncAudioMode(final byte[] payload) {
