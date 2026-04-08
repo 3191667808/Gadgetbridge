@@ -70,6 +70,10 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
                 final boolean pressAlert = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE, false);
                 return new SoundcorePacket((short) 0x8301, new byte[]{encodeBoolean(pressAlert)}).encode();
 
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND:
+                final boolean surround3d = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND, false);
+                return new SoundcorePacket((short) 0x8602, new byte[]{encodeBoolean(surround3d)}).encode();
+
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ENABLE_PAIRING_MODE:
                 return new SoundcorePacket((short) 0x850b, new byte[]{0x00, (byte) 0x90}).encode();
 

@@ -3495,6 +3495,8 @@
     <string name="soundcore_ldac_mode_summary">Enabling LDAC will decrease the battery life and might lead to connection instability</string>
     <string name="soundcore_auto_power_off_title">Auto Power Off</string>
     <string name="soundcore_auto_power_off_summary">When disconnectiong from the phone, the device will power off after the specified timeout</string>
+    <string name="soundcore_3d_surround_title">3D Surround Sound</string>
+    <string name="soundcore_3d_surround_summary">Enable 3D surrounding sound</string>
     <string name="soundcore_enable_pairing_mode_summary">Enable discovery/pairing mode to connect a new device</string>
     <string name="soundcore_battery_low_tone_title">Low Battery Tone</string>
     <string name="soundcore_battery_low_tone_summary">Hear the prompt tone when the battery level is below 20% and 10%</string>
