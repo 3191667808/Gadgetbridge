@@ -66,13 +66,14 @@ public class NotificationProvider {
      * 1 second is a reasonable compromise - the watch vibrates and shows the
      * notification, and we free the slot before the buffer fills.
      */
-    private static final long DISPLAY_DELAY_MS = 3000;
+    private static final long DISPLAY_DELAY_MS = 10000;
 
     /**
      * Delay after sending NOTIFICATION_REMOVED before sending the next notification.
      * The watch needs time to process the removal and free its internal buffer slot.
+     * 1 second gives the watch plenty of time to fully process the removal.
      */
-    private static final long REMOVED_SETTLE_MS = 300;
+    private static final long REMOVED_SETTLE_MS = 1000;
 
     private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
 
@@ -80,6 +81,12 @@ public class NotificationProvider {
     private static final Object TIMEOUT_TOKEN = new Object();
     /** Token for display delay and settle delay callbacks. */
     private static final Object DELAY_TOKEN = new Object();
+    /**
+     * Sentinel value for inFlightNotificationUID when we're in the cooling-down
+     * phase (display delay -> REMOVED -> settle delay) between notifications.
+     * Any new notifications arriving during this phase are queued.
+     */
+    private static final int COOLING_DOWN_UID = Integer.MIN_VALUE;
 
     public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
@@ -102,8 +109,8 @@ public class NotificationProvider {
 
         synchronized (state.sendQueue) {
             if (state.inFlightNotificationUID != null) {
-                // A notification is currently being processed by the watch.
-                // Queue this one to be sent after the current one completes.
+                // A notification is currently being processed by the watch
+                // (or we're in the cooling-down phase). Queue this one.
                 logger.info("Withings notifyClient QUEUED id={}, source={}, type={}, queueSize={}, inFlightUID={}",
                         spec.getId(),
                         spec.sourceAppId,
@@ -118,24 +125,7 @@ public class NotificationProvider {
                         spec.sourceAppId,
                         spec.type,
                         state.pendingNotifications.size());
-                // If there's a deferred NOTIFICATION_REMOVED, send it first with settle delay
-                if (state.lastCompletedNotificationUID != null) {
-                    final int removedUID = state.lastCompletedNotificationUID;
-                    state.lastCompletedNotificationUID = null;
-                    logger.info("Sending deferred NOTIFICATION_REMOVED for UID={} before new notification", removedUID);
-                    sendNotificationRemoved(removedUID);
-                    // Queue the new notification and send after settle delay
-                    state.sendQueue.addLast(notificationSource);
-                    timeoutHandler.postDelayed(() -> {
-                        synchronized (state.sendQueue) {
-                            if (state.inFlightNotificationUID == null) {
-                                sendNextQueued(state);
-                            }
-                        }
-                    }, REMOVED_SETTLE_MS);
-                } else {
-                    sendNotificationSourceNow(state, notificationSource);
-                }
+                sendNotificationSourceNow(state, notificationSource);
             }
         }
     }
@@ -205,13 +195,7 @@ public class NotificationProvider {
             state.recentlyCompletedNotifications.remove(notificationUID);
         }
 
-        // If we already sent NOTIFICATION_REMOVED via the line above, clear the
-        // deferred removal so we don't send a duplicate later.
         synchronized (state.sendQueue) {
-            if (state.lastCompletedNotificationUID != null && state.lastCompletedNotificationUID == notificationUID) {
-                state.lastCompletedNotificationUID = null;
-            }
-
             // If the deleted notification was in-flight, release the queue
             if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == notificationUID) {
                 logger.info("Withings in-flight notification UID={} was deleted, releasing queue", notificationUID);
@@ -219,6 +203,12 @@ public class NotificationProvider {
                 timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
                 timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
                 sendNextQueued(state);
+            }
+            // If we're in the cooling-down phase and the queue needs to move along
+            // (e.g. user dismissed all notifications), reset the gate
+            if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == COOLING_DOWN_UID && state.sendQueue.isEmpty()) {
+                state.inFlightNotificationUID = null;
+                timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
             }
         }
     }
@@ -333,30 +323,31 @@ public class NotificationProvider {
                 if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == completedUID) {
                     logger.info("Withings in-flight notification UID={} completed, releasing queue (queueSize={})",
                             completedUID, state.sendQueue.size());
-                    state.inFlightNotificationUID = null;
                     timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
-                    if (!state.sendQueue.isEmpty()) {
-                        // Cancel any pending delay callbacks from previous cycle
-                        timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
-                        // Step 1: Wait for the notification to be displayed
-                        timeoutHandler.postAtTime(() -> {
-                            // Step 2: Send NOTIFICATION_REMOVED to free the buffer slot
-                            logger.info("Sending NOTIFICATION_REMOVED for completed UID={} (after display delay)", completedUID);
-                            sendNotificationRemoved(completedUID);
+                    // Keep the gate closed so new arrivals are queued during the delay
+                    state.inFlightNotificationUID = COOLING_DOWN_UID;
+                    // Cancel any pending delay callbacks from previous cycle
+                    timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
+                    // Step 1: Wait for the notification to be displayed
+                    timeoutHandler.postAtTime(() -> {
+                        // Step 2: Send NOTIFICATION_REMOVED to free the buffer slot.
+                        // This is critical: the watch has a limited notification buffer
+                        // (~7-8 slots). We ALWAYS send REMOVED after the display delay,
+                        // even when the queue is empty, to prevent buffer accumulation.
+                        logger.info("Sending NOTIFICATION_REMOVED for completed UID={} (after display delay)", completedUID);
+                        sendNotificationRemoved(completedUID);
 
-                            // Step 3: Wait for the watch to process the removal, then send next
-                            timeoutHandler.postAtTime(() -> {
-                                synchronized (state.sendQueue) {
-                                    if (state.inFlightNotificationUID == null) {
-                                        sendNextQueued(state);
-                                    }
+                        // Step 3: Wait for the watch to process the removal, then send next
+                        timeoutHandler.postAtTime(() -> {
+                            synchronized (state.sendQueue) {
+                                if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == COOLING_DOWN_UID) {
+                                    state.inFlightNotificationUID = null;
+                                    // Send next queued notification if any arrived during the delay
+                                    sendNextQueued(state);
                                 }
-                            }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + REMOVED_SETTLE_MS);
-                        }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + DISPLAY_DELAY_MS);
-                    } else {
-                        // No queue - defer REMOVED until next notification arrives or user dismisses
-                        state.lastCompletedNotificationUID = completedUID;
-                    }
+                            }
+                        }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + REMOVED_SETTLE_MS);
+                    }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + DISPLAY_DELAY_MS);
                 }
             }
         }
@@ -505,15 +496,13 @@ public class NotificationProvider {
         /**
          * The notification UID currently being processed by the watch, or null if
          * the watch is idle and ready for the next notification.
+         *
+         * This also acts as a gate during the display-delay -> REMOVED -> settle
+         * cycle: we keep it set to COOLING_DOWN_UID while waiting, so new incoming
+         * notifications are queued rather than sent immediately (which would
+         * overwhelm the watch's single-slot ANCS state machine).
          */
         private Integer inFlightNotificationUID = null;
-
-        /**
-         * The last notification UID that completed the full attribute fetch cycle.
-         * We defer sending NOTIFICATION_REMOVED until just before the next notification
-         * is sent, so the watch has time to display the completed notification.
-         */
-        private Integer lastCompletedNotificationUID = null;
     }
     
 }

@@ -16,6 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.conversation;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +33,8 @@ public class ConversationQueue implements ConversationObserver
     private static final Logger logger = LoggerFactory.getLogger(ConversationQueue.class);
     private static final long CONVERSATION_TIMEOUT_MS = 15_000; // 15 seconds
     private final LinkedList<Conversation> queue = new LinkedList<>();
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
+    private final Runnable timeoutRunnable = this::onConversationTimeout;
     private WithingsBaseDeviceSupport support;
     private Conversation activeConversation;
     private long activeConversationStartTime;
@@ -48,12 +53,27 @@ public class ConversationQueue implements ConversationObserver
         } else {
             queue.remove(getConversation(conversationType));
         }
+        cancelTimeout();
         send();
     }
 
     public synchronized void clear() {
         queue.clear();
         activeConversation = null;
+        cancelTimeout();
+    }
+
+    private void scheduleTimeout() {
+        cancelTimeout();
+        timeoutHandler.postDelayed(timeoutRunnable, CONVERSATION_TIMEOUT_MS + 500);
+    }
+
+    private void cancelTimeout() {
+        timeoutHandler.removeCallbacks(timeoutRunnable);
+    }
+
+    private void onConversationTimeout() {
+        send(); // send() already checks elapsed time and force-completes stale conversations
     }
 
     public synchronized void send() {
@@ -76,6 +96,7 @@ public class ConversationQueue implements ConversationObserver
                     activeRequest != null ? Integer.toHexString(activeRequest.getType() & 0xffff) : "?");
             queue.remove(activeConversation);
             activeConversation = null;
+            cancelTimeout();
         }
 
         if (!queue.isEmpty()) {
@@ -85,6 +106,7 @@ public class ConversationQueue implements ConversationObserver
                 activeConversationStartTime = System.currentTimeMillis();
                 logger.debug("Sending next queued message type={} (0x{})", nextInLine.getRequest().getType(), Integer.toHexString(nextInLine.getRequest().getType() & 0xffff));
                 Message request = nextInLine.getRequest();
+                scheduleTimeout();
                 support.sendToDevice(request);
             }
         } else {
@@ -168,6 +190,11 @@ public class ConversationQueue implements ConversationObserver
 
         if (conversation != null) {
             logger.debug("processResponse: matched conversation for type={}", response.getType());
+            if (conversation == activeConversation) {
+                // Reset timeout -- the watch is still responding to this conversation
+                activeConversationStartTime = System.currentTimeMillis();
+                scheduleTimeout();
+            }
             conversation.handleResponse(response);
         } else {
             logger.warn("processResponse: no conversation found for type={} (0x{}) -- message dropped!", response.getType(), Integer.toHexString(response.getType() & 0xffff));
