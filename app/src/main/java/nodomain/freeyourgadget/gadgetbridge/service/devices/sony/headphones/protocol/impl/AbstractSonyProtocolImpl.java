@@ -27,6 +27,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.Ambien
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonFunctionNcAmbient;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerCustomBands;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerPreset;
@@ -89,6 +90,8 @@ public abstract class AbstractSonyProtocolImpl {
 
     public abstract Request setAudioLDAC(final AudioLDAC config);
 
+    public abstract Request setButtonFunctionNcAmbient(final ButtonFunctionNcAmbient config);
+
     public abstract Request setAudioUpsampling(final AudioUpsampling config);
 
     public abstract Request getAutomaticPowerOff();
@@ -140,6 +143,8 @@ public abstract class AbstractSonyProtocolImpl {
     public abstract Request startNoiseCancellingOptimizer(final boolean start);
 
     public abstract Request powerOff();
+
+    public abstract Request reboot();
 
     public abstract Request getVolume();
 

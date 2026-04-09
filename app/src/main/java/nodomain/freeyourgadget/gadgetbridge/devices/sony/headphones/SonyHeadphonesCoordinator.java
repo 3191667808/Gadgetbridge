@@ -163,6 +163,7 @@ public abstract class SonyHeadphonesCoordinator extends AbstractBLClassicDeviceC
             put(SonyHeadphonesCapabilities.ButtonModesLeftRight, R.xml.devicesettings_sony_headphones_button_modes_left_right);
             put(SonyHeadphonesCapabilities.AmbientSoundControlButtonMode, R.xml.devicesettings_sony_headphones_ambient_sound_control_button_modes);
             put(SonyHeadphonesCapabilities.QuickAccess, R.xml.devicesettings_sony_headphones_quick_access);
+            put(SonyHeadphonesCapabilities.ButtonFunctionNcAmbient, R.xml.devicesettings_sony_headphones_button_function_nc_ambient);
             put(SonyHeadphonesCapabilities.TouchSensorSingle, R.xml.devicesettings_sony_headphones_touch_sensor_single);
             put(SonyHeadphonesCapabilities.PauseWhenTakenOff, R.xml.devicesettings_sony_headphones_pause_when_taken_off);
             put(SonyHeadphonesCapabilities.AutomaticPowerOffWhenTakenOff, R.xml.devicesettings_automatic_power_off_when_taken_off);

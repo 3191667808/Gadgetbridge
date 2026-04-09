@@ -36,6 +36,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.Ambien
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonFunctionNcAmbient;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerCustomBands;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerPreset;
@@ -236,6 +237,32 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
                 }
         );
     }
+
+        @Override
+        public Request setButtonFunctionNcAmbient(final ButtonFunctionNcAmbient config) {
+        return new Request(
+            PayloadTypeV1.TOUCH_SENSOR_SET.getMessageType(),
+            new byte[]{
+                PayloadTypeV1.TOUCH_SENSOR_SET.getCode(),
+                (byte) 0xd1,
+                (byte) 0x02,
+                config.getMode().getCode()
+            }
+        );
+        }
+
+        @Override
+        public Request reboot() {
+        return new Request(
+            MessageType.COMMAND_1,
+            new byte[]{
+                (byte) 0x98,
+                (byte) 0x01,
+                (byte) 0x02,
+                (byte) 0x01
+            }
+        );
+        }
 
     @Override
     public Request setAudioUpsampling(final AudioUpsampling config) {

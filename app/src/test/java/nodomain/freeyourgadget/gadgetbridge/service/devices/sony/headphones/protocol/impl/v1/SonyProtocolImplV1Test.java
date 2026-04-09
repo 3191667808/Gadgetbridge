@@ -37,6 +37,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.Ambien
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonFunctionNcAmbient;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerCustomBands;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerPreset;
@@ -228,6 +229,21 @@ public class SonyProtocolImplV1Test {
             put(new AudioLDAC(false), "e8:01:00:01");
             put(new AudioLDAC(true), "e8:01:00:00");
         }});
+    }
+
+    @Test
+    public void setButtonFunctionNcAmbient() {
+        assertRequests(protocol::setButtonFunctionNcAmbient, new LinkedHashMap<ButtonFunctionNcAmbient, String>() {{
+            put(new ButtonFunctionNcAmbient(ButtonFunctionNcAmbient.Mode.SWITCH_AMBIENT_SOUND), "d8:d1:02:00");
+            put(new ButtonFunctionNcAmbient(ButtonFunctionNcAmbient.Mode.GOOGLE_ASSISTANT), "d8:d1:02:01");
+            put(new ButtonFunctionNcAmbient(ButtonFunctionNcAmbient.Mode.ALEXA_ASSISTANT), "d8:d1:02:02");
+        }});
+    }
+
+    @Test
+    public void reboot() {
+        final Request request = protocol.reboot();
+        assertRequest(request, 0x0c, "98:01:02:01");
     }
 
     @Test

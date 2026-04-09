@@ -32,6 +32,7 @@ public enum SonyHeadphonesCapabilities {
     BatteryDual2,
     BatterySingle,
     ButtonModesLeftRight,
+    ButtonFunctionNcAmbient,
     EqualizerSimple,
     EqualizerWithCustomBands,
     NoNoiseCancelling,
