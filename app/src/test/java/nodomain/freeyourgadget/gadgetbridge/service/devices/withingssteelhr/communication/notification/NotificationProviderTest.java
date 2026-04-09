@@ -63,7 +63,7 @@ public class NotificationProviderTest extends TestBase {
     @Test
     public void testIncomingCallsUseDialerAppId() {
         NotificationSpec spec = new NotificationSpec();
-        spec.sourceAppId = "org.fossify.phone";
+        spec.sourceAppId = "com.android.dialer";
         spec.type = NotificationType.GENERIC_PHONE;
 
         assertEquals("dialerApp-ringing", NotificationProvider.getWithingsSourceAppId(spec));

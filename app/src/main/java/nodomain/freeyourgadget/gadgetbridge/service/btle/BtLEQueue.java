@@ -137,6 +137,10 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("execute server: {}", action);
                             }
+                            // Create latch BEFORE running the action, because the
+                            // callback (e.g. onNotificationSent) may fire immediately
+                            // on the same thread or a different one.
+                            mWaitForServerActionResultLatch = new CountDownLatch(1);
                             if (action.run(mBluetoothGattServer)) {
                                 // check again, maybe due to some condition, action did not need to write, so we can't wait
                                 boolean waitForResult = action.expectsResult();
@@ -149,6 +153,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                                 }
                             } else {
                                 LOG.error("Server action returned false: {}", action);
+                                mWaitForServerActionResultLatch = null;
                                 break; // abort the transaction
                             }
                         }
@@ -327,7 +332,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         LOG.info("Attempting to connect to {}", mGbDevice.getName());
 
         mGattConnectTimeoutHandler.postDelayed(() -> {
-            LOG.warn("Timed out connecting to GATT for {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
+            LOG.warn("Timed out connecting to GATT for {}", mGbDevice.getName());
             handleDisconnected(0x93 /* BluetoothGatt.GATT_CONNECTION_TIMEOUT */);
         }, 5000L);
 
@@ -396,13 +401,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
     }
 
     private void handleDisconnected(int status) {
-        LOG.warn("handleDisconnected: device={} ({}) status={} state={} autoReconnect={} scanReconnect={}",
-                mGbDevice.getName(),
-                mGbDevice.getAddress(),
-                BleNamesResolver.getStatusString(status),
-                mGbDevice.getState(),
-                mDeviceSupport.getAutoReconnect(),
-                mDeviceSupport.getScanReconnect());
+        LOG.debug("handleDisconnected: {}", BleNamesResolver.getStatusString(status));
         internalGattCallback.Delegate.reset();
         mTransactions.clear();
         mPauseTransaction = false;
@@ -638,7 +637,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
 
             switch (newState) {
                 case BluetoothProfile.STATE_CONNECTED:
-                    LOG.info("Connected to GATT server: {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
+                    LOG.info("Connected to GATT server.");
                     mGattConnectTimeoutHandler.removeCallbacksAndMessages(null);
                     setDeviceConnectionState(State.CONNECTED);
 
@@ -663,13 +662,13 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                     }, delayMillis);
                     break;
                 case BluetoothProfile.STATE_DISCONNECTED:
-                    LOG.info("Disconnected from GATT server: {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
+                    LOG.info("Disconnected from GATT server.");
                     synchronized (mGattMonitor) {
                         handleDisconnected(status);
                     }
                     break;
                 case BluetoothProfile.STATE_CONNECTING:
-                    LOG.info("Connecting to GATT server: {} ({})", mGbDevice.getName(), mGbDevice.getAddress());
+                    LOG.info("Connecting to GATT server...");
                     setDeviceConnectionState(State.CONNECTING);
                     break;
             }
@@ -1141,6 +1140,10 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         public void onNotificationSent(BluetoothDevice device, int status) {
             LOG.debug("server.onNotificationSent {}",
                     BleNamesResolver.getStatusString(status));
+            final CountDownLatch latch = mWaitForServerActionResultLatch;
+            if (latch != null) {
+                latch.countDown();
+            }
         }
 
         @Override

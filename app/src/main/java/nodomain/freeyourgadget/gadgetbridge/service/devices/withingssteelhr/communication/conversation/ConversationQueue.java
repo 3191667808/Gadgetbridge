@@ -28,9 +28,11 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 public class ConversationQueue implements ConversationObserver
 {
     private static final Logger logger = LoggerFactory.getLogger(ConversationQueue.class);
+    private static final long CONVERSATION_TIMEOUT_MS = 15_000; // 15 seconds
     private final LinkedList<Conversation> queue = new LinkedList<>();
     private WithingsBaseDeviceSupport support;
     private Conversation activeConversation;
+    private long activeConversationStartTime;
 
     public ConversationQueue(WithingsBaseDeviceSupport support) {
         this.support = support;
@@ -57,18 +59,30 @@ public class ConversationQueue implements ConversationObserver
     public synchronized void send() {
         logger.debug("Sending of queued messages has been requested.");
         if (activeConversation != null && !activeConversation.isComplete()) {
-            final Message activeRequest = activeConversation.getRequest();
-            if (activeRequest != null) {
-                logger.debug("A conversation is already active: type={} (0x{})",
-                        activeRequest.getType(), Integer.toHexString(activeRequest.getType() & 0xffff));
+            long elapsed = System.currentTimeMillis() - activeConversationStartTime;
+            if (elapsed < CONVERSATION_TIMEOUT_MS) {
+                final Message activeRequest = activeConversation.getRequest();
+                if (activeRequest != null) {
+                    logger.debug("A conversation is already active: type={} (0x{}) -- elapsed {}ms",
+                            activeRequest.getType(), Integer.toHexString(activeRequest.getType() & 0xffff), elapsed);
+                }
+                return;
             }
-            return;
+            // Timeout expired -- force-complete the stuck conversation
+            final Message activeRequest = activeConversation.getRequest();
+            logger.warn("Active conversation timed out after {}ms: type={} (0x{}) -- forcing completion",
+                    elapsed,
+                    activeRequest != null ? activeRequest.getType() : -1,
+                    activeRequest != null ? Integer.toHexString(activeRequest.getType() & 0xffff) : "?");
+            queue.remove(activeConversation);
+            activeConversation = null;
         }
 
         if (!queue.isEmpty()) {
             Conversation nextInLine = queue.peek();
             if (nextInLine!= null) {
                 activeConversation = nextInLine;
+                activeConversationStartTime = System.currentTimeMillis();
                 logger.debug("Sending next queued message type={} (0x{})", nextInLine.getRequest().getType(), Integer.toHexString(nextInLine.getRequest().getType() & 0xffff));
                 Message request = nextInLine.getRequest();
                 support.sendToDevice(request);

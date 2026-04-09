@@ -28,6 +28,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.telecom.TelecomManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
@@ -479,7 +480,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public void onSetCallState(CallSpec callSpec) {
         if (callSpec.command == CallSpec.CALL_INCOMING) {
             NotificationSpec notificationSpec = new NotificationSpec();
-            notificationSpec.sourceAppId = callSpec.sourceAppId != null ? callSpec.sourceAppId : "org.fossify.phone";
+            notificationSpec.sourceAppId = callSpec.sourceAppId != null ? callSpec.sourceAppId : getDefaultDialerPackage();
             notificationSpec.title = callSpec.number;
             notificationSpec.sender = callSpec.name;
             notificationSpec.type = NotificationType.GENERIC_PHONE;
@@ -487,6 +488,24 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         } else {
             logger.info("Received yet unhandled call command: " + callSpec.command);
         }
+    }
+
+    private String getDefaultDialerPackage() {
+        try {
+            Context context = getContext();
+            if (context != null) {
+                TelecomManager telecomManager = (TelecomManager) context.getSystemService(Context.TELECOM_SERVICE);
+                if (telecomManager != null) {
+                    String defaultDialer = telecomManager.getDefaultDialerPackage();
+                    if (defaultDialer != null && !defaultDialer.isEmpty()) {
+                        return defaultDialer;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Could not get default dialer package", e);
+        }
+        return "com.android.dialer";
     }
 
     @Override
@@ -711,6 +730,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 int length = Math.min(chunkSize, data.length - i);
                 byte[] chunk = new byte[length];
                 System.arraycopy(data, i, chunk, 0, length);
+                logger.info("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
                 builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
             }
             builder.queue(getQueue());

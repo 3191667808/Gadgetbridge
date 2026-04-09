@@ -16,9 +16,14 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +45,42 @@ public class NotificationProvider {
     private final WithingsBaseDeviceSupport support;
     private static final int RECENT_NOTIFICATION_CACHE_SIZE = 256;
 
+    /**
+     * Timeout in ms for a notification to complete the full ANCS attribute fetch cycle.
+     * If the watch doesn't make any progress within this time, we give up and send the
+     * next queued notification.
+     *
+     * The timeout is reset each time the watch makes progress (e.g. requests attr 0),
+     * so it only fires if the watch goes completely silent for this duration.
+     *
+     * After a BLE reconnect the watch can take 5+ seconds to respond, so 15 seconds
+     * gives plenty of margin while still recovering from truly stuck notifications.
+     */
+    private static final long NOTIFICATION_TIMEOUT_MS = 15000;
+
+    /**
+     * Delay after a notification completes before sending NOTIFICATION_REMOVED.
+     * This gives the watch time to display the notification to the user.
+     * Too short = notification disappears before user can read it.
+     * Too long = watch buffer fills up during rapid notification bursts.
+     * 1 second is a reasonable compromise - the watch vibrates and shows the
+     * notification, and we free the slot before the buffer fills.
+     */
+    private static final long DISPLAY_DELAY_MS = 3000;
+
+    /**
+     * Delay after sending NOTIFICATION_REMOVED before sending the next notification.
+     * The watch needs time to process the removal and free its internal buffer slot.
+     */
+    private static final long REMOVED_SETTLE_MS = 300;
+
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
+
+    /** Token for timeout callbacks (separate from display/settle delay callbacks). */
+    private static final Object TIMEOUT_TOKEN = new Object();
+    /** Token for display delay and settle delay callbacks. */
+    private static final Object DELAY_TOKEN = new Object();
+
     public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
@@ -50,13 +91,110 @@ public class NotificationProvider {
             state.latestNotificationByApp.put(normalizeSourceAppId(spec.sourceAppId), spec);
             state.latestNotificationByApp.put(normalizeSourceAppId(getWithingsSourceAppId(spec)), spec);
         }
+
         NotificationSource notificationSource = new NotificationSource(spec.getId(),
                                                                         AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
                                                                         AncsConstants.EVENT_FLAGS_IMPORTANT,
                                                                         mapNotificationType(spec.type),
                                                                         (byte)1);
+
         state.pendingNotifications.put(notificationSource.getNotificationUID(), spec);
+
+        synchronized (state.sendQueue) {
+            if (state.inFlightNotificationUID != null) {
+                // A notification is currently being processed by the watch.
+                // Queue this one to be sent after the current one completes.
+                logger.info("Withings notifyClient QUEUED id={}, source={}, type={}, queueSize={}, inFlightUID={}",
+                        spec.getId(),
+                        spec.sourceAppId,
+                        spec.type,
+                        state.sendQueue.size() + 1,
+                        state.inFlightNotificationUID);
+                state.sendQueue.addLast(notificationSource);
+            } else {
+                // No notification in flight, send immediately.
+                logger.info("Withings notifyClient SENDING id={}, source={}, type={}, pendingCount={}",
+                        spec.getId(),
+                        spec.sourceAppId,
+                        spec.type,
+                        state.pendingNotifications.size());
+                // If there's a deferred NOTIFICATION_REMOVED, send it first with settle delay
+                if (state.lastCompletedNotificationUID != null) {
+                    final int removedUID = state.lastCompletedNotificationUID;
+                    state.lastCompletedNotificationUID = null;
+                    logger.info("Sending deferred NOTIFICATION_REMOVED for UID={} before new notification", removedUID);
+                    sendNotificationRemoved(removedUID);
+                    // Queue the new notification and send after settle delay
+                    state.sendQueue.addLast(notificationSource);
+                    timeoutHandler.postDelayed(() -> {
+                        synchronized (state.sendQueue) {
+                            if (state.inFlightNotificationUID == null) {
+                                sendNextQueued(state);
+                            }
+                        }
+                    }, REMOVED_SETTLE_MS);
+                } else {
+                    sendNotificationSourceNow(state, notificationSource);
+                }
+            }
+        }
+    }
+
+    /**
+     * Actually send a NotificationSource to the watch and mark it as in-flight.
+     * Must be called while holding the sendQueue lock.
+     */
+    private void sendNotificationSourceNow(NotificationState state, NotificationSource notificationSource) {
+        state.inFlightNotificationUID = notificationSource.getNotificationUID();
         support.sendAncsNotificationSourceNotification(notificationSource);
+        scheduleTimeout(state, notificationSource.getNotificationUID());
+    }
+
+    /**
+     * Schedule a timeout for the in-flight notification. If the watch doesn't
+     * complete the attribute fetch cycle within NOTIFICATION_TIMEOUT_MS, we
+     * give up and send the next queued notification.
+     */
+    private void scheduleTimeout(final NotificationState state, final int notificationUID) {
+        // Cancel any previous timeout
+        timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
+
+        timeoutHandler.postAtTime(() -> {
+            synchronized (state.sendQueue) {
+                if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == notificationUID) {
+                    logger.warn("Withings notification timeout for UID={}, watch did not complete attribute fetch in {}ms. Sending REMOVED and moving on.",
+                            notificationUID, NOTIFICATION_TIMEOUT_MS);
+                    state.inFlightNotificationUID = null;
+                    // Clean up the timed-out notification from pending map to prevent unbounded growth
+                    state.pendingNotifications.remove(notificationUID);
+                    // Send NOTIFICATION_REMOVED for the timed-out notification to free
+                    // the watch's buffer slot
+                    sendNotificationRemoved(notificationUID);
+                    sendNextQueued(state);
+                }
+            }
+        }, TIMEOUT_TOKEN, android.os.SystemClock.uptimeMillis() + NOTIFICATION_TIMEOUT_MS);
+    }
+
+    /**
+     * Send the next notification from the queue, if any.
+     * Must be called while holding the sendQueue lock.
+     */
+    private void sendNextQueued(NotificationState state) {
+        while (!state.sendQueue.isEmpty()) {
+            NotificationSource next = state.sendQueue.pollFirst();
+            // Make sure the notification is still pending (not deleted in the meantime)
+            if (state.pendingNotifications.containsKey(next.getNotificationUID())) {
+                logger.info("Withings sending next queued notification UID={}, remainingQueue={}",
+                        next.getNotificationUID(), state.sendQueue.size());
+                sendNotificationSourceNow(state, next);
+                return;
+            } else {
+                logger.info("Withings skipping queued notification UID={} (already removed), remainingQueue={}",
+                        next.getNotificationUID(), state.sendQueue.size());
+            }
+        }
+        logger.debug("Withings notification queue empty, nothing more to send.");
     }
 
     public void onDeleteNotification(final int notificationUID) {
@@ -65,6 +203,23 @@ public class NotificationProvider {
         state.pendingNotifications.remove(notificationUID);
         synchronized (state.recentlyCompletedNotifications) {
             state.recentlyCompletedNotifications.remove(notificationUID);
+        }
+
+        // If we already sent NOTIFICATION_REMOVED via the line above, clear the
+        // deferred removal so we don't send a duplicate later.
+        synchronized (state.sendQueue) {
+            if (state.lastCompletedNotificationUID != null && state.lastCompletedNotificationUID == notificationUID) {
+                state.lastCompletedNotificationUID = null;
+            }
+
+            // If the deleted notification was in-flight, release the queue
+            if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == notificationUID) {
+                logger.info("Withings in-flight notification UID={} was deleted, releasing queue", notificationUID);
+                state.inFlightNotificationUID = null;
+                timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
+                timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
+                sendNextQueued(state);
+            }
         }
     }
 
@@ -93,6 +248,20 @@ public class NotificationProvider {
 
             sendNotificationRemoved(request.getNotificationUID());
             return;
+        }
+
+        logger.info("Handling notification attribute request id={}, attrs={}, pendingNow={}",
+                request.getNotificationUID(),
+                request.getAttributes().size(),
+                state.pendingNotifications.size());
+
+        // The watch is making progress on this notification. Reset the timeout so it
+        // doesn't fire between the attr-0 request and the attrs-1/2/3 request.
+        // After a BLE reconnect the watch can take 5+ seconds between attr-0 and attrs-1/2/3.
+        synchronized (state.sendQueue) {
+            if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == request.getNotificationUID()) {
+                scheduleTimeout(state, request.getNotificationUID());
+            }
         }
 
         GetNotificationAttributesResponse response = new GetNotificationAttributesResponse(request.getNotificationUID());
@@ -143,7 +312,52 @@ public class NotificationProvider {
         if (complete) {
             NotificationSpec completedSpec = state.pendingNotifications.remove(request.getNotificationUID());
             if (completedSpec != null) {
+                logger.info("Completed notification id={}, moving to recent cache, pendingAfter={}",
+                        request.getNotificationUID(),
+                        state.pendingNotifications.size());
                 cacheCompletedNotification(state, request.getNotificationUID(), completedSpec);
+            }
+
+            // This notification's attribute fetch is complete. Release the queue
+            // so the next notification can be sent to the watch.
+            //
+            // The watch has a limited notification buffer (~7-8 slots). We must send
+            // NOTIFICATION_REMOVED to free the slot, but not instantly (that kills
+            // the notification before the user can read it). Strategy:
+            //   1. Wait DISPLAY_DELAY_MS for the user to see the notification
+            //   2. Send NOTIFICATION_REMOVED to free the buffer slot
+            //   3. Wait REMOVED_SETTLE_MS for the watch to process the removal
+            //   4. Send the next queued notification
+            final int completedUID = request.getNotificationUID();
+            synchronized (state.sendQueue) {
+                if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == completedUID) {
+                    logger.info("Withings in-flight notification UID={} completed, releasing queue (queueSize={})",
+                            completedUID, state.sendQueue.size());
+                    state.inFlightNotificationUID = null;
+                    timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
+                    if (!state.sendQueue.isEmpty()) {
+                        // Cancel any pending delay callbacks from previous cycle
+                        timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
+                        // Step 1: Wait for the notification to be displayed
+                        timeoutHandler.postAtTime(() -> {
+                            // Step 2: Send NOTIFICATION_REMOVED to free the buffer slot
+                            logger.info("Sending NOTIFICATION_REMOVED for completed UID={} (after display delay)", completedUID);
+                            sendNotificationRemoved(completedUID);
+
+                            // Step 3: Wait for the watch to process the removal, then send next
+                            timeoutHandler.postAtTime(() -> {
+                                synchronized (state.sendQueue) {
+                                    if (state.inFlightNotificationUID == null) {
+                                        sendNextQueued(state);
+                                    }
+                                }
+                            }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + REMOVED_SETTLE_MS);
+                        }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + DISPLAY_DELAY_MS);
+                    } else {
+                        // No queue - defer REMOVED until next notification arrives or user dismisses
+                        state.lastCompletedNotificationUID = completedUID;
+                    }
+                }
             }
         }
     }
@@ -278,6 +492,28 @@ public class NotificationProvider {
         private final Map<Integer, NotificationSpec> pendingNotifications = new ConcurrentHashMap<>();
         private final Map<String, NotificationSpec> latestNotificationByApp = new ConcurrentHashMap<>();
         private final LinkedHashMap<Integer, NotificationSpec> recentlyCompletedNotifications = new LinkedHashMap<>(RECENT_NOTIFICATION_CACHE_SIZE + 1, 0.75f, true);
+
+        /**
+         * Queue of NotificationSource objects waiting to be sent to the watch.
+         * The watch's ANCS state machine can only handle one notification at a time:
+         * it must complete the full attribute fetch cycle (request attr 0, then attrs 1-3)
+         * before it can accept the next NotificationSource. Sending a new NotificationSource
+         * while the watch is mid-cycle causes its state machine to stall completely.
+         */
+        private final Deque<NotificationSource> sendQueue = new ArrayDeque<>();
+
+        /**
+         * The notification UID currently being processed by the watch, or null if
+         * the watch is idle and ready for the next notification.
+         */
+        private Integer inFlightNotificationUID = null;
+
+        /**
+         * The last notification UID that completed the full attribute fetch cycle.
+         * We defer sending NOTIFICATION_REMOVED until just before the next notification
+         * is sent, so the watch has time to display the completed notification.
+         */
+        private Integer lastCompletedNotificationUID = null;
     }
     
 }

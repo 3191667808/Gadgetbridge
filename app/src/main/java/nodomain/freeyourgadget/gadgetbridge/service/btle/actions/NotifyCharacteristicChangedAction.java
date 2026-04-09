@@ -48,7 +48,12 @@ public class NotifyCharacteristicChangedAction extends BtLEServerAction {
 
     @Override
     public boolean expectsResult() {
-        return false;
+        // We MUST wait for the onNotificationSent callback before sending the next
+        // notification. The Android BLE documentation states: "The application should
+        // wait for onNotificationSent before sending more notifications."
+        // Failing to do so causes the BLE stack to overflow and silently drop
+        // notifications, which makes the watch's ANCS state machine stall.
+        return true;
     }
 
     @SuppressLint("MissingPermission")

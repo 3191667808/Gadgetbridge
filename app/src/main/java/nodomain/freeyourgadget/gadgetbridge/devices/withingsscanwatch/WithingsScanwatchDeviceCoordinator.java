@@ -216,6 +216,11 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     }
 
     @Override
+    public boolean supportsUnicodeEmojis(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.WATCH;
     }

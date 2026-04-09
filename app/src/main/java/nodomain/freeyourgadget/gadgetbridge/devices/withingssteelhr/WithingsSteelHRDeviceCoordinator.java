@@ -160,6 +160,11 @@ public class WithingsSteelHRDeviceCoordinator extends AbstractBLEDeviceCoordinat
     }
 
     @Override
+    public boolean supportsUnicodeEmojis(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceKind.WATCH;
     }

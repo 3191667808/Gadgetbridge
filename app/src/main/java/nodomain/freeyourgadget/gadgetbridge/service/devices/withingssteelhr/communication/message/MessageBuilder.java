@@ -41,9 +41,18 @@ public class MessageBuilder {
     }
 
     public synchronized boolean buildMessage(byte[] rawData) {
-        if (pendingMessage == null && rawData[0] == 0x01) {
+        if (rawData == null || rawData.length == 0) {
+            return false;
+        }
+
+        if (rawData[0] == 0x01) {
+            if (pendingMessage != null) {
+                logger.warn("New message header (0x01) received while a previous message was still pending -- discarding stale partial message ({} bytes accumulated)",
+                        pendingMessage.size());
+            }
             pendingMessage = new ByteArrayOutputStream();
         } else if (pendingMessage == null) {
+            logger.warn("Received continuation fragment without a pending message header -- discarding {} bytes", rawData.length);
             return false;
         }
 
