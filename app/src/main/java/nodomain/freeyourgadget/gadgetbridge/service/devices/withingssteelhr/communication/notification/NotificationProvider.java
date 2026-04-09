@@ -34,6 +34,7 @@ public class NotificationProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
     private static final Pattern WITHINGS_SOURCE_APP_SUFFIX = Pattern.compile("-(msg|ringing|missed)$", Pattern.CASE_INSENSITIVE);
+    private static final String WITHINGS_DIALER_APP_ID = "dialerApp";
     private static final String UNKNOWN_DEVICE_KEY = "unknown-withings-device";
     private static final Map<String, NotificationState> NOTIFICATION_STATES = new ConcurrentHashMap<>();
     private final WithingsBaseDeviceSupport support;
@@ -47,6 +48,7 @@ public class NotificationProvider {
         final NotificationState state = getState();
         if (spec.sourceAppId != null) {
             state.latestNotificationByApp.put(normalizeSourceAppId(spec.sourceAppId), spec);
+            state.latestNotificationByApp.put(normalizeSourceAppId(getWithingsSourceAppId(spec)), spec);
         }
         NotificationSource notificationSource = new NotificationSource(spec.getId(),
                                                                         AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
@@ -106,13 +108,7 @@ public class NotificationProvider {
             logger.debug("Handling attribute " + attribute.getAttributeID() + " with maxLength " + attribute.getAttributeLength());
             String value = "";
             if (requestedAttribute.getAttributeID() == 0) {
-                if (spec.type == NotificationType.GENERIC_PHONE) {
-                    value = spec.sourceAppId + "-ringing";
-                } else if (spec.type == NotificationType.MAILBOX) {
-                    value = spec.sourceAppId + "-missed";
-                } else {
-                    value = spec.sourceAppId + "-msg";
-                }
+                value = getWithingsSourceAppId(spec);
             }
             if (requestedAttribute.getAttributeID() == 1) {
                 complete = true;
@@ -177,7 +173,7 @@ public class NotificationProvider {
         
         // First try finding it in pending notifications (if still active)
         for (NotificationSpec notificationSpec : state.pendingNotifications.values()) {
-            if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(normalizedSourceAppId)) {
+            if (matchesSourceAppId(notificationSpec, normalizedSourceAppId)) {
                 return notificationSpec;
             }
         }
@@ -202,6 +198,31 @@ public class NotificationProvider {
             return null;
         }
         return WITHINGS_SOURCE_APP_SUFFIX.matcher(sourceAppId).replaceFirst("");
+    }
+
+    static String getWithingsSourceAppId(final NotificationSpec spec) {
+        if (spec == null || spec.sourceAppId == null) {
+            return null;
+        }
+
+        if (WITHINGS_SOURCE_APP_SUFFIX.matcher(spec.sourceAppId).find()) {
+            return spec.sourceAppId;
+        }
+
+        if (spec.type == NotificationType.GENERIC_PHONE) {
+            return WITHINGS_DIALER_APP_ID + "-ringing";
+        }
+
+        return spec.sourceAppId;
+    }
+
+    private boolean matchesSourceAppId(final NotificationSpec notificationSpec, final String normalizedSourceAppId) {
+        if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(normalizedSourceAppId)) {
+            return true;
+        }
+
+        final String withingsSourceAppId = normalizeSourceAppId(getWithingsSourceAppId(notificationSpec));
+        return withingsSourceAppId != null && withingsSourceAppId.equalsIgnoreCase(normalizedSourceAppId);
     }
 
     private byte mapNotificationType(NotificationType type) {

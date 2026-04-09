@@ -32,9 +32,15 @@ public class IconHelper {
     }
 
     public static byte[] getIconBytesFromDrawable(Drawable drawable, int width, int height) {
-        Bitmap bitmap = BitmapUtil.toBitmap(drawable);
-        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true);
-        return toByteArray(scaledBitmap);
+        return getIconBytesFromBitmap(BitmapUtil.toBitmap(drawable), width, height, true);
+    }
+
+    public static byte[] getIconBytesFromBitmap(final Bitmap bitmap, final int width, final int height) {
+        return getIconBytesFromBitmap(bitmap, width, height, true);
+    }
+
+    public static byte[] getIconBytesFromBitmap(final Bitmap bitmap, final int width, final int height, final boolean cropTransparentBounds) {
+        return toByteArray(renderBitmap(bitmap, width, height, cropTransparentBounds));
     }
 
     public static List<byte[]> splitImageData(byte[] imageData, int maxChunkSize) {
@@ -72,11 +78,74 @@ public class IconHelper {
         return rawData;
     }
 
+    private static Bitmap renderBitmap(final Bitmap source, final int width, final int height, final boolean cropTransparentBounds) {
+        final Bitmap sourceBitmap = cropTransparentBounds ? cropTransparentBounds(source) : source;
+        final Bitmap renderedBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+        final int sourceWidth = Math.max(1, sourceBitmap.getWidth());
+        final int sourceHeight = Math.max(1, sourceBitmap.getHeight());
+        final float scale = Math.min((float) width / sourceWidth, (float) height / sourceHeight);
+        final int renderWidth = Math.max(1, Math.round(sourceWidth * scale));
+        final int renderHeight = Math.max(1, Math.round(sourceHeight * scale));
+        final int left = (width - renderWidth) / 2;
+        final int top = (height - renderHeight) / 2;
+
+        final Bitmap scaledBitmap;
+        if (sourceWidth == renderWidth && sourceHeight == renderHeight) {
+            scaledBitmap = sourceBitmap;
+        } else {
+            scaledBitmap = Bitmap.createScaledBitmap(sourceBitmap, renderWidth, renderHeight, true);
+        }
+
+        for (int y = 0; y < renderHeight; y++) {
+            for (int x = 0; x < renderWidth; x++) {
+                renderedBitmap.setPixel(left + x, top + y, scaledBitmap.getPixel(x, y));
+            }
+        }
+
+        return renderedBitmap;
+    }
+
+    private static Bitmap cropTransparentBounds(final Bitmap bitmap) {
+        int minX = bitmap.getWidth();
+        int minY = bitmap.getHeight();
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < bitmap.getHeight(); y++) {
+            for (int x = 0; x < bitmap.getWidth(); x++) {
+                if (Color.alpha(bitmap.getPixel(x, y)) == 0) {
+                    continue;
+                }
+
+                if (x < minX) {
+                    minX = x;
+                }
+                if (y < minY) {
+                    minY = y;
+                }
+                if (x > maxX) {
+                    maxX = x;
+                }
+                if (y > maxY) {
+                    maxY = y;
+                }
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return bitmap;
+        }
+
+        if (minX == 0 && minY == 0 && maxX == bitmap.getWidth() - 1 && maxY == bitmap.getHeight() - 1) {
+            return bitmap;
+        }
+
+        return Bitmap.createBitmap(bitmap, minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
     private static boolean shouldPixelbeAdded(int pixel) {
-        // Workout/source icons are often black on transparent. Luma-based thresholding
-        // drops black pixels and produces empty images. For Withings monochrome bitmaps,
-        // any visible (non-transparent) pixel should be set.
-        return Color.alpha(pixel) > 0;
+        return Color.alpha(pixel) >= 0x80;
     }
 
     private static byte setBit(byte bits, int position) {

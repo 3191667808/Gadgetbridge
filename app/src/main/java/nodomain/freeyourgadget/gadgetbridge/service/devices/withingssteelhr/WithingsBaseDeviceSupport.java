@@ -479,7 +479,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public void onSetCallState(CallSpec callSpec) {
         if (callSpec.command == CallSpec.CALL_INCOMING) {
             NotificationSpec notificationSpec = new NotificationSpec();
-            notificationSpec.sourceAppId = "incoming.call";
+            notificationSpec.sourceAppId = callSpec.sourceAppId != null ? callSpec.sourceAppId : "org.fossify.phone";
             notificationSpec.title = callSpec.number;
             notificationSpec.sender = callSpec.name;
             notificationSpec.type = NotificationType.GENERIC_PHONE;
@@ -659,6 +659,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 logger.info("Characteristic with UUID " + getWithingsUUIDs().WITHINGS_WRITE_CHARACTERISTIC_UUID + " not found.");
                 return;
             }
+
+            characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
 
             byte[] rawData = message.getRawData();
             builder.writeChunkedData(characteristic, rawData, getMTU() - 3);
@@ -882,7 +884,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private void enableNotifications() {
         // Enable ANCS bridge
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
-        
+
         // Register the TAG_NOTIFICATIONS feature tag
         WithingsMessage featureTagsMsg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         featureTagsMsg.addDataStructure(new FeatureTagsUserId(0));

@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
@@ -60,9 +61,15 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
 
             byte[] imageData = getImageData(appId.getAppId(), imageMetaData);
 
-            ImageData imageDataStructure = new ImageData();
-            imageDataStructure.setImageData(imageData);
-            reply.addDataStructure(imageDataStructure);
+            List<byte[]> imageChunks = IconHelper.splitImageData(imageData, 64);
+            for (int i = 0; i < imageChunks.size(); i++) {
+                ImageData imageDataStructure = new ImageData();
+                imageDataStructure.setImageData(imageChunks.get(i));
+                if (i == imageChunks.size() - 1) {
+                    imageDataStructure.setEndOfMessage(true);
+                }
+                reply.addDataStructure(imageDataStructure);
+            }
 
             logger.info("Sending reply to notification request: " + reply);
             support.sendToDevice(reply);
@@ -84,25 +91,30 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         if (imageData == null) {
             String packageName = sourceAppId;
             if (packageName != null) {
-                packageName = packageName.replace("-msg", "").replace("-ringing", "").replace("-missed", "").replace("-gb", "");
+                packageName = packageName.replace("-msg", "").replace("-ringing", "").replace("-missed", "");
             }
             
             NotificationSpec notificationSpec = support.getNotificationProvider().getNotificationSpecForSourceAppId(sourceAppId);
             if (notificationSpec != null && notificationSpec.sourceAppId != null) {
                 packageName = notificationSpec.sourceAppId;
             }
+
+            String iconPackageName = packageName;
+            if (notificationSpec != null && notificationSpec.iconPackageId != null) {
+                iconPackageName = notificationSpec.iconPackageId;
+            }
             
-            logger.info("Resolving icon for sourceAppId='{}', packageName='{}'", sourceAppId, packageName);
+            logger.info("Resolving icon for sourceAppId='{}', packageName='{}', iconPackageName='{}'", sourceAppId, packageName, iconPackageName);
             
             try {
                 Drawable icon = null;
                 if (notificationSpec != null && notificationSpec.iconId != 0) {
                     try {
-                        Context sourcePackageContext = support.getContext().createPackageContext(packageName, 0);
+                        Context sourcePackageContext = support.getContext().createPackageContext(iconPackageName, 0);
                         icon = sourcePackageContext.getResources().getDrawable(notificationSpec.iconId);
-                        logger.info("Loaded specific iconId={} from package {}", notificationSpec.iconId, packageName);
+                        logger.info("Loaded specific iconId={} from package {}", notificationSpec.iconId, iconPackageName);
                     } catch (Exception ex) {
-                        logger.warn("Failed to load specific iconId={} from package {}, falling back to app icon", notificationSpec.iconId, packageName);
+                        logger.warn("Failed to load specific iconId={} from package {}, falling back to app icon", notificationSpec.iconId, iconPackageName);
                     }
                 }
                 if (icon == null) {
@@ -141,4 +153,5 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         }
         return imageData;
     }
+
 }
