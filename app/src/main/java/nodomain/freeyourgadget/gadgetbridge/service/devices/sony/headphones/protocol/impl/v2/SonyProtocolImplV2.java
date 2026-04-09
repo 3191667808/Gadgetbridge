@@ -238,8 +238,8 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
         );
     }
 
-        @Override
-        public Request setButtonFunctionNcAmbient(final ButtonFunctionNcAmbient config) {
+    @Override
+    public Request setButtonFunctionNcAmbient(final ButtonFunctionNcAmbient config) {
         return new Request(
             PayloadTypeV1.TOUCH_SENSOR_SET.getMessageType(),
             new byte[]{
@@ -249,20 +249,20 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
                 config.getMode().getCode()
             }
         );
-        }
+    }
 
-        @Override
-        public Request reboot() {
+    @Override
+    public Request reboot() {
         return new Request(
             MessageType.COMMAND_1,
             new byte[]{
                 (byte) 0x98,
-                (byte) 0x01,
-                (byte) 0x02,
+                (byte) 0x00,
+                (byte) 0x16,
                 (byte) 0x01
             }
         );
-        }
+    }
 
     @Override
     public Request setAudioUpsampling(final AudioUpsampling config) {
