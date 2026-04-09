@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphon
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControlButtonMode;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
@@ -218,6 +219,14 @@ public class SonyProtocolImplV1Test {
         assertRequests(protocol::setAudioUpsampling, new LinkedHashMap<AudioUpsampling, String>() {{
             put(new AudioUpsampling(false), "e8:02:00:00");
             put(new AudioUpsampling(true), "e8:02:00:01");
+        }});
+    }
+
+    @Test
+    public void setAudioLDAC() {
+        assertRequests(protocol::setAudioLDAC, new LinkedHashMap<AudioLDAC, String>() {{
+            put(new AudioLDAC(false), "e8:01:00:01");
+            put(new AudioLDAC(true), "e8:01:00:00");
         }});
     }
 

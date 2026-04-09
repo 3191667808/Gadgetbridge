@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphon
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWF1000XM4Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControlButtonMode;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerCustomBands;
@@ -172,6 +173,15 @@ public class SonyProtocolImplV2Test {
 
         final Request requestDisabled = protocol.setAudioUpsampling(new AudioUpsampling(false));
         assertRequest(requestDisabled, "3e:0c:01:00:00:00:03:e8:01:00:f9:3c");
+    }
+
+    @Test
+    public void setAudioLDAC() {
+        final Request requestStableConnection = protocol.setAudioLDAC(new AudioLDAC(false));
+        assertRequest(requestStableConnection, "3e:0c:01:00:00:00:04:e8:01:00:01:fb:3c");
+
+        final Request requestSoundQuality = protocol.setAudioLDAC(new AudioLDAC(true));
+        assertRequest(requestSoundQuality, "3e:0c:00:00:00:00:04:e8:01:00:00:f9:3c");
     }
 
     @Test

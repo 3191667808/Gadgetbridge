@@ -23,6 +23,7 @@ public enum SonyHeadphonesCapabilities {
     AmbientSoundControlButtonMode,
     AncOptimizer,
     AudioSettingsOnlyOnSbcCodec,
+    AudioLDAC,
     AudioUpsampling,
     AutomaticPowerOffByTime,
     AutomaticPowerOffWhenTakenOff,

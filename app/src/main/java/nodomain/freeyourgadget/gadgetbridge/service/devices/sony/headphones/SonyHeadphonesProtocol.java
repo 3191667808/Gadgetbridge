@@ -35,6 +35,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePref
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AdaptiveVolumeControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControlButtonMode;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
@@ -227,6 +228,9 @@ public class SonyHeadphonesProtocol extends GBDeviceProtocol {
             case DeviceSettingsPreferenceConst.PREF_SONY_EQUALIZER_BAND_16000:
             case DeviceSettingsPreferenceConst.PREF_SONY_EQUALIZER_BASS:
                 configRequest = protocolImpl.setEqualizerCustomBands(EqualizerCustomBands.fromPreferences(prefs));
+                break;
+            case DeviceSettingsPreferenceConst.PREF_SONY_AUDIO_HD:
+                configRequest = protocolImpl.setAudioLDAC(AudioLDAC.fromPreferences(prefs));
                 break;
             case DeviceSettingsPreferenceConst.PREF_SONY_AUDIO_UPSAMPLING:
                 configRequest = protocolImpl.setAudioUpsampling(AudioUpsampling.fromPreferences(prefs));

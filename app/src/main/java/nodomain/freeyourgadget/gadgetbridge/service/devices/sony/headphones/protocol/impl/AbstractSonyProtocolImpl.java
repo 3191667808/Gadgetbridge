@@ -24,6 +24,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphon
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AdaptiveVolumeControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControlButtonMode;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioLDAC;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
@@ -85,6 +86,8 @@ public abstract class AbstractSonyProtocolImpl {
     public abstract Request getFirmwareVersion();
 
     public abstract Request getAudioUpsampling();
+
+    public abstract Request setAudioLDAC(final AudioLDAC config);
 
     public abstract Request setAudioUpsampling(final AudioUpsampling config);
 
