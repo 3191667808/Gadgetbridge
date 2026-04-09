@@ -227,41 +227,14 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
 
     @Override
     public Request setAudioLDAC(final AudioLDAC config) {
-        return new Request(
-                PayloadTypeV1.AUDIO_UPSAMPLING_SET.getMessageType(),
-                new byte[]{
-                        PayloadTypeV1.AUDIO_UPSAMPLING_SET.getCode(),
-                        (byte) 0x01,
-                        (byte) 0x00,
-                        (byte) (config.isEnabled() ? 0x00 : 0x01)
-                }
-        );
+        LOG.warn("Audio LDAC not implemented for V2");
+        return null;
     }
 
     @Override
     public Request setButtonFunctionNcAmbient(final ButtonFunctionNcAmbient config) {
-        return new Request(
-            PayloadTypeV1.TOUCH_SENSOR_SET.getMessageType(),
-            new byte[]{
-                PayloadTypeV1.TOUCH_SENSOR_SET.getCode(),
-                (byte) 0xd1,
-                (byte) 0x02,
-                config.getMode().getCode()
-            }
-        );
-    }
-
-    @Override
-    public Request reboot() {
-        return new Request(
-            MessageType.COMMAND_1,
-            new byte[]{
-                (byte) 0x98,
-                (byte) 0x00,
-                (byte) 0x16,
-                (byte) 0x01
-            }
-        );
+        LOG.warn("Button function NC ambient not implemented for V2");
+        return null;
     }
 
     @Override
@@ -542,6 +515,19 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
                         (byte) 0x03,
                         (byte) 0x01
                 }
+        );
+    }
+
+    @Override
+    public Request reboot() {
+        return new Request(
+            MessageType.COMMAND_1,
+            new byte[]{
+                (byte) 0x98,
+                (byte) 0x00,
+                (byte) 0x16,
+                (byte) 0x01
+            }
         );
     }
 
