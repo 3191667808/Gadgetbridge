@@ -1,3 +1,19 @@
+/*  Copyright (C) 2024-2026 José Rebelo, a0z, punchdeerflyscorpion, Thomas Kuehne
+
+    This file is part of Gadgetbridge.
+
+    Gadgetbridge is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Gadgetbridge is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.garmin;
 
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.*;
@@ -26,6 +42,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
+import nodomain.freeyourgadget.gadgetbridge.model.GPSCoordinate;
 import nodomain.freeyourgadget.gadgetbridge.model.workout.Workout;
 import nodomain.freeyourgadget.gadgetbridge.model.workout.WorkoutChart;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.FitFile;
@@ -738,13 +755,27 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
         }
 
         summaryData.setHasGps(
-                activityPoints.stream().anyMatch(p -> p.getLocation() != null) ||
-                        sessionActivityPoints.stream().anyMatch(p -> p.getLocation() != null)
+                activityPoints.stream().anyMatch(GarminWorkoutParser::hasNonNullIslandLocation) ||
+                        sessionActivityPoints.stream().anyMatch(GarminWorkoutParser::hasNonNullIslandLocation)
         );
 
         summary.setSummaryData(summaryData.toString());
 
         return summaryData;
+    }
+
+    // Some indoor activities record all points with fake Null Island (0°N 0°E) position.
+    private static boolean hasNonNullIslandLocation(final ActivityPoint point) {
+        if (point != null) {
+            final GPSCoordinate location = point.getLocation();
+            if (location != null) {
+                final double lat = location.getLatitude();
+                final double lon = location.getLongitude();
+                // test for any value other than NaN and 0.0
+                return (lat == lat && lat != 0.0) || (lon == lon && lon != 0.0);
+            }
+        }
+        return false;
     }
 
     public Number safeRound(final Number number) {
