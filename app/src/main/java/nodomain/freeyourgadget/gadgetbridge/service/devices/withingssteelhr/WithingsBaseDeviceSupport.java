@@ -83,7 +83,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmName;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmStatus;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AncsStatus;
+
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.DataStructureFactory;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.FeatureTagDeprecated;
@@ -739,7 +739,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                     GB.hexdump(notificationSource.serialize()));
             ServerTransactionBuilder builder = performServer("notificationSourceNotification");
             byte[] data = notificationSource.serialize();
-            builder.indicateCharacteristicChanged(serverDevice, notificationSourceCharacteristic, data);
+            builder.notifyCharacteristicChanged(serverDevice, notificationSourceCharacteristic, data);
             builder.queue(getQueue());
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
@@ -751,16 +751,18 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         try {
             ServerTransactionBuilder builder = performServer("dataSourceNotification");
             byte[] data = response.serialize();
-            int chunkSize = getMTU() - 3;
-            if (chunkSize <= 0) {
-                chunkSize = 20; // Fallback just in case getMTU() is 0 or too small
-            }
+            // The official Withings app always sends DataSource PDUs in 20-byte chunks,
+            // matching the BLE 4.0 default ATT MTU (23 - 3 header = 20 payload).
+            // This is deliberate even when a larger MTU is negotiated for the main
+            // Withings protocol channel (handle 0x0013 uses up to 112 bytes).
+            // The watch firmware expects this chunking for ANCS DataSource responses.
+            int chunkSize = 20;
             for (int i = 0; i < data.length; i += chunkSize) {
                 int length = Math.min(chunkSize, data.length - i);
                 byte[] chunk = new byte[length];
                 System.arraycopy(data, i, chunk, 0, length);
                 logger.info("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
-                builder.indicateCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
+                builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
             }
             builder.queue(getQueue());
         } catch (IOException e) {
@@ -921,25 +923,24 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID,
                 withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID);
         BluetoothGattService withingsGATTService = new BluetoothGattService(withingsUUIDs.WITHINGS_ANCS_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-        notificationSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_INDICATE, BluetoothGattCharacteristic.PERMISSION_READ);
+        notificationSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
         notificationSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(notificationSourceCharacteristic);
         withingsGATTService.addCharacteristic(new BluetoothGattCharacteristic(withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE));
-        dataSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_INDICATE, BluetoothGattCharacteristic.PERMISSION_READ);
+        dataSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
         dataSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(dataSourceCharacteristic);
         addSupportedServerService(withingsGATTService);
     }
 
     private void enableNotifications() {
-        // Toggle ANCS off then on -- after an overnight BLE reconnection the watch may
-        // have stale ANCS state and ignore NotificationSource events even though
-        // SET_ANCS_STATUS(true) was previously sent.  Sending false first forces the
-        // watch to tear down and re-establish its ANCS subscription.
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(false)));
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
-
-        // Register the TAG_NOTIFICATIONS feature tag
+        // The official Withings app NEVER sends SET_ANCS_STATUS -- the watch manages
+        // ANCS purely via GATT-level CCC (Client Characteristic Configuration)
+        // descriptor subscriptions. Sending SET_ANCS_STATUS disrupts the watch's
+        // ANCS state machine and causes it to ignore ADDED events.
+        //
+        // We only need to register the notification feature tags so the watch
+        // knows this phone supports ANCS notifications.
         WithingsMessage featureTagsMsg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         featureTagsMsg.addDataStructure(new FeatureTagsUserId(0));
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
@@ -949,14 +950,17 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     /**
-     * Reset the watch's ANCS state machine by toggling SET_ANCS_STATUS off then on.
-     * Called by NotificationProvider when consecutive timeouts indicate the watch has
-     * stopped responding to ANCS events.
+     * Attempt to recover ANCS by re-sending feature tags. Called by NotificationProvider
+     * when consecutive unacknowledged notifications indicate the watch has stopped
+     * responding to ANCS events.
+     *
+     * The official app has no recovery mechanism -- it relies entirely on GATT CCC
+     * subscriptions and never sends SET_ANCS_STATUS. Our recovery re-sends feature
+     * tags in case the watch lost track of notification capability.
      */
     public void resetAncsState() {
-        logger.info("Resetting ANCS state: sending SET_ANCS_STATUS(false) then SET_ANCS_STATUS(true)");
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(false)));
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+        logger.info("Resetting ANCS state: re-sending feature tags (no SET_ANCS_STATUS per official app behaviour)");
+        enableNotifications();
         conversationQueue.send();
     }
 

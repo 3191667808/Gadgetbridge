@@ -41,18 +41,19 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.With
  *
  * <ul>
  *   <li><b>Fire-and-forget delivery:</b> ADDED events are sent to the watch
- *       immediately without serialization. The watch manages its own internal
- *       notification queue and fetches attributes (PHASE1: attr0=appID,
- *       PHASE2: attr1+2+3=title/subtitle/message) at its own pace. Multiple
- *       ADDED events can be in-flight concurrently.</li>
+ *       immediately without serialization or rate-limiting. The watch manages
+ *       its own internal notification queue, silently dropping some during
+ *       bursts (~14% skipped PHASE2 in official app captures). DataSource
+ *       responses are chunked to 20 bytes (BLE 4.0 default ATT MTU), matching
+ *       the official app's behaviour -- this is critical for preventing ANCS
+ *       state machine stalls in the watch firmware.</li>
  *   <li><b>No automatic REMOVED events:</b> The official app only sends
  *       NOTIFICATION_REMOVED when the user explicitly dismisses/clears a
  *       notification on the phone.</li>
- *   <li><b>Indications (not notifications):</b> Both NotificationSource and
- *       DataSource use BLE Indications (confirm=true), which provide natural
- *       flow control -- the watch ACKs each event before the next is sent.
- *       This prevents overwhelming the watch's ANCS state machine even during
- *       bursts of REMOVED events.</li>
+ *   <li><b>BLE Notifications (not indications):</b> Both NotificationSource and
+ *       DataSource use BLE Notifications (ATT opcode 0x1b, confirm=false),
+ *       matching the official app. The watch subscribes for notifications
+ *       (CCC=0x0001) and expects this format.</li>
  *   <li><b>Attribute format:</b> attr0=app bundle ID, attr1=sender/title,
  *       attr2=empty string (always), attr3=message body. The watch displays
  *       as "{attr1} - {attr3}".</li>
@@ -108,14 +109,16 @@ public class NotificationProvider {
     /**
      * Send an ANCS ADDED event for the given notification spec.
      *
-     * The notification is sent immediately (fire-and-forget). The watch will
-     * request attributes via the ANCS Control Point at its own pace. We store
-     * the spec in the pending map so we can respond to attribute requests.
+     * The notification is sent immediately (fire-and-forget), matching the official
+     * Withings app behaviour. The watch manages its own internal queue and fetches
+     * attributes at its own pace. During bursts, the watch silently drops some
+     * notifications (~14% skip PHASE2 in official captures with gaps as small as 16ms).
      *
-     * To detect ANCS stalls, we track unacknowledged notifications: every ADDED
-     * event increments the counter, and any Control Point write (watch requesting
-     * attributes) resets it to 0. If 5 consecutive notifications get no response,
-     * we initiate auto-recovery via ANCS state machine reset.
+     * To detect ANCS stalls (firmware limitation where the watch stops responding to
+     * all ANCS events), we track unacknowledged notifications: every ADDED event
+     * increments the counter, and any Control Point write (watch requesting attributes)
+     * resets it to 0. If 5 consecutive notifications get no response, we initiate
+     * auto-recovery via ANCS state machine reset.
      */
     public void notifyClient(NotificationSpec spec) {
         final NotificationState state = getState();
@@ -165,9 +168,8 @@ public class NotificationProvider {
     /**
      * Called when the user dismisses a notification on the phone.
      *
-     * Sends a REMOVED event to the watch immediately. BLE Indications provide
-     * natural flow control (each event requires an ACK before the next is sent),
-     * so there's no risk of overwhelming the watch even during batch dismissals.
+     * Sends a REMOVED event to the watch immediately, matching the official app
+     * behaviour (no throttling or rate-limiting).
      */
     public void onDeleteNotification(final int notificationUID) {
         final NotificationState state = getState();
@@ -383,15 +385,31 @@ public class NotificationProvider {
         state.ancsRecoveryInProgress = true;
         state.unacknowledgedCount = 0;
 
+        // Save the most recent pending notification to re-send after recovery.
+        // This ensures the watch has fresh content to process after re-subscribing.
+        PendingNotification lastPending = null;
+        for (PendingNotification p : state.pendingNotifications.values()) {
+            if (lastPending == null || p.timestampMs > lastPending.timestampMs) {
+                lastPending = p;
+            }
+        }
+        final NotificationSpec resendSpec = lastPending != null ? lastPending.spec : null;
+
         // Clear all pending notifications -- the watch won't fetch them anyway
         state.pendingNotifications.clear();
 
-        logger.info("Withings ANCS recovery: toggling SET_ANCS_STATUS off/on, will resume in {}ms", ANCS_RECOVERY_DELAY_MS);
+        logger.info("Withings ANCS recovery: full enableNotifications() + re-send, will resume in {}ms", ANCS_RECOVERY_DELAY_MS);
         support.resetAncsState();
 
         handler.postDelayed(() -> {
             state.ancsRecoveryInProgress = false;
             logger.info("Withings ANCS recovery complete -- notification pipeline resumed");
+
+            // Re-send the last notification so the watch has something to process
+            if (resendSpec != null) {
+                logger.info("Withings ANCS recovery: re-sending last notification id={}", resendSpec.getId());
+                notifyClient(resendSpec);
+            }
         }, ANCS_RECOVERY_DELAY_MS);
     }
 
