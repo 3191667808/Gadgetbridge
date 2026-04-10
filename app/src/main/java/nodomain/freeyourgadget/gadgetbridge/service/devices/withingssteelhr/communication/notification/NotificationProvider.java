@@ -22,8 +22,7 @@ import android.os.Looper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +32,39 @@ import java.util.regex.Pattern;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
+/**
+ * ANCS notification provider for Withings ScanWatch / Steel HR.
+ *
+ * Matches the official Withings app's ANCS behaviour (determined via HCI snoop
+ * capture analysis):
+ *
+ * <ul>
+ *   <li><b>Fire-and-forget delivery:</b> ADDED events are sent to the watch
+ *       immediately without serialization. The watch manages its own internal
+ *       notification queue and fetches attributes (PHASE1: attr0=appID,
+ *       PHASE2: attr1+2+3=title/subtitle/message) at its own pace. Multiple
+ *       ADDED events can be in-flight concurrently.</li>
+ *   <li><b>No automatic REMOVED events:</b> The official app only sends
+ *       NOTIFICATION_REMOVED when the user explicitly dismisses/clears a
+ *       notification on the phone.</li>
+ *   <li><b>Indications (not notifications):</b> Both NotificationSource and
+ *       DataSource use BLE Indications (confirm=true), which provide natural
+ *       flow control -- the watch ACKs each event before the next is sent.
+ *       This prevents overwhelming the watch's ANCS state machine even during
+ *       bursts of REMOVED events.</li>
+ *   <li><b>Attribute format:</b> attr0=app bundle ID, attr1=sender/title,
+ *       attr2=empty string (always), attr3=message body. The watch displays
+ *       as "{attr1} - {attr3}".</li>
+ *   <li><b>Firmware ANCS stall recovery:</b> The watch sometimes stops
+ *       responding to ANCS events for unknown reasons (likely a firmware
+ *       limitation). This provider detects when the watch has missed 5
+ *       consecutive notifications (no Control Point writes) and automatically
+ *       toggles SET_ANCS_STATUS off/on to reset the ANCS state machine.
+ *       Notifications resume automatically after a 3-second recovery delay.
+ *       Stale pending entries are also evicted after 60 seconds.</li>
+ * </ul>
+ */
 public class NotificationProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
@@ -43,61 +73,66 @@ public class NotificationProvider {
     private static final String UNKNOWN_DEVICE_KEY = "unknown-withings-device";
     private static final Map<String, NotificationState> NOTIFICATION_STATES = new ConcurrentHashMap<>();
     private final WithingsBaseDeviceSupport support;
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private static final int RECENT_NOTIFICATION_CACHE_SIZE = 256;
 
     /**
-     * Timeout in ms for a notification to complete the full ANCS attribute fetch cycle.
-     * If the watch doesn't make any progress within this time, we give up and send the
-     * next queued notification.
-     *
-     * The timeout is reset each time the watch makes progress (e.g. requests attr 0),
-     * so it only fires if the watch goes completely silent for this duration.
-     *
-     * After a BLE reconnect the watch can take 5+ seconds to respond, so 15 seconds
-     * gives plenty of margin while still recovering from truly stuck notifications.
+     * How long a pending notification can sit without the watch requesting its
+     * attributes before we consider it stale and remove it. The watch normally
+     * fetches PHASE1 within ~200ms and PHASE2 within ~500ms, but may skip
+     * PHASE2 entirely (~14% of the time based on official app captures).
+     * 60 seconds is generous enough to avoid false positives.
      */
-    private static final long NOTIFICATION_TIMEOUT_MS = 15000;
+    private static final long STALE_PENDING_TIMEOUT_MS = 60_000;
 
     /**
-     * Delay after a notification completes before sending NOTIFICATION_REMOVED.
-     * This gives the watch time to display the notification to the user.
-     * Too short = notification disappears before user can read it.
-     * Too long = watch buffer fills up during rapid notification bursts.
-     * 1 second is a reasonable compromise - the watch vibrates and shows the
-     * notification, and we free the slot before the buffer fills.
+     * After this many consecutive ADDED events with no watch response (no
+     * Control Point writes), we toggle SET_ANCS_STATUS off/on to recover.
+     * In official app captures, the watch sometimes stops responding to ANCS
+     * for unknown reasons; this is a safety net.
      */
-    private static final long DISPLAY_DELAY_MS = 10000;
+    private static final int ANCS_RECOVERY_THRESHOLD = 5;
 
     /**
-     * Delay after sending NOTIFICATION_REMOVED before sending the next notification.
-     * The watch needs time to process the removal and free its internal buffer slot.
-     * 1 second gives the watch plenty of time to fully process the removal.
+     * Delay after ANCS reset before resuming notification delivery, giving
+     * the watch time to re-establish its ANCS subscription.
      */
-    private static final long REMOVED_SETTLE_MS = 1000;
+    private static final long ANCS_RECOVERY_DELAY_MS = 3_000;
 
-    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
-
-    /** Token for timeout callbacks (separate from display/settle delay callbacks). */
-    private static final Object TIMEOUT_TOKEN = new Object();
-    /** Token for display delay and settle delay callbacks. */
-    private static final Object DELAY_TOKEN = new Object();
-    /**
-     * Sentinel value for inFlightNotificationUID when we're in the cooling-down
-     * phase (display delay -> REMOVED -> settle delay) between notifications.
-     * Any new notifications arriving during this phase are queued.
-     */
-    private static final int COOLING_DOWN_UID = Integer.MIN_VALUE;
+    private static final Object ANCS_RECOVERY_TOKEN = new Object();
 
     public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 
+    /**
+     * Send an ANCS ADDED event for the given notification spec.
+     *
+     * The notification is sent immediately (fire-and-forget). The watch will
+     * request attributes via the ANCS Control Point at its own pace. We store
+     * the spec in the pending map so we can respond to attribute requests.
+     *
+     * To detect ANCS stalls, we track unacknowledged notifications: every ADDED
+     * event increments the counter, and any Control Point write (watch requesting
+     * attributes) resets it to 0. If 5 consecutive notifications get no response,
+     * we initiate auto-recovery via ANCS state machine reset.
+     */
     public void notifyClient(NotificationSpec spec) {
         final NotificationState state = getState();
+
+        // If ANCS recovery is in progress, drop this notification
+        if (state.ancsRecoveryInProgress) {
+            logger.info("Withings notifyClient dropping id={} -- ANCS recovery in progress", spec.getId());
+            return;
+        }
+
         if (spec.sourceAppId != null) {
             state.latestNotificationByApp.put(normalizeSourceAppId(spec.sourceAppId), spec);
             state.latestNotificationByApp.put(normalizeSourceAppId(getWithingsSourceAppId(spec)), spec);
         }
+
+        // Clean up stale pending notifications (watch skipped PHASE2)
+        evictStalePending(state);
 
         NotificationSource notificationSource = new NotificationSource(spec.getId(),
                                                                         AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
@@ -105,118 +140,73 @@ public class NotificationProvider {
                                                                         mapNotificationType(spec.type),
                                                                         (byte)1);
 
-        state.pendingNotifications.put(notificationSource.getNotificationUID(), spec);
+        state.pendingNotifications.put(notificationSource.getNotificationUID(),
+                new PendingNotification(spec, System.currentTimeMillis()));
+        state.unacknowledgedCount++;
 
-        synchronized (state.sendQueue) {
-            if (state.inFlightNotificationUID != null) {
-                // A notification is currently being processed by the watch
-                // (or we're in the cooling-down phase). Queue this one.
-                logger.info("Withings notifyClient QUEUED id={}, source={}, type={}, queueSize={}, inFlightUID={}",
-                        spec.getId(),
-                        spec.sourceAppId,
-                        spec.type,
-                        state.sendQueue.size() + 1,
-                        state.inFlightNotificationUID);
-                state.sendQueue.addLast(notificationSource);
-            } else {
-                // No notification in flight, send immediately.
-                logger.info("Withings notifyClient SENDING id={}, source={}, type={}, pendingCount={}",
-                        spec.getId(),
-                        spec.sourceAppId,
-                        spec.type,
-                        state.pendingNotifications.size());
-                sendNotificationSourceNow(state, notificationSource);
-            }
+        logger.info("Withings notifyClient SENDING id={}, source={}, type={}, pendingCount={}, unacked={}",
+                spec.getId(),
+                spec.sourceAppId,
+                spec.type,
+                state.pendingNotifications.size(),
+                state.unacknowledgedCount);
+
+        // Check if watch has stopped responding -- too many unacknowledged ADDEDs
+        if (state.unacknowledgedCount >= ANCS_RECOVERY_THRESHOLD) {
+            logger.warn("Withings ANCS: {} consecutive unacknowledged notifications -- initiating ANCS recovery",
+                    state.unacknowledgedCount);
+            initiateAncsRecovery(state);
+            return;
         }
-    }
 
-    /**
-     * Actually send a NotificationSource to the watch and mark it as in-flight.
-     * Must be called while holding the sendQueue lock.
-     */
-    private void sendNotificationSourceNow(NotificationState state, NotificationSource notificationSource) {
-        state.inFlightNotificationUID = notificationSource.getNotificationUID();
         support.sendAncsNotificationSourceNotification(notificationSource);
-        scheduleTimeout(state, notificationSource.getNotificationUID());
     }
 
     /**
-     * Schedule a timeout for the in-flight notification. If the watch doesn't
-     * complete the attribute fetch cycle within NOTIFICATION_TIMEOUT_MS, we
-     * give up and send the next queued notification.
+     * Called when the user dismisses a notification on the phone.
+     *
+     * Sends a REMOVED event to the watch immediately. BLE Indications provide
+     * natural flow control (each event requires an ACK before the next is sent),
+     * so there's no risk of overwhelming the watch even during batch dismissals.
      */
-    private void scheduleTimeout(final NotificationState state, final int notificationUID) {
-        // Cancel any previous timeout
-        timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
-
-        timeoutHandler.postAtTime(() -> {
-            synchronized (state.sendQueue) {
-                if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == notificationUID) {
-                    logger.warn("Withings notification timeout for UID={}, watch did not complete attribute fetch in {}ms. Sending REMOVED and moving on.",
-                            notificationUID, NOTIFICATION_TIMEOUT_MS);
-                    state.inFlightNotificationUID = null;
-                    // Clean up the timed-out notification from pending map to prevent unbounded growth
-                    state.pendingNotifications.remove(notificationUID);
-                    // Send NOTIFICATION_REMOVED for the timed-out notification to free
-                    // the watch's buffer slot
-                    sendNotificationRemoved(notificationUID);
-                    sendNextQueued(state);
-                }
-            }
-        }, TIMEOUT_TOKEN, android.os.SystemClock.uptimeMillis() + NOTIFICATION_TIMEOUT_MS);
-    }
-
-    /**
-     * Send the next notification from the queue, if any.
-     * Must be called while holding the sendQueue lock.
-     */
-    private void sendNextQueued(NotificationState state) {
-        while (!state.sendQueue.isEmpty()) {
-            NotificationSource next = state.sendQueue.pollFirst();
-            // Make sure the notification is still pending (not deleted in the meantime)
-            if (state.pendingNotifications.containsKey(next.getNotificationUID())) {
-                logger.info("Withings sending next queued notification UID={}, remainingQueue={}",
-                        next.getNotificationUID(), state.sendQueue.size());
-                sendNotificationSourceNow(state, next);
-                return;
-            } else {
-                logger.info("Withings skipping queued notification UID={} (already removed), remainingQueue={}",
-                        next.getNotificationUID(), state.sendQueue.size());
-            }
-        }
-        logger.debug("Withings notification queue empty, nothing more to send.");
-    }
-
     public void onDeleteNotification(final int notificationUID) {
         final NotificationState state = getState();
-        sendNotificationRemoved(notificationUID);
         state.pendingNotifications.remove(notificationUID);
         synchronized (state.recentlyCompletedNotifications) {
             state.recentlyCompletedNotifications.remove(notificationUID);
         }
 
-        synchronized (state.sendQueue) {
-            // If the deleted notification was in-flight, release the queue
-            if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == notificationUID) {
-                logger.info("Withings in-flight notification UID={} was deleted, releasing queue", notificationUID);
-                state.inFlightNotificationUID = null;
-                timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
-                timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
-                sendNextQueued(state);
-            }
-            // If we're in the cooling-down phase and the queue needs to move along
-            // (e.g. user dismissed all notifications), reset the gate
-            if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == COOLING_DOWN_UID && state.sendQueue.isEmpty()) {
-                state.inFlightNotificationUID = null;
-                timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
-            }
-        }
+        logger.info("Withings sending REMOVED for UID={}", notificationUID);
+        sendNotificationRemoved(notificationUID);
     }
 
+    /**
+     * Handle an ANCS Control Point write from the watch requesting notification
+     * attributes. The watch sends two requests per notification:
+     * <ol>
+     *   <li>PHASE1: requests attr0 (app bundle ID)</li>
+     *   <li>PHASE2: requests attr1 (title), attr2 (subtitle), attr3 (message)</li>
+     * </ol>
+     *
+     * The watch may interleave requests for different notification UIDs.
+     * We respond immediately for each request.
+     *
+     * Important: Any Control Point write proves the watch is responsive, so we
+     * reset the unacknowledged counter to 0 here (see {@link #notifyClient}).
+     * This is the heartbeat mechanism that detects ANCS stalls.
+     */
     public void handleNotificationAttributeRequest(GetNotificationAttributes request) {
         logger.debug("Request has ID: " + request.getNotificationUID());
         final NotificationState state = getState();
-        NotificationSpec spec = state.pendingNotifications.get(request.getNotificationUID());
+
+        // Any CP write from the watch means it's alive -- reset unacknowledged counter
+        state.unacknowledgedCount = 0;
+
+        NotificationSpec spec = null;
+        PendingNotification pending = state.pendingNotifications.get(request.getNotificationUID());
+        if (pending != null) {
+            spec = pending.spec;
+        }
         if (spec == null) {
             synchronized (state.recentlyCompletedNotifications) {
                 spec = state.recentlyCompletedNotifications.get(request.getNotificationUID());
@@ -235,8 +225,6 @@ public class NotificationProvider {
                 emptyResponse.addAttribute(attr);
             }
             support.sendAncsDataSourceNotification(emptyResponse);
-
-            sendNotificationRemoved(request.getNotificationUID());
             return;
         }
 
@@ -244,15 +232,6 @@ public class NotificationProvider {
                 request.getNotificationUID(),
                 request.getAttributes().size(),
                 state.pendingNotifications.size());
-
-        // The watch is making progress on this notification. Reset the timeout so it
-        // doesn't fire between the attr-0 request and the attrs-1/2/3 request.
-        // After a BLE reconnect the watch can take 5+ seconds between attr-0 and attrs-1/2/3.
-        synchronized (state.sendQueue) {
-            if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == request.getNotificationUID()) {
-                scheduleTimeout(state, request.getNotificationUID());
-            }
-        }
 
         GetNotificationAttributesResponse response = new GetNotificationAttributesResponse(request.getNotificationUID());
         List<RequestedNotificationAttribute> requestedAttributes = request.getAttributes();
@@ -267,19 +246,45 @@ public class NotificationProvider {
             logger.debug("Handling attribute " + attribute.getAttributeID() + " with maxLength " + attribute.getAttributeLength());
             String value = "";
             if (requestedAttribute.getAttributeID() == 0) {
+                // attr0 = app bundle ID (e.g. "com.whatsapp", "im.molly.app-msg")
                 value = getWithingsSourceAppId(spec);
             }
             if (requestedAttribute.getAttributeID() == 1) {
+                // attr1 = sender/title line (displayed before the dash on the watch)
+                // For messaging apps: sender name (e.g., "~ Bogo", "~ Carlos Mora")
+                // For other apps (Gotify, etc.): title if available, otherwise app name
                 complete = true;
-                value = spec.sender != null? spec.sender : (spec.phoneNumber != null? spec.phoneNumber : (spec.sourceName != null? spec.sourceName : "Unknown"));
+                if (spec.sender != null) {
+                    value = spec.sender;
+                } else if (spec.phoneNumber != null) {
+                    value = spec.phoneNumber;
+                } else if (spec.title != null) {
+                    value = spec.title;
+                } else if (spec.sourceName != null) {
+                    value = spec.sourceName;
+                } else {
+                    value = "Unknown";
+                }
             }
             if (requestedAttribute.getAttributeID() == 2) {
+                // attr2 = subtitle -- official app always sends empty string here.
+                // The watch displays "{attr1} - {attr3}", so attr2 is unused.
                 complete = true;
-                value = spec.title != null? spec.title : (spec.subject != null? spec.subject : " ");
+                value = "";
             }
             if (requestedAttribute.getAttributeID() == 3) {
+                // attr3 = message body (displayed after the dash on the watch)
+                // For messaging apps: message content
+                // For other apps: body text, or title if body is absent
                 complete = true;
-                value = (spec.body != null? spec.body : " ");
+                if (spec.body != null) {
+                    value = spec.body;
+                } else if (spec.title != null && spec.sender != null) {
+                    // If we used sender in attr1 and have a title but no body, show title
+                    value = spec.title;
+                } else {
+                    value = " ";
+                }
             }
 
             if (value != null) {
@@ -300,55 +305,13 @@ public class NotificationProvider {
         support.sendAncsDataSourceNotification(response);
 
         if (complete) {
-            NotificationSpec completedSpec = state.pendingNotifications.remove(request.getNotificationUID());
-            if (completedSpec != null) {
+            // PHASE2 complete -- move notification from pending to recently-completed cache
+            PendingNotification completedPending = state.pendingNotifications.remove(request.getNotificationUID());
+            if (completedPending != null) {
                 logger.info("Completed notification id={}, moving to recent cache, pendingAfter={}",
                         request.getNotificationUID(),
                         state.pendingNotifications.size());
-                cacheCompletedNotification(state, request.getNotificationUID(), completedSpec);
-            }
-
-            // This notification's attribute fetch is complete. Release the queue
-            // so the next notification can be sent to the watch.
-            //
-            // The watch has a limited notification buffer (~7-8 slots). We must send
-            // NOTIFICATION_REMOVED to free the slot, but not instantly (that kills
-            // the notification before the user can read it). Strategy:
-            //   1. Wait DISPLAY_DELAY_MS for the user to see the notification
-            //   2. Send NOTIFICATION_REMOVED to free the buffer slot
-            //   3. Wait REMOVED_SETTLE_MS for the watch to process the removal
-            //   4. Send the next queued notification
-            final int completedUID = request.getNotificationUID();
-            synchronized (state.sendQueue) {
-                if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == completedUID) {
-                    logger.info("Withings in-flight notification UID={} completed, releasing queue (queueSize={})",
-                            completedUID, state.sendQueue.size());
-                    timeoutHandler.removeCallbacksAndMessages(TIMEOUT_TOKEN);
-                    // Keep the gate closed so new arrivals are queued during the delay
-                    state.inFlightNotificationUID = COOLING_DOWN_UID;
-                    // Cancel any pending delay callbacks from previous cycle
-                    timeoutHandler.removeCallbacksAndMessages(DELAY_TOKEN);
-                    // Step 1: Wait for the notification to be displayed
-                    timeoutHandler.postAtTime(() -> {
-                        // Step 2: Send NOTIFICATION_REMOVED to free the buffer slot.
-                        // This is critical: the watch has a limited notification buffer
-                        // (~7-8 slots). We ALWAYS send REMOVED after the display delay,
-                        // even when the queue is empty, to prevent buffer accumulation.
-                        logger.info("Sending NOTIFICATION_REMOVED for completed UID={} (after display delay)", completedUID);
-                        sendNotificationRemoved(completedUID);
-
-                        // Step 3: Wait for the watch to process the removal, then send next
-                        timeoutHandler.postAtTime(() -> {
-                            synchronized (state.sendQueue) {
-                                if (state.inFlightNotificationUID != null && state.inFlightNotificationUID == COOLING_DOWN_UID) {
-                                    state.inFlightNotificationUID = null;
-                                    // Send next queued notification if any arrived during the delay
-                                    sendNextQueued(state);
-                                }
-                            }
-                        }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + REMOVED_SETTLE_MS);
-                    }, DELAY_TOKEN, android.os.SystemClock.uptimeMillis() + DISPLAY_DELAY_MS);
-                }
+                cacheCompletedNotification(state, request.getNotificationUID(), completedPending.spec);
             }
         }
     }
@@ -360,6 +323,76 @@ public class NotificationProvider {
                                                                         (byte)0,
                                                                         (byte)0);
         support.sendAncsNotificationSourceNotification(notificationSource);
+    }
+
+    /**
+     * Remove pending notifications that the watch never fetched attributes for.
+     *
+     * The watch normally fetches PHASE1 (attr0) within ~200ms and PHASE2 (attrs 1+2+3)
+     * within ~500ms total. However, it skips PHASE2 entirely in ~14% of cases (normal
+     * behaviour based on official app captures). This method evicts notifications older
+     * than 60 seconds to prevent unbounded growth of the pending map while still being
+     * generous enough to avoid false positives for slow watches.
+     */
+    private void evictStalePending(final NotificationState state) {
+        final long now = System.currentTimeMillis();
+        final Iterator<Map.Entry<Integer, PendingNotification>> it = state.pendingNotifications.entrySet().iterator();
+        int evicted = 0;
+        while (it.hasNext()) {
+            final Map.Entry<Integer, PendingNotification> entry = it.next();
+            if (now - entry.getValue().timestampMs > STALE_PENDING_TIMEOUT_MS) {
+                it.remove();
+                evicted++;
+            }
+        }
+        if (evicted > 0) {
+            logger.info("Withings evicted {} stale pending notifications, remaining={}", evicted, state.pendingNotifications.size());
+        }
+    }
+
+    /**
+     * Auto-recovery for firmware ANCS stall.
+     *
+     * The Withings ScanWatch / Steel HR firmware sometimes stops responding to ANCS
+     * events mid-session (exact cause unknown, likely an internal buffer or state
+     * machine issue). This method implements automatic recovery:
+     *
+     * <ol>
+     *   <li>When the watch fails to respond to 5 consecutive ADDED events (no
+     *       Control Point writes after we've sent 5 notifications), assume ANCS
+     *       has stalled.</li>
+     *   <li>Clear all pending notifications (they won't be fetched anyway).</li>
+     *   <li>Call {@link WithingsBaseDeviceSupport#resetAncsState()} which sends
+     *       SET_ANCS_STATUS(false) then SET_ANCS_STATUS(true) over the protocol
+     *       channel.</li>
+     *   <li>Drop incoming notifications for 3 seconds to let the watch
+     *       re-establish its subscription.</li>
+     *   <li>Resume normal delivery after the delay.</li>
+     * </ol>
+     *
+     * The official Withings app doesn't have recovery logic and just lets
+     * notifications silently fail until the user unlocks their phone or
+     * restarts something, restarting ANCS. This automatic approach is less
+     * noticeable to the user (worst case: ~5 missing notifications, 3-second
+     * delay, then automatic recovery).
+     */
+    private void initiateAncsRecovery(final NotificationState state) {
+        if (state.ancsRecoveryInProgress) {
+            return;
+        }
+        state.ancsRecoveryInProgress = true;
+        state.unacknowledgedCount = 0;
+
+        // Clear all pending notifications -- the watch won't fetch them anyway
+        state.pendingNotifications.clear();
+
+        logger.info("Withings ANCS recovery: toggling SET_ANCS_STATUS off/on, will resume in {}ms", ANCS_RECOVERY_DELAY_MS);
+        support.resetAncsState();
+
+        handler.postDelayed(() -> {
+            state.ancsRecoveryInProgress = false;
+            logger.info("Withings ANCS recovery complete -- notification pipeline resumed");
+        }, ANCS_RECOVERY_DELAY_MS);
     }
 
     private void cacheCompletedNotification(final NotificationState state, final int notificationUID, final NotificationSpec completedSpec) {
@@ -377,9 +410,9 @@ public class NotificationProvider {
         final NotificationState state = getState();
         
         // First try finding it in pending notifications (if still active)
-        for (NotificationSpec notificationSpec : state.pendingNotifications.values()) {
-            if (matchesSourceAppId(notificationSpec, normalizedSourceAppId)) {
-                return notificationSpec;
+        for (PendingNotification pending : state.pendingNotifications.values()) {
+            if (matchesSourceAppId(pending.spec, normalizedSourceAppId)) {
+                return pending.spec;
             }
         }
 
@@ -479,30 +512,34 @@ public class NotificationProvider {
         }
     }
 
+    /**
+     * Per-device notification state. Keyed by device address so multiple
+     * watches can each have independent notification tracking.
+     */
     private static final class NotificationState {
-        private final Map<Integer, NotificationSpec> pendingNotifications = new ConcurrentHashMap<>();
+        /** Notifications that have been sent as ADDED but haven't completed PHASE2 yet. */
+        private final Map<Integer, PendingNotification> pendingNotifications = new ConcurrentHashMap<>();
+        /** Latest notification per app, for icon-tap lookup on the watch. */
         private final Map<String, NotificationSpec> latestNotificationByApp = new ConcurrentHashMap<>();
+        /** Recently completed notifications, kept for re-fetch requests from the watch. */
         private final LinkedHashMap<Integer, NotificationSpec> recentlyCompletedNotifications = new LinkedHashMap<>(RECENT_NOTIFICATION_CACHE_SIZE + 1, 0.75f, true);
+        /** How many consecutive ADDED events the watch has not responded to. Reset on any CP write. */
+        private int unacknowledgedCount = 0;
+        /** True while ANCS recovery (SET_ANCS_STATUS toggle) is in progress. */
+        private volatile boolean ancsRecoveryInProgress = false;
+    }
 
-        /**
-         * Queue of NotificationSource objects waiting to be sent to the watch.
-         * The watch's ANCS state machine can only handle one notification at a time:
-         * it must complete the full attribute fetch cycle (request attr 0, then attrs 1-3)
-         * before it can accept the next NotificationSource. Sending a new NotificationSource
-         * while the watch is mid-cycle causes its state machine to stall completely.
-         */
-        private final Deque<NotificationSource> sendQueue = new ArrayDeque<>();
+    /**
+     * Wraps a {@link NotificationSpec} with a timestamp for stale eviction.
+     */
+    private static final class PendingNotification {
+        final NotificationSpec spec;
+        final long timestampMs;
 
-        /**
-         * The notification UID currently being processed by the watch, or null if
-         * the watch is idle and ready for the next notification.
-         *
-         * This also acts as a gate during the display-delay -> REMOVED -> settle
-         * cycle: we keep it set to COOLING_DOWN_UID while waiting, so new incoming
-         * notifications are queued rather than sent immediately (which would
-         * overwhelm the watch's single-slot ANCS state machine).
-         */
-        private Integer inFlightNotificationUID = null;
+        PendingNotification(NotificationSpec spec, long timestampMs) {
+            this.spec = spec;
+            this.timestampMs = timestampMs;
+        }
     }
     
 }

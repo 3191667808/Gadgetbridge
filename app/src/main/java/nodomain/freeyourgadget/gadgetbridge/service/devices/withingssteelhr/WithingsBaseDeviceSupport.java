@@ -739,7 +739,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                     GB.hexdump(notificationSource.serialize()));
             ServerTransactionBuilder builder = performServer("notificationSourceNotification");
             byte[] data = notificationSource.serialize();
-            builder.notifyCharacteristicChanged(serverDevice, notificationSourceCharacteristic, data);
+            builder.indicateCharacteristicChanged(serverDevice, notificationSourceCharacteristic, data);
             builder.queue(getQueue());
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
@@ -760,7 +760,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 byte[] chunk = new byte[length];
                 System.arraycopy(data, i, chunk, 0, length);
                 logger.info("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
-                builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
+                builder.indicateCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
             }
             builder.queue(getQueue());
         } catch (IOException e) {
@@ -921,11 +921,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID,
                 withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID);
         BluetoothGattService withingsGATTService = new BluetoothGattService(withingsUUIDs.WITHINGS_ANCS_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-        notificationSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
+        notificationSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_INDICATE, BluetoothGattCharacteristic.PERMISSION_READ);
         notificationSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(notificationSourceCharacteristic);
         withingsGATTService.addCharacteristic(new BluetoothGattCharacteristic(withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE));
-        dataSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
+        dataSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_INDICATE, BluetoothGattCharacteristic.PERMISSION_READ);
         dataSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
         withingsGATTService.addCharacteristic(dataSourceCharacteristic);
         addSupportedServerService(withingsGATTService);
@@ -946,6 +946,18 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0035));
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
         addSimpleConversationToQueue(featureTagsMsg);
+    }
+
+    /**
+     * Reset the watch's ANCS state machine by toggling SET_ANCS_STATUS off then on.
+     * Called by NotificationProvider when consecutive timeouts indicate the watch has
+     * stopped responding to ANCS events.
+     */
+    public void resetAncsState() {
+        logger.info("Resetting ANCS state: sending SET_ANCS_STATUS(false) then SET_ANCS_STATUS(true)");
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(false)));
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+        conversationQueue.send();
     }
 
     public void addSimpleConversationToQueue(Message message) {
