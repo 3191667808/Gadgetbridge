@@ -26,7 +26,9 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.ActivityEntry;
@@ -41,6 +43,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleUnknown;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleWalk;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityHeartrate;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasSpo2;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructureType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
@@ -53,6 +56,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     private ActivityEntry activityEntry;
     private List<ActivityEntry> activityEntries = new ArrayList<>();
     private List<ActivityEntry> heartrateEntries = new ArrayList<>();
+    private final List<long[]> spo2Entries = new ArrayList<>();
 
     public ActivitySampleHandler(WithingsBaseDeviceSupport support) {
         super(support);
@@ -107,6 +111,9 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                 case WithingsStructureType.WORKOUT_TYPE:
                     handleWorkoutType(data);
                     break;
+                case WithingsStructureType.VASISTAS_SPO2:
+                    handleSpo2(data);
+                    break;
                 default:
                     logUnhandledActivityData(data);
             }
@@ -139,6 +146,32 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
 
     private void handleHeartrate(WithingsStructure data) {
         activityEntry.setIsHeartrate(((ActivityHeartrate) data).getHeartrate());
+    }
+
+    private void handleSpo2(final WithingsStructure data) {
+        if (activityEntry == null) {
+            logger.info("Received Withings SpO2 vasistas without timestamp context: {}", GB.hexdump(data.getRawData()));
+            return;
+        }
+
+        final VasistasSpo2 vasistasSpo2 = (VasistasSpo2) data;
+        final int spo2 = vasistasSpo2.getSpo2Percent();
+        if (spo2 < 1 || spo2 > 100) {
+            logger.info("Skipping Withings SpO2 vasistas with invalid value: ts={} spo2Tenths={} pulse={} status={}",
+                    activityEntry.getTimestamp(),
+                    vasistasSpo2.getSpo2DeciPercent(),
+                    vasistasSpo2.getPulseRate(),
+                    vasistasSpo2.getStatus());
+            return;
+        }
+
+        final long timestampMs = activityEntry.getTimestamp() * 1000L;
+        spo2Entries.add(new long[]{timestampMs, spo2});
+        logger.info("Collected Withings SpO2 vasistas sample: ts={} spo2={} pulse={} status={}",
+                timestampMs,
+                spo2,
+                vasistasSpo2.getPulseRate(),
+                vasistasSpo2.getStatus());
     }
 
     private void handleMovement(WithingsStructure data) {
@@ -234,6 +267,16 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
             }
 
             writeToDB(provider, activitySamples);
+
+            if (!spo2Entries.isEmpty()) {
+                final GenericSpo2SampleProvider spo2Provider = new GenericSpo2SampleProvider(device, dbHandler.getDaoSession());
+                final List<GenericSpo2Sample> spo2Samples = new ArrayList<>(spo2Entries.size());
+                for (final long[] entry : spo2Entries) {
+                    spo2Samples.add(new GenericSpo2Sample(entry[0], deviceId, userId, (int) entry[1]));
+                }
+                spo2Provider.addSamples(spo2Samples);
+                logger.info("Stored {} Withings SpO2 vasistas sample(s)", spo2Samples.size());
+            }
         } catch (Exception ex) {
             logger.warn("Error saving activity data: " + ex.getLocalizedMessage());
         }

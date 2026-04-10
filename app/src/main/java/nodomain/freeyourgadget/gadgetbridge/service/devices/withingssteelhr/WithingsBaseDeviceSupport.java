@@ -312,6 +312,18 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             return;
         }
 
+        // Guard against running a full sync while the device is still initializing
+        // (i.e., auth/PROBE flow is in progress).  The watch sometimes sends a SYNC
+        // request before responding to our PROBE -- if we run doSync() now, the
+        // conversationQueue.clear() below will destroy the pending PROBE/auth
+        // conversation, and the device will be stuck in INITIALIZING forever.
+        // After auth completes, onAuthenticationFinished() will call doSync("post-auth").
+        if (getDevice().isInitializing() && !"post-auth".equals(triggerSource)) {
+            logger.info("Deferring sync trigger '{}' -- device is still initializing (auth in progress). " +
+                    "Sync will run automatically after auth completes.", triggerSource);
+            return;
+        }
+
         final long now = System.currentTimeMillis();
         if (now - lastSyncTriggerTimestamp < MIN_SYNC_TRIGGER_INTERVAL_MS) {
             logger.info("Ignoring duplicate sync trigger '{}' {} ms after '{}'", triggerSource, now - lastSyncTriggerTimestamp, lastSyncTriggerSource);
@@ -416,14 +428,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new TypeVersion());
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
-                // Official-app-like stored-measure sync is split into two pieces:
-                // 1) queue polling for signal types 0x0001/0x0004/0x0005, always starting from cursor 0
-                // 2) a separate ECG discovery flow that enumerates stored ECG record keys before fetching
-                //    waveforms. Mixed 0x0004 pages can still surface ECG metadata, so both paths cooperate.
-                message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
-                message.addDataStructure(new StoredSignalMeta(0x0001, 0));
-                addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0001));
-
+                // Stored-measure sync for signal types 0x0004 (SpO2/HR + mixed ECG keys) and 0x0005.
+                // Signal type 0x0001 (ECG waveform) is NOT requested here because it returns raw
+                // ECG waveform StoredSignalData packets that the StoredMeasureSignalHandler cannot
+                // process, causing the sync to stall.  ECG waveforms are handled by the dedicated
+                // WithingsEcgHandler discovery flow instead, which correctly decodes them.
                 message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
                 message.addDataStructure(new StoredSignalMeta(0x0004, 0));
                 addSimpleConversationToQueue(message, new StoredMeasureSignalHandler(this, gbDevice, 0x0004));
@@ -923,7 +932,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     private void enableNotifications() {
-        // Enable ANCS bridge
+        // Toggle ANCS off then on -- after an overnight BLE reconnection the watch may
+        // have stale ANCS state and ignore NotificationSource events even though
+        // SET_ANCS_STATUS(true) was previously sent.  Sending false first forces the
+        // watch to tear down and re-establish its ANCS subscription.
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(false)));
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
 
         // Register the TAG_NOTIFICATIONS feature tag

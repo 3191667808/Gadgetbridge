@@ -19,20 +19,28 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import java.nio.ByteBuffer;
 
 public class VasistasSpo2 extends WithingsStructure {
-    private int error;
-    private int quality;
-    private int spo2;
+    private int spo2DeciPercent;
+    private int pulseRate;
+    private int status;
 
-    public int getError() {
-        return error;
+    public int getSpo2DeciPercent() {
+        return spo2DeciPercent;
     }
 
-    public int getQuality() {
-        return quality;
+    public int getPulseRate() {
+        return pulseRate;
     }
 
-    public int getSpo2() {
-        return spo2;
+    public int getStatus() {
+        return status;
+    }
+
+    public int getSpo2Percent() {
+        if (spo2DeciPercent <= 0) {
+            return 0;
+        }
+
+        return Math.round(spo2DeciPercent / 10f);
     }
 
     @Override
@@ -42,21 +50,21 @@ public class VasistasSpo2 extends WithingsStructure {
 
     @Override
     protected void fillinTypeSpecificData(final ByteBuffer buffer) {
-        buffer.putInt(error);
-        buffer.putInt(quality);
-        buffer.putInt(spo2);
+        buffer.putInt(spo2DeciPercent);
+        buffer.putInt(pulseRate);
+        buffer.putInt(status);
     }
 
     @Override
     protected void fillFromRawDataAsBuffer(final ByteBuffer rawDataBuffer) {
         if (rawDataBuffer.remaining() >= 12) {
-            error = rawDataBuffer.getInt();
-            quality = rawDataBuffer.getInt();
-            spo2 = rawDataBuffer.getInt();
+            spo2DeciPercent = rawDataBuffer.getInt();
+            pulseRate = rawDataBuffer.getInt();
+            status = rawDataBuffer.getInt();
         } else if (rawDataBuffer.remaining() >= 6) {
-            error = rawDataBuffer.getShort() & 0xFFFF;
-            quality = rawDataBuffer.getShort() & 0xFFFF;
-            spo2 = rawDataBuffer.getShort() & 0xFFFF;
+            spo2DeciPercent = rawDataBuffer.getShort() & 0xFFFF;
+            pulseRate = rawDataBuffer.getShort() & 0xFFFF;
+            status = rawDataBuffer.getShort() & 0xFFFF;
         }
     }
 

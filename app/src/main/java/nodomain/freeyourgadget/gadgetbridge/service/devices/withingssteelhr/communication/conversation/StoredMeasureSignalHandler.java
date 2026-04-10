@@ -32,6 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureMeta;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredSignalMeta;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
@@ -45,6 +46,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private static final int ECG_WAVEFORM_SIGNAL_TYPE = 0x0001;
     private static final int MAX_DELETE_ATTEMPTS = 256;
     private static final int MAX_REPEATED_PAGE_RETRIES = 16;
+    private static final int MAX_SIGNAL_DATA_PACKETS = 500;
 
     private final WithingsBaseDeviceSupport support;
     private final GBDevice device;
@@ -56,6 +58,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private StoredMeasureMeta pendingEcgMeta = null;
     private long pendingLastSampleTimestampMs = -1;
     private int pendingLastSampleSpo2 = -1;
+    private int consecutiveSignalDataPackets = 0;
     private int lastDeletedCursor = -1;
     private int lastDeletedSignalFlags = -1;
     private long lastDeletedTimestampMs = -1;
@@ -80,6 +83,10 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
     @Override
     public void handleResponse(final Message response) {
+        logger.info("StoredMeasureSignal response: signalType=0x{} structureCount={} hasEOT={}",
+                Integer.toHexString(signalType),
+                response.getDataStructures().size(),
+                support.hasEndOfTransmission(response));
         StoredMeasureMeta currentMeta = null;
         boolean sawAnyStoredData = false;
         boolean sawSignalMetaThisPage = false;
@@ -91,8 +98,11 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         final List<long[]> collectedHeartRates = new ArrayList<>(); // [timestampMs, bpm]
 
         for (final WithingsStructure structure : response.getDataStructures()) {
+            logger.info("  TLV structure: {} (type=0x{})", structure.getClass().getSimpleName(), Integer.toHexString(structure.getType() & 0xffff));
             if (structure instanceof StoredSignalMeta) {
                 final StoredSignalMeta storedSignalMeta = (StoredSignalMeta) structure;
+                logger.info("  StoredSignalMeta: signalType=0x{} cursor={} signalFlags={}",
+                        Integer.toHexString(storedSignalMeta.getSignalType()), storedSignalMeta.getCursor(), storedSignalMeta.getSignalFlags());
                 if (storedSignalMeta.getSignalType() == signalType && storedSignalMeta.getCursor() >= 0) {
                     sawSignalMetaThisPage = true;
                     pageCursor = storedSignalMeta.getCursor();
@@ -104,8 +114,28 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
             if (structure instanceof StoredMeasureMeta) {
                 currentMeta = (StoredMeasureMeta) structure;
                 sawAnyStoredData = true;
+                logger.info("  StoredMeasureMeta: measurementType=0x{} ({}) timestampMs={}",
+                        Integer.toHexString(currentMeta.getMeasurementType()), currentMeta.getMeasurementType(), currentMeta.getTimestampMs());
                 if (currentMeta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
                     pendingEcgMeta = currentMeta;
+                }
+                continue;
+            }
+
+            if (structure instanceof StoredSignalData) {
+                final StoredSignalData signalData = (StoredSignalData) structure;
+                sawAnyStoredData = true;
+                consecutiveSignalDataPackets++;
+                final byte[] raw = signalData.getSamples();
+                logger.info("  StoredSignalData: {} bytes, sampleCount={} (packet #{})",
+                        raw.length,
+                        signalData.getSampleCount(),
+                        consecutiveSignalDataPackets);
+                if (consecutiveSignalDataPackets > MAX_SIGNAL_DATA_PACKETS) {
+                    logger.warn("StoredMeasureSignal: received {} StoredSignalData packets for signalType=0x{} without EOT; aborting to prevent stall",
+                            consecutiveSignalDataPackets, Integer.toHexString(signalType));
+                    resetPendingPageState();
+                    return;
                 }
                 continue;
             }
@@ -116,6 +146,8 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
             final StoredMeasureData data = (StoredMeasureData) structure;
             sawAnyStoredData = true;
+            logger.info("  StoredMeasureData: measurementType={} rawValue={} exponent={} spo2Percent={}",
+                    data.getMeasurementType(), data.getRawValue(), data.getExponent(), data.getSpo2Percent());
 
             if (currentMeta == null) {
                 logger.debug("Skipping stored measure data without meta: spo2Percent={} hasEOT={}", data.getSpo2Percent(), support.hasEndOfTransmission(response));
@@ -154,7 +186,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                 continue;
             }
 
-            logger.debug("Collected Withings SpO2 sample: ts={} spo2={} metaType={} dataType={}",
+            logger.info("Collected Withings SpO2 sample: ts={} spo2={} metaType={} dataType={}",
                     timestampMs, spo2, currentMeta.getMeasurementType(), data.getMeasurementType());
             collectedSamples.add(new long[]{timestampMs, spo2});
             pendingLastSampleTimestampMs = timestampMs;
@@ -171,7 +203,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                     samples.add(new GenericSpo2Sample(entry[0], deviceId, userId, (int) entry[1]));
                 }
                 provider.addSamples(samples);
-                logger.debug("Stored {} Withings SpO2 sample(s)", samples.size());
+                logger.info("Stored {} Withings SpO2 sample(s)", samples.size());
             } catch (final Exception ex) {
                 logger.warn("Failed storing Withings SpO2 samples", ex);
             }
@@ -194,8 +226,9 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         }
 
         if (!sawAnyStoredData) {
-            logger.debug(
-                    "Skipping stored measure response: hasMetaOrData=false hasEOT={}",
+            logger.info(
+                    "StoredMeasureSignal: no meta/data structures in response: signalType=0x{} hasEOT={}",
+                    Integer.toHexString(signalType),
                     support.hasEndOfTransmission(response)
             );
         }
@@ -210,6 +243,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
 
         final boolean hasEot = support.hasEndOfTransmission(response);
         if (!hasEot) {
+            logger.info("StoredMeasureSignal: awaiting more packets for signalType=0x{}", Integer.toHexString(signalType));
             return;
         }
 
@@ -296,6 +330,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         pendingEcgMeta = null;
         pendingLastSampleTimestampMs = -1;
         pendingLastSampleSpo2 = -1;
+        consecutiveSignalDataPackets = 0;
     }
 
     private boolean isRepeatedPage(final int cursor,

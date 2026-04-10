@@ -45,16 +45,16 @@ public class MessageBuilder {
             return false;
         }
 
-        if (rawData[0] == 0x01) {
-            if (pendingMessage != null) {
-                logger.warn("New message header (0x01) received while a previous message was still pending -- discarding stale partial message ({} bytes accumulated)",
-                        pendingMessage.size());
-            }
+        if (rawData[0] == 0x01 && !hasPendingIncompleteMessage()) {
+            // First byte is 0x01 (version) and no incomplete message is pending:
+            // this is the start of a new WPP message.
             pendingMessage = new ByteArrayOutputStream();
         } else if (pendingMessage == null) {
             logger.warn("Received continuation fragment without a pending message header -- discarding {} bytes", rawData.length);
             return false;
         }
+        // Otherwise: we have a pending incomplete message, so this chunk is a
+        // continuation fragment even if its first byte happens to be 0x01.
 
         try {
             pendingMessage.write(rawData);
@@ -80,6 +80,37 @@ public class MessageBuilder {
 
     public Message getMessage() {
         return message;
+    }
+
+    /**
+     * Returns true when a multi-fragment message is being accumulated and
+     * the declared payload length has NOT yet been reached.  In that case an
+     * incoming chunk whose first byte happens to be 0x01 must be treated as a
+     * continuation fragment, not as a new message header.
+     *
+     * Safety: if the accumulated data already exceeds the declared length
+     * (corrupt header / missed fragment), we consider it stale so the caller
+     * can start a fresh message.
+     */
+    private boolean hasPendingIncompleteMessage() {
+        if (pendingMessage == null) {
+            return false;
+        }
+        byte[] accumulated = pendingMessage.toByteArray();
+        if (accumulated.length < 5) {
+            // Still accumulating the header itself.
+            return true;
+        }
+        short totalDataLength = (short) BLETypeConversions.toInt16(accumulated[4], accumulated[3]);
+        int dataReceived = accumulated.length - 5;
+        if (dataReceived >= totalDataLength) {
+            // Already have enough (or too many) bytes -- treat as stale.
+            logger.warn("Pending message has {} data bytes but declared {}; treating as stale",
+                    dataReceived, totalDataLength);
+            pendingMessage = null;
+            return false;
+        }
+        return true;
     }
 
     private boolean isMessageComplete(byte[] messageData) {
