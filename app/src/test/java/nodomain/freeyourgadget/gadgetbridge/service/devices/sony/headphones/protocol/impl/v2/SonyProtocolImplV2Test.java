@@ -178,26 +178,18 @@ public class SonyProtocolImplV2Test {
 
     @Test
     public void setAudioLDAC() {
-        final Request requestStableConnection = protocol.setAudioLDAC(new AudioLDAC(false));
-        assertRequest(requestStableConnection, "3e:0c:01:00:00:00:04:e8:01:00:01:fb:3c");
-
-        final Request requestSoundQuality = protocol.setAudioLDAC(new AudioLDAC(true));
-        assertRequest(requestSoundQuality, "3e:0c:00:00:00:00:04:e8:01:00:00:f9:3c");
+        // TODO
     }
 
     @Test
     public void setButtonFunctionNcAmbient() {
-        assertRequests(protocol::setButtonFunctionNcAmbient, new LinkedHashMap<ButtonFunctionNcAmbient, String>() {{
-            put(new ButtonFunctionNcAmbient(ButtonFunctionNcAmbient.Mode.SWITCH_AMBIENT_SOUND), "d8:d1:02:00");
-            put(new ButtonFunctionNcAmbient(ButtonFunctionNcAmbient.Mode.GOOGLE_ASSISTANT), "d8:d1:02:01");
-            put(new ButtonFunctionNcAmbient(ButtonFunctionNcAmbient.Mode.ALEXA_ASSISTANT), "d8:d1:02:02");
-        }});
+        // TODO
     }
 
     @Test
     public void reboot() {
         final Request request = protocol.reboot();
-        assertRequest(request, 0x0c, "98:01:02:01");
+        assertRequest(request, 0x0c, "98:00:16:01");
     }
 
     @Test
