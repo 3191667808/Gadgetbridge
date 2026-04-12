@@ -39,6 +39,8 @@ import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.samples.MoyoungBloodPressureSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.samples.MoyoungHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.samples.MoyoungActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.samples.MoyoungSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.samples.MoyoungStressSampleProvider;
@@ -62,6 +64,8 @@ import nodomain.freeyourgadget.gadgetbridge.entities.MoyoungSleepStageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.MoyoungSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.MoyoungStressSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
+import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
@@ -129,6 +133,26 @@ public abstract class AbstractMoyoungDeviceCoordinator extends AbstractBLEDevice
     @Override
     public TimeSampleProvider<? extends StressSample> getStressSampleProvider(GBDevice device, DaoSession session) {
         return new MoyoungStressSampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends HeartRateSample> getHeartRateRestingSampleProvider(GBDevice device, DaoSession session) {
+        return new MoyoungHeartRateSampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends HeartRateSample> getHeartRateManualSampleProvider(GBDevice device, DaoSession session) {
+        return new MoyoungHeartRateSampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends HeartRateSample> getHeartRateMaxSampleProvider(GBDevice device, DaoSession session) {
+        return new MoyoungHeartRateSampleProvider(device, session);
+    }
+
+    @Override
+    public TimeSampleProvider<? extends BloodPressureSample> getBloodPressureSampleProvider(GBDevice device, DaoSession session) {
+        return new MoyoungBloodPressureSampleProvider(device, session);
     }
 
     @Override
