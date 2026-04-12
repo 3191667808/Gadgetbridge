@@ -47,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -83,6 +84,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmName;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AlarmStatus;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AncsStatus;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.DataStructureFactory;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
@@ -116,6 +118,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming.IncomingMessageHandler;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming.IncomingMessageHandlerFactory;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.AncsConstants;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.GetNotificationAttributes;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.GetNotificationAttributesResponse;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.notification.NotificationProvider;
@@ -134,6 +137,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public static final String LAST_ACTIVITY_SYNC = "lastActivitySync";
     private static final long ACTIVITY_SYNC_OVERLAP_MILLIS = 6L * 60L * 60L * 1000L;
     private static final long MIN_SYNC_TRIGGER_INTERVAL_MS = 15_000L;
+    private static final long POST_SYNC_ANCS_REENABLE_DELAY_MS = 1_000L;
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
@@ -147,6 +151,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private ActivitySampleHandler activitySampleHandler;
     private final ConversationQueue conversationQueue;
     private boolean firstTimeConnect;
+    private boolean ancsNeedsPostSyncReenable;
+    private boolean ancsAwaitingCccReadyEnable;
+    private boolean ancsNotificationSourceSubscribed;
+    private boolean ancsDataSourceSubscribed;
     private BluetoothGattCharacteristic notificationSourceCharacteristic;
     private BluetoothGattCharacteristic dataSourceCharacteristic;
 
@@ -186,6 +194,52 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private final NotificationProvider notificationProvider;
     private final IncomingMessageHandlerFactory incomingMessageHandlerFactory;
     private final Handler backgroundTasksHandler = new Handler(Looper.getMainLooper());
+    private final Runnable postSyncAncsReenableRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!ancsNeedsPostSyncReenable) {
+                return;
+            }
+
+            if (!isConnected()) {
+                logger.debug("Skipping post-sync ANCS re-enable because device is disconnected");
+                return;
+            }
+
+            if (syncInProgress) {
+                logger.debug("Deferring post-sync ANCS GATT refresh because another sync is running");
+                backgroundTasksHandler.postDelayed(this, POST_SYNC_ANCS_REENABLE_DELAY_MS);
+                return;
+            }
+
+            logger.info("Refreshing ANCS GATT services after first sync and waiting for fresh CCC subscriptions");
+            ancsNeedsPostSyncReenable = false;
+            ancsAwaitingCccReadyEnable = true;
+            refreshAncsServerServices();
+        }
+    };
+
+    // --- ANCS stall watchdog ---
+    // Track the last time we received a Control Point write from the watch, and the
+    // last time we sent a NotificationSource ADDED.  If ADDEDs keep going out but no
+    // CP arrives within the threshold, the watch's ANCS client is stalled and we need
+    // to attempt recovery.
+    private volatile long lastControlPointWriteMs;
+    private volatile long lastNotificationAddedSentMs;
+    /**
+     * How long (ms) after sending an ADDED event to wait for a Control Point request
+     * before declaring an ANCS stall.  The watch normally issues CP within ~200ms.
+     * 2 minutes is very generous and avoids false positives during periods where no
+     * notifications are sent.
+     */
+    private static final long ANCS_STALL_THRESHOLD_MS = 120_000;
+    /**
+     * Minimum interval between ANCS recovery attempts to avoid hammering.
+     */
+    private static final long ANCS_RECOVERY_COOLDOWN_MS = 180_000;
+    private volatile long lastAncsRecoveryAttemptMs;
+    private volatile int ancsRecoveryAttemptCount;
+    private final Runnable ancsStallCheckRunnable = this::checkAncsStall;
 
     public WithingsBaseDeviceSupport() {
         super(logger);
@@ -234,6 +288,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     @Override
     public void dispose() {
         synchronized (ConnectionMonitor) {
+            ancsNeedsPostSyncReenable = false;
+            ancsAwaitingCccReadyEnable = false;
+            resetAncsSubscriptionState("dispose");
             backgroundTasksHandler.removeCallbacksAndMessages(null);
 
             super.dispose();
@@ -244,6 +301,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
         logger.debug("Starting initialization...");
         conversationQueue.clear();
+        backgroundTasksHandler.removeCallbacks(postSyncAncsReenableRunnable);
+        ancsNeedsPostSyncReenable = true;
+        ancsAwaitingCccReadyEnable = false;
+        resetAncsSubscriptionState("new connection");
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
@@ -256,6 +317,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     private void postConnectInitialization() {
+        logger.debug("postConnectInitialization: requesting notification enable and MTU change");
         final TransactionBuilder builder = createTransactionBuilder("delayed initialization");
         builder.notify(getActiveWithingsUUIDs().WITHINGS_WRITE_CHARACTERISTIC_UUID, true);
         builder.requestMtu(512);
@@ -288,7 +350,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, activityUser.getStepsGoal())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
-            enableNotifications();
+            ancsAwaitingCccReadyEnable = true;
+            refreshAncsServerServices();  // Only on initial connection, never during periodic sync
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SETUP_FINISHED), new SetupFinishedHandler(this));
         } else {
@@ -542,6 +605,12 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
         if (newState == BluetoothGatt.STATE_CONNECTED) {
             clearStaleSyncState("connect");
+            // Reset ANCS stall watchdog state on new connection
+            lastControlPointWriteMs = 0;
+            lastNotificationAddedSentMs = 0;
+            lastAncsRecoveryAttemptMs = 0;
+            ancsRecoveryAttemptCount = 0;
+            backgroundTasksHandler.removeCallbacks(ancsStallCheckRunnable);
         } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
             clearStaleSyncState("disconnect");
         }
@@ -593,21 +662,39 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     @Override
     public boolean onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
-        logger.debug("onDescriptorWriteRequest from device={}, descriptor={}, value={}", device.getAddress(), descriptor.getUuid(), GB.hexdump(value));
+        logger.debug("onDescriptorWriteRequest: device={}, descriptor={}, characteristic={}, value={}",
+                device.getAddress(), descriptor.getUuid(),
+                descriptor.getCharacteristic() != null ? descriptor.getCharacteristic().getUuid() : "null",
+                GB.hexdump(value));
+
+        if (descriptor.getCharacteristic() != null && descriptor.getUuid().equals(getActiveWithingsUUIDs().CCC_DESCRIPTOR_UUID)) {
+            final UUID characteristicUuid = descriptor.getCharacteristic().getUuid();
+            final boolean enabled = isNotificationCccEnabled(value);
+            if (characteristicUuid.equals(getActiveWithingsUUIDs().NOTIFICATION_SOURCE_CHARACTERISTIC_UUID)) {
+                ancsNotificationSourceSubscribed = enabled;
+                logger.info("ANCS Notification Source CCC {}", enabled ? "enabled" : "disabled");
+                maybeHandleAncsSubscriptionsReady();
+            } else if (characteristicUuid.equals(getActiveWithingsUUIDs().DATA_SOURCE_CHARACTERISTIC_UUID)) {
+                ancsDataSourceSubscribed = enabled;
+                logger.info("ANCS Data Source CCC {}", enabled ? "enabled" : "disabled");
+                maybeHandleAncsSubscriptionsReady();
+            }
+        }
+
         return true;
     }
 
     @Override
     public boolean onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
-        logger.debug("onCharacteristicReadRequest from device={}, characteristic={}, offset={}", device.getAddress(), characteristic.getUuid(), offset);
+        logger.debug("onCharacteristicReadRequest: device={}, characteristic={}, offset={}", device.getAddress(), characteristic.getUuid(), offset);
         return false;
     }
 
     @Override
     public boolean onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
-        logger.debug("onCharacteristicWriteRequest from device={}, characteristic={}, value={}", device.getAddress(), characteristic.getUuid(), GB.hexdump(value));
         if (characteristic.getUuid().equals(getWithingsUUIDs().CONTROL_POINT_CHARACTERISTIC_UUID)) {
-            logger.debug("Got GetNotificationAttributesRequest: " + GB.hexdump(value));
+            logger.debug("ANCS Control Point write: {}", GB.hexdump(value));
+            onControlPointWriteReceived();
             GetNotificationAttributes request = new GetNotificationAttributes();
             request.deserialize(value);
             notificationProvider.handleNotificationAttributeRequest(request);
@@ -732,37 +819,53 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     public void sendAncsNotificationSourceNotification(NotificationSource notificationSource) {
         try {
-            BluetoothDevice serverDevice = getServerDevice();
-            logger.info("Sending ANCS NotificationSource to device={}, characteristic={}, data={}",
-                    serverDevice.getAddress(),
-                    notificationSourceCharacteristic.getUuid(),
-                    GB.hexdump(notificationSource.serialize()));
             ServerTransactionBuilder builder = performServer("notificationSourceNotification");
             byte[] data = notificationSource.serialize();
-            builder.notifyCharacteristicChanged(serverDevice, notificationSourceCharacteristic, data);
+            builder.notifyCharacteristicChanged(getServerDevice(), notificationSourceCharacteristic, data);
             builder.queue(getQueue());
+
+            // Track ADDED events for stall detection
+            if (notificationSource.getEventID() == AncsConstants.EVENT_ID_NOTIFICATION_ADDED) {
+                lastNotificationAddedSentMs = System.currentTimeMillis();
+                scheduleAncsStallCheck();
+            }
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
             GB.toast("Could not send notification.", Toast.LENGTH_LONG, GB.ERROR, e);
         }
     }
 
+    /**
+     * Send an ANCS DataSource response to the watch, chunked to 20-byte BLE packets.
+     *
+     * <p>The official Withings app always sends DataSource PDUs in 20-byte chunks,
+     * matching the BLE 4.0 default ATT MTU (23 - 3 header = 20 payload). This is
+     * deliberate even when a larger MTU is negotiated for the main Withings protocol
+     * channel (which uses up to 112 bytes). The watch firmware expects this chunking.
+     *
+     * <p><b>Critical: empty termination chunk.</b> When the serialized response length
+     * is an exact multiple of 20 bytes, the watch cannot distinguish "last chunk" from
+     * "more data coming" because all chunks are full-sized. The official app sends an
+     * empty (0-byte) BLE notification to signal end-of-transmission in this case.
+     * Without it, the watch hangs waiting for more data and permanently stalls the
+     * ANCS state machine. This commonly happens with app IDs whose PHASE1 response
+     * is exactly 20 bytes (e.g. "com.whatsapp" = 12 bytes + 5 header + 3 attr = 20).
+     */
     public void sendAncsDataSourceNotification(GetNotificationAttributesResponse response) {
         try {
             ServerTransactionBuilder builder = performServer("dataSourceNotification");
             byte[] data = response.serialize();
-            // The official Withings app always sends DataSource PDUs in 20-byte chunks,
-            // matching the BLE 4.0 default ATT MTU (23 - 3 header = 20 payload).
-            // This is deliberate even when a larger MTU is negotiated for the main
-            // Withings protocol channel (handle 0x0013 uses up to 112 bytes).
-            // The watch firmware expects this chunking for ANCS DataSource responses.
             int chunkSize = 20;
             for (int i = 0; i < data.length; i += chunkSize) {
                 int length = Math.min(chunkSize, data.length - i);
                 byte[] chunk = new byte[length];
                 System.arraycopy(data, i, chunk, 0, length);
-                logger.info("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
+                logger.debug("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
                 builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
+            }
+            if (data.length > 0 && data.length % chunkSize == 0) {
+                // Empty termination chunk -- see javadoc above
+                builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, new byte[0]);
             }
             builder.queue(getQueue());
         } catch (IOException e) {
@@ -815,6 +918,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         activitySampleHandler.onSyncFinished();
         GB.signalActivityDataFinish(getDevice());
         saveLastSyncTimestamp(new Date().getTime());
+
+        if (ancsNeedsPostSyncReenable) {
+            backgroundTasksHandler.removeCallbacks(postSyncAncsReenableRunnable);
+            backgroundTasksHandler.postDelayed(postSyncAncsReenableRunnable, POST_SYNC_ANCS_REENABLE_DELAY_MS);
+        }
     }
 
     public boolean isSyncInProgress() {
@@ -826,6 +934,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             finishInitialization();
             doSync("post-auth");
         } else {
+            refreshAncsServerServices();  // Only on initial connection
             enableNotifications();
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
@@ -917,11 +1026,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     private void addANCSService() {
         final WithingsUUIDs withingsUUIDs = getActiveWithingsUUIDs();
-        logger.info("Adding ANCS service with UUIDs: service={}, notifSource={}, controlPoint={}, dataSource={}",
-                withingsUUIDs.WITHINGS_ANCS_SERVICE_UUID,
-                withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID,
-                withingsUUIDs.CONTROL_POINT_CHARACTERISTIC_UUID,
-                withingsUUIDs.DATA_SOURCE_CHARACTERISTIC_UUID);
         BluetoothGattService withingsGATTService = new BluetoothGattService(withingsUUIDs.WITHINGS_ANCS_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
         notificationSourceCharacteristic = new BluetoothGattCharacteristic(withingsUUIDs.NOTIFICATION_SOURCE_CHARACTERISTIC_UUID, BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
         notificationSourceCharacteristic.addDescriptor(new BluetoothGattDescriptor(withingsUUIDs.CCC_DESCRIPTOR_UUID, BluetoothGattCharacteristic.PERMISSION_WRITE));
@@ -933,34 +1037,218 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         addSupportedServerService(withingsGATTService);
     }
 
-    private void enableNotifications() {
-        logger.info("Enabling ANCS notifications by sending SET_ANCS_STATUS and SET_FEATURE_TAGS_DEPRECATED");
-        
-        WithingsMessage ancsStatusMsg = new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS);
-        ancsStatusMsg.addDataStructure(new nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AncsStatus(true));
-        addSimpleConversationToQueue(ancsStatusMsg);
+    /**
+     * Refresh the GATT server services so the watch re-discovers them and
+     * subscribes to the ANCS CCC descriptors.
+     * <p>
+     * IMPORTANT: This must ONLY be called during initial connection setup, NOT
+     * during periodic sync cycles. The clearServices()+addService() call causes
+     * Android to tear down and rebuild the BLE advertising set, which corrupts the
+     * watch's GATT server view on the still-active ANCS connection. This was the
+     * root cause of the long-session ANCS stall: every ~8 min sync cycle called
+     * refreshServerServices(), eventually causing the watch to stop issuing Control
+     * Point requests while NotificationSource kept working.
+     * <p>
+     * The official Withings app does CCC subscription only once at initial setup and
+     * keeps the ANCS connection stable for 12+ hours without any server service
+     * cycling.
+     */
+    private void refreshAncsServerServices() {
+        resetAncsSubscriptionState("refreshing GATT server services");
+        try {
+            getQueue().refreshServerServices();
+        } catch (Exception e) {
+            logger.warn("refreshServerServices() failed, continuing anyway", e);
+        }
+    }
 
+    /**
+     * Send SET_ANCS_STATUS and feature tags to the watch. This is safe to call
+     * repeatedly (e.g., during periodic sync) because it only sends WPP messages
+     * and does NOT touch the GATT server services.
+     */
+    private void enableNotifications() {
+        // Send SET_ANCS_STATUS(true) to tell the watch that ANCS notifications are
+        // enabled on this phone.  Without this, the watch's ANCS state machine may
+        // time out after a few minutes and stop processing ANCS events, even though
+        // the GATT CCC subscriptions are still in place.
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
+        addFeatureTagsMessage();
+    }
+
+    private void resetAncsSubscriptionState(final String reason) {
+        logger.debug("Resetting ANCS CCC subscription state ({})", reason);
+        ancsNotificationSourceSubscribed = false;
+        ancsDataSourceSubscribed = false;
+    }
+
+    private boolean isNotificationCccEnabled(final byte[] value) {
+        return value != null
+                && value.length >= 2
+                && value[0] == BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE[0]
+                && value[1] == BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE[1];
+    }
+
+    private boolean areAncsCccSubscriptionsReady() {
+        return ancsNotificationSourceSubscribed && ancsDataSourceSubscribed;
+    }
+
+    private void maybeHandleAncsSubscriptionsReady() {
+        if (!areAncsCccSubscriptionsReady()) {
+            return;
+        }
+
+        logger.info("ANCS CCC subscriptions are active on the current GATT server instance");
+
+        if (!ancsAwaitingCccReadyEnable) {
+            return;
+        }
+
+        if (syncInProgress) {
+            logger.debug("ANCS CCC subscriptions became ready during sync; ANCS enable will be sent once sync is over");
+            return;
+        }
+
+        logger.info("Fresh ANCS CCC subscriptions observed; sending ANCS enable + feature tags");
+        ancsAwaitingCccReadyEnable = false;
+        enableNotifications();
+        conversationQueue.send();
+    }
+
+    /**
+     * Queues the SET_FEATURE_TAGS_DEPRECATED message with the feature tags required
+     * by this device.
+     *
+     * <p>The base implementation sends the minimal set for the Steel HR: just
+     * {@link FeatureTagDeprecated#TAG_NOTIFICATIONS}, {@link FeatureTagDeprecated#TAG_0x0035},
+     * and {@link FeatureTagDeprecated#TAG_0x0058}.
+     *
+     * <p>Subclasses (e.g. ScanWatch) should override this to include additional
+     * feature tags such as ECG and SpO2, so that all features are enabled from the
+     * very first connection -- not just after the first periodic sync.
+     */
+    protected void addFeatureTagsMessage() {
         WithingsMessage featureTagsMsg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         featureTagsMsg.addDataStructure(new FeatureTagsUserId(0));
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0035));
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
+        featureTagsMsg.addDataStructure(new EndOfTransmission());
         addSimpleConversationToQueue(featureTagsMsg);
+        addFeatureTagsCommitCommands();
     }
 
     /**
-     * Attempt to recover ANCS by re-sending feature tags. Called by NotificationProvider
-     * when consecutive unacknowledged notifications indicate the watch has stopped
-     * responding to ANCS events.
+     * Sends the 0x0993 + 0x0994 "commit" commands that the official app always sends
+     * after {@code SET_FEATURE_TAGS_DEPRECATED}.  Without these, the watch may not
+     * fully activate the feature tag changes (e.g., ANCS notifications only request
+     * attribute 0 instead of the full title/subtitle/message).
      *
-     * The official app has no recovery mechanism -- it relies entirely on GATT CCC
-     * subscriptions. Our recovery re-sends ANCS status and feature tags in case the watch
-     * lost track of notification capability.
+     * <p>Both are empty GET messages that return a simple ACK response.
+     */
+    protected void addFeatureTagsCommitCommands() {
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.COMMIT_FEATURE_TAGS));
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.COMMIT_NOTIFICATION_CONFIG));
+    }
+
+    /**
+     * Attempt to recover ANCS by re-sending SET_ANCS_STATUS and feature tags.
+     * Called by NotificationProvider when consecutive unacknowledged notifications
+     * indicate the watch has stopped responding to ANCS events.
      */
     public void resetAncsState() {
-        logger.info("Resetting ANCS state: re-sending ANCS status and feature tags");
+        logger.info("Resetting ANCS state: re-sending SET_ANCS_STATUS and feature tags");
         enableNotifications();
         conversationQueue.send();
+    }
+
+    /**
+     * Schedule a delayed ANCS stall check. Called after sending a NotificationSource
+     * ADDED event. After the threshold, we check whether a Control Point write arrived.
+     */
+    private void scheduleAncsStallCheck() {
+        backgroundTasksHandler.removeCallbacks(ancsStallCheckRunnable);
+        backgroundTasksHandler.postDelayed(ancsStallCheckRunnable, ANCS_STALL_THRESHOLD_MS);
+    }
+
+    /**
+     * Check for an ANCS stall: if we have sent ADDED notifications recently but the
+     * watch has not issued any Control Point writes within the threshold, attempt
+     * recovery.
+     * <p>
+     * Recovery strategy (escalating):
+     * <ol>
+     *   <li>First attempt: soft recovery -- re-send SET_ANCS_STATUS + feature tags
+     *       via WPP. This is cheap and doesn't touch the GATT server.</li>
+     *   <li>Second attempt: hard recovery -- refresh GATT server services (triggers
+     *       Service Changed indication) + re-send SET_ANCS_STATUS. This is the
+     *       nuclear option because it can itself cause the advertising set rebuild
+     *       that originally caused the stall, but if we're already stalled it's
+     *       worth trying.</li>
+     * </ol>
+     */
+    private void checkAncsStall() {
+        final long now = System.currentTimeMillis();
+
+        // Only check if we actually sent an ADDED recently
+        if (lastNotificationAddedSentMs == 0) {
+            return;
+        }
+
+        // If we received a CP write after the last ADDED, everything is fine
+        if (lastControlPointWriteMs >= lastNotificationAddedSentMs) {
+            return;
+        }
+
+        // Check if enough time has passed since the last ADDED without a CP response
+        final long timeSinceLastAdded = now - lastNotificationAddedSentMs;
+        if (timeSinceLastAdded < ANCS_STALL_THRESHOLD_MS) {
+            return;  // Not yet timed out
+        }
+
+        // Check cooldown
+        if (now - lastAncsRecoveryAttemptMs < ANCS_RECOVERY_COOLDOWN_MS) {
+            logger.debug("ANCS stall detected but recovery cooldown active ({}ms remaining)",
+                    ANCS_RECOVERY_COOLDOWN_MS - (now - lastAncsRecoveryAttemptMs));
+            return;
+        }
+
+        lastAncsRecoveryAttemptMs = now;
+        ancsRecoveryAttemptCount++;
+
+        if (ancsRecoveryAttemptCount <= 1) {
+            // Soft recovery: just re-send SET_ANCS_STATUS + feature tags
+            logger.warn("ANCS stall detected: no CP write for {}ms after ADDED (lastCP={}ms ago). " +
+                            "Attempting soft recovery (attempt #{}): re-sending SET_ANCS_STATUS + feature tags",
+                    timeSinceLastAdded,
+                    lastControlPointWriteMs > 0 ? (now - lastControlPointWriteMs) : -1,
+                    ancsRecoveryAttemptCount);
+            resetAncsState();
+        } else {
+            // Hard recovery: refresh GATT server services + re-send SET_ANCS_STATUS
+            logger.warn("ANCS stall detected: no CP write for {}ms after ADDED (lastCP={}ms ago). " +
+                            "Attempting hard recovery (attempt #{}): refreshing GATT server services + SET_ANCS_STATUS",
+                    timeSinceLastAdded,
+                    lastControlPointWriteMs > 0 ? (now - lastControlPointWriteMs) : -1,
+                    ancsRecoveryAttemptCount);
+            refreshAncsServerServices();
+            resetAncsState();
+        }
+    }
+
+    /**
+     * Called when a Control Point write is received from the watch,
+     * confirming the ANCS session is alive.
+     */
+    private void onControlPointWriteReceived() {
+        lastControlPointWriteMs = System.currentTimeMillis();
+        // CP write received, ANCS is working -- reset recovery counter
+        if (ancsRecoveryAttemptCount > 0) {
+            logger.info("ANCS recovered: CP write received after {} recovery attempts", ancsRecoveryAttemptCount);
+            ancsRecoveryAttemptCount = 0;
+        }
+        // Cancel any pending stall check since we just got a CP write
+        backgroundTasksHandler.removeCallbacks(ancsStallCheckRunnable);
     }
 
     public void addSimpleConversationToQueue(Message message) {

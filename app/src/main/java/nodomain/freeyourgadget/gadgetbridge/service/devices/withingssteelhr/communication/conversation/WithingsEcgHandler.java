@@ -196,12 +196,14 @@ public class WithingsEcgHandler implements ResponseHandler {
     }
 
     private void queueDiscoveryProbe(final boolean initial) {
-        // Keep the discovery conversation active until its trailing MEASURE_STOP / TRANSFER_COMPLETE.
-        // Otherwise that trailing completion marker can get mis-bound to the next queued 0x0147
-        // request, causing the actual ECG waveform stream to be routed into a stored-measure handler.
+        // Some watches reply to the discovery probe with only the first 0x0973 page and never send
+        // an EOT/MEASURE_STOP follow-up. Waiting for EOT here can therefore block the whole sync and
+        // prevent the queued SYNC_OK from ever being sent. Keep the queue moving after the first
+        // response and rely on maybeHandleMeasurementMessage() to consume any later ECG follow-up
+        // packets out-of-band.
         logger.debug("Queueing Withings ECG discovery probe, initial={}, discoveryPagesSeen={}, waveformFetchQueued={}",
                 initial, discoveryPagesSeen, waveformFetchQueued);
-        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.EOT);
+        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.SIMPLE);
         message.addDataStructure(new MeasureCategory(MeasureCategory.ECG));
         message.addDataStructure(new MeasureLiveAppStatus(initial ? 1 : 0));
         support.addSimpleConversationFirst(message, this);

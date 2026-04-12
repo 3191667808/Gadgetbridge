@@ -97,6 +97,21 @@ public final class WithingsMessageType {
      */
     public static final short SET_HR_ALERT_THRESHOLDS = (short) 0x098e;  // 2446
 
+    /**
+     * Commit / apply feature tags (cmd 0x0993).
+     * Sent as an empty GET immediately after {@link #SET_FEATURE_TAGS_DEPRECATED}.
+     * The watch responds with a simple ACK ({@code 01000000}).
+     * Always sent as a pair with {@link #COMMIT_NOTIFICATION_CONFIG}.
+     */
+    public static final short COMMIT_FEATURE_TAGS = (short) 0x0993;  // 2451
+
+    /**
+     * Commit / apply notification configuration (cmd 0x0994).
+     * Sent as an empty GET immediately after {@link #COMMIT_FEATURE_TAGS}.
+     * The watch responds with a simple ACK ({@code 01000000}).
+     */
+    public static final short COMMIT_NOTIFICATION_CONFIG = (short) 0x0994;  // 2452
+
     /** Start/query health measurement flow (cmd 0x0973). */
     public static final short MEASURE_START = (short) 0x0973;  // 2419
     /** Acknowledge/stop health measurement flow (cmd 0x0974). */

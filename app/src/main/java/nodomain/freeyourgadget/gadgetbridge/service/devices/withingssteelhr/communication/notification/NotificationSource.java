@@ -40,6 +40,10 @@ public class NotificationSource {
         return notificationUID;
     }
 
+    public byte getEventID() {
+        return eventID;
+    }
+
     void setNotificationUID(int notificationUID) {
         this.notificationUID = notificationUID;
     }

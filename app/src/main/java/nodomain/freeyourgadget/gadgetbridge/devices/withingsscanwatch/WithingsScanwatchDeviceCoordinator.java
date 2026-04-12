@@ -20,6 +20,7 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,10 +51,19 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.RespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.ServiceDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.WithingsActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingsscanwatch.WithingsScanwatchDeviceSupport;
 
 public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordinator {
+
+    @Override
+    public EnumSet<ServiceDeviceSupport.Flags> getInitialFlags() {
+        // Withings uses ANCS (GATT server) for notifications, which is independent
+        // of the WPP conversation queue used for sync. Disabling BUSY_CHECKING
+        // allows notifications to flow through during sync instead of being dropped.
+        return EnumSet.noneOf(ServiceDeviceSupport.Flags.class);
+    }
 
     @Override
     public Pattern getSupportedDeviceName() {

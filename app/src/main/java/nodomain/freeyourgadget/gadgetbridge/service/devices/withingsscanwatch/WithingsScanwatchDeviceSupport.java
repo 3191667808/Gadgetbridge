@@ -84,8 +84,6 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     static final String PREF_SCREENS_SORTABLE = "withings_scanwatch_screens_sortable";
     private static final String PREF_SCREENS_LAST_SENT = "withings_scanwatch_screens_last_sent";
-    private static final String PREF_FEATURE_TAGS_LAST_SENT = "withings_scanwatch_feature_tags_last_sent";
-    private static final String PREF_LOCAL_NOTIFICATIONS_LAST_SENT = "withings_scanwatch_local_notifications_last_sent";
     private static final String PREF_HR_ALERT_LAST_SENT = "withings_scanwatch_hr_alert_last_sent";
     private static final String PREF_RESPIRATORY_AUTO_LAST_START = "withings_scanwatch_respiratory_auto_last_start";
     private static final String PREF_RESPIRATORY_AUTO_LAST_END = "withings_scanwatch_respiratory_auto_last_end";
@@ -188,24 +186,57 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 new GetWearPosHandler(this)
         );
 
-        // Only send feature-related settings when their effective preference state changed.
+        // Feature tags (ECG, SpO2, notifications, etc.) are now sent via the
+        // overridden addFeatureTagsMessage(), which is called by enableNotifications()
+        // earlier in the sync sequence.  This ensures features are enabled from the
+        // very first connection and on every sync/recovery, not just here.
+        //
+        // Local notifications and HR alert thresholds are still sent here because
+        // they are ScanWatch-specific commands that don't exist in the base class.
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
-        final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
-        final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
         final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
         final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
         final boolean activityReminderEnabled = prefs.getBoolean(PREF_ACTIVITY_REMINDER, false);
         final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
         final boolean hrAlertsOn = !"off".equals(hrMode);
 
-        queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
         queueHrAlertCommandIfChanged(prefs, hrMode);
-        queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
     }
 
     @Override
     protected WithingsEcgHandler createEcgHandler() {
         return new WithingsEcgHandler(this, gbDevice);
+    }
+
+    /**
+     * Overrides the base class minimal feature tags with the full ScanWatch set.
+     *
+     * <p>This is called by {@code enableNotifications()} in the base class, which runs on:
+     * <ul>
+     *   <li>First-time connect (immediately after GATT services are set up)</li>
+     *   <li>Every periodic sync (before {@code addExtraSyncCommands()})</li>
+     *   <li>Post-authentication on first connect</li>
+     *   <li>ANCS stall recovery</li>
+     * </ul>
+     *
+     * <p>By sending the full feature tags here (ECG, SpO2, notifications, etc.) we ensure
+     * all features are enabled from the very first connection, not just after the first
+     * periodic sync.  Previously, the base class only sent {@code TAG_NOTIFICATIONS},
+     * which meant ECG and SpO2 were not activated until the user toggled an unrelated
+     * setting or a periodic sync fired.
+     */
+    @Override
+    protected void addFeatureTagsMessage() {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
+        final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
+        final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
+        final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+        final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
+        final boolean hrAlertsOn = !"off".equals(hrMode);
+
+        addFeatureTagsCommand(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
     }
 
     @Override
@@ -245,8 +276,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
-            queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+            addFeatureTagsCommand(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
         }
@@ -261,9 +292,9 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            queueFeatureTagsCommandIfChanged(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            addFeatureTagsCommand(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
             queueHrAlertCommandIfChanged(prefs, hrMode);
-            queueLocalNotificationsCommandIfChanged(prefs, afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+            addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
         }
@@ -334,53 +365,6 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         sendQueue();
     }
 
-    private void queueFeatureTagsCommandIfChanged(final SharedPreferences prefs,
-                                                  final String spo2Mode,
-                                                  final String respiratoryScan,
-                                                  final boolean afibDayEnabled,
-                                                  final boolean afibNightEnabled,
-                                                  final boolean hrAlertsOn) {
-        final String currentState = serializeFeatureTagsState(spo2Mode, respiratoryScan, afibDayEnabled,
-                afibNightEnabled, hrAlertsOn);
-        final String lastSentState = prefs.getString(PREF_FEATURE_TAGS_LAST_SENT, null);
-        final boolean respiratoryAutomatic = "automatic".equals(respiratoryScan);
-
-        if (respiratoryAutomatic) {
-            // Automatic respiratory scheduling depends on time windows, not only on static toggles.
-            // Re-send on each sync so the app can advance the next scan window when needed.
-            addFeatureTagsCommand(prefs, spo2Mode, respiratoryScan, afibDayEnabled, afibNightEnabled,
-                    hrAlertsOn);
-            prefs.edit().putString(PREF_FEATURE_TAGS_LAST_SENT, currentState).apply();
-            return;
-        }
-
-        if (Objects.equals(currentState, lastSentState)) {
-            logger.debug("Feature tags unchanged ({}), skipping", currentState);
-            return;
-        }
-
-        addFeatureTagsCommand(prefs, spo2Mode, respiratoryScan, afibDayEnabled, afibNightEnabled,
-                hrAlertsOn);
-        prefs.edit().putString(PREF_FEATURE_TAGS_LAST_SENT, currentState).apply();
-    }
-
-    private void queueLocalNotificationsCommandIfChanged(final SharedPreferences prefs,
-                                                         final boolean afibDayEnabled,
-                                                         final boolean afibNightEnabled,
-                                                         final boolean hrAlertsOn,
-                                                         final boolean activityReminderEnabled) {
-        final String currentState = serializeLocalNotificationsState(afibDayEnabled, afibNightEnabled,
-                hrAlertsOn, activityReminderEnabled);
-        final String lastSentState = prefs.getString(PREF_LOCAL_NOTIFICATIONS_LAST_SENT, null);
-        if (Objects.equals(currentState, lastSentState)) {
-            logger.debug("Local notifications unchanged ({}), skipping", currentState);
-            return;
-        }
-
-        addLocalNotificationsCommand(afibDayEnabled, afibNightEnabled, hrAlertsOn, activityReminderEnabled);
-        prefs.edit().putString(PREF_LOCAL_NOTIFICATIONS_LAST_SENT, currentState).apply();
-    }
-
     private void queueHrAlertCommandIfChanged(final SharedPreferences prefs, final String hrMode) {
         final String currentState = serializeHrAlertState(prefs, hrMode);
         final String lastSentState = prefs.getString(PREF_HR_ALERT_LAST_SENT, null);
@@ -391,22 +375,6 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
         addHrAlertCommand(hrMode, prefs);
         prefs.edit().putString(PREF_HR_ALERT_LAST_SENT, currentState).apply();
-    }
-
-    private static String serializeFeatureTagsState(final String spo2Mode,
-                                                    final String respiratoryScan,
-                                                    final boolean afibDayEnabled,
-                                                    final boolean afibNightEnabled,
-                                                    final boolean hrAlertsOn) {
-        return spo2Mode + '|' + respiratoryScan + '|' + afibDayEnabled + '|'
-                + afibNightEnabled + '|' + hrAlertsOn;
-    }
-
-    private static String serializeLocalNotificationsState(final boolean afibDayEnabled,
-                                                           final boolean afibNightEnabled,
-                                                           final boolean hrAlertsOn,
-                                                           final boolean activityReminderEnabled) {
-        return afibDayEnabled + "|" + afibNightEnabled + "|" + hrAlertsOn + "|" + activityReminderEnabled;
     }
 
     private static String serializeHrAlertState(final SharedPreferences prefs, final String hrMode) {
@@ -499,6 +467,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_0x0058));
         msg.addDataStructure(new EndOfTransmission());
         addSimpleConversationToQueue(msg);
+        addFeatureTagsCommitCommands();
     }
 
     private int[] computeAutomaticRespiratoryWindow(final SharedPreferences prefs) {
