@@ -228,6 +228,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
      */
     @Override
     protected void addFeatureTagsMessage() {
+        super.addFeatureTagsMessage(); // Sends TAG_NOTIFICATIONS + 0x0035 + 0x0058
+
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
         final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
@@ -453,8 +455,6 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         }
         // SpO2 measurement (0x000F) - always present
         msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_MEAS));
-        // Phone notification forwarding (messages/calls/app notifications).
-        msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
         if (afibDayEnabled || afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_2));
         }

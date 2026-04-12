@@ -389,7 +389,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 withingsEcgHandler = createEcgHandler();
             }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.INITIAL_CONNECT));
-            enableNotifications();
+            if (ancsAwaitingCccReadyEnable) {
+                logger.info("Skipping enableNotifications() in doSync because ANCS subscriptions are not ready yet");
+            } else {
+                enableNotifications();
+            }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
