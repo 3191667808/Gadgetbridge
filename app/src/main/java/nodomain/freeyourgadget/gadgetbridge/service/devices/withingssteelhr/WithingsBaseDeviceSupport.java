@@ -137,7 +137,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public static final String LAST_ACTIVITY_SYNC = "lastActivitySync";
     private static final long ACTIVITY_SYNC_OVERLAP_MILLIS = 6L * 60L * 60L * 1000L;
     private static final long MIN_SYNC_TRIGGER_INTERVAL_MS = 15_000L;
-    private static final long POST_SYNC_ANCS_REENABLE_DELAY_MS = 1_000L;
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
@@ -151,7 +150,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private ActivitySampleHandler activitySampleHandler;
     private final ConversationQueue conversationQueue;
     private boolean firstTimeConnect;
-    private boolean ancsNeedsPostSyncReenable;
     private boolean ancsAwaitingCccReadyEnable;
     private boolean ancsNotificationSourceSubscribed;
     private boolean ancsDataSourceSubscribed;
@@ -194,30 +192,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private final NotificationProvider notificationProvider;
     private final IncomingMessageHandlerFactory incomingMessageHandlerFactory;
     private final Handler backgroundTasksHandler = new Handler(Looper.getMainLooper());
-    private final Runnable postSyncAncsReenableRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!ancsNeedsPostSyncReenable) {
-                return;
-            }
-
-            if (!isConnected()) {
-                logger.debug("Skipping post-sync ANCS re-enable because device is disconnected");
-                return;
-            }
-
-            if (syncInProgress) {
-                logger.debug("Deferring post-sync ANCS GATT refresh because another sync is running");
-                backgroundTasksHandler.postDelayed(this, POST_SYNC_ANCS_REENABLE_DELAY_MS);
-                return;
-            }
-
-            logger.info("Refreshing ANCS GATT services after first sync and waiting for fresh CCC subscriptions");
-            ancsNeedsPostSyncReenable = false;
-            ancsAwaitingCccReadyEnable = true;
-            refreshAncsServerServices();
-        }
-    };
 
     // --- ANCS stall watchdog ---
     // Track the last time we received a Control Point write from the watch, and the
@@ -288,10 +262,12 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     @Override
     public void dispose() {
         synchronized (ConnectionMonitor) {
-            ancsNeedsPostSyncReenable = false;
             ancsAwaitingCccReadyEnable = false;
             resetAncsSubscriptionState("dispose");
             backgroundTasksHandler.removeCallbacksAndMessages(null);
+            if (conversationQueue != null) {
+                conversationQueue.clear();
+            }
 
             super.dispose();
         }
@@ -301,8 +277,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
         logger.debug("Starting initialization...");
         conversationQueue.clear();
-        backgroundTasksHandler.removeCallbacks(postSyncAncsReenableRunnable);
-        ancsNeedsPostSyncReenable = true;
         ancsAwaitingCccReadyEnable = false;
         resetAncsSubscriptionState("new connection");
         builder.setDeviceState(GBDevice.State.INITIALIZING);
@@ -351,7 +325,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, activityUser.getStepsGoal())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             ancsAwaitingCccReadyEnable = true;
-            refreshAncsServerServices();  // Only on initial connection, never during periodic sync
+            if (areAncsCccSubscriptionsReady()) {
+                maybeHandleAncsSubscriptionsReady();
+            } else {
+                logger.info("Waiting for watch to subscribe to ANCS CCCs before enabling notifications on first pair");
+            }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SETUP_FINISHED), new SetupFinishedHandler(this));
         } else {
@@ -785,10 +763,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             return;
         }
 
+        if (getQueue() == null) {
+            logger.warn("Could not send message because queue is null");
+            return;
+        }
+
         try {
             TransactionBuilder builder = createTransactionBuilder("conversation");
             builder.setCallback(this);
             final WithingsUUIDs withingsUUIDs = getActiveWithingsUUIDs();
+            if (withingsUUIDs == null) {
+                logger.warn("Active Withings UUIDs are null");
+                return;
+            }
             BluetoothGattCharacteristic characteristic = getCharacteristic(withingsUUIDs.WITHINGS_WRITE_CHARACTERISTIC_UUID);
             if (characteristic == null) {
                 logger.info("Characteristic with UUID {} not found.", withingsUUIDs.WITHINGS_WRITE_CHARACTERISTIC_UUID);
@@ -798,10 +785,14 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
 
             byte[] rawData = message.getRawData();
+            if (rawData == null) {
+                logger.warn("Message raw data is null");
+                return;
+            }
             builder.writeChunkedData(characteristic, rawData, getMTU() - 3);
             builder.queue();
         } catch (Exception e) {
-            logger.warn("Could not send message because of " + e.getMessage());
+            logger.warn("Could not send message", e);
         }
     }
 
@@ -918,11 +909,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         activitySampleHandler.onSyncFinished();
         GB.signalActivityDataFinish(getDevice());
         saveLastSyncTimestamp(new Date().getTime());
-
-        if (ancsNeedsPostSyncReenable) {
-            backgroundTasksHandler.removeCallbacks(postSyncAncsReenableRunnable);
-            backgroundTasksHandler.postDelayed(postSyncAncsReenableRunnable, POST_SYNC_ANCS_REENABLE_DELAY_MS);
-        }
     }
 
     public boolean isSyncInProgress() {
@@ -930,16 +916,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     void onAuthenticationFinished() {
-        if (!firstTimeConnect) {
-            finishInitialization();
-            doSync("post-auth");
-        } else {
-            refreshAncsServerServices();  // Only on initial connection
-            enableNotifications();
-            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
-            addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
-            conversationQueue.send();
-        }
+        finishInitialization();
+        doSync("post-auth");
     }
 
     @Override
@@ -1038,31 +1016,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     /**
-     * Refresh the GATT server services so the watch re-discovers them and
-     * subscribes to the ANCS CCC descriptors.
-     * <p>
-     * IMPORTANT: This must ONLY be called during initial connection setup, NOT
-     * during periodic sync cycles. The clearServices()+addService() call causes
-     * Android to tear down and rebuild the BLE advertising set, which corrupts the
-     * watch's GATT server view on the still-active ANCS connection. This was the
-     * root cause of the long-session ANCS stall: every ~8 min sync cycle called
-     * refreshServerServices(), eventually causing the watch to stop issuing Control
-     * Point requests while NotificationSource kept working.
-     * <p>
-     * The official Withings app does CCC subscription only once at initial setup and
-     * keeps the ANCS connection stable for 12+ hours without any server service
-     * cycling.
-     */
-    private void refreshAncsServerServices() {
-        resetAncsSubscriptionState("refreshing GATT server services");
-        try {
-            getQueue().refreshServerServices();
-        } catch (Exception e) {
-            logger.warn("refreshServerServices() failed, continuing anyway", e);
-        }
-    }
-
-    /**
      * Send SET_ANCS_STATUS and feature tags to the watch. This is safe to call
      * repeatedly (e.g., during periodic sync) because it only sends WPP messages
      * and does NOT touch the GATT server services.
@@ -1101,11 +1054,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         logger.info("ANCS CCC subscriptions are active on the current GATT server instance");
 
         if (!ancsAwaitingCccReadyEnable) {
-            return;
-        }
-
-        if (syncInProgress) {
-            logger.debug("ANCS CCC subscriptions became ready during sync; ANCS enable will be sent once sync is over");
             return;
         }
 
@@ -1225,14 +1173,13 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                     ancsRecoveryAttemptCount);
             resetAncsState();
         } else {
-            // Hard recovery: refresh GATT server services + re-send SET_ANCS_STATUS
+            // Hard recovery: disconnect and reconnect
             logger.warn("ANCS stall detected: no CP write for {}ms after ADDED (lastCP={}ms ago). " +
-                            "Attempting hard recovery (attempt #{}): refreshing GATT server services + SET_ANCS_STATUS",
+                            "Attempting hard recovery (attempt #{}): disconnecting to force clean reconnect",
                     timeSinceLastAdded,
                     lastControlPointWriteMs > 0 ? (now - lastControlPointWriteMs) : -1,
                     ancsRecoveryAttemptCount);
-            refreshAncsServerServices();
-            resetAncsState();
+            disconnect();
         }
     }
 

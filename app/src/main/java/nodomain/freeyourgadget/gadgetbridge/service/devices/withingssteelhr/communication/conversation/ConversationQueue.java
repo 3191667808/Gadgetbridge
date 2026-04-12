@@ -77,6 +77,12 @@ public class ConversationQueue implements ConversationObserver
     }
 
     public synchronized void send() {
+        if (!support.isConnected()) {
+            logger.debug("Device is not connected, dropping queued messages.");
+            clear();
+            return;
+        }
+
         logger.debug("Sending of queued messages has been requested.");
         if (activeConversation != null && !activeConversation.isComplete()) {
             long elapsed = System.currentTimeMillis() - activeConversationStartTime;
