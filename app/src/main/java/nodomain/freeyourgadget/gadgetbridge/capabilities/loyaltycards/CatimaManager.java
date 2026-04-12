@@ -69,6 +69,8 @@ public class CatimaManager {
         final String catimaPackage = prefs.getString(LOYALTY_CARDS_CATIMA_PACKAGE, installedCatimaPackages.get(0).toString());
         final CatimaContentProvider catima = new CatimaContentProvider(context, catimaPackage);
 
+        LOG.debug("Syncing loyalty cards from {}", catimaPackage);
+
         if (!catima.isCatimaCompatible()) {
             LOG.warn("Catima is not compatible");
             return;

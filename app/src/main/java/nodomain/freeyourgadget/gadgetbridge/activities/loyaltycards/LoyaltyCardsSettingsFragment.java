@@ -21,6 +21,7 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.Loyal
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_CATIMA_PACKAGE;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_CATIMA_PERMISSIONS;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_INSTALL_CATIMA;
+import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_INSTALL_FOSSWALLET;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_OPEN_CATIMA;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_GROUPS;
@@ -141,10 +142,13 @@ public class LoyaltyCardsSettingsFragment extends AbstractPreferenceFragment {
             finalCatimaPackageName = "this.should.never.happen";
         }
 
+        final String selectedAppName = finalCatimaPackageName.contains("catima") ? "Catima" : "FossWallet";
+
         final CatimaContentProvider catima = new CatimaContentProvider(requireContext(), finalCatimaPackageName);
 
         final Preference openCatimaPreference = findPreference(LOYALTY_CARDS_OPEN_CATIMA);
         if (openCatimaPreference != null) {
+            openCatimaPreference.setTitle(getString(R.string.open_app, selectedAppName));
             openCatimaPreference.setVisible(catimaInstalled);
             openCatimaPreference.setOnPreferenceClickListener(preference -> {
                 if (catimaPackagePreference != null) {
@@ -165,9 +169,20 @@ public class LoyaltyCardsSettingsFragment extends AbstractPreferenceFragment {
 
         final Preference installCatimaPreference = findPreference(LOYALTY_CARDS_INSTALL_CATIMA);
         if (installCatimaPreference != null) {
+            installCatimaPreference.setTitle(getString(R.string.install_app_name, "Catima"));
             installCatimaPreference.setVisible(!catimaInstalled);
             installCatimaPreference.setOnPreferenceClickListener(preference -> {
-                installCatima();
+                installCatima("me.hackerchick.catima");
+                return true;
+            });
+        }
+
+        final Preference installFossWalletPreference = findPreference(LOYALTY_CARDS_INSTALL_FOSSWALLET);
+        if (installFossWalletPreference != null) {
+            installFossWalletPreference.setTitle(getString(R.string.install_app_name, "FossWallet"));
+            installFossWalletPreference.setVisible(!catimaInstalled);
+            installFossWalletPreference.setOnPreferenceClickListener(preference -> {
+                installCatima("nz.eloque.foss_wallet");
                 return true;
             });
         }
@@ -175,6 +190,7 @@ public class LoyaltyCardsSettingsFragment extends AbstractPreferenceFragment {
         final boolean permissionGranted = ContextCompat.checkSelfPermission(requireContext(), catima.getReadPermission()) == PackageManager.PERMISSION_GRANTED;
         final Preference catimaPermissionsPreference = findPreference(LOYALTY_CARDS_CATIMA_PERMISSIONS);
         if (catimaPermissionsPreference != null) {
+            catimaPermissionsPreference.setSummary(getString(R.string.loyalty_cards_app_permissions_summary, selectedAppName));
             catimaPermissionsPreference.setVisible(catimaInstalled && !permissionGranted);
             catimaPermissionsPreference.setOnPreferenceClickListener(preference -> {
                 ActivityCompat.requestPermissions(
@@ -255,11 +271,11 @@ public class LoyaltyCardsSettingsFragment extends AbstractPreferenceFragment {
         }
     }
 
-    private void installCatima() {
+    private void installCatima(final String packageName) {
         try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=me.hackerchick.catima")));
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + packageName)));
         } catch (final ActivityNotFoundException e) {
-            GB.toast(requireContext(), requireContext().getString(R.string.loyalty_cards_install_catima_fail), Toast.LENGTH_LONG, GB.WARN, e);
+            GB.toast(requireContext(), requireContext().getString(R.string.install_app_fail, packageName), Toast.LENGTH_LONG, GB.WARN, e);
         }
     }
 }
