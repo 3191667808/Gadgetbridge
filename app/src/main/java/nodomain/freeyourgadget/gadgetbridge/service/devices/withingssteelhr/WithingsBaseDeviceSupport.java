@@ -934,13 +934,12 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     private void enableNotifications() {
-        // The official Withings app NEVER sends SET_ANCS_STATUS -- the watch manages
-        // ANCS purely via GATT-level CCC (Client Characteristic Configuration)
-        // descriptor subscriptions. Sending SET_ANCS_STATUS disrupts the watch's
-        // ANCS state machine and causes it to ignore ADDED events.
-        //
-        // We only need to register the notification feature tags so the watch
-        // knows this phone supports ANCS notifications.
+        logger.info("Enabling ANCS notifications by sending SET_ANCS_STATUS and SET_FEATURE_TAGS_DEPRECATED");
+        
+        WithingsMessage ancsStatusMsg = new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS);
+        ancsStatusMsg.addDataStructure(new nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.AncsStatus(true));
+        addSimpleConversationToQueue(ancsStatusMsg);
+
         WithingsMessage featureTagsMsg = new WithingsMessage(WithingsMessageType.SET_FEATURE_TAGS_DEPRECATED);
         featureTagsMsg.addDataStructure(new FeatureTagsUserId(0));
         featureTagsMsg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_NOTIFICATIONS));
@@ -955,11 +954,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      * responding to ANCS events.
      *
      * The official app has no recovery mechanism -- it relies entirely on GATT CCC
-     * subscriptions and never sends SET_ANCS_STATUS. Our recovery re-sends feature
-     * tags in case the watch lost track of notification capability.
+     * subscriptions. Our recovery re-sends ANCS status and feature tags in case the watch
+     * lost track of notification capability.
      */
     public void resetAncsState() {
-        logger.info("Resetting ANCS state: re-sending feature tags (no SET_ANCS_STATUS per official app behaviour)");
+        logger.info("Resetting ANCS state: re-sending ANCS status and feature tags");
         enableNotifications();
         conversationQueue.send();
     }
