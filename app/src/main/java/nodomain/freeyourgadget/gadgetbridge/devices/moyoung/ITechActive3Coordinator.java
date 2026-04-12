@@ -76,7 +76,7 @@ public class ITechActive3Coordinator extends AbstractMoyoungDeviceCoordinator {
 
     @Override
     public boolean supportsSleepScore(@NonNull GBDevice device) {
-        return true;
+        return false;
     }
 
     @Override
