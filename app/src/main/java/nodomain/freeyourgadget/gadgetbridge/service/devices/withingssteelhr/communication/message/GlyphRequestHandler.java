@@ -39,6 +39,8 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class GlyphRequestHandler implements IncomingMessageHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlyphRequestHandler.class);
+    private static final int EMOJI_LUMINANCE_THRESHOLD = 110;
+    private static final boolean EMOJI_LUMINANCE_INVERT = true;
     private final WithingsBaseDeviceSupport support;
 
     public GlyphRequestHandler(WithingsBaseDeviceSupport support) {
@@ -125,7 +127,19 @@ public class GlyphRequestHandler implements IncomingMessageHandler {
         int actualWidth = Math.min(renderedWidth, maxWidth);
         Bitmap createBitmap = Bitmap.createBitmap(actualWidth, height, Bitmap.Config.ARGB_8888);
         new Canvas(createBitmap).drawText(str, -rect.left, -fontMetricsInt.top, paint);
-        return new GlyphRenderResult(IconHelper.toByteArray(createBitmap), actualWidth);
+        final byte[] imageData;
+        if (isLikelyEmoji(unicode)) {
+            imageData = IconHelper.toLuminanceThresholdByteArray(createBitmap, EMOJI_LUMINANCE_THRESHOLD, EMOJI_LUMINANCE_INVERT);
+        } else {
+            imageData = IconHelper.toByteArray(createBitmap);
+        }
+        return new GlyphRenderResult(imageData, actualWidth);
+    }
+
+    private boolean isLikelyEmoji(final long unicode) {
+        return (unicode >= 0x1F000 && unicode <= 0x1FAFF)
+                || (unicode >= 0x2600 && unicode <= 0x27BF)
+                || (unicode >= 0xFE00 && unicode <= 0xFE0F);
     }
 
     private int calculateTextsize(Paint paint, int height) {

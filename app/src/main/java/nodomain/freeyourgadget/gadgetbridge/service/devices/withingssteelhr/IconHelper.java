@@ -26,7 +26,6 @@ import java.util.List;
 import nodomain.freeyourgadget.gadgetbridge.util.BitmapUtil;
 
 public class IconHelper {
-
     public static byte[] getIconBytesFromDrawable(Drawable drawable) {
         return getIconBytesFromDrawable(drawable, 22, 24);
     }
@@ -70,6 +69,29 @@ public class IconHelper {
                 int pixel = bitmap.getPixel(col, row);
                 if (shouldPixelbeAdded(pixel)) {
                     int bitIndex = bytesPerColumn * col + row / 8;
+                    rawData[bitIndex] = setBit(rawData[bitIndex], row);
+                }
+            }
+        }
+
+        return rawData;
+    }
+
+    public static byte[] toLuminanceThresholdByteArray(final Bitmap bitmap, final int luminanceThreshold) {
+        return toLuminanceThresholdByteArray(bitmap, luminanceThreshold, false);
+    }
+
+    public static byte[] toLuminanceThresholdByteArray(final Bitmap bitmap, final int luminanceThreshold, final boolean invert) {
+        final int width = bitmap.getWidth();
+        final int height = bitmap.getHeight();
+        final int bytesPerColumn = getBytesPerColumn(height);
+        final byte[] rawData = new byte[bytesPerColumn * width];
+
+        for (int col = 0; col < width; col++) {
+            for (int row = 0; row < height; row++) {
+                final int pixel = bitmap.getPixel(col, row);
+                if (shouldPixelBeAddedByLuminance(pixel, luminanceThreshold, invert)) {
+                    final int bitIndex = bytesPerColumn * col + row / 8;
                     rawData[bitIndex] = setBit(rawData[bitIndex], row);
                 }
             }
@@ -146,6 +168,16 @@ public class IconHelper {
 
     private static boolean shouldPixelbeAdded(int pixel) {
         return Color.alpha(pixel) >= 0x80;
+    }
+
+    private static boolean shouldPixelBeAddedByLuminance(final int pixel, final int luminanceThreshold, final boolean invert) {
+        final int alpha = Color.alpha(pixel);
+        if (alpha < 0x80) {
+            return false;
+        }
+
+        final int luminance = (Color.red(pixel) * 54 + Color.green(pixel) * 183 + Color.blue(pixel) * 19) >> 8;
+        return invert ? luminance >= luminanceThreshold : luminance <= luminanceThreshold;
     }
 
     private static byte setBit(byte bits, int position) {
