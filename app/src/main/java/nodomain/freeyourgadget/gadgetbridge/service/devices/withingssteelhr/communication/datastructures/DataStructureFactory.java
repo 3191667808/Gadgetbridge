@@ -125,6 +125,9 @@ public class DataStructureFactory {
                 case WithingsStructureType.VASISTAS_SPO2:
                     structure = new VasistasSpo2();
                     break;
+                case WithingsStructureType.VASISTAS_RESPIRATORY_RATE:
+                    structure = new VasistasRespiratoryRate();
+                    break;
                 case WithingsStructureType.END_OF_TRANSMISSION:
                     structure = new EndOfTransmission();
                     break;

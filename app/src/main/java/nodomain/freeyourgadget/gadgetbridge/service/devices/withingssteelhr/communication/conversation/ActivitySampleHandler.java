@@ -26,8 +26,10 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
@@ -44,6 +46,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleWalk;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityHeartrate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasSpo2;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasRespiratoryRate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructureType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
@@ -57,6 +60,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     private List<ActivityEntry> activityEntries = new ArrayList<>();
     private List<ActivityEntry> heartrateEntries = new ArrayList<>();
     private final List<long[]> spo2Entries = new ArrayList<>();
+    private final List<long[]> respiratoryRateEntries = new ArrayList<>();
 
     public ActivitySampleHandler(WithingsBaseDeviceSupport support) {
         super(support);
@@ -113,6 +117,9 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                     break;
                 case WithingsStructureType.VASISTAS_SPO2:
                     handleSpo2(data);
+                    break;
+                case WithingsStructureType.VASISTAS_RESPIRATORY_RATE:
+                    handleRespiratoryRate(data);
                     break;
                 default:
                     logUnhandledActivityData(data);
@@ -172,6 +179,26 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                 spo2,
                 vasistasSpo2.getPulseRate(),
                 vasistasSpo2.getStatus());
+    }
+
+    private void handleRespiratoryRate(final WithingsStructure data) {
+        if (activityEntry == null) {
+            logger.info("Received Withings respiratory rate vasistas without timestamp context: {}", GB.hexdump(data.getRawData()));
+            return;
+        }
+
+        final VasistasRespiratoryRate vasistasRR = (VasistasRespiratoryRate) data;
+        final int rate = vasistasRR.getRespiratoryRate();
+        if (!vasistasRR.isValid()) {
+            logger.info("Skipping Withings respiratory rate vasistas with invalid value: ts={} rate={}",
+                    activityEntry.getTimestamp(), rate);
+            return;
+        }
+
+        final long timestampMs = activityEntry.getTimestamp() * 1000L;
+        respiratoryRateEntries.add(new long[]{timestampMs, rate});
+        logger.info("Collected Withings respiratory rate vasistas sample: ts={} rate={}",
+                timestampMs, rate);
     }
 
     private void handleMovement(WithingsStructure data) {
@@ -276,6 +303,21 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                 }
                 spo2Provider.addSamples(spo2Samples);
                 logger.info("Stored {} Withings SpO2 vasistas sample(s)", spo2Samples.size());
+            }
+
+            if (!respiratoryRateEntries.isEmpty()) {
+                final GenericRespiratoryRateSampleProvider rrProvider = new GenericRespiratoryRateSampleProvider(device, dbHandler.getDaoSession());
+                final List<GenericRespiratoryRateSample> rrSamples = new ArrayList<>(respiratoryRateEntries.size());
+                for (final long[] entry : respiratoryRateEntries) {
+                    final GenericRespiratoryRateSample sample = new GenericRespiratoryRateSample();
+                    sample.setTimestamp(entry[0]);
+                    sample.setDeviceId(deviceId);
+                    sample.setUserId(userId);
+                    sample.setRespiratoryRate((float) entry[1]);
+                    rrSamples.add(sample);
+                }
+                rrProvider.addSamples(rrSamples);
+                logger.info("Stored {} Withings respiratory rate sample(s)", rrSamples.size());
             }
         } catch (Exception ex) {
             logger.warn("Error saving activity data: " + ex.getLocalizedMessage());
