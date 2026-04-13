@@ -43,6 +43,33 @@
         android:summary="@string/withings_scanwatch_pref_shortcut_summary"
         android:title="@string/withings_scanwatch_pref_shortcut_title" />
 
+    <SwitchPreferenceCompat
+        android:icon="@drawable/ic_notifications"
+        android:defaultValue="false"
+        android:key="notification_enable"
+        android:layout="@layout/preference_checkbox"
+        android:persistent="true"
+        android:summary="@string/enable_notifications_summary"
+        android:title="@string/prefs_notifications_enable" />
+
+    <SwitchPreferenceCompat
+        android:icon="@drawable/ic_ecg"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_ecg_enable"
+        android:layout="@layout/preference_checkbox"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_ecg_enable_summary"
+        android:title="@string/withings_scanwatch_pref_ecg_enable_title" />
+
+    <SwitchPreferenceCompat
+        android:icon="@drawable/ic_spo2"
+        android:defaultValue="false"
+        android:key="withings_scanwatch_spo2_enable"
+        android:layout="@layout/preference_checkbox"
+        android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_spo2_enable_summary"
+        android:title="@string/withings_scanwatch_pref_spo2_enable_title" />
+
     <!-- SpO2 mode -->
     <ListPreference
         android:icon="@drawable/ic_spo2"

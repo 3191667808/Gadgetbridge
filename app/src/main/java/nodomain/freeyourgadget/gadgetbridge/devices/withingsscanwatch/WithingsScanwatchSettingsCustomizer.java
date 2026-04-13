@@ -21,6 +21,7 @@ import android.os.Parcel;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
+import androidx.preference.SwitchPreferenceCompat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
@@ -37,6 +39,10 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
     static final String PREF_WORKOUT_TYPES_SORTABLE = "workout_activity_types_sortable";
     static final String PREF_SCREENS_SORTABLE  = "withings_scanwatch_screens_sortable";
     static final String PREF_SHORTCUT_ACTION   = "withings_scanwatch_shortcut_action";
+    static final String PREF_ECG_ENABLE        = "withings_scanwatch_ecg_enable";
+    static final String PREF_ECG_ACTIVATED     = "withings_scanwatch_ecg_activated";
+    static final String PREF_SPO2_ENABLE       = "withings_scanwatch_spo2_enable";
+    static final String PREF_SPO2_ACTIVATED    = "withings_scanwatch_spo2_activated";
     static final String PREF_SPO2_MODE         = "withings_scanwatch_spo2_mode";
     static final String PREF_RESPIRATORY_SCAN  = "withings_scanwatch_respiratory_scan";
     static final String PREF_AFIB_DAY_ENABLED  = "withings_scanwatch_afib_day_enabled";
@@ -55,6 +61,8 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
         handler.addPreferenceHandlerFor(PREF_WORKOUT_TYPES_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SCREENS_SORTABLE);
         handler.addPreferenceHandlerFor(PREF_SHORTCUT_ACTION);
+        handler.addPreferenceHandlerFor(PREF_ECG_ENABLE);
+        handler.addPreferenceHandlerFor(PREF_SPO2_ENABLE);
         handler.addPreferenceHandlerFor(PREF_SPO2_MODE);
         handler.addPreferenceHandlerFor(PREF_RESPIRATORY_SCAN);
         handler.addPreferenceHandlerFor(PREF_AFIB_DAY_ENABLED);
@@ -130,6 +138,8 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
             spo2ModePref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
         }
 
+        updateOneWayHealthFeatureUi(handler, prefs);
+
         final ListPreference respiratoryPref = handler.findPreference(PREF_RESPIRATORY_SCAN);
         if (respiratoryPref != null) {
             respiratoryPref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
@@ -182,6 +192,45 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
                 hrHighPref.setEnabled(isCustom);
                 hrHighPref.setVisible(isCustom);
             }
+        }
+
+        if (PREF_ECG_ENABLE.equals(preference.getKey()) || PREF_SPO2_ENABLE.equals(preference.getKey())) {
+            final Prefs prefs = new Prefs(preference.getSharedPreferences());
+            updateOneWayHealthFeatureUi(handler, prefs);
+        }
+    }
+
+    private void updateOneWayHealthFeatureUi(final DeviceSpecificSettingsHandler handler, final Prefs prefs) {
+        final boolean ecgActivated = prefs.getBoolean(PREF_ECG_ACTIVATED, false);
+        final boolean ecgEnabled = prefs.getBoolean(PREF_ECG_ENABLE, false);
+        final Preference ecgPref = handler.findPreference(PREF_ECG_ENABLE);
+        if (ecgPref != null) {
+            ecgPref.setEnabled(!(ecgActivated || ecgEnabled));
+            if (ecgActivated || ecgEnabled) {
+                ecgPref.setSummary(R.string.withings_scanwatch_pref_enable_once_locked_summary);
+                if (ecgPref instanceof SwitchPreferenceCompat) {
+                    ((SwitchPreferenceCompat) ecgPref).setChecked(true);
+                }
+            }
+        }
+
+        final boolean spo2Activated = prefs.getBoolean(PREF_SPO2_ACTIVATED, false);
+        final boolean spo2Enabled = prefs.getBoolean(PREF_SPO2_ENABLE, false);
+        final Preference spo2EnablePref = handler.findPreference(PREF_SPO2_ENABLE);
+        if (spo2EnablePref != null) {
+            spo2EnablePref.setEnabled(!(spo2Activated || spo2Enabled));
+            if (spo2Activated || spo2Enabled) {
+                spo2EnablePref.setSummary(R.string.withings_scanwatch_pref_enable_once_locked_summary);
+                if (spo2EnablePref instanceof SwitchPreferenceCompat) {
+                    ((SwitchPreferenceCompat) spo2EnablePref).setChecked(true);
+                }
+            }
+        }
+
+        final ListPreference spo2ModePref = handler.findPreference(PREF_SPO2_MODE);
+        if (spo2ModePref != null) {
+            spo2ModePref.setEnabled(spo2Activated || spo2Enabled);
+            spo2ModePref.setVisible(spo2Activated || spo2Enabled);
         }
     }
 

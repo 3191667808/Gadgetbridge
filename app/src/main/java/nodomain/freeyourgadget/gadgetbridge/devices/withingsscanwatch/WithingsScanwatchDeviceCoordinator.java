@@ -90,7 +90,10 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public int[] getSupportedDeviceSpecificSettings(GBDevice device) {
-        return new int[]{ R.xml.devicesettings_withingsscanwatch, R.xml.devicesettings_wearlocation };
+        return new int[]{
+                R.xml.devicesettings_withingsscanwatch,
+                R.xml.devicesettings_wearlocation
+        };
     }
 
     @Override

@@ -104,6 +104,10 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     private static final String PREF_SHORTCUT_ACTION = "withings_scanwatch_shortcut_action";
+    static final String PREF_ECG_ENABLE        = "withings_scanwatch_ecg_enable";
+    static final String PREF_ECG_ACTIVATED     = "withings_scanwatch_ecg_activated";
+    static final String PREF_SPO2_ENABLE       = "withings_scanwatch_spo2_enable";
+    static final String PREF_SPO2_ACTIVATED    = "withings_scanwatch_spo2_activated";
 
     /** SpO2 mode: "on_demand" (manual measurement only) or "sleep" (also monitor during sleep). */
     static final String PREF_SPO2_MODE          = "withings_scanwatch_spo2_mode";
@@ -186,20 +190,25 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 new GetWearPosHandler(this)
         );
 
-        // Feature tags (ECG, SpO2, notifications, etc.) are now sent via the
-        // overridden addFeatureTagsMessage(), which is called by enableNotifications()
-        // earlier in the sync sequence.  This ensures features are enabled from the
-        // very first connection and on every sync/recovery, not just here.
+        // ScanWatch health feature tags stay in the regular sync flow.
+        // Notification enablement is handled separately by the base class via
+        // the dedicated notifications toggle flow, which must send
+        // TAG_NOTIFICATIONS in its own standalone 0x0987 command.
         //
         // Local notifications and HR alert thresholds are still sent here because
         // they are ScanWatch-specific commands that don't exist in the base class.
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final boolean ecgActivated = prefs.getBoolean(PREF_ECG_ACTIVATED, false);
+        final boolean spo2Activated = prefs.getBoolean(PREF_SPO2_ACTIVATED, false);
+        final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
+        final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
         final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
         final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
         final boolean activityReminderEnabled = prefs.getBoolean(PREF_ACTIVITY_REMINDER, false);
         final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
         final boolean hrAlertsOn = !"off".equals(hrMode);
 
+        addFeatureTagsCommand(prefs, ecgActivated, spo2Activated, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
         addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
         queueHrAlertCommandIfChanged(prefs, hrMode);
     }
@@ -210,35 +219,16 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     /**
-     * Overrides the base class minimal feature tags with the full ScanWatch set.
+     * Keep notification feature tags separate from ScanWatch health tags.
      *
-     * <p>This is called by {@code enableNotifications()} in the base class, which runs on:
-     * <ul>
-     *   <li>First-time connect (immediately after GATT services are set up)</li>
-     *   <li>Every periodic sync (before {@code addExtraSyncCommands()})</li>
-     *   <li>Post-authentication on first connect</li>
-     *   <li>ANCS stall recovery</li>
-     * </ul>
-     *
-     * <p>By sending the full feature tags here (ECG, SpO2, notifications, etc.) we ensure
-     * all features are enabled from the very first connection, not just after the first
-     * periodic sync.  Previously, the base class only sent {@code TAG_NOTIFICATIONS},
-     * which meant ECG and SpO2 were not activated until the user toggled an unrelated
-     * setting or a periodic sync fired.
+     * <p>The watch expects TAG_NOTIFICATIONS to be sent in a standalone 0x0987 command
+     * alongside only the standard companion tags 0x0035 and 0x0058. ScanWatch-specific
+     * health tags (ECG, SpO2, respiratory, AFib, HR alerts) are sent separately in the
+     * regular sync flow via {@link #addExtraSyncCommands()} and in preference handlers.
      */
     @Override
     protected void addFeatureTagsMessage() {
-        super.addFeatureTagsMessage(); // Sends TAG_NOTIFICATIONS + 0x0035 + 0x0058
-
-        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
-        final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
-        final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
-        final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
-        final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
-        final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
-        final boolean hrAlertsOn = !"off".equals(hrMode);
-
-        addFeatureTagsCommand(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+        super.addFeatureTagsMessage();
     }
 
     @Override
@@ -266,10 +256,15 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             sendQueue();
             return true;
         }
-        if (PREF_SPO2_MODE.equals(config) || PREF_RESPIRATORY_SCAN.equals(config)
+        if (PREF_ECG_ENABLE.equals(config) || PREF_SPO2_ENABLE.equals(config)
+                || PREF_SPO2_MODE.equals(config) || PREF_RESPIRATORY_SCAN.equals(config)
                 || PREF_AFIB_DAY_ENABLED.equals(config) || PREF_AFIB_NIGHT_ENABLED.equals(config)
                 || PREF_ACTIVITY_REMINDER.equals(config)) {
             final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            persistOneWayFeatureActivation(prefs, PREF_ECG_ENABLE, PREF_ECG_ACTIVATED);
+            persistOneWayFeatureActivation(prefs, PREF_SPO2_ENABLE, PREF_SPO2_ACTIVATED);
+            final boolean ecgActivated = prefs.getBoolean(PREF_ECG_ACTIVATED, false);
+            final boolean spo2Activated = prefs.getBoolean(PREF_SPO2_ACTIVATED, false);
             final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
             final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
             final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
@@ -278,7 +273,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            addFeatureTagsCommand(prefs, ecgActivated, spo2Activated, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
             addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
             return true;
@@ -286,6 +281,8 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         if (PREF_HR_ALERT_MODE.equals(config) || PREF_HR_ALERT_LOW.equals(config)
                 || PREF_HR_ALERT_HIGH.equals(config)) {
             final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+            final boolean ecgActivated = prefs.getBoolean(PREF_ECG_ACTIVATED, false);
+            final boolean spo2Activated = prefs.getBoolean(PREF_SPO2_ACTIVATED, false);
             final String  spo2Mode  = prefs.getString(PREF_SPO2_MODE,           "on_demand");
             final String  respScan  = prefs.getString(PREF_RESPIRATORY_SCAN,    "off");
             final boolean afibDay   = prefs.getBoolean(PREF_AFIB_DAY_ENABLED,   false);
@@ -294,7 +291,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
             final String  hrMode    = prefs.getString(PREF_HR_ALERT_MODE,       "off");
             final boolean hrAlertsOn = !"off".equals(hrMode);
             clearQueue();
-            addFeatureTagsCommand(prefs, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+            addFeatureTagsCommand(prefs, ecgActivated, spo2Activated, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
             queueHrAlertCommandIfChanged(prefs, hrMode);
             addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
             sendQueue();
@@ -389,23 +386,25 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     /**
-     * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
-     * feature tags required for ECG, SpO2, respiratory scan, AFib, notifications, and/or resting HR alerts.
+      * Queues a {@code CMD_FEATURE_TAGS_SET_DEPRECATED_V2} (0x0987) message activating the
+      * feature tags required for ECG, SpO2, respiratory scan, AFib, and/or resting HR alerts.
      *
      * <p>Tag set derived from HCI captures (corrected mapping):
      * <ul>
-     *   <li>ECG always enabled: tag 0x0004</li>
-     *   <li>SpO2 sleep mode: tag 0x0005</li>
+      *   <li>ECG enabled once: tag 0x0004</li>
+      *   <li>SpO2 enabled once, sleep mode only: tag 0x0005</li>
      *   <li>Respiratory off:       tag 0x000A only if respiratory was previously activated</li>
      *   <li>Respiratory automatic: tags 0x0009, 0x000A, 0x000B with app-driven schedule windows</li>
      *   <li>Respiratory always-on: tags 0x0009 (start=0, end=0), 0x000A</li>
      *   <li>AFib on: tags 0x000E, 0x0011</li>
      *   <li>HR alerts on: tag 0x0016 (LOW_HR)</li>
      * </ul>
-     * 0x000F (SpO2 measurement), 0x0035 and 0x0058 are always sent.
-     * Official captures use userId=0 in the 0x0145 feature-tag header for this command.
-     */
+      * 0x0035 and 0x0058 are always sent. 0x000F (SpO2 measurement) is only sent after
+      * the user has explicitly enabled SpO2 once.
+      * Official captures use userId=0 in the 0x0145 feature-tag header for this command.
+      */
     private void addFeatureTagsCommand(final SharedPreferences prefs,
+                                       final boolean ecgActivated, final boolean spo2Activated,
                                        final String spo2Mode, final String respiratoryScan,
                                        final boolean afibDayEnabled, final boolean afibNightEnabled,
                                        final boolean hrAlertsOn) {
@@ -413,7 +412,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         final SharedPreferences featurePrefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         msg.addDataStructure(new FeatureTagsUserId(0));
 
-        final boolean spo2SleepMode = "sleep".equals(spo2Mode);
+        final boolean spo2SleepMode = spo2Activated && "sleep".equals(spo2Mode);
 
         final boolean respAutomatic = "automatic".equals(respiratoryScan);
         final boolean respAlways    = "always".equals(respiratoryScan);
@@ -427,8 +426,9 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
         final boolean includeRespBase = respActive || respEverActivated;
 
-        // ECG is enabled by default and cannot be disabled after acceptance.
-        msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_TERMS));
+        if (ecgActivated) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_ECG_TERMS));
+        }
         if (spo2SleepMode) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_SLEEP));
         }
@@ -453,8 +453,9 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         if (afibDayEnabled || afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB));
         }
-        // SpO2 measurement (0x000F) - always present
-        msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_MEAS));
+        if (spo2Activated) {
+            msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_SPO2_MEAS));
+        }
         if (afibDayEnabled || afibNightEnabled) {
             msg.addDataStructure(new FeatureTagDeprecated(FeatureTagDeprecated.TAG_AFIB_2));
         }
@@ -468,6 +469,17 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         msg.addDataStructure(new EndOfTransmission());
         addSimpleConversationToQueue(msg);
         addFeatureTagsCommitCommands();
+    }
+
+    private static void persistOneWayFeatureActivation(final SharedPreferences prefs,
+                                                       final String enablePref,
+                                                       final String activatedPref) {
+        final boolean enabled = prefs.getBoolean(enablePref, false);
+        final boolean activated = prefs.getBoolean(activatedPref, false);
+
+        if (enabled && !activated) {
+            prefs.edit().putBoolean(activatedPref, true).apply();
+        }
     }
 
     private int[] computeAutomaticRespiratoryWindow(final SharedPreferences prefs) {

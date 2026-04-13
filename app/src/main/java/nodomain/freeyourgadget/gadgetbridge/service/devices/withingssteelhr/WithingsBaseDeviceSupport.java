@@ -129,6 +129,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_LANGUAGE;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_LANGUAGE_AUTO;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_NOTIFICATION_ENABLE;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_TIMEFORMAT;
 
 public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDeviceSupport {
@@ -353,11 +354,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT, new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ACTIVITY_TARGET, new ActivityTarget(ActivityTarget.GOAL_TYPE_STEPS, activityUser.getStepsGoal())));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
-            if (areAncsCccSubscriptionsReady()) {
-                maybeHandleAncsSubscriptionsReady();
-            } else {
-                logger.info("Waiting for watch to subscribe to ANCS CCCs before enabling notifications on first pair");
-            }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SETUP_FINISHED), new SetupFinishedHandler(this));
         } else {
@@ -394,7 +390,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         }
 
         final long now = System.currentTimeMillis();
-        if (now - lastSyncTriggerTimestamp < MIN_SYNC_TRIGGER_INTERVAL_MS) {
+        final boolean isWatchSyncRequest = "watch-sync-request".equals(triggerSource);
+        if (!isWatchSyncRequest && now - lastSyncTriggerTimestamp < MIN_SYNC_TRIGGER_INTERVAL_MS) {
             logger.info("Ignoring duplicate sync trigger '{}' {} ms after '{}'", triggerSource, now - lastSyncTriggerTimestamp, lastSyncTriggerSource);
             return;
         }
@@ -417,11 +414,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 withingsEcgHandler = createEcgHandler();
             }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.INITIAL_CONNECT));
-            if (ancsAwaitingCccReadyEnable) {
-                logger.info("Skipping enableNotifications() in doSync because ANCS subscriptions are not ready yet");
-            } else {
-                enableNotifications();
-            }
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
@@ -741,6 +733,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 case ActivityUser.PREF_USER_STEPS_GOAL:
                     sendStepsGoal();
                     break;
+                case PREF_NOTIFICATION_ENABLE:
+                    sendNotificationConfiguration();
+                    break;
                 default:
                     if (!handleExtraConfiguration(config)) {
                         logger.debug("unknown configuration setting received: " + config);
@@ -764,6 +759,42 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_USER_UNIT,
                 new UserUnit(UserUnitConstants.CLOCK_MODE, getTimeMode())));
         conversationQueue.send();
+    }
+
+    protected boolean isNotificationEnabledPreferenceOn() {
+        return GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress())
+                .getBoolean(PREF_NOTIFICATION_ENABLE, false);
+    }
+
+    protected void sendNotificationConfiguration() {
+        final boolean enabled = isNotificationEnabledPreferenceOn();
+        logger.info("Applying Withings notification toggle: enabled={}", enabled);
+        clearQueue();
+        queueNotificationConfiguration(enabled);
+        sendQueue();
+
+        if (enabled) {
+            logger.info("Controlled reconnect requested after enabling notifications to force fresh ANCS discovery");
+            ancsNeedsPostSyncReenable = true;
+            ancsAwaitingCccReadyEnable = false;
+            resetAncsSubscriptionState("notification toggle enabled");
+            backgroundTasksHandler.postDelayed(() -> {
+                if (isConnected()) {
+                    logger.info("Disconnecting after notification toggle enable so the watch reconnects with notifications armed");
+                    disconnect();
+                    backgroundTasksHandler.postDelayed(() -> {
+                        logger.info("Reconnecting after notification toggle enable");
+                        connect();
+                    }, 1500);
+                }
+            }, 2000);
+        }
+    }
+
+    protected void queueNotificationConfiguration(final boolean enabled) {
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(enabled)));
+        addFeatureTagsMessage();
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
     }
 
     /**
@@ -861,18 +892,9 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     /**
      * Send an ANCS DataSource response to the watch, chunked to 20-byte BLE packets.
      *
-     * <p>The official Withings app always sends DataSource PDUs in 20-byte chunks,
-     * matching the BLE 4.0 default ATT MTU (23 - 3 header = 20 payload). This is
-     * deliberate even when a larger MTU is negotiated for the main Withings protocol
-     * channel (which uses up to 112 bytes). The watch firmware expects this chunking.
-     *
-     * <p><b>Critical: empty termination chunk.</b> When the serialized response length
-     * is an exact multiple of 20 bytes, the watch cannot distinguish "last chunk" from
-     * "more data coming" because all chunks are full-sized. The official app sends an
-     * empty (0-byte) BLE notification to signal end-of-transmission in this case.
-     * Without it, the watch hangs waiting for more data and permanently stalls the
-     * ANCS state machine. This commonly happens with app IDs whose PHASE1 response
-     * is exactly 20 bytes (e.g. "com.whatsapp" = 12 bytes + 5 header + 3 attr = 20).
+     * <p>The official Withings app sends DataSource payload as plain 20-byte chunks
+     * (or a final short chunk), matching BLE 4.0 ATT payload size. It does not append
+     * an extra empty notification as a terminator for exact-multiple-of-20 payloads.
      */
     public void sendAncsDataSourceNotification(GetNotificationAttributesResponse response) {
         try {
@@ -885,10 +907,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 System.arraycopy(data, i, chunk, 0, length);
                 logger.debug("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
                 builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
-            }
-            if (data.length > 0 && data.length % chunkSize == 0) {
-                // Empty termination chunk -- see javadoc above
-                builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, new byte[0]);
             }
             builder.queue(getQueue());
         } catch (IOException e) {
@@ -1077,20 +1095,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         }
     }
 
-    /**
-     * Send SET_ANCS_STATUS and feature tags to the watch. This is safe to call
-     * repeatedly (e.g., during periodic sync) because it only sends WPP messages
-     * and does NOT touch the GATT server services.
-     */
-    private void enableNotifications() {
-        // Send SET_ANCS_STATUS(true) to tell the watch that ANCS notifications are
-        // enabled on this phone.  Without this, the watch's ANCS state machine may
-        // time out after a few minutes and stop processing ANCS events, even though
-        // the GATT CCC subscriptions are still in place.
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(true)));
-        addFeatureTagsMessage();
-    }
-
     private void resetAncsSubscriptionState(final String reason) {
         logger.debug("Resetting ANCS CCC subscription state ({})", reason);
         ancsNotificationSourceSubscribed = false;
@@ -1124,9 +1128,15 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             return;
         }
 
-        logger.info("Fresh ANCS CCC subscriptions observed; sending ANCS enable + feature tags");
         ancsAwaitingCccReadyEnable = false;
-        enableNotifications();
+
+        if (!isNotificationEnabledPreferenceOn()) {
+            logger.info("Fresh ANCS CCC subscriptions observed, but notification toggle is disabled; skipping ANCS enable");
+            return;
+        }
+
+        logger.info("Fresh ANCS CCC subscriptions observed; applying enabled notification toggle state");
+        queueNotificationConfiguration(true);
         conversationQueue.send();
     }
 
@@ -1167,13 +1177,18 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     /**
-     * Attempt to recover ANCS by re-sending SET_ANCS_STATUS and feature tags.
+     * Attempt to recover ANCS by re-sending the current notification toggle state.
      * Called by NotificationProvider when consecutive unacknowledged notifications
      * indicate the watch has stopped responding to ANCS events.
      */
     public void resetAncsState() {
-        logger.info("Resetting ANCS state: re-sending SET_ANCS_STATUS and feature tags");
-        enableNotifications();
+        if (!isNotificationEnabledPreferenceOn()) {
+            logger.info("Skipping ANCS state reset because notification toggle is disabled");
+            return;
+        }
+
+        logger.info("Resetting ANCS state: re-sending current notification toggle state");
+        queueNotificationConfiguration(true);
         conversationQueue.send();
     }
 
