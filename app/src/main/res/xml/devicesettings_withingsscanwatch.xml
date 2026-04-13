@@ -78,6 +78,7 @@
         android:entryValues="@array/pref_withings_scanwatch_spo2_mode_values"
         android:key="withings_scanwatch_spo2_mode"
         android:persistent="true"
+        android:summary="@string/withings_scanwatch_pref_spo2_mode_sleep_summary"
         android:title="@string/withings_scanwatch_pref_spo2_mode_title" />
 
     <!-- Respiratory scan (SpO2 during sleep) -->

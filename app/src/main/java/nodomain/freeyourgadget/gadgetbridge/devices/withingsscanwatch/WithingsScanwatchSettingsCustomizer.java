@@ -135,7 +135,7 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
 
         final ListPreference spo2ModePref = handler.findPreference(PREF_SPO2_MODE);
         if (spo2ModePref != null) {
-            spo2ModePref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+            updateSpo2ModeSummary(spo2ModePref);
         }
 
         updateOneWayHealthFeatureUi(handler, prefs);
@@ -198,6 +198,20 @@ public class WithingsScanwatchSettingsCustomizer implements DeviceSpecificSettin
             final Prefs prefs = new Prefs(preference.getSharedPreferences());
             updateOneWayHealthFeatureUi(handler, prefs);
         }
+
+        if (PREF_SPO2_MODE.equals(preference.getKey()) && preference instanceof ListPreference spo2ModePref) {
+            updateSpo2ModeSummary(spo2ModePref);
+        }
+    }
+
+    private static void updateSpo2ModeSummary(final ListPreference preference) {
+        final CharSequence entry = preference.getEntry();
+        if (entry == null) {
+            preference.setSummary(R.string.withings_scanwatch_pref_spo2_mode_sleep_summary);
+            return;
+        }
+
+        preference.setSummary(entry + "\n" + preference.getContext().getString(R.string.withings_scanwatch_pref_spo2_mode_sleep_summary));
     }
 
     private void updateOneWayHealthFeatureUi(final DeviceSpecificSettingsHandler handler, final Prefs prefs) {

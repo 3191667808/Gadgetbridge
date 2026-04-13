@@ -3931,6 +3931,11 @@
     <string name="withings_scanwatch_pref_spo2_mode_title">Oxygen Saturation (SpO2)</string>
     <string name="withings_scanwatch_pref_spo2_mode_on_demand">On demand</string>
     <string name="withings_scanwatch_pref_spo2_mode_sleep">Monitor during sleep</string>
+    <string name="withings_scanwatch_pref_spo2_mode_sleep_summary">Allow automatic measurements during sleep. Please note that this will decrease battery life.
+
+Measures every 30 minutes during sleep.
+The result is the average of all the measurements.
+Repeated low oxygen saturation levels during sleep could be a sign of pulmonary issues.</string>
     <string name="withings_scanwatch_pref_respiratory_scan_title">Respiratory Scan</string>
     <string name="withings_scanwatch_pref_respiratory_scan_off">Off</string>
     <string name="withings_scanwatch_pref_respiratory_scan_automatic">Automatic (scans some nights, minimal battery impact)</string>
