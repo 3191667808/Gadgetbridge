@@ -923,6 +923,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         TransactionBuilder builder = createTransactionBuilder("setupFinished");
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         builder.queue();
+        if (firstTimeConnect) {
+            logger.debug("First-time setup completed; future reconnects will use post-auth sync flow");
+            firstTimeConnect = false;
+        }
         logger.debug("Finished initialization.");
     }
 
