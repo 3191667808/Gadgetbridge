@@ -227,6 +227,11 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     }
 
     @Override
+    public boolean supportsLiveOnlyHeartRateDisplay(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public String[] getSupportedLanguageSettings(GBDevice device) {
         return new String[]{ "auto", "de_DE", "en_US", "es_ES", "fr_FR", "it_IT" };
     }

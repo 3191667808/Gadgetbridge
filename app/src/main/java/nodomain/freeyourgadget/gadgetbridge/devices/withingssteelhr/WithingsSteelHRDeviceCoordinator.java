@@ -142,6 +142,11 @@ public class WithingsSteelHRDeviceCoordinator extends AbstractBLEDeviceCoordinat
     }
 
     @Override
+    public boolean supportsLiveOnlyHeartRateDisplay(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public String[] getSupportedLanguageSettings(GBDevice device) {
         return new String[]{
                 "auto",

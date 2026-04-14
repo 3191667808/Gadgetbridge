@@ -638,6 +638,13 @@ public interface DeviceCoordinator {
     boolean supportsManualHeartRateMeasurement(@NonNull final GBDevice device);
 
     /**
+     * Returns true if the heart rate display should only show live realtime values
+     * (non-clickable, auto-hiding when stale) rather than supporting manual on-demand
+     * measurement via the heart rate dialog.
+     */
+    boolean supportsLiveOnlyHeartRateDisplay(@NonNull GBDevice device);
+
+    /**
      * Returns the readable name of the manufacturer.
      */
     String getManufacturer();

@@ -943,6 +943,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsLiveOnlyHeartRateDisplay(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean supportsRealtimeData(@NonNull GBDevice device) {
         return false;
     }
