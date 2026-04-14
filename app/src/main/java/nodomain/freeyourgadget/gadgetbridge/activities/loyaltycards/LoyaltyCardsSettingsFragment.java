@@ -25,6 +25,7 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.Loyal
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_OPEN_CATIMA;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_GROUPS;
+import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_GROUPS_ONLY;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_STARRED;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.PREF_KEY_HEADER_LOYALTY_CARDS_CATIMA;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.PREF_KEY_HEADER_LOYALTY_CARDS_SYNC;
@@ -143,13 +144,23 @@ public class LoyaltyCardsSettingsFragment extends AbstractPreferenceFragment {
             finalCatimaPackageName = "this.should.never.happen";
         }
 
-        final String selectedAppName = finalCatimaPackageName.contains("catima") ? "Catima" : "FossWallet";
+        final boolean isFossWallet = finalCatimaPackageName.contains("foss_wallet");
+        final String selectedAppName = isFossWallet ? "FossWallet" : "Catima";
 
         // FossWallet does not support starred sync
-        final boolean starredSupported = finalCatimaPackageName.contains("catima");
         final Preference starredPreference = findPreference(LOYALTY_CARDS_SYNC_STARRED);
         if (starredPreference != null) {
-            starredPreference.setVisible(starredSupported);
+            starredPreference.setVisible(!isFossWallet);
+        }
+
+        // FossWallet uses tags instead of groups
+        final Preference groupsOnlyPreference = findPreference(LOYALTY_CARDS_SYNC_GROUPS_ONLY);
+        if (groupsOnlyPreference != null) {
+            groupsOnlyPreference.setTitle(isFossWallet ? R.string.loyalty_cards_sync_tags_only : R.string.loyalty_cards_sync_groups_only);
+        }
+        final Preference groupsPreference = findPreference(LOYALTY_CARDS_SYNC_GROUPS);
+        if (groupsPreference != null) {
+            groupsPreference.setTitle(isFossWallet ? R.string.loyalty_cards_sync_tags : R.string.loyalty_cards_sync_groups);
         }
 
         final CatimaContentProvider catima = new CatimaContentProvider(requireContext(), finalCatimaPackageName);
