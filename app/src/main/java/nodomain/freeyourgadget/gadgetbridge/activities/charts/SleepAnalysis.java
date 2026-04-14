@@ -28,6 +28,16 @@ public class SleepAnalysis {
     public static final long MIN_SESSION_LENGTH = 5 * 60;
     public static final long MAX_WAKE_PHASE_LENGTH = 60 * 60;
 
+    private final boolean treatNonSleepGapsAsAwake;
+
+    public SleepAnalysis() {
+        this(true);
+    }
+
+    public SleepAnalysis(final boolean treatNonSleepGapsAsAwake) {
+        this.treatNonSleepGapsAsAwake = treatNonSleepGapsAsAwake;
+    }
+
     public List<SleepSession> calculateSleepSessions(Iterable<? extends ActivitySample> samples) {
         List<SleepSession> result = new ArrayList<>();
 
@@ -44,7 +54,7 @@ public class SleepAnalysis {
             if (isSleep(sample)) {
                 if (sleepStart == null)
                     sleepStart = getDateFromSample(sample);
-                else
+                else if (treatNonSleepGapsAsAwake)
                     awakeSleepDuration += durationSinceLastSleep;
                 sleepEnd = getDateFromSample(sample);
 

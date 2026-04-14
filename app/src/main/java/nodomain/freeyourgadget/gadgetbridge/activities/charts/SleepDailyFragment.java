@@ -73,6 +73,7 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.databinding.FragmentSleepchartBinding;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -156,18 +157,20 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
             overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
         } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
             final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
-            final Accumulator accumulator = new Accumulator();
-            for (float value : respiratoryRateData) {
-                accumulator.add(value);
+            if (respiratoryRateData != null) {
+                final Accumulator accumulator = new Accumulator();
+                for (float value : respiratoryRateData) {
+                    accumulator.add(value);
+                }
+                overlay = new OverlayDataFloat(
+                        (float) (accumulator.getMin() / 2),
+                        (float) (1.5d * accumulator.getMax()),
+                        respiratoryRateData,
+                        OverlayDataFloat.NO_DATA,
+                        ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
+                        Color.RED
+                );
             }
-            overlay = new OverlayDataFloat(
-                    (float) (accumulator.getMin() / 2),
-                    (float) (1.5d * accumulator.getMax()),
-                    respiratoryRateData,
-                    OverlayDataFloat.NO_DATA,
-                    ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
-                    Color.RED
-            );
         }
 
         final DeviceChartsProvider chartsProvider = device.getDeviceCoordinator().getChartsProvider();
@@ -363,6 +366,7 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         }
 
         final List<? extends Spo2Sample> spo2Samples = provider.getAllSamples(tsStart, tsEnd);
+
         if (spo2Samples.isEmpty()) {
             return 0f;
         }
@@ -418,7 +422,7 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
 
 
     private MySleepChartsData refreshSleepAmounts(List<? extends ActivitySample> samples, List<? extends SleepScoreSample> sleepScoreSamples) {
-        SleepAnalysis sleepAnalysis = new SleepAnalysis();
+        SleepAnalysis sleepAnalysis = new SleepAnalysis(shouldTreatSleepGapsAsAwake(samples));
         List<SleepSession> sleepSessions = sleepAnalysis.calculateSleepSessions(samples);
 
         final long lightSleepDuration = calculateLightSleepDuration(sleepSessions);
@@ -433,6 +437,16 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         }
 
         return new MySleepChartsData(sleepSessions, totalSeconds, awakeSleepDuration, remSleepDuration, deepSleepDuration, lightSleepDuration, sleepScore);
+    }
+
+    private boolean shouldTreatSleepGapsAsAwake(final List<? extends ActivitySample> samples) {
+        for (final ActivitySample sample : samples) {
+            if (sample instanceof AbstractWithingsActivitySample) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private long calculateLightSleepDuration(List<SleepSession> sleepSessions) {
