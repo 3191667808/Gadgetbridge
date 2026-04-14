@@ -61,6 +61,7 @@ public class NotificationProvider {
     private static final Map<String, NotificationState> NOTIFICATION_STATES = new ConcurrentHashMap<>();
     private final WithingsBaseDeviceSupport support;
     private static final int RECENT_NOTIFICATION_CACHE_SIZE = 256;
+    private volatile Integer activeIncomingCallUid;
 
     /**
      * How long a pending notification can sit without the watch requesting its
@@ -97,6 +98,10 @@ public class NotificationProvider {
 
         final int uid = notificationSource.getNotificationUID();
 
+        if (spec.type == NotificationType.GENERIC_PHONE) {
+            activeIncomingCallUid = uid;
+        }
+
         state.pendingNotifications.put(uid, new PendingNotification(spec, System.currentTimeMillis()));
 
         logger.info("Withings sending ADDED id={}, source={}, type={}, pendingCount={}, deviceKey={}",
@@ -114,12 +119,27 @@ public class NotificationProvider {
     public void onDeleteNotification(final int notificationUID) {
         final NotificationState state = getState();
 
+        if (activeIncomingCallUid != null && activeIncomingCallUid == notificationUID) {
+            activeIncomingCallUid = null;
+        }
+
         state.pendingNotifications.remove(notificationUID);
         synchronized (state.recentlyCompletedNotifications) {
             state.recentlyCompletedNotifications.remove(notificationUID);
         }
         logger.info("Withings sending REMOVED for UID={}", notificationUID);
         sendNotificationRemoved(notificationUID);
+    }
+
+    public void clearActiveIncomingCall() {
+        final Integer uid = activeIncomingCallUid;
+        if (uid == null) {
+            logger.debug("No active incoming call notification to clear");
+            return;
+        }
+
+        logger.info("Clearing active incoming call notification UID={}", uid);
+        onDeleteNotification(uid);
     }
 
     /**

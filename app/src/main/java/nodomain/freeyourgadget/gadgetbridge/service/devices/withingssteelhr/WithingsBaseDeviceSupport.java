@@ -578,6 +578,12 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             notificationSpec.sender = callSpec.name;
             notificationSpec.type = NotificationType.GENERIC_PHONE;
             notificationProvider.notifyClient(notificationSpec);
+        } else if (callSpec.command == CallSpec.CALL_START
+                || callSpec.command == CallSpec.CALL_END
+                || callSpec.command == CallSpec.CALL_REJECT
+                || callSpec.command == CallSpec.CALL_ACCEPT) {
+            logger.info("Clearing incoming call state for command {}", callSpec.command);
+            notificationProvider.clearActiveIncomingCall();
         } else {
             logger.info("Received yet unhandled call command: " + callSpec.command);
         }
