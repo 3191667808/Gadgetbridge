@@ -214,6 +214,29 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     @Override
+    protected void addExtraSyncCommandsWhenSkippingFullSync() {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final boolean ecgActivated = prefs.getBoolean(PREF_ECG_ACTIVATED, false);
+        final boolean spo2Activated = prefs.getBoolean(PREF_SPO2_ACTIVATED, false);
+        final String spo2Mode = prefs.getString(PREF_SPO2_MODE, "on_demand");
+        final String respScan = prefs.getString(PREF_RESPIRATORY_SCAN, "off");
+        final boolean afibDay = prefs.getBoolean(PREF_AFIB_DAY_ENABLED, false);
+        final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+        final boolean activityReminderEnabled = prefs.getBoolean(PREF_ACTIVITY_REMINDER, false);
+        final String hrMode = prefs.getString(PREF_HR_ALERT_MODE, "off");
+        final boolean hrAlertsOn = !"off".equals(hrMode);
+
+        logger.info("Reapplying ScanWatch feature tags during lightweight sync (ECG={}, SpO2={}, mode={}, resp={})",
+                ecgActivated, spo2Activated, spo2Mode, respScan);
+
+        // Re-assert on-watch feature flags even when we're skipping full history sync.
+        // This helps recover cases where ECG/SpO2 state appears to drift between regular syncs.
+        addFeatureTagsCommand(prefs, ecgActivated, spo2Activated, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
+        addLocalNotificationsCommand(afibDay, afibNight, hrAlertsOn, activityReminderEnabled);
+        queueHrAlertCommandIfChanged(prefs, hrMode);
+    }
+
+    @Override
     protected WithingsEcgHandler createEcgHandler() {
         return new WithingsEcgHandler(this, gbDevice);
     }
@@ -229,6 +252,34 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     @Override
     protected void addFeatureTagsMessage() {
         super.addFeatureTagsMessage();
+    }
+
+    @Override
+    protected void queueNotificationConfiguration(final boolean enabled) {
+        super.queueNotificationConfiguration(enabled);
+
+        if (!enabled) {
+            return;
+        }
+
+        // ANCS recovery / CCC-ready re-enable paths call this method. On ScanWatch,
+        // sending only the notification tag bundle can leave ECG/SpO2 features inactive
+        // until the next full sync. Re-assert the ScanWatch health tag bundle in the
+        // same transaction to keep ECG/SpO2/respiratory/AFib state stable.
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
+        final boolean ecgActivated = prefs.getBoolean(PREF_ECG_ACTIVATED, false);
+        final boolean spo2Activated = prefs.getBoolean(PREF_SPO2_ACTIVATED, false);
+        final String spo2Mode = prefs.getString(PREF_SPO2_MODE, "on_demand");
+        final String respScan = prefs.getString(PREF_RESPIRATORY_SCAN, "off");
+        final boolean afibDay = prefs.getBoolean(PREF_AFIB_DAY_ENABLED, false);
+        final boolean afibNight = prefs.getBoolean(PREF_AFIB_NIGHT_ENABLED, false);
+        final String hrMode = prefs.getString(PREF_HR_ALERT_MODE, "off");
+        final boolean hrAlertsOn = !"off".equals(hrMode);
+
+        logger.info("Reapplying ScanWatch health feature tags after notification config (ECG={}, SpO2={}, mode={}, resp={})",
+                ecgActivated, spo2Activated, spo2Mode, respScan);
+
+        addFeatureTagsCommand(prefs, ecgActivated, spo2Activated, spo2Mode, respScan, afibDay, afibNight, hrAlertsOn);
     }
 
     @Override

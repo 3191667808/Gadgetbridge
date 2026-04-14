@@ -409,7 +409,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             getDevice().setBusyTask(R.string.busy_task_syncing, getContext());
             getDevice().sendDeviceUpdateIntent(getContext());
             syncInProgress = true;
-            logger.info("Starting Withings sync, trigger={}, shouldSync={}", triggerSource, shoudSync());
+            final boolean shouldSync = shoudSync();
+            logger.info("Starting Withings sync, trigger={}, shouldSync={}", triggerSource, shouldSync);
             if (withingsEcgHandler == null) {
                 withingsEcgHandler = createEcgHandler();
             }
@@ -418,7 +419,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_BATTERY_STATUS), new BatteryStateHandler(this));
             addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_TIME, new Time()));
 
-            if (shoudSync()) {
+            if (shouldSync) {
                 logger.debug("Doing full sync... trigger={}", triggerSource);
                 storedMeasureDeleteRequestId = 0;
                 storedMeasureDeleteAttempts = 0;
@@ -509,6 +510,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 if (withingsEcgHandler != null) {
                     withingsEcgHandler.start();
                 }
+            } else {
+                addExtraSyncCommandsWhenSkippingFullSync();
             }
         } catch (Exception e) {
             logger.error("Could not synchronize! ", e);
@@ -1455,6 +1458,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      * <p>The default implementation is a no-op.
      */
     protected void addExtraSyncCommands() {
+        // no-op by default
+    }
+
+    /**
+     * Hook for subclasses to add lightweight device-specific commands when the current sync
+     * trigger does not require a full activity/history sync.
+     *
+     * <p>This runs in the same sync transaction as INITIAL_CONNECT/GET_ANCS_STATUS/SET_TIME,
+     * allowing devices to proactively re-assert critical runtime state on reconnects.
+     *
+     * <p>The default implementation is a no-op.
+     */
+    protected void addExtraSyncCommandsWhenSkippingFullSync() {
         // no-op by default
     }
 
