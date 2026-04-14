@@ -76,6 +76,9 @@ public class CatimaManager {
             return;
         }
 
+        // FossWallet does not support starred sync
+        final boolean starredSupported = catimaPackage.contains("catima");
+
         final List<LoyaltyCard> cards = catima.getCards();
         final Map<String, List<Integer>> groupCards = catima.getGroupCards();
 
@@ -102,7 +105,7 @@ public class CatimaManager {
             if (!syncArchived && card.isArchived()) {
                 continue;
             }
-            if (syncStarred && !card.isStarred()) {
+            if (starredSupported && syncStarred && !card.isStarred()) {
                 continue;
             }
             cardsToSync.add(card);

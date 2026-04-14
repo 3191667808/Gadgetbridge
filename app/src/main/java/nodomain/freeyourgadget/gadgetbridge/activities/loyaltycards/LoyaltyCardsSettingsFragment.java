@@ -25,6 +25,7 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.Loyal
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_OPEN_CATIMA;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_GROUPS;
+import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_STARRED;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.PREF_KEY_HEADER_LOYALTY_CARDS_CATIMA;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.PREF_KEY_HEADER_LOYALTY_CARDS_SYNC;
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.PREF_KEY_HEADER_LOYALTY_CARDS_SYNC_OPTIONS;
@@ -143,6 +144,13 @@ public class LoyaltyCardsSettingsFragment extends AbstractPreferenceFragment {
         }
 
         final String selectedAppName = finalCatimaPackageName.contains("catima") ? "Catima" : "FossWallet";
+
+        // FossWallet does not support starred sync
+        final boolean starredSupported = finalCatimaPackageName.contains("catima");
+        final Preference starredPreference = findPreference(LOYALTY_CARDS_SYNC_STARRED);
+        if (starredPreference != null) {
+            starredPreference.setVisible(starredSupported);
+        }
 
         final CatimaContentProvider catima = new CatimaContentProvider(requireContext(), finalCatimaPackageName);
 
