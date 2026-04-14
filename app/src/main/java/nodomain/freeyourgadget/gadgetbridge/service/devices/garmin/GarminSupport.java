@@ -536,7 +536,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     }
 
     public boolean mlrEnabled() {
-        return getDevicePrefs().getBoolean("garmin_mlr", false);
+        return getDevicePrefs().getBoolean("garmin_mlr", true);
     }
 
     @Override
