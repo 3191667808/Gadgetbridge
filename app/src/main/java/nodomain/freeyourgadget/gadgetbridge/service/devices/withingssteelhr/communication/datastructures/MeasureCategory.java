@@ -19,7 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import java.nio.ByteBuffer;
 
 public class MeasureCategory extends WithingsStructure {
+    public static final short NO_MEASURE = 0;
     public static final short ECG = 1;
+    public static final short PPG = 2;
 
     private short value;
 

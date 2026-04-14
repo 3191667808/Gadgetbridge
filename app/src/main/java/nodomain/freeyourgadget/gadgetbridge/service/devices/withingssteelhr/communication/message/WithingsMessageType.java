@@ -54,6 +54,8 @@ public final class WithingsMessageType {
     public static final short SET_ALARM_ENABLED = 2331;
     public static final short GET_ANCS_STATUS = 2353;
     public static final short SET_ANCS_STATUS = 2345;
+    public static final short GET_LIVE_HR = 2376;
+    public static final short MEASURE_LIVE_DATA = 2421;
     public static final short GET_SCREEN_SETTINGS = 1293;
     // The next two do nearly the same, when I look at the responses, though only the first seems to deliver sleep samples
     public static final short GET_ACTIVITY_SAMPLES = 2424;
