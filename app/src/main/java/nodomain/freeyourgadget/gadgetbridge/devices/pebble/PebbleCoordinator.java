@@ -54,6 +54,8 @@ import nodomain.freeyourgadget.gadgetbridge.entities.PebbleHealthActivitySampleD
 import nodomain.freeyourgadget.gadgetbridge.entities.PebbleMisfitSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.PebbleMorpheuzSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.pebble.PebbleSupport;
 import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleHardware;
@@ -65,6 +67,19 @@ public class PebbleCoordinator extends AbstractBLClassicDeviceCoordinator {
     private static final boolean BG_JS_ENABLED_DEFAULT = false;
 
     public PebbleCoordinator() {
+    }
+
+    @Override
+    public GBDevice createDevice(GBDeviceCandidate candidate, DeviceType deviceType) {
+        GBDevice device = super.createDevice(candidate, deviceType);
+        // Set hardware model from manufacturer data so the BLE pairing factory can route
+        // correctly on first-time pairing, before the protocol version exchange runs.
+        PebbleHardware.HardwareRevision hw =
+                PebbleHardware.parseManufacturerData(candidate.getManufacturerSpecificData());
+        if (hw != null) {
+            device.setModel(hw.getCodename());
+        }
+        return device;
     }
 
     @Override

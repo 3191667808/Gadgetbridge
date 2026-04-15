@@ -55,34 +55,46 @@ class PebblePairingFlowV2 implements PebblePairingFlow {
 
     private final Context mContext;
     private final boolean mClientOnly;
+    private final boolean mNeedsPairingTrigger;
     private final PairingCallback mCallback;
 
+    private boolean mHasConnectivityChar = false;
     private ConnectivityStatus mConnectivityStatus;
     private CountDownLatch mBondingLatch;
     private BroadcastReceiver mBondingReceiver;
 
-    PebblePairingFlowV2(Context context, boolean clientOnly, PairingCallback callback) {
+    PebblePairingFlowV2(Context context, boolean clientOnly, boolean needsPairingTrigger, PairingCallback callback) {
         mContext = context;
         mClientOnly = clientOnly;
+        mNeedsPairingTrigger = needsPairingTrigger;
         mCallback = callback;
     }
 
     @Override
     public void startPairing(BluetoothGatt gatt, BluetoothGattService pairingService) {
+        if (!mNeedsPairingTrigger) {
+            // Dual-mode devices (Pebble Time, Time Round): no pairing trigger needed.
+            // Skip connectivity read and trigger write, go straight to bonding.
+            LOG.info("PebblePairingFlowV2: Skipping pairing trigger (dual-mode device), going straight to bond");
+            initiateBluetoothBond(gatt);
+            return;
+        }
+
         LOG.info("PebblePairingFlowV2: Starting pairing for Pebble 2/Time 2/2 Duo");
 
         // Read Connectivity characteristic FIRST to determine pairing state
         BluetoothGattCharacteristic connectivityChar =
                 pairingService.getCharacteristic(PebbleGATTConstants.CONNECTIVITY_CHARACTERISTIC);
 
-        if (connectivityChar != null) {
+        mHasConnectivityChar = (connectivityChar != null);
+
+        if (mHasConnectivityChar) {
             LOG.info("Reading connectivity characteristic to check pairing state");
             gatt.readCharacteristic(connectivityChar);
             // Continue in onCharacteristicRead() -> handleConnectivityRead()
         } else {
-            LOG.error("Connectivity characteristic not found - cannot proceed with modern pairing");
-            // Proceed anyway to subscription chain
-            mCallback.onPairingComplete(gatt, true);
+            LOG.warn("Connectivity characteristic not found, proceeding without pairing state check");
+            proceedAfterPairing(gatt);
         }
     }
 
@@ -273,7 +285,7 @@ class PebblePairingFlowV2 implements PebblePairingFlow {
      * Continue with the subscription chain after pairing is complete or skipped.
      */
     private void proceedAfterPairing(BluetoothGatt gatt) {
-        LOG.info("PebblePairingFlowV2: Pairing complete, proceeding to subscriptions");
-        mCallback.onPairingComplete(gatt, true); // true = hasConnectivityCharacteristics
+        LOG.info("PebblePairingFlowV2: Pairing complete, proceeding to subscriptions (hasConnectivityChar={})", mHasConnectivityChar);
+        mCallback.onPairingComplete(gatt, mHasConnectivityChar);
     }
 }

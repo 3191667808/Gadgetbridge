@@ -253,10 +253,17 @@ class PebbleGATTClient extends BluetoothGattCallback implements PairingCallback 
     }
 
     private void subscribeToConnectivity(BluetoothGatt gatt) {
+        BluetoothGattCharacteristic connectivityChar = gatt.getService(PebbleGATTConstants.SERVICE_UUID)
+                .getCharacteristic(PebbleGATTConstants.CONNECTIVITY_CHARACTERISTIC);
+        if (connectivityChar == null) {
+            LOG.info("No connectivity characteristic present, proceeding to MTU/battery subscription");
+            subscribeToMTUOrBattery(gatt);
+            return;
+        }
         LOG.info("subscribing to connectivity characteristic");
-        BluetoothGattDescriptor descriptor = gatt.getService(PebbleGATTConstants.SERVICE_UUID).getCharacteristic(PebbleGATTConstants.CONNECTIVITY_CHARACTERISTIC).getDescriptor(PebbleGATTConstants.CHARACTERISTIC_CONFIGURATION_DESCRIPTOR);
+        BluetoothGattDescriptor descriptor = connectivityChar.getDescriptor(PebbleGATTConstants.CHARACTERISTIC_CONFIGURATION_DESCRIPTOR);
         NotifyAction.writeDescriptor(gatt, descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        gatt.setCharacteristicNotification(gatt.getService(PebbleGATTConstants.SERVICE_UUID).getCharacteristic(PebbleGATTConstants.CONNECTIVITY_CHARACTERISTIC), true);
+        gatt.setCharacteristicNotification(connectivityChar, true);
     }
 
     private void subscribeToMTU(BluetoothGatt gatt) {
