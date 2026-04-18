@@ -317,7 +317,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
                 break;
             case UPLOAD:
                 for (byte[] packet : this.uploadFileRequest.packets) {
-                    new TransactionBuilder("File upload").write(characteristic, packet).queue(getDeviceSupport().getQueue());
+                    getDeviceSupport().createTransactionBuilder("File upload").write(characteristic, packet).queue();
                 }
                 break;
             case UPLOADED:
@@ -375,7 +375,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
         queueWrite(new PlayNotificationRequest(vibration, -1, -1));
     }
 
-    @Override
+    //@Override
     public void vibrateFindMyDevicePattern() {
         queueWrite(new VibrateRequest(false, (short) 4, (short) 1));
     }
@@ -392,7 +392,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
 
     @Override
     public void setHands(MoveHandsRequest.MovementConfiguration movement) {
-        queueWrite(new MoveHandsRequest(movement));
+        queueWrite(new MoveHandsRequest(movement, false));
     }
 
     @Override
@@ -430,7 +430,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
 
     }
 
-    @Override
+    //@Override
     public boolean supportsFindDevice() {
         return supportsExtendedVibration();
     }
@@ -506,7 +506,7 @@ public class MisfitFlashWatchAdapter extends WatchAdapter {
     }
 
     private void queueWrite(Request request) {
-        new TransactionBuilder(request.getClass().getSimpleName()).write(getDeviceSupport().getCharacteristic(request.getRequestUUID()), request.getRequestData()).queue(getDeviceSupport().getQueue());
+        getDeviceSupport().createTransactionBuilder(request.getClass().getSimpleName()).write(getDeviceSupport().getCharacteristic(request.getRequestUUID()), request.getRequestData()).queue();
         // if (request instanceof FileRequest) this.fileRequest = request;
 
         if (!request.expectsResponse()) {
