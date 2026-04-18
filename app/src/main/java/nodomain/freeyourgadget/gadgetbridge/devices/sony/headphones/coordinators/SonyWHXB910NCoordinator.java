@@ -19,12 +19,16 @@ package nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinator
 import androidx.annotation.NonNull;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCapabilities;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 
@@ -38,10 +42,14 @@ public class SonyWHXB910NCoordinator extends SonyHeadphonesCoordinator {
         return R.string.devicetype_sony_wh_xb910n;
     }
 
+    @Override
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.HEADPHONES;
+    }
 
     @Override
-    public List<SonyHeadphonesCapabilities> getCapabilities() {
-        return Arrays.asList(
+    public Set<SonyHeadphonesCapabilities> getCapabilities() {
+        return new HashSet<>(Arrays.asList(
                 SonyHeadphonesCapabilities.AmbientSoundControl, // Ambient Sound Level doesn't work, it sets the Ambient sound level to 150 in the Sony app.
                 SonyHeadphonesCapabilities.BatterySingle,
                 SonyHeadphonesCapabilities.VoiceNotifications,
@@ -53,6 +61,6 @@ public class SonyWHXB910NCoordinator extends SonyHeadphonesCoordinator {
 //                SonyHeadphonesCapabilities.AmbientSoundControlButtonMode, // Doesn't work
 //                SonyHeadphonesCapabilities.WindNoiseReduction, // Changing mode doesn't work when this is enabled
 //                SonyHeadphonesCapabilities.Volume, // Doesn't work
-        );
+        ));
     }
 }
