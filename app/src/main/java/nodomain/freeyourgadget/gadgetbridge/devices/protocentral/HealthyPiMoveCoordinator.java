@@ -26,6 +26,11 @@ public class HealthyPiMoveCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.WATCH;
+    }
+
+    @Override
     public String getManufacturer() {
         return "Protocentral";
     }
