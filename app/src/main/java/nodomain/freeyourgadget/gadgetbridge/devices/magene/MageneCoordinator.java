@@ -2,6 +2,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.magene;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -50,7 +51,7 @@ public class MageneCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Nullable
     @Override
-    public InstallHandler findInstallHandler(Uri uri, Context context) {
+    public InstallHandler findInstallHandler(Uri uri, Bundle options, Context context) {
 
         final MageneGpxRouteInstallHandler mageneGpxRouteInstallHandler = new MageneGpxRouteInstallHandler(uri, context);
         if (mageneGpxRouteInstallHandler.isValid())
