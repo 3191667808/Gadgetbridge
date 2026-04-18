@@ -72,7 +72,9 @@ import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
+import nodomain.freeyourgadget.gadgetbridge.model.DistanceUnit;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.TemperatureUnit;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -1055,7 +1057,9 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
             case ActivityUser.PREF_USER_GENDER:
             case ActivityUser.PREF_USER_HEIGHT_CM:
             case ActivityUser.PREF_USER_DATE_OF_BIRTH:
-            case SettingsActivity.PREF_MEASUREMENT_SYSTEM:
+            case SettingsActivity.PREF_UNIT_DISTANCE:
+            case SettingsActivity.PREF_UNIT_TEMPERATURE:
+            case SettingsActivity.PREF_UNIT_WEIGHT:
                 setUserData();
                 setWeight();
                 break;
@@ -1097,12 +1101,14 @@ public class WearFitDeviceSupport extends AbstractBTLESingleDeviceSupport implem
         byte genderByte = (byte)user.getGender();
         if (genderByte > 1)
             genderByte = 1;
-        String units = GBApplication.getPrefs().getString(SettingsActivity.PREF_MEASUREMENT_SYSTEM, GBApplication.getContext().getString(R.string.p_unit_metric));
-        if (units.equals(GBApplication.getContext().getString(R.string.p_unit_imperial))) {
-            distanceUnits =   WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_MILES;
+        if (GBApplication.getPrefs().getDistanceUnit() == DistanceUnit.IMPERIAL) {
+            distanceUnits = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_MILES;
+        } else {
+            distanceUnits = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS;
+        }
+        if (GBApplication.getPrefs().getTemperatureUnit() == TemperatureUnit.FAHRENHEIT) {
             tempUnits = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_FAHRENHEIT;
         } else {
-            distanceUnits =   WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_DISTANCE_KILOMETERS;
             tempUnits = WearFitConstants.ARG_SET_PERSONAL_INFORMATION_UNIT_TEMPERATURE_CELSIUS;
         }
 

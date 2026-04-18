@@ -184,7 +184,7 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsActivityDataFetching(final GBDevice device) {
+    public boolean supportsDataFetching(final GBDevice device) {
         return true;
     }
 
@@ -234,6 +234,11 @@ public class WearFitCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_wearfit_hk_generic;
+    }
+
+    @Override
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.UNKNOWN;
     }
 
     @Override
