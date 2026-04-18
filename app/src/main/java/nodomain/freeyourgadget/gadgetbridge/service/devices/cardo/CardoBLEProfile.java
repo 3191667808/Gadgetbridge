@@ -70,12 +70,12 @@ public class CardoBLEProfile<T extends AbstractBTLESingleDeviceSupport> extends 
     }
 
     public void sendOutgoingRequest(String taskName, CardoRequest cardoRequest) {
-        final TransactionBuilder builder = new TransactionBuilder(taskName);
+        final TransactionBuilder builder = cardoDeviceSupport.createTransactionBuilder(taskName);
         LOG.debug("SENDING {}: {}", taskName, GB.hexdump(cardoRequest.getBtMessage()));
 
         builder.write(getCharacteristic(UUID_WRITE_CHARACTERISTIC), cardoRequest.getBtMessage());
 
-        builder.queue(this.cardoDeviceSupport.getQueue());
+        builder.queue();
 
     }
 

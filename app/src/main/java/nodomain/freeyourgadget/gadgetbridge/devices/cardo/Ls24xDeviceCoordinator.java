@@ -79,6 +79,11 @@ public class Ls24xDeviceCoordinator extends AbstractBLEDeviceCoordinator {
         return Collections.singletonList(new Ls24xDeviceCoordinator.ControlDeviceCardAction());
     }
 
+    @Override
+    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceKind.HEAD_MOUNTED;
+    }
+
     private static final class ControlDeviceCardAction implements DeviceCardAction {
         @Override
         public int getIcon(GBDevice device) {
