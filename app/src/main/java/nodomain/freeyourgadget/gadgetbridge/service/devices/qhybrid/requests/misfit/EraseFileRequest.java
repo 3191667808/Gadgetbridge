@@ -38,12 +38,17 @@ public class EraseFileRequest extends FileRequest{
             log("wrong descriptor");
             return;
         }
+        if (value == null || value.length < 4) {
+            log("erase: short response, length=" + (value == null ? -1 : value.length));
+            return;
+        }
         ByteBuffer buffer = ByteBuffer.wrap(value);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
         deletedHandle = buffer.getShort(1);
         status = buffer.get(3);
 
         log("file " + deletedHandle + " erased: " + status);
+        completed = true;
     }
 
     @Override
