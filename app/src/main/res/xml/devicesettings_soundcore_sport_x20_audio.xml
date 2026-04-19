@@ -34,7 +34,7 @@
                 android:summary="@string/soundcore_equalizer_reset_summary"
                 android:title="@string/soundcore_equalizer_reset_title" />
 
-            <PreferenceCategory android:title="100 Hz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band1_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -45,7 +45,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="200 Hz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band2_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -56,7 +56,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="400 Hz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band3_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -67,7 +67,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="800 Hz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band4_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -78,7 +78,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="1.6 kHz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band5_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -89,7 +89,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="3.2 kHz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band6_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -100,7 +100,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="6.4 kHz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band7_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
@@ -111,7 +111,7 @@
                     app:showSeekBarValue="true" />
             </PreferenceCategory>
 
-            <PreferenceCategory android:title="12.8 kHz">
+            <PreferenceCategory android:title="@string/soundcore_equalizer_band8_freq">
                 <SeekBarPreference
                     android:defaultValue="0"
                     android:icon="@drawable/ic_graphic_eq"
