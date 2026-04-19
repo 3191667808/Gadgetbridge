@@ -5786,4 +5786,29 @@
         <item>audio_card</item>
         <item>aux</item>
     </string-array>
+
+    <!-- Button functions supported by Misfit-platform watches (Skagen NDW2G etc.) -->
+    <string-array name="qhybrid_misfit_button_functions">
+        <item>@string/qhybrid_button_function_date</item>
+        <item>@string/qhybrid_button_function_2nd_tz</item>
+        <item>@string/menuitem_alarm</item>
+        <item>@string/qhybrid_button_function_last_notif</item>
+        <item>@string/qhybrid_button_function_step_goal</item>
+        <item>@string/qhybrid_button_function_volume_up</item>
+        <item>@string/qhybrid_button_function_volume_down</item>
+        <item>@string/qhybrid_button_function_control_music</item>
+        <item>@string/pref_camera_remote_title</item>
+    </string-array>
+
+    <string-array name="qhybrid_misfit_button_functions_values">
+        <item>DATE</item>
+        <item>SECOND_TIMEZONE</item>
+        <item>ALARM</item>
+        <item>LAST_NOTIFICATION</item>
+        <item>STEP_GOAL_COMPLETION</item>
+        <item>VOLUME_UP</item>
+        <item>VOLUME_DOWN</item>
+        <item>MUSIC_CONTROL</item>
+        <item>TAKE_PHOTO</item>
+    </string-array>
 </resources>

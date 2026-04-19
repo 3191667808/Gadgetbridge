@@ -85,6 +85,11 @@ public class QHybridCoordinator extends AbstractBLEDeviceCoordinator {
                 return true;
             }
         }
+        // Skagen hybrid watches (NDW2G/Hagen Connected) use the Misfit BLE platform
+        // but may not advertise the service UUID in their advertising data
+        if (isLikelyMisfitPlatformName(candidate.getName())) {
+            return true;
+        }
         return false;
     }
 
@@ -268,7 +273,9 @@ public class QHybridCoordinator extends AbstractBLEDeviceCoordinator {
         if (!isHybridHR(device)) {
             final List<Integer> generic = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.GENERIC);
             generic.add(R.xml.devicesettings_qhybrid);
-            generic.add(R.xml.devicesettings_fossilhybridhr_vibration);
+            generic.add(isMisfitPlatform(device)
+                    ? R.xml.devicesettings_misfit_vibration
+                    : R.xml.devicesettings_fossilhybridhr_vibration);
             generic.add(R.xml.devicesettings_fossilhybridhr_calibration);
             deviceSpecificSettings.addRootScreen(R.xml.devicesettings_qhybrid_notifications);
             final List<Integer> developer = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.DEVELOPER);
@@ -349,6 +356,26 @@ public class QHybridCoordinator extends AbstractBLEDeviceCoordinator {
     public boolean isHybridHR(GBDevice device){
         if(!isFossilHybrid(device)) return false;
         return device.getName().startsWith("Hybrid HR") || device.getName().equals("Fossil Gen. 6 Hybrid");
+    }
+
+    public boolean isMisfitPlatform(final GBDevice device) {
+        if (!isFossilHybrid(device) || isHybridHR(device)) {
+            return false;
+        }
+
+        final String firmwareVersion = device.getFirmwareVersion2();
+        if (firmwareVersion != null && firmwareVersion.length() > 6) {
+            final char major = firmwareVersion.charAt(6);
+            if (major == '0' || major == '1') {
+                return true;
+            }
+        }
+
+        return isLikelyMisfitPlatformName(device.getName());
+    }
+
+    private boolean isLikelyMisfitPlatformName(@Nullable final String name) {
+        return name != null && (name.startsWith("Skagen") || name.startsWith("NDW2G"));
     }
 
     private Version getFirmwareVersion(final GBDevice device) {

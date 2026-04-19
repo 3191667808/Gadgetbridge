@@ -30,6 +30,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 public class QHybridSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
     private Preference timeOffsetPref;
     private Preference timeZoneOffsetPref;
+    private static final int MAX_OFFSET_HOURS = 23;
 
     @Override
     public void onPreferenceChange(final Preference preference, final DeviceSpecificSettingsHandler handler) {
@@ -49,29 +50,24 @@ public class QHybridSettingsCustomizer implements DeviceSpecificSettingsCustomiz
             });
         }
 
-        final ListPreference upperButtonPref = handler.findPreference("top_button_function");
-        if (upperButtonPref != null) {
-            upperButtonPref.setOnPreferenceChangeListener((preference, newValue) -> {
-                final Intent intent = new Intent(QHybridSupport.QHYBRID_COMMAND_OVERWRITE_BUTTONS);
-                intent.putExtra(GBDevice.EXTRA_DEVICE, handler.getDevice());
-                LocalBroadcastManager.getInstance(handler.getContext()).sendBroadcast(intent);
-                return true;
-            });
+        final QHybridCoordinator coordinator = (QHybridCoordinator) handler.getDevice().getDeviceCoordinator();
+        final boolean isMisfit = coordinator.isMisfitPlatform(handler.getDevice());
+
+        final Preference notifCounterPref = handler.findPreference("use_activity_hand_as_notification_counter");
+        if (notifCounterPref != null && isMisfit) {
+            notifCounterPref.setVisible(false);
         }
 
-        final ListPreference middleButtonPref = handler.findPreference("middle_button_function");
-        if (middleButtonPref != null) {
-            middleButtonPref.setOnPreferenceChangeListener((preference, newValue) -> {
-                final Intent intent = new Intent(QHybridSupport.QHYBRID_COMMAND_OVERWRITE_BUTTONS);
-                intent.putExtra(GBDevice.EXTRA_DEVICE, handler.getDevice());
-                LocalBroadcastManager.getInstance(handler.getContext()).sendBroadcast(intent);
-                return true;
-            });
-        }
+        for (String key : new String[]{"top_button_function", "middle_button_function", "bottom_button_function"}) {
+            final ListPreference btnPref = handler.findPreference(key);
+            if (btnPref == null) continue;
 
-        final ListPreference bottomButtonPref = handler.findPreference("bottom_button_function");
-        if (bottomButtonPref != null) {
-            bottomButtonPref.setOnPreferenceChangeListener((preference, newValue) -> {
+            if (isMisfit) {
+                btnPref.setEntries(R.array.qhybrid_misfit_button_functions);
+                btnPref.setEntryValues(R.array.qhybrid_misfit_button_functions_values);
+            }
+
+            btnPref.setOnPreferenceChangeListener((preference, newValue) -> {
                 final Intent intent = new Intent(QHybridSupport.QHYBRID_COMMAND_OVERWRITE_BUTTONS);
                 intent.putExtra(GBDevice.EXTRA_DEVICE, handler.getDevice());
                 LocalBroadcastManager.getInstance(handler.getContext()).sendBroadcast(intent);
@@ -100,7 +96,10 @@ public class QHybridSettingsCustomizer implements DeviceSpecificSettingsCustomiz
         }
 
         timeOffsetPref = handler.findPreference("time_offset");
-        if (timeOffsetPref != null) {
+        if (timeOffsetPref != null && isMisfit) {
+            timeOffsetPref.setVisible(false);
+        }
+        if (timeOffsetPref != null && !isMisfit) {
             timeOffsetPref.setOnPreferenceClickListener(preference -> {
                 int timeOffset = prefs.getInt("QHYBRID_TIME_OFFSET", 0);
                 LinearLayout layout2 = new LinearLayout(handler.getContext());
@@ -150,16 +149,21 @@ public class QHybridSettingsCustomizer implements DeviceSpecificSettingsCustomiz
                 LinearLayout layout2 = new LinearLayout(handler.getContext());
                 layout2.setOrientation(LinearLayout.HORIZONTAL);
 
+                final NumberPicker signPicker = new NumberPicker(handler.getContext());
+                signPicker.setMinValue(0);
+                signPicker.setMaxValue(1);
+                signPicker.setDisplayedValues(new String[]{"+", "-"});
+
                 final NumberPicker hourPicker = new NumberPicker(handler.getContext());
                 hourPicker.setMinValue(0);
-                hourPicker.setMaxValue(23);
-                hourPicker.setValue(timeOffset / 60);
+                hourPicker.setMaxValue(MAX_OFFSET_HOURS);
 
                 final NumberPicker minPicker = new NumberPicker(handler.getContext());
                 minPicker.setMinValue(0);
                 minPicker.setMaxValue(59);
-                minPicker.setValue(timeOffset % 60);
+                applyOffsetToPickers(timeOffset, signPicker, hourPicker, minPicker);
 
+                layout2.addView(signPicker);
                 layout2.addView(hourPicker);
                 TextView tw = new TextView(handler.getContext());
                 tw.setText(":");
@@ -172,7 +176,7 @@ public class QHybridSettingsCustomizer implements DeviceSpecificSettingsCustomiz
                         .setTitle(handler.getContext().getString(R.string.qhybrid_offset_timezone))
                         .setView(layout2)
                         .setPositiveButton(handler.getContext().getString(R.string.ok), (dialogInterface, i) -> {
-                            int value = hourPicker.getValue() * 60 + minPicker.getValue();
+                            int value = getOffsetFromPickers(signPicker, hourPicker, minPicker);
                             prefs.getPreferences().edit().putInt("QHYBRID_TIMEZONE_OFFSET", value).apply();
                             updateTimezoneOffsetSummary(value);
                             final Intent intent = new Intent(QHybridSupport.QHYBRID_COMMAND_UPDATE_TIMEZONE);
@@ -224,9 +228,31 @@ public class QHybridSettingsCustomizer implements DeviceSpecificSettingsCustomiz
 
     private void updateTimezoneOffsetSummary(int timeZoneOffset) {
         DecimalFormat format = new DecimalFormat("00");
+        int absoluteMinutes = Math.abs(timeZoneOffset);
+        String sign = timeZoneOffset < 0 ? "-" : "+";
         timeZoneOffsetPref.setSummary(
-                format.format(timeZoneOffset / 60) + ":" +
-                        format.format(timeZoneOffset % 60)
+                sign + format.format(absoluteMinutes / 60) + ":" +
+                        format.format(absoluteMinutes % 60)
         );
+    }
+
+    private void applyOffsetToPickers(final int offsetMinutes,
+                                      final NumberPicker signPicker,
+                                      final NumberPicker hourPicker,
+                                      final NumberPicker minPicker) {
+        int absoluteMinutes = Math.abs(offsetMinutes);
+        int hours = Math.min(absoluteMinutes / 60, MAX_OFFSET_HOURS);
+        int minutes = absoluteMinutes % 60;
+
+        signPicker.setValue(offsetMinutes < 0 ? 1 : 0);
+        hourPicker.setValue(hours);
+        minPicker.setValue(minutes);
+    }
+
+    private int getOffsetFromPickers(final NumberPicker signPicker,
+                                     final NumberPicker hourPicker,
+                                     final NumberPicker minPicker) {
+        int value = hourPicker.getValue() * 60 + minPicker.getValue();
+        return signPicker.getValue() == 1 ? -value : value;
     }
 }
