@@ -2092,8 +2092,18 @@
     <string name="devicetype_casiogbx100" translatable="false">Casio GBX-100</string>
     <string name="devicetype_casiogwb5600" translatable="false">Casio GW-B5600</string>
     <string name="devicetype_casiogmwb5000" translatable="false">Casio GMW-B5000</string>
+    <string name="devicetype_miscales400" translatable="false">Xiaomi Body Composition Scale S400</string>
     <string name="devicetype_mismartscale" translatable="false">Mi Smart Scale 2</string>
     <string name="devicetype_micompositionscale" translatable="false">Mi Body Composition Scale 2</string>
+    <string name="miscale_s400_bind_key_title">BLE bind key</string>
+    <string name="miscale_s400_bind_key_summary">Required to decrypt S400 measurements. Enter the 32-character BLE bind key for this scale.</string>
+    <string name="miscale_s400_bind_key_missing">S400 BLE bind key is missing or invalid. Add it in the device settings first.</string>
+    <string name="miscale_s400_action_weigh_now">Weigh</string>
+    <string name="miscale_s400_action_scan_description">Start scanning for a new S400 measurement</string>
+    <string name="miscale_s400_step_on_scale">Stand on the scale now.</string>
+    <string name="miscale_s400_last_measurement">Last measurement</string>
+    <string name="miscale_s400_last_weight">Last weight</string>
+    <string name="miscale_s400_last_heart_rate">Last heart rate</string>
     <string name="devicetype_itag" translatable="false">iTag</string>
     <string name="devicetype_idasen" translatable="false">IKEA Idasen Desk</string>
     <string name="devicetype_bfh16" translatable="false">BFH-16</string>
