@@ -4727,7 +4727,6 @@
     <string name="pref_sos_contact_title">SOS contact</string>
 
     <string name="activity_send_waypoint_device">Device</string>
-    <string name="activity_send_waypoint_elevation">Elevation</string>
     <string name="activity_send_waypoint_elevation_label">Elevation (%s)</string>
     <string name="activity_send_waypoint_elevation_number">elevation must be empty or a number</string>
     <string name="activity_send_waypoint_elevation_range_imperial">elevation must be between -1\'600 ft and +38\'713 ft</string>
@@ -4751,6 +4750,7 @@
     <string name="activity_send_waypoint_no_location">No Location</string>
     <string name="activity_send_waypoint_no_location_details">No location information found in the received data.</string>
     <string name="activity_send_waypoint_to_device">Send</string>
+    <string name="activity_send_waypoint_symbol">Symbol</string>
 
     <!-- Export Health Connect preferences -->
     <string name="healthconnect_settings">Health Connect</string>

@@ -26,6 +26,7 @@ import nodomain.freeyourgadget.gadgetbridge.BuildConfig
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.FileType
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.FitFile
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.RecordData
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions.FieldDefinitionLocationSymbol
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitFileCreator
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitFileId
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitLocation
@@ -38,7 +39,8 @@ data class WaypointHelper(
     val name: String?,
     val latitude: Double?,
     val longitude: Double?,
-    val elevation: Double?
+    val elevation: Double?,
+    val symbol: FieldDefinitionLocationSymbol.LocationSymbol? = null
 ) : Parcelable {
     fun toUri(): Uri {
         return toString().toUri()
@@ -116,7 +118,7 @@ data class WaypointHelper(
 
             val clean = text.trim().toString()
             val geoMatchResult = REGEX_FIND_GEO.find(clean)
-            if(geoMatchResult != null) {
+            if (geoMatchResult != null) {
                 try {
                     val uriText = geoMatchResult.groupValues[1]
                     val pastedUri = uriText.toUri()
@@ -428,6 +430,7 @@ data class WaypointHelper(
                         .setPositionLong(waypoint.longitude)
                         .setMessageIndex(messageIndex++)
                         .setAltitude(waypoint.elevation?.toFloat())
+                        .setSymbol(waypoint.symbol)
                         .build()
                 )
             }
