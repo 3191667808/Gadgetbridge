@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.nio.ByteBuffer;
@@ -208,7 +209,7 @@ public class FieldDefinitionLocationSymbol extends FieldDefinition {
 
         @Nullable
         public static LocationSymbol fromGxpSymbol(String sym) {
-            if (sym == null || sym.length() == 0) {
+            if (sym == null || sym.isEmpty()) {
                 return null;
             }
             for (LocationSymbol symbol : values()) {
@@ -228,6 +229,7 @@ public class FieldDefinitionLocationSymbol extends FieldDefinition {
             return gxpSymbol;
         }
 
+        @NonNull
         @Override
         public String toString() {
             return gxpSymbol;

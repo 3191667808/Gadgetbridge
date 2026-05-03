@@ -1,5 +1,6 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -10,90 +11,89 @@
         android:paddingHorizontal="@dimen/activity_horizontal_margin"
         android:paddingVertical="@dimen/activity_vertical_margin">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/activity_send_waypoint_name" />
-
-        <EditText
-            android:id="@+id/waypointName"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_label_24px"
-            android:drawablePadding="@dimen/cpv_item_horizontal_padding"
             android:hint="@string/activity_send_waypoint_name"
-            android:inputType="text"
-            android:minHeight="48dp"
-            android:singleLine="true" />
+            android:labelFor="@+id/waypointName"
+            app:startIconDrawable="@drawable/ic_label_24px">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/activity_vertical_margin"
-            android:labelFor="@id/waypointLatitude"
-            android:text="@string/pref_title_location_latitude" />
+            <EditText
+                android:id="@+id/waypointName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:minHeight="48dp"
+                android:singleLine="true" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/waypointLatitude"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_swap_vert"
-            android:drawablePadding="@dimen/cpv_item_horizontal_padding"
+            android:layout_marginTop="@dimen/activity_vertical_margin"
             android:hint="@string/pref_title_location_latitude"
-            android:inputType="number|numberDecimal|numberSigned"
-            android:minHeight="48dp"
-            android:singleLine="true" />
+            android:labelFor="@+id/waypointLatitude"
+            app:startIconDrawable="@drawable/ic_swap_vert">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/activity_vertical_margin"
-            android:labelFor="@id/waypointLongitude"
-            android:text="@string/pref_title_location_longitude" />
+            <EditText
+                android:id="@+id/waypointLatitude"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number|numberDecimal|numberSigned"
+                android:minHeight="48dp"
+                android:singleLine="true" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/waypointLongitude"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_swap_horiz"
-            android:drawablePadding="@dimen/cpv_item_horizontal_padding"
+            android:layout_marginTop="@dimen/activity_vertical_margin"
             android:hint="@string/pref_title_location_longitude"
-            android:inputType="number|numberDecimal|numberSigned"
-            android:minHeight="48dp"
-            android:singleLine="true" />
+            android:labelFor="@+id/waypointLongitude"
+            app:startIconDrawable="@drawable/ic_swap_horiz">
 
-        <TextView
-            android:id="@+id/waypointElevationLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/activity_vertical_margin"
-            android:labelFor="@id/waypointElevation"
-            android:text="@string/Elevation" />
+            <EditText
+                android:id="@+id/waypointLongitude"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number|numberDecimal|numberSigned"
+                android:minHeight="48dp"
+                android:singleLine="true" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <EditText
-            android:id="@+id/waypointElevation"
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/waypointElevationLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_altitude_24px"
-            android:drawablePadding="@dimen/cpv_item_horizontal_padding"
+            android:layout_marginTop="@dimen/activity_vertical_margin"
             android:hint="@string/Elevation"
-            android:inputType="number|numberDecimal|numberSigned"
-            android:minHeight="48dp"
-            android:singleLine="true" />
+            android:labelFor="@+id/waypointElevation"
+            app:startIconDrawable="@drawable/ic_altitude_24px">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/activity_vertical_margin"
-            android:labelFor="@id/waypointSymbol"
-            android:text="@string/activity_send_waypoint_symbol" />
+            <EditText
+                android:id="@+id/waypointElevation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number|numberDecimal|numberSigned"
+                android:minHeight="48dp"
+                android:singleLine="true" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <Spinner
-            android:id="@+id/waypointSymbol"
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/cpv_item_horizontal_padding"
-            android:minHeight="48dp" />
+            android:layout_marginTop="@dimen/activity_vertical_margin"
+            android:hint="@string/activity_send_waypoint_symbol"
+            android:labelFor="@+id/waypointSymbol">
+
+            <AutoCompleteTextView
+                android:id="@+id/waypointSymbol"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:minHeight="48dp" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

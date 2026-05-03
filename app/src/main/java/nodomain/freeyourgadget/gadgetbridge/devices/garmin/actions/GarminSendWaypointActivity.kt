@@ -42,7 +42,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefi
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 import nodomain.freeyourgadget.gadgetbridge.util.WaypointHelper
 import android.widget.ArrayAdapter
-import android.widget.Spinner
 import org.slf4j.LoggerFactory
 
 class GarminSendWaypointActivity : AbstractGBActivity() {
@@ -66,7 +65,7 @@ class GarminSendWaypointActivity : AbstractGBActivity() {
             uom = getString(R.string.activity_send_waypoint_meter)
             elevationInFeet = false
         }
-        binding.waypointElevationLabel.text =
+        binding.waypointElevationLayout.hint =
             getString(R.string.activity_send_waypoint_elevation_label, uom)
 
         val copyListener = ClickToCopy()
@@ -75,14 +74,13 @@ class GarminSendWaypointActivity : AbstractGBActivity() {
         binding.waypointInfo2.setOnClickListener(copyListener)
         binding.waypointInfo3.setOnClickListener(copyListener)
 
-        // Initialize symbol spinner
+        // Initialize symbol dropdown
         val symbols = FieldDefinitionLocationSymbol.LocationSymbol.values()
         val symbolNames = Array(symbols.size + 1) { index ->
             if (index == 0) getString(R.string.none) else symbols[index - 1].toString()
         }
-        val symbolAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, symbolNames)
-        symbolAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.waypointSymbol.adapter = symbolAdapter
+        val symbolAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, symbolNames)
+        binding.waypointSymbol.setAdapter(symbolAdapter)
 
         device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE)
 
@@ -93,11 +91,7 @@ class GarminSendWaypointActivity : AbstractGBActivity() {
             binding.waypointElevation.setText(savedInstanceState.getString(ITEM_ELEVATION, ""))
             val symbolName = savedInstanceState.getString(ITEM_SYMBOL, null)
             if (symbolName != null) {
-                val adapter = binding.waypointSymbol.adapter as ArrayAdapter<String>
-                val position = adapter.getPosition(symbolName)
-                if (position >= 0) {
-                    binding.waypointSymbol.setSelection(position)
-                }
+                binding.waypointSymbol.setText(symbolName, false)
             }
         }
 
@@ -152,8 +146,7 @@ class GarminSendWaypointActivity : AbstractGBActivity() {
         outState.putString(ITEM_LATITUDE, binding.waypointLatitude.text.toString())
         outState.putString(ITEM_LONGITUDE, binding.waypointLongitude.text.toString())
         outState.putString(ITEM_ELEVATION, binding.waypointElevation.text.toString())
-        val selected = binding.waypointSymbol.selectedItem as String
-        outState.putString(ITEM_SYMBOL, selected)
+        outState.putString(ITEM_SYMBOL, binding.waypointSymbol.text.toString())
     }
 
 
@@ -187,11 +180,7 @@ class GarminSendWaypointActivity : AbstractGBActivity() {
                                 binding.waypointElevation.setText(elevation.toString())
                             }
                             if (waypointHelper.symbol != null) {
-                                val adapter = binding.waypointSymbol.adapter as ArrayAdapter<String>
-                                val position = adapter.getPosition(waypointHelper.symbol.toString())
-                                if (position >= 0) {
-                                    binding.waypointSymbol.setSelection(position)
-                                }
+                                binding.waypointSymbol.setText(waypointHelper.symbol.toString(), false)
                             }
                             return
                         }
@@ -237,11 +226,11 @@ class GarminSendWaypointActivity : AbstractGBActivity() {
                 elevation = DistanceUnit.feetToMeter(elevation)
             }
 
-            // Get selected symbol (skip first item which is "None")
+            // Get selected symbol
             var selectedSymbol: FieldDefinitionLocationSymbol.LocationSymbol? = null
-            val symbolPosition = binding.waypointSymbol.selectedItemPosition
-            if (symbolPosition > 0) {
-                selectedSymbol = FieldDefinitionLocationSymbol.LocationSymbol.entries.toTypedArray()[symbolPosition - 1]
+            val symbolText = binding.waypointSymbol.text.toString()
+            if (symbolText.isNotEmpty() && symbolText != getString(R.string.none)) {
+                selectedSymbol = FieldDefinitionLocationSymbol.LocationSymbol.fromGxpSymbol(symbolText)
             }
 
             if (!label.isEmpty() && latitude?.isFinite() == true && longitude?.isFinite() == true) {
