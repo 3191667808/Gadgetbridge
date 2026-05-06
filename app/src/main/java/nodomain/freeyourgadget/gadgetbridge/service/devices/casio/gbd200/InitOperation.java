@@ -408,10 +408,13 @@ public class InitOperation extends AbstractBTLEOperation<CasioGBD200DeviceSuppor
                         mSupport.disconnect();
                         mSupport.reconnectDelayed();
                     } else if (mNeedsGetConfiguration) {
+                        // First reconnect after pairing: read config from watch, then
+                        // GetConfigurationOperation will call syncProfile() when done.
                         mSupport.onReadConfiguration(null);
-                    } else {
-                        mSupport.syncProfile();
                     }
+                    // Regular reconnects: skip syncProfile() here so auto-fetch is not
+                    // blocked by a "Configuring" busy state. Settings changed while
+                    // disconnected are pushed via onSharedPreferenceChanged.
                 }
                 break;
 
