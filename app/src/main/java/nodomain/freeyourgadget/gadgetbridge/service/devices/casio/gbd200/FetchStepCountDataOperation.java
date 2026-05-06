@@ -18,6 +18,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.casio.gbd200;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,9 +42,11 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class FetchStepCountDataOperation extends AbstractBTLEOperation<CasioGBD200DeviceSupport> {
     private static final Logger LOG = LoggerFactory.getLogger(FetchStepCountDataOperation.class);
+    private static final int TIMEOUT_MS = 30_000;
 
     private final CasioGBD200DeviceSupport support;
     private byte mLastWrittenCmd = 0x00;
+    private final Handler mTimeoutHandler = new Handler(Looper.getMainLooper());
 
     public FetchStepCountDataOperation(CasioGBD200DeviceSupport support) {
         super(support);
@@ -101,12 +106,22 @@ public class FetchStepCountDataOperation extends AbstractBTLEOperation<CasioGBD2
 
     @Override
     protected void doPerform() throws IOException {
+        mTimeoutHandler.postDelayed(this::onTimeout, TIMEOUT_MS);
         enableRequiredNotifications(true);
         requestStepCountData();
     }
 
+    private void onTimeout() {
+        LOG.warn("FetchStepCountDataOperation timed out");
+        GB.toast(getContext(), getContext().getString(R.string.busy_task_fetch_activity_data)
+                + ": timeout", Toast.LENGTH_SHORT, GB.WARN);
+        enableRequiredNotifications(false);
+        operationFinished();
+    }
+
     @Override
     protected void operationFinished() {
+        mTimeoutHandler.removeCallbacksAndMessages(null);
         LOG.info("FetchStepCountDataOperation finished");
         unsetBusy();
         GB.updateTransferNotification(null,

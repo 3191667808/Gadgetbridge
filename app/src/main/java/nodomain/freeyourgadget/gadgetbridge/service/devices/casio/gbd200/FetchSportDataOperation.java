@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.casio.gbd200;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import org.slf4j.Logger;
@@ -85,6 +87,9 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
     private static final int SESSION_LIST_BASE = 0x46a0;
     private static final int META_BLOCK_HDR    = 15;
     private static final int META_LAP_STRIDE   = 19;
+    private static final int TIMEOUT_MS        = 45_000;
+
+    private final Handler mTimeoutHandler = new Handler(Looper.getMainLooper());
 
     // State machine
     private enum State {
@@ -378,14 +383,25 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
         mState = State.WAIT_PING_ECHO;
         mConvoyBuf.clear();
 
+        mTimeoutHandler.postDelayed(this::onTimeout, TIMEOUT_MS);
+
         // CONVOY_INIT request to h0011
         writeH0011(featReq(0x1c, 0, 0), "convoy_init");
         // ping to h0014
         writeH0014(new byte[]{0x00, 0x00, 0x00}, "ping");
     }
 
+    private void onTimeout() {
+        LOG.warn("FetchSportDataOperation timed out in state {}", mState);
+        GB.toast(getContext(), getContext().getString(R.string.busy_task_fetch_activity_data)
+                + ": timeout", Toast.LENGTH_SHORT, GB.WARN);
+        enableNotifications(false);
+        operationFinished();
+    }
+
     @Override
     protected void operationFinished() {
+        mTimeoutHandler.removeCallbacksAndMessages(null);
         LOG.info("FetchSportDataOperation finished");
         unsetBusy();
         GB.updateTransferNotification(null,
@@ -608,7 +624,7 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
                 break;
 
             case COLLECTING_META:
-                if (data[0] == 0x09) {
+                if (data[0] == 0x09 || data[0] == 0x07) {
                     parseAndSaveMetaLaps(getConvoyPayload());
                     writeH0011(echo10(data), "echo_meta_signal");
                     writeH0011(ackReq(0x20), "ack_meta");
