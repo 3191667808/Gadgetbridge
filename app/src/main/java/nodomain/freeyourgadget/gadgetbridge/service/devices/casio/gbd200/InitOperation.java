@@ -41,7 +41,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.casio.Casio2C2DSuppo
  * from btsnoop HCI captures. The watch only shows "connection ok" after this completes.
  *
  * Sequence:
- *  1.  Request APP_INFO (0x22)
+ *  1.  Request APP_INFO (0x22) → write back APP_INFO (announces capabilities, incl. time-sync support)
  *  2.  Request BLE_FEAT (0x10)
  *  3.  Write WATCH_NAME to ALL_FEAT (identity confirm)
  *  4.  Request MODULE_ID (0x26)
@@ -135,6 +135,18 @@ public class InitOperation extends AbstractBTLEOperation<CasioGBD200DeviceSuppor
         }
     }
 
+    // ── App information ──────────────────────────────────────────────────────
+
+    private void writeAppInformation() {
+        // Announce this app's capabilities to the watch. arr[11] = 2 is required for
+        // the watch to show "Bluetooth time adjustment: supported" in its menu.
+        byte[] arr = new byte[12];
+        arr[0] = Casio2C2DSupport.FEATURE_APP_INFORMATION;
+        for (int i = 0; i < 10; i++) arr[i + 1] = (byte) (i & 0xff);
+        arr[11] = 2;
+        write(arr);
+    }
+
     // ── GPS encoding ─────────────────────────────────────────────────────────
 
     private byte[] makeGpsChunk0(double lat, double lon) {
@@ -214,7 +226,10 @@ public class InitOperation extends AbstractBTLEOperation<CasioGBD200DeviceSuppor
         switch (mState) {
             case S_APP_INFO:
                 if (feat == Casio2C2DSupport.FEATURE_APP_INFORMATION) {
-                    LOG.debug("Init[APP_INFO] → requesting BLE_FEAT");
+                    LOG.debug("Init[APP_INFO] → writing APP_INFO (capabilities), requesting BLE_FEAT");
+                    // Write back our app information so the watch knows this app supports
+                    // Bluetooth time adjustment (arr[11] = 2 is the capabilities byte).
+                    writeAppInformation();
                     mState = S_BLE_FEAT;
                     req(Casio2C2DSupport.FEATURE_BLE_FEATURES);
                 }
