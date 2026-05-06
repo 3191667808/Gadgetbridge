@@ -420,6 +420,10 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
                 LOG.error("Error resetting Gatt callback", ex);
             }
         }
+        // Push any pending settings changes to the watch now that data fetch is done.
+        // This replaces the syncProfile() call that used to run during init (which blocked
+        // auto-fetch by marking the device "Configuring" before fetch could start).
+        mSupport.syncProfile();
     }
 
     private void proceedToNextSessionOrClose() {
