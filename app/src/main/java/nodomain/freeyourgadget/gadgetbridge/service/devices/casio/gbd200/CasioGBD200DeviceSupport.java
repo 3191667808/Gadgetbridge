@@ -59,6 +59,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.casio.Casio2C2DSupport;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationProviderType;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
@@ -273,10 +275,9 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
             }
 
             if (feat == FEATURE_SESSION_EVENT && data.length > 1) {
-                // 0x48 0x00 = running session started on watch
                 if (data[1] == 0x00) {
+                    // Running session started on watch
                     LOG.info("Running session started on watch (0x48 0x00)");
-                    // Respond with session config
                     try {
                         TransactionBuilder b = performInitialized("session_event_ack");
                         writeAllFeatures(b, new byte[]{
@@ -293,8 +294,13 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
                     } catch (IOException e) {
                         LOG.warn("session_event_ack failed: {}", e.getMessage());
                     }
+                    GBLocationService.start(getContext(), getDevice(),
+                            GBLocationProviderType.GPS, 1000);
+                } else if (data[1] == 0x01) {
+                    // Running session ended on watch
+                    LOG.info("Running session ended on watch (0x48 0x01)");
+                    GBLocationService.stop(getContext(), getDevice());
                 }
-                // 0x48 0x01 = session ended — nothing to do, user will manually fetch data
                 return true;
             }
         }
