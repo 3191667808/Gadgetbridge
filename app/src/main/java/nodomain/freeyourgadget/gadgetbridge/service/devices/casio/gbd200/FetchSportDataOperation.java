@@ -1,4 +1,4 @@
-/*  Copyright (C) 2024 Davide Gessa
+/*  Copyright (C) 2026 Davide Gessa
 
     This file is part of Gadgetbridge.
 
