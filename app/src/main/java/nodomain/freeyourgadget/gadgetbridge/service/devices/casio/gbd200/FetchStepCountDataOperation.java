@@ -258,7 +258,7 @@ public class FetchStepCountDataOperation extends AbstractBTLEOperation<CasioGBD2
                     sample.setSteps(remainSteps);
                     sample.setCalories(remainCals);
                     sample.setTimestamp(ts);
-                    sample.setRawKind(ActivityKind.NOT_MEASURED.getCode());
+                    sample.setRawKind(ActivityKind.ACTIVITY.getCode());
                     stepCountData.add(0, sample);
                 }
 
