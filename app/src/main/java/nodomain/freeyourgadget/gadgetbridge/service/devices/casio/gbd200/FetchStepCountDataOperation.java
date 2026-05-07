@@ -121,6 +121,7 @@ public class FetchStepCountDataOperation extends AbstractBTLEOperation<CasioGBD2
 
     @Override
     protected void operationFinished() {
+        if (operationStatus == OperationStatus.FINISHED) return;
         mTimeoutHandler.removeCallbacksAndMessages(null);
         LOG.info("FetchStepCountDataOperation finished");
         unsetBusy();

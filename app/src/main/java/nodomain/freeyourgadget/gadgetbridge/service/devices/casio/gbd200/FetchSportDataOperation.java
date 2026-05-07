@@ -238,12 +238,15 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
         return cal.getTime();
     }
 
-    private BaseActivitySummary parseAndSaveSession(byte[] payload, int sessionIndex) {
+    enum SaveResult { NEW, EXISTING, ERROR }
+
+    private SaveResult parseAndSaveSession(byte[] payload, int sessionIndex) {
+        mCurrentSummary = null;
         if (payload.length < 186) {
             LOG.warn("Session {} payload too short: {} bytes", sessionIndex, payload.length);
             mMetaAddress = 0;
             mSegCount    = 0;
-            return null;
+            return SaveResult.ERROR;
         }
 
         // All offsets are direct indices into payload[] (0-based)
@@ -302,18 +305,21 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
                             BaseActivitySummaryDao.Properties.StartTime.eq(summary.getStartTime()))
                     .list();
             if (!existing.isEmpty()) {
-                summary.setId(existing.get(0).getId());
+                // Preserve the existing row as-is (it already has lap data in summaryData)
+                mCurrentSummary = existing.get(0);
+                LOG.info("Sport session {} already in database — skipping overwrite", sessionIndex);
+                return SaveResult.EXISTING;
             }
 
             session.getBaseActivitySummaryDao().insertOrReplace(summary);
-            LOG.info("Saved sport session {} to database ({})", sessionIndex,
-                    existing.isEmpty() ? "new" : "updated");
-            return summary;
+            mCurrentSummary = summary;
+            LOG.info("Saved sport session {} to database (new)", sessionIndex);
+            return SaveResult.NEW;
         } catch (Exception e) {
             GB.toast(getContext(), "Error saving sport session: " + e.getLocalizedMessage(),
                     Toast.LENGTH_LONG, GB.ERROR, e);
         }
-        return null;
+        return SaveResult.ERROR;
     }
 
     private void parseAndSaveMetaLaps(byte[] metaPayload) {
@@ -401,6 +407,7 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
 
     @Override
     protected void operationFinished() {
+        if (operationStatus == OperationStatus.FINISHED) return;
         mTimeoutHandler.removeCallbacksAndMessages(null);
         LOG.info("FetchSportDataOperation finished");
         unsetBusy();
@@ -606,7 +613,7 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
                     byte[] payload = getConvoyPayload();
                     LOG.debug("Session {}/{} payload: {} bytes", mCurrentSession, mTotalSessions,
                             payload.length);
-                    mCurrentSummary = parseAndSaveSession(payload, mCurrentSession);
+                    SaveResult result = parseAndSaveSession(payload, mCurrentSession);
 
                     writeH0011(echo10(data), "echo_session_signal");
                     writeH0011(ackReq(0x1e), "ack_session");
@@ -616,11 +623,18 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
                             getContext().getString(R.string.busy_task_fetch_activity_data),
                             true, progress, getContext());
 
-                    if (mMetaAddress != 0 && mMetaAddress != 0xffff && mSegCount > 0) {
-                        mConvoyBuf.clear();
-                        mState = State.COLLECTING_META;
-                        LOG.debug("Requesting meta @ 0x{} for session {}", Integer.toHexString(mMetaAddress), mCurrentSession);
-                        writeH0011(featReq(0x20, mMetaAddress, 0x01), "meta_request_" + mCurrentSession);
+                    if (result == SaveResult.EXISTING) {
+                        // Session already in DB — lap data is already saved, skip meta download.
+                        proceedToNextSessionOrClose();
+                    } else if (result == SaveResult.NEW) {
+                        if (mMetaAddress != 0 && mMetaAddress != 0xffff && mSegCount > 0) {
+                            mConvoyBuf.clear();
+                            mState = State.COLLECTING_META;
+                            LOG.debug("Requesting meta @ 0x{} for session {}", Integer.toHexString(mMetaAddress), mCurrentSession);
+                            writeH0011(featReq(0x20, mMetaAddress, 0x01), "meta_request_" + mCurrentSession);
+                        } else {
+                            proceedToNextSessionOrClose();
+                        }
                     } else {
                         proceedToNextSessionOrClose();
                     }
