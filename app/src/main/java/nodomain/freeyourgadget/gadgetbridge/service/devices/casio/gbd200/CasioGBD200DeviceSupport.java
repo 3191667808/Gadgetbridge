@@ -59,8 +59,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.casio.Casio2C2DSupport;
-import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
-import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationProviderType;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.opentracks.OpenTracksController;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
@@ -274,6 +274,17 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
                 return true;
             }
 
+            if (feat == FEATURE_WATCH_CONDITION) {
+                if (data.length >= 9) {
+                    if (data[7] == 0x01) {
+                        LOG.info("Session saved on watch");
+                    } else {
+                        LOG.info("Session discarded on watch — OpenTracks recording already stopped");
+                    }
+                }
+                return true;
+            }
+
             if (feat == FEATURE_SESSION_EVENT && data.length > 1) {
                 if (data[1] == 0x00) {
                     // Running session started on watch
@@ -294,12 +305,10 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
                     } catch (IOException e) {
                         LOG.warn("session_event_ack failed: {}", e.getMessage());
                     }
-                    GBLocationService.start(getContext(), getDevice(),
-                            GBLocationProviderType.GPS, 1000);
+                    OpenTracksController.startRecording(getContext(), ActivityKind.RUNNING);
                 } else if (data[1] == 0x01) {
-                    // Running session ended on watch
                     LOG.info("Running session ended on watch (0x48 0x01)");
-                    GBLocationService.stop(getContext(), getDevice());
+                    OpenTracksController.stopRecording(getContext());
                 }
                 return true;
             }
