@@ -45,7 +45,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.casio.Casio2C2DSuppo
  *  2.  Request BLE_FEAT (0x10)
  *  3.  Write WATCH_NAME to ALL_FEAT (identity confirm)
  *  4.  Request MODULE_ID (0x26)
- *  5.  WATCH_COND + VER_INFO × 2 rounds, then one final WATCH_COND
+ *  5.  WATCH_COND + VER_INFO x 2 rounds, then one final WATCH_COND
  *  6.  Request DST_WATCH_STATE (0x1d) → echo back
  *  7.  Request DST_SETTING slot 0 → save; request slot 1 → echo both
  *  8.  Write GPS chunks (0x24)
@@ -404,6 +404,14 @@ public class InitOperation extends AbstractBTLEOperation<CasioGBD200DeviceSuppor
             case S_POST_COND_2:
                 if (feat == Casio2C2DSupport.FEATURE_WATCH_CONDITION) {
                     LOG.info("Init complete.");
+                    try {
+                        TransactionBuilder b = createTransactionBuilder("init_done");
+                        b.setCallback(null);
+                        b.wait(0);
+                        b.queueImmediately();
+                    } catch (Exception e) {
+                        LOG.error("Failed to release GATT callback after init: {}", e.getMessage());
+                    }
                     if (mFirstConnect) {
                         mSupport.disconnect();
                         mSupport.reconnectDelayed();
