@@ -129,6 +129,8 @@ class GBProgressNotification(
 
     fun finish() {
         this.visible = false
+        this.titleRes = 0
+        this.textRes = 0
         this.chunkProgress = 0
         this.totalProgress = 0
         this.totalSize = 0
@@ -139,6 +141,12 @@ class GBProgressNotification(
     }
 
     private fun refresh(force: Boolean) {
+        if (titleRes == 0) {
+            // No active transfer: progress updates arriving before start() (or
+            // after finish()) must not surface a notification.
+            return
+        }
+
         val percentage = getProgressPercentage()
 
         if (visible) {
@@ -161,7 +169,7 @@ class GBProgressNotification(
 
         visible = true
 
-        val title: CharSequence = if (titleRes != 0) context.getString(titleRes) else "Unknown transfer"
+        val title: CharSequence = context.getString(titleRes)
         val text = if (textRes != 0) {
             context.getString(textRes)
         } else if (totalSize != 0L) {
