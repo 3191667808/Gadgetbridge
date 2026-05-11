@@ -1667,7 +1667,8 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
             deviceSpecificSettings.addRootScreen(
                     DeviceSpecificSettingsScreen.DEVELOPER,
                     R.xml.devicesettings_header_intent_api,
-                    R.xml.devicesettings_settings_third_party_apps
+                    R.xml.devicesettings_settings_third_party_apps,
+                    R.xml.devicesettings_alarms_third_party_apps
             );
             if (coordinator.getConnectionType().usesBluetoothLE()) {
                 deviceSpecificSettings.addRootScreen(
