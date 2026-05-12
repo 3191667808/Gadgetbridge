@@ -197,6 +197,10 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     public void dispose() {
         synchronized (ConnectionMonitor) {
             LOG.info("Garmin dispose()");
+            // Clear any in-flight transfer notification; otherwise a disconnect
+            // mid-sync leaves the progress notification pinned indefinitely.
+            transferNotification.finish();
+            isBusyFetching = false;
             if (communicator != null) {
                 communicator.dispose();
             }
@@ -232,14 +236,16 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             return;
         }
         filesToDownload.add(new FileToDownload(directoryEntry));
-        if (directoryEntry.getFiletype() != FileType.FILETYPE.DIRECTORY) {
+        // Only grow the visible total once a transfer is active; before start()
+        // the initial size is computed from the queue sum in processDownloadQueue.
+        if (isBusyFetching && directoryEntry.getFiletype() != FileType.FILETYPE.DIRECTORY) {
             transferNotification.incrementTotalSize(directoryEntry.getFileSize());
         }
     }
 
     public void addFileToDownloadList(GdiFileSyncService.File file) {
         filesToDownload.add(new FileToDownload(file));
-        if (file.hasSize()) {
+        if (isBusyFetching && file.hasSize()) {
             transferNotification.incrementTotalSize(file.getSize());
         }
     }
@@ -850,7 +856,10 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         if (!filesToDownload.isEmpty() && currentlyDownloading == null) {
             LOG.debug("Processing next file of {}", filesToDownload.size());
 
-            if (!gbDevice.isBusy()) {
+            // Gate on our own fetch state, not gbDevice.isBusy(): the latter can
+            // be set/cleared by unrelated paths and would desync the notification's
+            // start/finish pairing.
+            if (!isBusyFetching) {
                 LOG.debug("Starting download queue");
 
                 isBusyFetching = true;
@@ -921,7 +930,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             if (filesToProcess.isEmpty()) {
                 LOG.debug("No pending files to process");
                 // No downloaded fit files to process
-                if (gbDevice.isBusy() && isBusyFetching) {
+                if (isBusyFetching) {
                     getDevice().unsetBusyTask();
                     GB.signalActivityDataFinish(getDevice());
                     transferNotification.finish();
