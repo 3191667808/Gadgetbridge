@@ -171,15 +171,6 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
         GBApplication.getPrefs().getPreferences()
                 .registerOnSharedPreferenceChangeListener(this);
 
-        if (mFirstConnect) {
-            SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(
-                    this.getDevice().getAddress());
-            prefs.edit()
-                    .putString(DeviceSettingsPreferenceConst.PREFS_DEVICE_CHARTS_TABS,
-                            "activity,activitylist,stepsweek")
-                    .apply();
-        }
-
         return builder;
     }
 

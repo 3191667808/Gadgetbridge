@@ -22,14 +22,28 @@ import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.casio.gbx100.CasioGBX100DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.casio.gbd200.CasioGBD200DeviceSupport;
 
 public class CasioGBD200DeviceCoordinator extends CasioGBX100DeviceCoordinator {
+
+    @Override
+    public GBDevice createDevice(final GBDeviceCandidate candidate, final DeviceType deviceType) {
+        final GBDevice device = super.createDevice(candidate, deviceType);
+        GBApplication.getDevicePrefs(device).getPreferences().edit()
+                .putString(DeviceSettingsPreferenceConst.PREFS_DEVICE_CHARTS_TABS,
+                        "activity,activitylist,stepsweek")
+                .apply();
+        return device;
+    }
 
     @Override
     protected Pattern getSupportedDeviceName() {
