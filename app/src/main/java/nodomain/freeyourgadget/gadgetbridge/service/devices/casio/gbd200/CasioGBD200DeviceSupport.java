@@ -132,8 +132,32 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
 
     // ── Initialization ────────────────────────────────────────────────────────
 
+    private void resetState() {
+        mFindPhoneHandler.removeCallbacksAndMessages(null);
+        mFakeRingDurationHandler.removeCallbacksAndMessages(null);
+        mAutoRemoveMessageHandler.removeCallbacksAndMessages(null);
+        mReconnectHandler.removeCallbacksAndMessages(null);
+
+        mGetConfigurationPending = false;
+        mRingNotificationPending = false;
+        mResyncPending = false;
+        mFakeRingDurationCounter = 0;
+        mSyncedNotificationIDs.clear();
+
+        GBApplication.getPrefs().getPreferences()
+                .unregisterOnSharedPreferenceChangeListener(this);
+    }
+
+    @Override
+    public void dispose() {
+        resetState();
+        super.dispose();
+    }
+
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
+        resetState();
+
         try {
             new InitOperation(this, builder, mFirstConnect, mNeedsGetConfiguration).perform();
         } catch (IOException e) {
@@ -144,13 +168,13 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
 
-        SharedPreferences prefs = GBApplication.getPrefs().getPreferences();
-        prefs.registerOnSharedPreferenceChangeListener(this);
+        GBApplication.getPrefs().getPreferences()
+                .registerOnSharedPreferenceChangeListener(this);
 
         if (mFirstConnect) {
-            SharedPreferences prefs2 = GBApplication.getDeviceSpecificSharedPrefs(
+            SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(
                     this.getDevice().getAddress());
-            prefs2.edit()
+            prefs.edit()
                     .putString(DeviceSettingsPreferenceConst.PREFS_DEVICE_CHARTS_TABS,
                             "activity,activitylist,stepsweek")
                     .apply();
