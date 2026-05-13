@@ -580,9 +580,7 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
 
     private void onReverseFindDevice(boolean start) {
         if (start) {
-            SharedPreferences p = GBApplication.getDeviceSpecificSharedPrefs(
-                    getDevice().getAddress());
-            String findPhone = p.getString(PREF_FIND_PHONE,
+            String findPhone = getDevicePrefs().getString(PREF_FIND_PHONE,
                     getContext().getString(R.string.p_off));
             if (findPhone.equals(getContext().getString(R.string.p_off))) return;
 
@@ -591,13 +589,7 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
             evaluateGBDeviceEvent(ev);
 
             if (findPhone.equals(getContext().getString(R.string.p_on))) {
-                int duration;
-                try {
-                    duration = Integer.parseInt(
-                            p.getString(PREF_FIND_PHONE_DURATION, "0"));
-                } catch (Exception e) {
-                    duration = 60;
-                }
+                int duration = getDevicePrefs().getInt(PREF_FIND_PHONE_DURATION, 0);
                 if (duration > 0) {
                     mFindPhoneHandler.postDelayed(() -> {
                         GBDeviceEventFindPhone stop = new GBDeviceEventFindPhone();
