@@ -132,7 +132,8 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
             // find the next free slot: a dismissed alarm without any title
             // (this way the user can protect dismissed alarms by naming them)
             for (Alarm alarm : alarms) {
-                if (!alarm.getEnabled() && alarm.getTitle().isEmpty()) {
+                if (!alarm.getEnabled() && (
+                        alarm.getTitle() == null || alarm.getTitle().isEmpty())) {
                     updateAlarm(
                             alarm, true, hour, minute, repetition,
                             title
