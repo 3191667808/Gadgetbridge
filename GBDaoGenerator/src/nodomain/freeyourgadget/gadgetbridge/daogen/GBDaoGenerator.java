@@ -76,7 +76,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(130, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(131, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 
@@ -187,6 +187,9 @@ public class GBDaoGenerator {
         addColmiHrvValueSample(schema, user, device);
         addColmiHrvSummarySample(schema, user, device);
         addColmiTemperatureSample(schema, user, device);
+        addOuraActivitySample(schema, user, device);
+        sampleProvidersToGenerate.add(addOuraSleepSessionSample(schema, user, device));
+        sampleProvidersToGenerate.add(addOuraRecoverySample(schema, user, device));
         addMoyoungActivitySample(schema, user, device);
         addMoyoungHeartRateSample(schema, user, device);
         addMoyoungSpo2Sample(schema, user, device);
@@ -772,6 +775,35 @@ public class GBDaoGenerator {
         sample.addFloatProperty(SAMPLE_TEMPERATURE).notNull().codeBeforeGetter(OVERRIDE);
         sample.addIntProperty("temperatureType").notNull().codeBeforeGetter(OVERRIDE);
         sample.addIntProperty("temperatureLocation").notNull().codeBeforeGetter(OVERRIDE);
+        return sample;
+    }
+
+    private static Entity addOuraActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "OuraActivitySample");
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.implementsSerializable();
+        activitySample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        activitySample.addIntProperty("distance");
+        activitySample.addIntProperty("calories");
+        return activitySample;
+    }
+
+    private static Entity addOuraSleepSessionSample(Schema schema, Entity user, Entity device) {
+        Entity sleepSessionSample = addEntity(schema, "OuraSleepSessionSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sleepSessionSample, user, device);
+        sleepSessionSample.addLongProperty("wakeupTime");
+        return sleepSessionSample;
+    }
+
+    private static Entity addOuraRecoverySample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "OuraRecoverySample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
+        sample.addIntProperty("readinessScore").notNull();
+        sample.addIntProperty("sleepScore");
+        sample.addIntProperty("activityScore");
         return sample;
     }
 
