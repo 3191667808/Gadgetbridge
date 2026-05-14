@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:icon="@drawable/ic_spo2"
+        android:key="spo2_all_day_monitoring_enabled"
+        android:layout="@layout/preference_checkbox"
+        android:summary="@string/prefs_spo2_monitoring_description"
+        android:title="@string/prefs_spo2_monitoring_title" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:icon="@drawable/ic_heart"
+        android:key="pref_oura_daytime_hr"
+        android:layout="@layout/preference_checkbox"
+        android:summary="@string/pref_oura_daytime_hr_summary"
+        android:title="@string/pref_oura_daytime_hr_title" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:icon="@drawable/ic_heart"
+        android:key="pref_oura_resting_hr"
+        android:layout="@layout/preference_checkbox"
+        android:summary="@string/pref_oura_resting_hr_summary"
+        android:title="@string/pref_oura_resting_hr_title" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:icon="@drawable/ic_heart"
+        android:key="pref_oura_exercise_hr"
+        android:layout="@layout/preference_checkbox"
+        android:summary="@string/pref_oura_exercise_hr_summary"
+        android:title="@string/pref_oura_exercise_hr_title" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:icon="@drawable/ic_steps"
+        android:key="pref_oura_real_steps"
+        android:layout="@layout/preference_checkbox"
+        android:summary="@string/pref_oura_real_steps_summary"
+        android:title="@string/pref_oura_real_steps_title" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:icon="@drawable/ic_touch_double"
+        android:key="pref_oura_tap_to_tag"
+        android:layout="@layout/preference_checkbox"
+        android:summary="@string/pref_oura_tap_to_tag_summary"
+        android:title="@string/pref_oura_tap_to_tag_title" />
+
+</androidx.preference.PreferenceScreen>
