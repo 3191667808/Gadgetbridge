@@ -143,9 +143,6 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
         mResyncPending = false;
         mFakeRingDurationCounter = 0;
         mSyncedNotificationIDs.clear();
-
-        GBApplication.getPrefs().getPreferences()
-                .unregisterOnSharedPreferenceChangeListener(this);
     }
 
     @Override
@@ -167,9 +164,6 @@ public class CasioGBD200DeviceSupport extends Casio2C2DSupport
 
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
-
-        GBApplication.getPrefs().getPreferences()
-                .registerOnSharedPreferenceChangeListener(this);
 
         return builder;
     }
