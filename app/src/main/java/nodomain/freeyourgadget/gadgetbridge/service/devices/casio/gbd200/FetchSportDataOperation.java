@@ -284,7 +284,7 @@ public class FetchSportDataOperation extends AbstractBTLEOperation<CasioGBD200De
         }
 
         BaseActivitySummary summary = new BaseActivitySummary();
-        summary.setName("Running");
+        summary.setName(ActivityKind.RUNNING.getLabel(getContext()));
         summary.setStartTime(startTime.getTime() == 0 ? new Date() : startTime);
         summary.setEndTime(endTime.getTime() == 0 ? new Date(startTime.getTime() + totalSeconds * 1000L) : endTime);
         summary.setActivityKind(ActivityKind.RUNNING.getCode());
