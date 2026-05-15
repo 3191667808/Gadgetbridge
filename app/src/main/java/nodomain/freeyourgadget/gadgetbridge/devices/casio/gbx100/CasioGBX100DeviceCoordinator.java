@@ -47,8 +47,6 @@ public class CasioGBX100DeviceCoordinator extends Casio2C2DDeviceCoordinator {
 
     /** Sub-model string for GBX-100 in GB Device name */
     public static final String GBX_100_SUB_MODEL = "GBX-100";
-    /** Sub-model string for GBD-200 in GB Device name */
-    public static final String GBD_200_SUB_MODEL = "GBD-200";
     /** Sub-model string for GBD-100 in GB Device name */
     public static final String GBD_100_SUB_MODEL = "GBD-100";
     /** Sub-model string for GBD-H1000 in GB Device name */
