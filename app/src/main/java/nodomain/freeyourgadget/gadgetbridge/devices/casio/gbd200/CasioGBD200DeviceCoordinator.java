@@ -47,7 +47,7 @@ public class CasioGBD200DeviceCoordinator extends CasioGBX100DeviceCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("CASIO GBD-200.*");
+        return Pattern.compile("^CASIO GBD-200.*");
     }
 
     @NonNull
