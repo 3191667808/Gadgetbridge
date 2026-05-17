@@ -170,8 +170,7 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
                 }
             }
             if (!changed) {
-                LOG.error("No alarm to dismiss was found");
-                return;
+                LOG.warn("No alarm to dismiss was found");
             }
         } else {
             LOG.error("Unknown action");
