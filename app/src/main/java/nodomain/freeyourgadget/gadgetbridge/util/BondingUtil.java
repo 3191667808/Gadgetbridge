@@ -67,7 +67,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BleNamesResolver;
-import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleHardware;
 
 @SuppressLint("MissingPermission")
 public class BondingUtil {
@@ -139,12 +138,12 @@ public class BondingUtil {
                                 if (!bondingInterface.getAttemptToConnect()) {
                                     LOG.info("Device bonded - notifying onBondingComplete without reconnecting.");
                                     bondingInterface.onBondingComplete(true);
-                                } else if (!bondingInterface.shouldReconnectAfterBond()) {
-                                    // connect-first pairing, existing connection completes to INITIALIZED
-                                    // Don't interrupt by disconnecting and reconnecting in the middle of the pairing flow.
-                                    LOG.info("Device bonded - connect first pairing, connection already established.");
+                                } else if (bondingInterface.bondRequiresGattConnection()) {
+                                    // Bond happened inside the existing GATT connection.
+                                    // Don't interrupt — wait for INITIALIZED via the pairing receiver.
+                                    LOG.info("Device bonded - GATT connection already established, waiting for initialization.");
                                 } else {
-                                    // Bond-then-connect flow: reconnect now that bonding is complete.
+                                    // Bond-then-connect: reconnect now that bonding is complete.
                                     LOG.info("Device bonded - reconnecting and waiting for initialization");
                                     attemptToFirstConnect(device);
                                 }
@@ -293,10 +292,26 @@ public class BondingUtil {
     }
 
     /**
-     * Handles the activity result and checks if there's anything CompanionDeviceManager-related going on
+     * Handles the CDM association result on API 26-32, where success arrives via
+     * {@code startIntentSenderForResult} / {@code onActivityResult} rather than a callback.
+     * On API 33+, {@code onAssociationCreated} in the callback handles success directly.
      */
     public static void handleActivityResult(BondingInterface bondingInterface, int requestCode, int resultCode, Intent data) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && requestCode == REQUEST_CODE) {
+            if (bondingInterface.bondRequiresGattConnection()) {
+                // CDM is best-effort for GATT-bonding devices; proceed to connect regardless of result.
+                if (resultCode == Activity.RESULT_OK) {
+                    LOG.info("handleActivityResult: CDM association approved");
+                } else {
+                    LOG.info("handleActivityResult: CDM dismissed/failed (resultCode={}), connecting anyway", resultCode);
+                }
+                final GBDevice gbDevice = DeviceHelper.getInstance().toSupportedDevice(bondingInterface.getCurrentTarget());
+                if (gbDevice != null) {
+                    GBApplication.deviceService(gbDevice).connect(true);
+                }
+                return;
+            }
+
             if (resultCode != CompanionDeviceManager.RESULT_OK) {
                 final String reason = switch (resultCode) {
                     case CompanionDeviceManager.RESULT_CANCELED -> "RESULT_CANCELED";
@@ -339,18 +354,27 @@ public class BondingUtil {
     }
 
     /**
-     * Uses the CompanionDeviceManager bonding method
+     * Requests a CompanionDeviceManager association for the given device, then invokes
+     * {@code onSuccess} or {@code onFailure} depending on the outcome.
+     * <p>
+     * On API 33+, completion is delivered via the callback. On API 26-32, the dialog is shown
+     * via {@code startIntentSenderForResult(REQUEST_CODE)} and success arrives through
+     * {@code onActivityResult} in the calling activity; {@code onFailure} handles CDM-side errors.
+     *
+     * @param activity  the foreground activity to launch the dialog from
+     * @param device    the Bluetooth device to associate
+     * @param onSuccess called (after {@link #StartObserving}) when association is created or already exists
+     * @param onFailure called when CDM is unavailable or association fails
      */
     @RequiresApi(Build.VERSION_CODES.O)
-    private static void companionDeviceManagerBond(BondingInterface bondingInterface,
-                                                   BluetoothDevice device) {
+    public static void companionDeviceManagerAssociate(Activity activity, BluetoothDevice device,
+            Runnable onSuccess, Runnable onFailure) {
         final String macAddress = device.getAddress();
         final int type = device.getType();
         final DeviceFilter<?> deviceFilter;
 
         if (type == BluetoothDevice.DEVICE_TYPE_LE || type == BluetoothDevice.DEVICE_TYPE_DUAL) {
-            LOG.debug("companionDeviceManagerBond {} type {} - treat as LE",
-                    macAddress, type);
+            LOG.debug("companionDeviceManagerAssociate {} type {} - treat as LE", macAddress, type);
             ScanFilter scan = new ScanFilter.Builder()
                     .setDeviceAddress(macAddress)
                     .build();
@@ -359,36 +383,54 @@ public class BondingUtil {
                     .setScanFilter(scan)
                     .build();
         } else {
-            LOG.debug("companionDeviceManagerBond {} type {} - treat as classic BT",
-                    macAddress, type);
+            LOG.debug("companionDeviceManagerAssociate {} type {} - treat as classic BT", macAddress, type);
             deviceFilter = new BluetoothDeviceFilter.Builder()
                     .setAddress(macAddress)
                     .build();
         }
 
-        AssociationRequest pairingRequest = new AssociationRequest.Builder()
+        final AssociationRequest.Builder requestBuilder = new AssociationRequest.Builder()
                 .addDeviceFilter(deviceFilter)
-                .setSingleDevice(true)
-                .build();
-
-        CompanionDeviceManager manager = (CompanionDeviceManager) bondingInterface.getContext().getSystemService(Context.COMPANION_DEVICE_SERVICE);
-        LOG.debug(String.format("Searching for %s associations", macAddress));
-        for (String association : manager.getAssociations()) {
-            LOG.debug(String.format("Already associated with: %s", association));
-            if (association.equals(macAddress)) {
-                StartObserving(bondingInterface.getContext(), macAddress);
-                LOG.info("The device has already been bonded through CompanionDeviceManager, using regular");
-                // If it's already "associated", we should immediately pair
-                // because the callback is never called (AFAIK?)
-                BondingUtil.bluetoothBond(bondingInterface, device);
-                return;
-            }
+                .setSingleDevice(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            requestBuilder.setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WATCH);
         }
 
-        LOG.debug("Starting association request");
-        manager.associate(pairingRequest,
-                getCompanionDeviceManagerCallback(bondingInterface),
-                null);
+        final CompanionDeviceManager manager = getCompanionDeviceManager(activity);
+        if (manager == null) {
+            onFailure.run();
+            return;
+        }
+
+        try {
+            //noinspection deprecation
+            for (String association : manager.getAssociations()) {
+                if (association.equals(macAddress)) {
+                    LOG.info("companionDeviceManagerAssociate: {} already associated", macAddress);
+                    StartObserving(activity, macAddress);
+                    onSuccess.run();
+                    return;
+                }
+            }
+        } catch (SecurityException e) {
+            LOG.warn("companionDeviceManagerAssociate: SecurityException checking associations", e);
+        }
+
+        LOG.debug("companionDeviceManagerAssociate: requesting association for {}", macAddress);
+        manager.associate(requestBuilder.build(),
+                getCompanionDeviceManagerCallback(activity, macAddress, onSuccess, onFailure), null);
+    }
+
+    /**
+     * Uses the CompanionDeviceManager bonding method
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private static void companionDeviceManagerBond(BondingInterface bondingInterface,
+                                                   BluetoothDevice device) {
+        final Context context = bondingInterface.getContext();
+        companionDeviceManagerAssociate((Activity) context, device,
+                () -> bluetoothBond(bondingInterface, device),
+                () -> bluetoothBond(bondingInterface, device));
     }
 
     /**
@@ -418,9 +460,39 @@ public class BondingUtil {
 
     /**
      * Use this function to initiate bonding to a GBDeviceCandidate
+     * For devices where {@link BondingInterface#bondRequiresGattConnection()} is true,
+     * CDM association (best-effort) is followed by a GATT connect; the device service is
+     * then responsible for writing any pairing triggers and calling createBond() over the connection.
+     * For all other devices, the standard CDM dialog → bond → connect flow is used.
+     * <p>
+     * On API 26-32, CDM completion arrives via {@code onActivityResult(REQUEST_CODE)} — the
+     * activity must delegate to {@link #handleActivityResult}.
      */
     public static void tryBondThenComplete(final BondingInterface bondingInterface, final BluetoothDevice device) {
         bondingInterface.registerBroadcastReceivers();
+
+        if (bondingInterface.bondRequiresGattConnection()) {
+            final GBDevice gbDevice = DeviceHelper.getInstance().toSupportedDevice(bondingInterface.getCurrentTarget());
+            if (gbDevice == null) {
+                LOG.error("tryBondThenComplete: failed to resolve GBDevice for {}", device.getAddress());
+                bondingInterface.onBondingComplete(false);
+                return;
+            }
+            final Runnable connect = () -> {
+                LOG.info("tryBondThenComplete: GATT connecting to {}", gbDevice.getName());
+                toast(bondingInterface.getContext(),
+                        bondingInterface.getContext().getString(R.string.discovery_trying_to_connect_to, gbDevice.getName()),
+                        Toast.LENGTH_SHORT, GB.INFO);
+                GBApplication.deviceService(gbDevice).connect(true);
+            };
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                companionDeviceManagerAssociate((Activity) bondingInterface.getContext(), device,
+                        connect, connect);
+            } else {
+                connect.run();
+            }
+            return;
+        }
 
         final int bondState = device.getBondState();
 
@@ -436,7 +508,7 @@ public class BondingUtil {
 
         if (bondState == BluetoothDevice.BOND_BONDED) {
             GB.toast(bondingInterface.getContext().getString(R.string.pairing_already_bonded, device.getName(), device.getAddress()), Toast.LENGTH_SHORT, GB.INFO);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !PebbleHardware.isBleOnly(device) && contextIsActivity) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && contextIsActivity) {
                 // If CompanionDeviceManager is available, skip connection and go bond
                 // TODO: It would theoretically be nice to check if it's already been granted,
                 //  but re-bond works
@@ -449,11 +521,8 @@ public class BondingUtil {
 
         GB.toast(bondingInterface.getContext(), bondingInterface.getContext().getString(R.string.pairing_creating_bond_with, device.getName(), device.getAddress()), Toast.LENGTH_LONG, GB.INFO);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !PebbleHardware.isBleOnly(device) && contextIsActivity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && contextIsActivity) {
             askCompanionPairing(bondingInterface, device);
-        } else if (PebbleHardware.isBleOnly(device)) {
-            // TODO: start companionDevicePairing after connecting to Pebble 2 but before writing to pairing trigger
-            attemptToFirstConnect(device);
         } else {
             bluetoothBond(bondingInterface, device);
         }
@@ -476,37 +545,68 @@ public class BondingUtil {
     }
 
     /**
-     * Returns a callback for CompanionDeviceManager
+     * Builds a CDM association callback.
+     * <p>
+     * On API 33+, the dialog is shown via {@code startIntentSender} and completion arrives through
+     * {@code onAssociationCreated} / {@code onFailure}. On API 26-32, the dialog is shown via
+     * {@code startIntentSenderForResult(REQUEST_CODE)} and success arrives through
+     * {@code onActivityResult} in the calling activity; {@code onFailure} handles CDM-side errors.
      *
-     * @param bondingInterface the activity that started the CDM bonding process
-     * @return CompanionDeviceManager.Callback that handles the CompanionDeviceManager bonding process results
+     * @param activity  the foreground activity to launch the dialog from
+     * @param macAddress the MAC address being associated
+     * @param onSuccess  called after {@link #StartObserving} when association is created
+     * @param onFailure  called on failure
      */
     @RequiresApi(Build.VERSION_CODES.O)
-    private static CompanionDeviceManager.Callback getCompanionDeviceManagerCallback(final BondingInterface bondingInterface) {
-        return new CompanionDeviceManager.Callback() {
-            @Override
-            public void onFailure(CharSequence error) {
-                Context context = bondingInterface.getContext();
-                String message = context.getString(R.string.discovery_bonding_error, error);
-                toast(context, message, Toast.LENGTH_SHORT, GB.ERROR);
-            }
-
-            @Override
-            public void onDeviceFound(IntentSender chooserLauncher) {
-                try {
-                    startIntentSenderForResult((Activity) bondingInterface.getContext(),
-                            chooserLauncher,
-                            REQUEST_CODE,
-                            null,
-                            0,
-                            0,
-                            0,
-                            null);
-                } catch (IntentSender.SendIntentException e) {
-                    LOG.error(e.toString());
+    private static CompanionDeviceManager.Callback getCompanionDeviceManagerCallback(
+            Activity activity, String macAddress, Runnable onSuccess, Runnable onFailure) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return new CompanionDeviceManager.Callback() {
+                @Override
+                public void onAssociationPending(IntentSender intentSender) {
+                    try {
+                        activity.startIntentSender(intentSender, null, 0, 0, 0);
+                    } catch (IntentSender.SendIntentException e) {
+                        LOG.error("CDM: failed to show dialog for {}", macAddress, e);
+                        onFailure.run();
+                    }
                 }
-            }
-        };
+
+                @Override
+                public void onAssociationCreated(AssociationInfo info) {
+                    LOG.info("CDM: association created for {}", macAddress);
+                    StartObserving(activity, macAddress);
+                    onSuccess.run();
+                }
+
+                @Override
+                public void onFailure(CharSequence error) {
+                    LOG.warn("CDM: association failed for {}: {}", macAddress, error);
+                    onFailure.run();
+                }
+            };
+        } else {
+            // API 26-32: success arrives via onActivityResult(REQUEST_CODE) in the calling activity.
+            return new CompanionDeviceManager.Callback() {
+                @SuppressWarnings("deprecation")
+                @Override
+                public void onDeviceFound(IntentSender intentSender) {
+                    try {
+                        startIntentSenderForResult(activity, intentSender,
+                                REQUEST_CODE, null, 0, 0, 0, null);
+                    } catch (IntentSender.SendIntentException e) {
+                        LOG.error("CDM: failed to show dialog for {}", macAddress, e);
+                        onFailure.run();
+                    }
+                }
+
+                @Override
+                public void onFailure(CharSequence error) {
+                    LOG.warn("CDM: association failed for {}: {}", macAddress, error);
+                    onFailure.run();
+                }
+            };
+        }
     }
 
     public static boolean StartObservingAll(Context context) {

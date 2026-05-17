@@ -56,13 +56,17 @@ public interface BondingInterface {
     boolean getAttemptToConnect();
 
     /**
-     * Whether the connection should be restarted after bonding completes.
-     * Return false for connect-first pairing flows where bonding occurs within an existing
-     * GATT connection — the connection should not be interrupted.
+     * Whether this device requires an established GATT connection before bonding.
+     * When true, CDM association will not trigger bonding directly — instead the device is
+     * associated, then connected via GATT, and the device service is responsible for writing
+     * any necessary pairing triggers and calling createBond() over that connection.
+     * {@link BondingUtil#tryBondThenComplete} connects rather than bonding directly, and the
+     * existing GATT connection is not interrupted when BOND_BONDED fires.
      */
-    default boolean shouldReconnectAfterBond() {
-        return true;
+    default boolean bondRequiresGattConnection() {
+        return false;
     }
+
     /**
      * This forces bonding activities to handle the addition
      * of all broadcast receivers in the same place

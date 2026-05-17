@@ -124,30 +124,6 @@ public class PebblePairingActivity extends AbstractGBActivity implements Bonding
             return;
         }
 
-        // Pebble 2, Pebble Time 2, and Pebble 2 Duo are BLE-only and need GATT connection first.
-        // They require writing to a pairing trigger characteristic before createBond() works.
-        // PebbleGATTClient handles the pairing trigger write and initiates bonding.
-        // Note: These devices are BLE-only, so we don't need the "pebble_force_le" setting -
-        // PebbleIoThread automatically uses BLE based on isPebble2() detection.
-        // Use deviceCandidate to leverage manufacturer data for reliable device identification.
-        if (PebbleHardware.needsConnectFirstPairing(deviceCandidate)) {
-            LOG.info("BLE-only device detected - using connect-first pairing");
-
-            registerBroadcastReceivers();
-
-            // Create device and initiate connection - BLE mode will be auto-detected in PebbleIoThread
-            GBDevice gbDevice = DeviceHelper.getInstance().toSupportedDevice(deviceCandidate);
-            if (gbDevice != null) {
-                GB.toast(this, getString(R.string.discovery_trying_to_connect_to, gbDevice.getName()), Toast.LENGTH_SHORT, GB.INFO);
-                GBApplication.deviceService(gbDevice).connect(true);
-                // Don't call onBondingComplete() here - wait for bonding via broadcast receiver
-            } else {
-                LOG.error("Failed to create GBDevice for Pebble 2/Time 2/2 Duo");
-                onBondingComplete(false);
-            }
-            return;
-        }
-
         if (btDevice.getBondState() == BluetoothDevice.BOND_BONDED ||
                 btDevice.getBondState() == BluetoothDevice.BOND_BONDING) {
             BondingUtil.connectThenComplete(this, deviceCandidate);
@@ -211,7 +187,7 @@ public class PebblePairingActivity extends AbstractGBActivity implements Bonding
             startActivity(new Intent(this, DiscoveryActivityV2.class).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
         }
 
-        if (btDevice != null && success && getAttemptToConnect() && shouldReconnectAfterBond()) {
+        if (btDevice != null && success && getAttemptToConnect() && !bondRequiresGattConnection()) {
             BondingUtil.attemptToFirstConnect(btDevice);
         }
         finish();
@@ -229,9 +205,8 @@ public class PebblePairingActivity extends AbstractGBActivity implements Bonding
     }
 
     @Override
-    public boolean shouldReconnectAfterBond() {
-        // Connect-first pairing: bonding occurred within the existing GATT connection
-        return !PebbleHardware.needsConnectFirstPairing(deviceCandidate);
+    public boolean bondRequiresGattConnection() {
+        return PebbleHardware.needsConnectFirstPairing(deviceCandidate);
     }
 
     @Override
