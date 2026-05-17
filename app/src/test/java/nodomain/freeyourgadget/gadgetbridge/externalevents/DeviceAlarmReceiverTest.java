@@ -312,7 +312,7 @@ public class DeviceAlarmReceiverTest extends TestBase {
     }
 
     @Test
-    public void dismissAlarmByTime_rejectsWhenNoTimeIsProvided() {
+    public void dismissAlarmByTime_rejectsWhenHourIsMissing() {
         storeAlarm(0, true, 6, 30, 0, "Wake up");
 
         final Intent intent = baseIntent(DeviceAlarmReceiver.COMMAND_DISMISS_ALARM)
@@ -346,7 +346,7 @@ public class DeviceAlarmReceiverTest extends TestBase {
     }
 
     @Test
-    public void dismissAlarmByTime_matchesProvidedMinute() {
+    public void dismissAlarmByTime_rejectsWhenOnlyMinuteIsProvided() {
         storeAlarm(0, true, 6, 30, 0, "Wake up");
         storeAlarm(1, true, 7, 30, 0, "Standup");
         storeAlarm(2, true, 8, 15, 0, "School run");
@@ -357,17 +357,17 @@ public class DeviceAlarmReceiverTest extends TestBase {
 
         receiver.onReceive(getContext(), intent);
 
-        assertFalse(getAlarm(0).getEnabled());
-        assertFalse(getAlarm(1).getEnabled());
+        assertTrue(getAlarm(0).getEnabled());
+        assertTrue(getAlarm(1).getEnabled());
         assertTrue(getAlarm(2).getEnabled());
-        assertEquals("", getAlarm(0).getTitle());
-        assertEquals("", getAlarm(1).getTitle());
+        assertEquals("Wake up", getAlarm(0).getTitle());
+        assertEquals("Standup", getAlarm(1).getTitle());
         assertEquals("School run", getAlarm(2).getTitle());
-        assertForwardedAlarmUpdate(getNextStartedService(), 3);
+        assertNull(getNextStartedService());
     }
 
     @Test
-    public void dismissAlarmByTime_matchesHourOrMinuteWhenBothProvided() {
+    public void dismissAlarmByTime_matchesHourAndMinuteWhenBothProvided() {
         storeAlarm(0, true, 6, 10, 0, "Hour match");
         storeAlarm(1, true, 9, 30, 0, "Minute match");
         storeAlarm(2, true, 6, 30, 0, "Both match");
@@ -379,13 +379,35 @@ public class DeviceAlarmReceiverTest extends TestBase {
 
         receiver.onReceive(getContext(), intent);
 
-        assertFalse(getAlarm(0).getEnabled());
-        assertFalse(getAlarm(1).getEnabled());
+        assertTrue(getAlarm(0).getEnabled());
+        assertTrue(getAlarm(1).getEnabled());
         assertFalse(getAlarm(2).getEnabled());
-        assertEquals("", getAlarm(0).getTitle());
-        assertEquals("", getAlarm(1).getTitle());
+        assertEquals("Hour match", getAlarm(0).getTitle());
+        assertEquals("Minute match", getAlarm(1).getTitle());
         assertEquals("", getAlarm(2).getTitle());
         assertForwardedAlarmUpdate(getNextStartedService(), 3);
+    }
+
+    @Test
+    public void dismissAlarmByTime_doesNothingWhenBothProvidedButNoExactMatchExists() {
+        storeAlarm(0, true, 6, 10, 0, "Hour match");
+        storeAlarm(1, true, 9, 30, 0, "Minute match");
+        storeAlarm(2, true, 8, 15, 0, "No match");
+
+        final Intent intent = baseIntent(DeviceAlarmReceiver.COMMAND_DISMISS_ALARM)
+                .putExtra(DeviceAlarmReceiver.EXTRA_ALARM_SEARCH_MODE, DeviceAlarmReceiver.ALARM_SEARCH_MODE_TIME)
+                .putExtra(DeviceAlarmReceiver.EXTRA_HOUR, 6)
+                .putExtra(DeviceAlarmReceiver.EXTRA_MINUTES, 30);
+
+        receiver.onReceive(getContext(), intent);
+
+        assertTrue(getAlarm(0).getEnabled());
+        assertTrue(getAlarm(1).getEnabled());
+        assertTrue(getAlarm(2).getEnabled());
+        assertEquals("Hour match", getAlarm(0).getTitle());
+        assertEquals("Minute match", getAlarm(1).getTitle());
+        assertEquals("No match", getAlarm(2).getTitle());
+        assertNull(getNextStartedService());
     }
 
     @Test
@@ -435,6 +457,7 @@ public class DeviceAlarmReceiverTest extends TestBase {
 
         final Intent intent = baseIntent(DeviceAlarmReceiver.COMMAND_DISMISS_ALARM)
                 .putExtra(DeviceAlarmReceiver.EXTRA_ALARM_SEARCH_MODE, DeviceAlarmReceiver.ALARM_SEARCH_MODE_TIME)
+                .putExtra(DeviceAlarmReceiver.EXTRA_HOUR, 6)
                 .putExtra(DeviceAlarmReceiver.EXTRA_MINUTES, 60);
 
         receiver.onReceive(getContext(), intent);

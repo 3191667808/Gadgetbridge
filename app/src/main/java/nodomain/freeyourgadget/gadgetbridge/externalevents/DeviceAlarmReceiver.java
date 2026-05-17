@@ -156,9 +156,8 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
             }
             final int hour = intent.getIntExtra(EXTRA_HOUR, -1);
             final int minutes = intent.getIntExtra(EXTRA_MINUTES, -1);
-            if (Objects.equals(mode, ALARM_SEARCH_MODE_TIME)
-                    && hour < 0 && minutes < 0) {
-                LOG.error("Either hour, minutes, or both have to be provided when dismissing an alarm by time");
+            if (Objects.equals(mode, ALARM_SEARCH_MODE_TIME) && hour == -1) {
+                LOG.error("Hour has to be provided when dismissing an alarm by time");
                 return;
             }
             if (Objects.equals(mode, ALARM_SEARCH_MODE_TITLE)
@@ -171,8 +170,12 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
                         (Objects.equals(mode, ALARM_SEARCH_MODE_TITLE)
                                 && alarm.getTitle() != null
                                 && alarm.getTitle().contains(title)
-                        ) || (hour > -1 && alarm.getHour() == hour)
-                        || (minutes > -1 && alarm.getMinute() == minutes)) {
+                        ) ||
+                        (Objects.equals(mode, ALARM_SEARCH_MODE_TIME)
+                                && alarm.getHour() == hour
+                                && (minutes == -1 || alarm.getMinute() == minutes)
+                        )
+                ) {
                     // dismiss the alarm and clear its title, so it can be set again
                     updateAlarm(alarm, false, alarm.getHour(), alarm.getMinute(), 0, "");
                     DBHelper.store(alarm);
