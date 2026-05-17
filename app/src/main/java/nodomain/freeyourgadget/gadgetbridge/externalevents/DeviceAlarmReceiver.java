@@ -131,7 +131,7 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
                 }
             }
             if (!changed) {
-                LOG.error("Free alarm slot unavailable, at least one slot needs to be dismissed without title");
+                LOG.error("No free alarm slot was found; A slot is free when it's disabled and has no title");
                 return;
             }
         } else if (COMMAND_DISMISS_ALARM.equals(action)) {
@@ -168,6 +168,10 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
                     DBHelper.store(alarm);
                     changed = true;
                 }
+            }
+            if (!changed) {
+                LOG.error("No alarm to dismiss was found");
+                return;
             }
         } else {
             LOG.error("Unknown action");
