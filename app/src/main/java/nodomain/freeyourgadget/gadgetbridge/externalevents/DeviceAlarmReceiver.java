@@ -110,8 +110,7 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
                 LOG.error("Both hour and minutes have to be provided when creating an alarm");
                 return;
             }
-            if ((hour | (23 - hour) | minute | (59 - minute)) < 0) {
-                // bit-OR will result in negative if not in valid range
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
                 LOG.error("Invalid time provided");
                 return;
             }
