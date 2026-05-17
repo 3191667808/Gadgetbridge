@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.lang.reflect.Field;
 
@@ -37,8 +36,6 @@ import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 
 public class DeviceAlarmReceiverTest extends TestBase {
-    private static final String SENDER_PACKAGE = "com.example.sender";
-
     @Rule
     public final TestName testName = new TestName();
 
@@ -61,11 +58,6 @@ public class DeviceAlarmReceiverTest extends TestBase {
                 .clear()
                 .putBoolean("third_party_apps_set_alarms", true)
                 .commit();
-
-        GBApplication.getPrefs().getPreferences().edit()
-                .putString("notification_list_is_blacklist", "true")
-                .commit();
-        GBApplication.setAppsNotifBlackList(Collections.emptySet());
 
         drainStartedServices();
     }
@@ -104,32 +96,6 @@ public class DeviceAlarmReceiverTest extends TestBase {
     public void setAlarm_rejectsWhenThirdPartyAlarmsAreDisabled() {
         GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()).edit()
                 .putBoolean("third_party_apps_set_alarms", false)
-                .commit();
-
-        final Intent intent = setAlarmIntent(7, 30, "Morning run");
-
-        receiver.onReceive(getContext(), intent);
-
-        assertNull(getNextStartedService());
-        assertEquals(0, DBHelper.getAlarms(device).size());
-    }
-
-    @Test
-    public void setAlarm_rejectsBlacklistedPackage() {
-        GBApplication.setAppsNotifBlackList(new HashSet<>(Collections.singleton(SENDER_PACKAGE)));
-
-        final Intent intent = setAlarmIntent(7, 30, "Morning run");
-
-        receiver.onReceive(getContext(), intent);
-
-        assertNull(getNextStartedService());
-        assertEquals(0, DBHelper.getAlarms(device).size());
-    }
-
-    @Test
-    public void setAlarm_rejectsNonWhitelistedPackage() {
-        GBApplication.getPrefs().getPreferences().edit()
-                .putString("notification_list_is_blacklist", "false")
                 .commit();
 
         final Intent intent = setAlarmIntent(7, 30, "Morning run");
@@ -531,7 +497,7 @@ public class DeviceAlarmReceiverTest extends TestBase {
 
     private Intent baseIntent(final String action) {
         return new Intent(action)
-                .setPackage(SENDER_PACKAGE)
+                .setPackage("nodomain.freeyourgadget.gadgetbridge")
                 .putExtra(DeviceAlarmReceiver.EXTRA_MAC_ADDR, device.getAddress());
     }
 

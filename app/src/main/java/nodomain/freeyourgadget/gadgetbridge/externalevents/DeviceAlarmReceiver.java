@@ -92,18 +92,6 @@ public class DeviceAlarmReceiver extends BroadcastReceiver {
             return;
         }
 
-        if (GBApplication.getPrefs().getString("notification_list_is_blacklist", "true").equals("true")) {
-            if (GBApplication.appIsNotifBlacklisted(intent.getPackage())) {
-                LOG.info("Ignoring alarm action, application is blacklisted");
-                return;
-            }
-        } else {
-            if (!GBApplication.appIsNotifBlacklisted(intent.getPackage())) {
-                LOG.info("Ignoring alarm action, application is not whitelisted");
-                return;
-            }
-        }
-
         // TODO: sync alarms back from device to DB to avoid losing device-exclusive changes
         // (this requires a common interface for back-syncing alarms first)
         final ArrayList<Alarm> alarms = (ArrayList<Alarm>) DBHelper.getAlarmsWithDefaults(targetDevice);
