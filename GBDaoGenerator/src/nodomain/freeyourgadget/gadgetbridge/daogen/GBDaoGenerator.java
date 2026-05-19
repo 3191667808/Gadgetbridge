@@ -577,6 +577,7 @@ public class GBDaoGenerator {
         sample.addIntProperty("lightSleepDuration");
         sample.addIntProperty("remSleepDuration");
         sample.addIntProperty("awakeDuration");
+        sample.addLongProperty("intoBedTime");
         return sample;
     }
 

@@ -122,10 +122,17 @@ public class SleepDetailsParser extends XiaomiActivityParser {
         sample.setWakeupTime(wakeupTime * 1000L);
         sample.setIsAwake(isAwake == 1);
 
+        Long intoBedTime = null;
         if (fileId.getVersion() >= 5) {
-            buf.get(new byte[9]); // ?
+            // 9 bytes of unverified metadata. Layout observed in v5 bins:
+            //   off 0..3  u32 LE  unknown counter (no obvious correlation with sleep)
+            //   off 4     u8      always 0 (padding)
+            //   off 5..8  u32 LE  (wakeupTime - bedTime2) in seconds (redundant)
+            buf.get(new byte[9]);
             final int bedTime2 = buf.getInt(); // around ~30 min before bedTime, is previous one fall asleep time?
             final int wakeupTime2 = buf.getInt(); // == wakeupTime
+            intoBedTime = bedTime2 * 1000L;
+            sample.setIntoBedTime(intoBedTime);
             headerIdx += 5;
         }
 
@@ -271,6 +278,9 @@ public class SleepDetailsParser extends XiaomiActivityParser {
 
                     if (sample == null) {
                         sample = new XiaomiSleepTimeSample();
+                        if (intoBedTime != null) {
+                            sample.setIntoBedTime(intoBedTime);
+                        }
                     }
 
                     sample.setTimestamp(bedTime * 1000L);
