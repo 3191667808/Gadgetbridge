@@ -1,4 +1,4 @@
-/*  Copyright (C) 2026 Thomas Kuehne
+/*  Copyright (C) 2026 Rob Mutch, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -18,8 +18,12 @@ package nodomain.freeyourgadget.gadgetbridge.database.schema;
 
 import android.database.sqlite.SQLiteDatabase;
 
+import java.util.Locale;
+
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericMetricSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepTimeSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
 
 public class GadgetbridgeUpdate_131 implements DBUpdateScript {
@@ -64,12 +68,25 @@ public class GadgetbridgeUpdate_131 implements DBUpdateScript {
         db.execSQL(sql);
     }
 
+    private static void addXiaomiSleepIntoBedTimeColumn(SQLiteDatabase db) {
+        final String column = XiaomiSleepTimeSampleDao.Properties.IntoBedTime.columnName;
+        if (!DBHelper.existsColumn(XiaomiSleepTimeSampleDao.TABLENAME, column, db)) {
+            db.execSQL(String.format(
+                    Locale.ROOT,
+                    "ALTER TABLE %s ADD COLUMN \"%s\" INTEGER",
+                    XiaomiSleepTimeSampleDao.TABLENAME,
+                    column
+            ));
+        }
+    }
+
     @Override
     public void upgradeSchema(final SQLiteDatabase db) {
         fixTimeStampOfGenericMetricSample(db);
         copyTrainingLoadAcute(db);
         copyTrainingLoadChronic(db);
         copyRestingMetabolicRate(db);
+        addXiaomiSleepIntoBedTimeColumn(db);
     }
 
     @Override
