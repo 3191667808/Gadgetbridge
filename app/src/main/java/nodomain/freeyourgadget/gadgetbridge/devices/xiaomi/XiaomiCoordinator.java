@@ -195,8 +195,7 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public TimeSampleProvider<? extends RespiratoryRateSample> getRespiratoryRateSampleProvider(@NonNull final GBDevice device, final DaoSession session) {
-        // TODO XiaomiSleepRespiratoryRateSampleProvider
-        return super.getRespiratoryRateSampleProvider(device, session);
+        return new XiaomiSleepRespiratoryRateSampleProvider(device, session);
     }
 
     @Nullable
@@ -335,8 +334,7 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsSleepRespiratoryRate(@NonNull GBDevice device) {
-        // TODO it does
-        return false;
+        return true;
     }
 
     @Override

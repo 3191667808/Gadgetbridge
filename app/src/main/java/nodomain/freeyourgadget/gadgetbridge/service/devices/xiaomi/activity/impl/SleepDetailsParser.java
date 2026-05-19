@@ -34,10 +34,12 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.HeartPulseSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepTimeSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiSleepRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.HeartPulseSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
+import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepRespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepTimeSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -188,6 +190,7 @@ public class SleepDetailsParser extends XiaomiActivityParser {
 
         final List<XiaomiSleepStageSample> stages = new ArrayList<>();
         final List<HeartPulseSample> heartPulseSamples = new ArrayList<>();
+        final List<XiaomiSleepRespiratoryRateSample> respiratoryRateSamples = new ArrayList<>();
         LOG.debug("Sleep stage packets from offset {}", Integer.toHexString(buf.position()));
 
         // Do not crash if we face a buffer underflow, as the next parsing is not 100% fool-proof,
@@ -297,6 +300,41 @@ public class SleepDetailsParser extends XiaomiActivityParser {
 
                         currentTime += offsetMinutes * 60000;
                     }
+                } else if (type == 0xa) {
+                    // Per-sample sleep readouts: 4 bytes per record
+                    //   off 0  u8  unknown (motion intensity or PPG amplitude)
+                    //   off 1  u8  breathing rate (brpm)
+                    //   off 2  u8  heart rate (bpm; 0 = no valid reading)
+                    //   off 3  u8  flag/quality byte (typically 0, 16, or 32)
+                    // Packets emit every 10 minutes and `ts` is in nanoseconds (not seconds).
+                    // The N records in a packet are distributed across the 10-min window
+                    // ending at the packet's `ts`; sub-minute timestamps are not embedded,
+                    // so records are spaced evenly across that window.
+                    final int recordCount = dataLen / 4;
+                    if (recordCount > 0) {
+                        final long packetEndMs = ts / 1_000_000L;
+                        final long windowMs = 10L * 60L * 1000L;
+                        final long windowStartMs = packetEndMs - windowMs;
+                        for (int i = 0; i < recordCount; i++) {
+                            dataBuf.get(); // slot 0 (motion/amplitude)
+                            final int rate = dataBuf.get() & 0xff;
+                            dataBuf.get(); // slot 2 (HR, parsed elsewhere)
+                            dataBuf.get(); // slot 3 (flag)
+
+                            // Skip implausible values: brpm must be in 1..40 to count as a real reading.
+                            if (rate < 1 || rate > 40) {
+                                continue;
+                            }
+
+                            final long recordTs = windowStartMs
+                                    + ((long) (i + 1) * windowMs) / (recordCount + 1);
+
+                            final XiaomiSleepRespiratoryRateSample rrSample = new XiaomiSleepRespiratoryRateSample();
+                            rrSample.setTimestamp(recordTs);
+                            rrSample.setRate(rate);
+                            respiratoryRateSamples.add(rrSample);
+                        }
+                    }
                 }
             }
         } catch (final BufferUnderflowException e) {
@@ -383,6 +421,29 @@ public class SleepDetailsParser extends XiaomiActivityParser {
             GB.toast(context, "Error saving heart pulse samples", Toast.LENGTH_LONG, GB.ERROR);
             LOG.error("Error saving heart pulse samples", e);
             persistSuccess = false;
+        }
+
+        if (!respiratoryRateSamples.isEmpty()) {
+            LOG.debug("Persisting {} sleep respiratory rate samples", respiratoryRateSamples.size());
+
+            try (DBHandler handler = GBApplication.acquireDB()) {
+                final DaoSession session = handler.getDaoSession();
+                final Device device = DBHelper.getDevice(gbDevice, session);
+                final User user = DBHelper.getUser(session);
+
+                final XiaomiSleepRespiratoryRateSampleProvider sampleProvider = new XiaomiSleepRespiratoryRateSampleProvider(gbDevice, session);
+
+                for (final XiaomiSleepRespiratoryRateSample rrSample : respiratoryRateSamples) {
+                    rrSample.setDevice(device);
+                    rrSample.setUser(user);
+                }
+
+                sampleProvider.addSamples(respiratoryRateSamples);
+            } catch (final Exception e) {
+                GB.toast(context, "Error saving sleep respiratory rate samples", Toast.LENGTH_LONG, GB.ERROR);
+                LOG.error("Error saving sleep respiratory rate samples", e);
+                persistSuccess = false;
+            }
         }
 
         return persistSuccess;

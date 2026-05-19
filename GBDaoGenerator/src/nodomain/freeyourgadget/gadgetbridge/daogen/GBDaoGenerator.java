@@ -116,6 +116,7 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addHeartPulseSamples(schema, user, device));
         sampleProvidersToGenerate.add(addHeartRrIntervalSamples(schema, user, device));
         sampleProvidersToGenerate.add(addXiaomiSleepStageSamples(schema, user, device));
+        addXiaomiSleepRespiratoryRateSamples(schema, user, device);
         addXiaomiManualSamples(schema, user, device);
         sampleProvidersToGenerate.add(addXiaomiDailySummarySamples(schema, user, device));
         addCmfActivitySample(schema, user, device);
@@ -630,6 +631,20 @@ public class GBDaoGenerator {
         Entity sample = addEntity(schema, "XiaomiSleepStageSample");
         addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
         sample.addIntProperty("stage");
+        return sample;
+    }
+
+    private static Entity addXiaomiSleepRespiratoryRateSamples(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "XiaomiSleepRespiratoryRateSample");
+        addCommonTimeSampleProperties("AbstractRespiratoryRateSample", sample, user, device);
+        sample.addIntProperty("rate").notNull().codeBeforeGetter(
+                """
+                        @Override
+                            public float getRespiratoryRate() {
+                                return (float) getRate();
+                            }
+                        """
+        );
         return sample;
     }
 
