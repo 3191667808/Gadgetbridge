@@ -116,7 +116,7 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addHeartPulseSamples(schema, user, device));
         sampleProvidersToGenerate.add(addHeartRrIntervalSamples(schema, user, device));
         sampleProvidersToGenerate.add(addXiaomiSleepStageSamples(schema, user, device));
-        addXiaomiSleepRespiratoryRateSamples(schema, user, device);
+        sampleProvidersToGenerate.add(addXiaomiSleepRespiratoryRateSamples(schema, user, device));
         addXiaomiManualSamples(schema, user, device);
         sampleProvidersToGenerate.add(addXiaomiDailySummarySamples(schema, user, device));
         addCmfActivitySample(schema, user, device);
