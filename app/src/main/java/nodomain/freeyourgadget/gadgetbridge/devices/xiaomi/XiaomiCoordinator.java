@@ -332,6 +332,19 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsVO2Max(@NonNull GBDevice device) {
+        // VO2 max (maximum oxygen uptake) is parsed out of workout summaries by
+        // WorkoutSummaryParser; the default WorkoutVo2MaxSampleProvider exposes it as a chart.
+        return true;
+    }
+
+    @Override
+    public boolean supportsVO2MultiSport(@NonNull GBDevice device) {
+        // Walking, running, cycling and treadmill workout summaries all carry a VO2 max field.
+        return true;
+    }
+
+    @Override
     public boolean supportsSleepRespiratoryRate(@NonNull GBDevice device) {
         return true;
     }
