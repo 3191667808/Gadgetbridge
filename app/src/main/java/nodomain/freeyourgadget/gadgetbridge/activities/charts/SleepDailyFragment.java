@@ -139,26 +139,30 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
             int average = Math.round(hrData.getLeft());
             average = SHOW_CHARTS_AVERAGE && average > 0 ? average : OverlayDataInt.NO_DATA;
             overlay = new OverlayDataInt(20, 140, prepareHR(samples), average, HEARTRATE_COLOR, Color.RED);
-        } else if (currentOverlay == OverlayType.SPO2) {
-            overlay = new OverlayDataInt(68, 100, prepareSpO2Overlay(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataInt.NO_DATA, ContextCompat.getColor(requireContext(), R.color.spo2_color), Color.RED);
-        } else if (currentOverlay == OverlayType.TEMPERATURE) {
-            overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
-        } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
-            final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
-            final Accumulator accumulator = new Accumulator();
-            if (respiratoryRateData != null) {
-                for (float value : respiratoryRateData) {
-                    accumulator.add(value);
+        } else if (!samples.isEmpty()) {
+            final long overlayStart = samples.get(0).getTimestamp() * 1000L;
+            final long overlayEnd = samples.get(samples.size() - 1).getTimestamp() * 1000L;
+            if (currentOverlay == OverlayType.SPO2) {
+                overlay = new OverlayDataInt(68, 100, prepareSpO2Overlay(db, device, overlayStart, overlayEnd), OverlayDataInt.NO_DATA, ContextCompat.getColor(requireContext(), R.color.spo2_color), Color.RED);
+            } else if (currentOverlay == OverlayType.TEMPERATURE) {
+                overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, overlayStart, overlayEnd), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
+            } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
+                final float[] respiratoryRateData = prepareRespiratoryRate(db, device, overlayStart, overlayEnd);
+                final Accumulator accumulator = new Accumulator();
+                if (respiratoryRateData != null) {
+                    for (float value : respiratoryRateData) {
+                        accumulator.add(value);
+                    }
                 }
+                overlay = new OverlayDataFloat(
+                        (float) (accumulator.getMin() / 2),
+                        (float) (1.5d * accumulator.getMax()),
+                        respiratoryRateData,
+                        OverlayDataFloat.NO_DATA,
+                        ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
+                        Color.RED
+                );
             }
-            overlay = new OverlayDataFloat(
-                    (float) (accumulator.getMin() / 2),
-                    (float) (1.5d * accumulator.getMax()),
-                    respiratoryRateData,
-                    OverlayDataFloat.NO_DATA,
-                    ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
-                    Color.RED
-            );
         }
 
         final DeviceChartsProvider chartsProvider = device.getDeviceCoordinator().getChartsProvider();
