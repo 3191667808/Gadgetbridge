@@ -32,7 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.HeartPulseSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiSleepRespiratoryRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiSleepTimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -221,7 +221,7 @@ public class SleepDetailsParser extends XiaomiActivityParser {
                 //  - Summary = 16,
                 //  - Stages = 17
 
-                if (type == 0x2 || type == 0x3 || type == 0x9 || type == 0xc || type == 0xd || type == 0xe || type == 0xf) {
+                if (type == 0x2 || type == 0x3 || type == 0x9 || type == 0xc || type == 0xd || type == 0xe || type == 0xf || type == 0x12) {
                     // the bytes reserved for the data length are believed to be flags, as they
                     // do not actually have any data following the headers
                     continue;
@@ -262,8 +262,9 @@ public class SleepDetailsParser extends XiaomiActivityParser {
                     final int deep_duration  = dataBuf.getShort() & 0xFFFF;
 
                     final int data_1 = dataBuf.get() & 0xFF;
-                    final boolean has_rem = (data_1 >> 4) == 1;
-                    final boolean has_stage = (data_1 >> 2) == 1;
+                    // bit flags; observed values 0x05 / 0x06 in v5 bins
+                    final boolean has_rem = (data_1 & 0x10) != 0;
+                    final boolean has_stage = (data_1 & 0x04) != 0;
 
                     // Could probably be an "awake" duration after sleep
                     final int unk_duration_minutes = dataBuf.get() & 0xFF;
@@ -301,25 +302,27 @@ public class SleepDetailsParser extends XiaomiActivityParser {
                         currentTime += offsetMinutes * 60000;
                     }
                 } else if (type == 0xa) {
-                    // Per-sample sleep readouts: 4 bytes per record
-                    //   off 0  u8  unknown (motion intensity or PPG amplitude)
-                    //   off 1  u8  breathing rate (brpm)
-                    //   off 2  u8  heart rate (bpm; 0 = no valid reading)
-                    //   off 3  u8  flag/quality byte (typically 0, 16, or 32)
+                    // Per-sample sleep readouts: 4 bytes per record.
+                    //   off 0  u8  motion intensity or PPG amplitude (range 0..254, mean ~116)
+                    //   off 1  u8  breathing rate in brpm (only slot used)
+                    //   off 2  u8  noisy PPG-derived value; looks like a raw instantaneous
+                    //              estimate used internally for the brpm calculation, not
+                    //              a usable HR readout - persisting would add noise without resolution
+                    //   off 3  u8  quality flag (observed: 0 dominant, 16 / 32 frequent, 1 / 17 rare)
                     // Packets emit every 10 minutes and `ts` is in nanoseconds (not seconds).
                     // The N records in a packet are distributed across the 10-min window
                     // ending at the packet's `ts`; sub-minute timestamps are not embedded,
                     // so records are spaced evenly across that window.
                     final int recordCount = dataLen / 4;
                     if (recordCount > 0) {
-                        final long packetEndMs = ts / 1_000_000L;
+                        final long packetEndMs = Math.round(ts / 1_000_000.0);
                         final long windowMs = 10L * 60L * 1000L;
                         final long windowStartMs = packetEndMs - windowMs;
                         for (int i = 0; i < recordCount; i++) {
-                            dataBuf.get(); // slot 0 (motion/amplitude)
+                            dataBuf.get(); // slot 0 (motion/amplitude) - see comment above
                             final int rate = dataBuf.get() & 0xff;
-                            dataBuf.get(); // slot 2 (HR, parsed elsewhere)
-                            dataBuf.get(); // slot 3 (flag)
+                            dataBuf.get(); // slot 2 (noisy PPG-derived value) - see comment above
+                            dataBuf.get(); // slot 3 (quality flag) - see comment above
 
                             // Skip implausible values: brpm must be in 1..40 to count as a real reading.
                             if (rate < 1 || rate > 40) {
@@ -335,6 +338,10 @@ public class SleepDetailsParser extends XiaomiActivityParser {
                             respiratoryRateSamples.add(rrSample);
                         }
                     }
+                } else if (type == 0x65) {
+                    // Sentinel/manifest packet. Appears exactly once per file. Body is
+                    // consistently the 4-byte sequence `01 02 07 04` across all sampled v5 files.
+                    LOG.debug("Sleep details sentinel packet 0x65 body {}", GB.hexdump(data));
                 }
             }
         } catch (final BufferUnderflowException e) {
@@ -424,24 +431,12 @@ public class SleepDetailsParser extends XiaomiActivityParser {
         }
 
         if (!respiratoryRateSamples.isEmpty()) {
-            LOG.debug("Persisting {} sleep respiratory rate samples", respiratoryRateSamples.size());
-
             try (DBHandler handler = GBApplication.acquireDB()) {
                 final DaoSession session = handler.getDaoSession();
-                final Device device = DBHelper.getDevice(gbDevice, session);
-                final User user = DBHelper.getUser(session);
-
-                final XiaomiSleepRespiratoryRateSampleProvider sampleProvider = new XiaomiSleepRespiratoryRateSampleProvider(gbDevice, session);
-
-                for (final XiaomiSleepRespiratoryRateSample rrSample : respiratoryRateSamples) {
-                    rrSample.setDevice(device);
-                    rrSample.setUser(user);
-                }
-
-                sampleProvider.addSamples(respiratoryRateSamples);
+                new XiaomiSleepRespiratoryRateSampleProvider(gbDevice, session)
+                        .persistForDevice(context, gbDevice, respiratoryRateSamples);
             } catch (final Exception e) {
-                GB.toast(context, "Error saving sleep respiratory rate samples", Toast.LENGTH_LONG, GB.ERROR);
-                LOG.error("Error saving sleep respiratory rate samples", e);
+                LOG.error("Error acquiring db for sleep respiratory rate samples", e);
                 persistSuccess = false;
             }
         }

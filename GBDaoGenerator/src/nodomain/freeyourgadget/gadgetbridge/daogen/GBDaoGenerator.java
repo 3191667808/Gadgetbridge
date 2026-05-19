@@ -76,7 +76,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(130, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(131, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 
@@ -112,7 +112,7 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addHeartPulseSamples(schema, user, device));
         sampleProvidersToGenerate.add(addHeartRrIntervalSamples(schema, user, device));
         addXiaomiSleepStageSamples(schema, user, device);
-        addXiaomiSleepRespiratoryRateSamples(schema, user, device);
+        sampleProvidersToGenerate.add(addXiaomiSleepRespiratoryRateSamples(schema, user, device));
         addXiaomiManualSamples(schema, user, device);
         addXiaomiDailySummarySamples(schema, user, device);
         addCmfActivitySample(schema, user, device);

@@ -59,6 +59,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiDailySummarySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiManualSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepStageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepTimeSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
