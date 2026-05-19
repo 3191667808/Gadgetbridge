@@ -146,8 +146,10 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
             final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
             final Accumulator accumulator = new Accumulator();
-            for (float value : respiratoryRateData) {
-                accumulator.add(value);
+            if (respiratoryRateData != null) {
+                for (float value : respiratoryRateData) {
+                    accumulator.add(value);
+                }
             }
             overlay = new OverlayDataFloat(
                     (float) (accumulator.getMin() / 2),
