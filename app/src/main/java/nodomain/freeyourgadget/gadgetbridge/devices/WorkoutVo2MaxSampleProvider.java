@@ -70,20 +70,38 @@ public class WorkoutVo2MaxSampleProvider implements Vo2MaxSampleProvider<Vo2MaxS
             return Collections.emptyList();
         }
 
-        final DeviceCoordinator coordinator = device.getDeviceCoordinator();
-
         final QueryBuilder<BaseActivitySummary> qb = summaryDao.queryBuilder();
         qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.getId()))
                 .where(BaseActivitySummaryDao.Properties.StartTime.gt(new Date(timestampFrom)))
                 .where(BaseActivitySummaryDao.Properties.StartTime.lt(new Date(timestampTo)))
-                .where(BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"))
                 .orderAsc(BaseActivitySummaryDao.Properties.StartTime);
+        withVo2MaxFilter(qb);
 
-        final List<BaseActivitySummary> samples = qb.build().list();
-        summaryDao.detachAll();
-        fillSummaryData(coordinator, samples);
+        return materialize(qb);
+    }
 
-        return samples.stream()
+    /**
+     * Restricts the query to summaries that either already carry VO2 max in their parsed
+     * JSON, or have no parsed JSON at all - raw-only summaries (e.g. Xiaomi) store just the
+     * binary blob and are re-parsed on demand by {@link #fillSummaryData}.
+     */
+    private static void withVo2MaxFilter(final QueryBuilder<BaseActivitySummary> qb) {
+        qb.whereOr(
+                BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"),
+                BaseActivitySummaryDao.Properties.SummaryData.isNull()
+        );
+    }
+
+    /**
+     * Runs the query, re-parses any raw-only summaries, and keeps only those that actually
+     * have a VO2 max value. Sort order of the query is preserved.
+     */
+    private List<Vo2MaxSample> materialize(final QueryBuilder<BaseActivitySummary> qb) {
+        final List<BaseActivitySummary> summaries = qb.build().list();
+        session.getBaseActivitySummaryDao().detachAll();
+        fillSummaryData(device.getDeviceCoordinator(), summaries);
+
+        return summaries.stream()
                 .map(GarminVo2maxSample::fromActivitySummary)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -124,15 +142,11 @@ public class WorkoutVo2MaxSampleProvider implements Vo2MaxSampleProvider<Vo2MaxS
         }
 
         qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.getId()))
-                .where(BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"))
-                .orderDesc(BaseActivitySummaryDao.Properties.StartTime)
-                .limit(1);
+                .orderDesc(BaseActivitySummaryDao.Properties.StartTime);
+        withVo2MaxFilter(qb);
 
-        final List<BaseActivitySummary> samples = qb.build().list();
-        summaryDao.detachAll();
-        fillSummaryData(coordinator, samples);
-
-        return !samples.isEmpty() ? GarminVo2maxSample.fromActivitySummary(samples.get(0)) : null;
+        final List<Vo2MaxSample> samples = materialize(qb);
+        return samples.isEmpty() ? null : samples.get(0);
     }
 
     private static void addWhereFilter(final DeviceCoordinator coordinator,
@@ -206,14 +220,11 @@ public class WorkoutVo2MaxSampleProvider implements Vo2MaxSampleProvider<Vo2MaxS
 
         final QueryBuilder<BaseActivitySummary> qb = summaryDao.queryBuilder();
         qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.getId()))
-                .where(BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"))
-                .orderAsc(BaseActivitySummaryDao.Properties.StartTime)
-                .limit(1);
+                .orderAsc(BaseActivitySummaryDao.Properties.StartTime);
+        withVo2MaxFilter(qb);
 
-        final List<BaseActivitySummary> samples = qb.build().list();
-        summaryDao.detachAll();
-
-        return !samples.isEmpty() ? GarminVo2maxSample.fromActivitySummary(samples.get(0)) : null;
+        final List<Vo2MaxSample> samples = materialize(qb);
+        return samples.isEmpty() ? null : samples.get(0);
     }
 
 
