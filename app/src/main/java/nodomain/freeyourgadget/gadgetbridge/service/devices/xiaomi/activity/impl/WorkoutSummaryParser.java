@@ -486,6 +486,13 @@ public class WorkoutSummaryParser extends XiaomiActivityParser implements Activi
                 builder.addUnknown(6);
                 builder.addByte(MAXIMUM_OXYGEN_UPTAKE, UNIT_ML_KG_MIN);
                 builder.addUnknown(2);
+            } else if (version >= 5) {
+                // v5 / v6 (e.g. Smart Band 10): VO2 max is one byte into this
+                // 4-byte block. Verified on a v6 outdoor run against the
+                // band-reported value of 40.
+                builder.addUnknown(1);
+                builder.addByte(MAXIMUM_OXYGEN_UPTAKE, UNIT_ML_KG_MIN);
+                builder.addUnknown(2);
             } else {
                 builder.addUnknown(4);
             }
