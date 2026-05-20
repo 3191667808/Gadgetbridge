@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
+
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiFWHelper;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
@@ -154,11 +154,10 @@ public class XiaomiRpkService extends AbstractXiaomiService implements XiaomiDat
             GBDeviceApp gbDeviceApp = new GBDeviceApp(UUID.nameUUIDFromBytes(packageName.getBytes()), appName, packageName, "", GBDeviceApp.Type.APP_GENERIC);
             apps.add(gbDeviceApp);
         }
-        final List<GBDeviceApp> appsAndFaces = new ArrayList<>(apps);
-        appsAndFaces.addAll(getSupport().getWatchfaceService().getInstalledFacesCache());
-        final GBDeviceEventAppInfo appInfoCmd = new GBDeviceEventAppInfo();
-        appInfoCmd.apps = appsAndFaces.toArray(new GBDeviceApp[0]);
-        getSupport().evaluateGBDeviceEvent(appInfoCmd);
+        // Notify via the central method which always merges both caches.
+        // This prevents the race condition where each service independently sends
+        // a GBDeviceEventAppInfo and the last-arriving one overwrites the other.
+        getSupport().notifyAppListChanged();
     }
 
 

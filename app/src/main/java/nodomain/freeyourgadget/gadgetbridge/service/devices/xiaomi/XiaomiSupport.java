@@ -36,7 +36,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiFWHelper;
@@ -329,6 +331,9 @@ public class XiaomiSupport extends AbstractDeviceSupport {
 
     @Override
     public void onAppInfoReq() {
+        // Request both lists independently and in parallel.
+        // Each handler calls notifyAppListChanged() when done, which always
+        // merges both caches - so whichever arrives last will still show both.
         watchfaceService.requestWatchfaceList();
         rpkService.requestRpkList();
     }
@@ -447,6 +452,20 @@ public class XiaomiSupport extends AbstractDeviceSupport {
 
     public XiaomiWatchfaceService getWatchfaceService() {
         return this.watchfaceService;
+    }
+
+    /**
+     * Merges the watchface and RPK app caches and sends a single unified GBDeviceEventAppInfo
+     * event. Both XiaomiWatchfaceService and XiaomiRpkService call this instead of each sending
+     * their own events, which avoids the race condition where the last event to arrive would
+     * overwrite the other service's entries and leave the App Manager showing only one type.
+     */
+    public void notifyAppListChanged() {
+        final List<GBDeviceApp> appsAndFaces = new ArrayList<>(watchfaceService.getInstalledFacesCache());
+        appsAndFaces.addAll(rpkService.getInstalledAppsCache());
+        final GBDeviceEventAppInfo appInfoCmd = new GBDeviceEventAppInfo();
+        appInfoCmd.apps = appsAndFaces.toArray(new GBDeviceApp[0]);
+        evaluateGBDeviceEvent(appInfoCmd);
     }
 
     @Override

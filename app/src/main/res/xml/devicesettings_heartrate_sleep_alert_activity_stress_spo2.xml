@@ -83,6 +83,13 @@
                 android:key="heartrate_alert_active_high_threshold"
                 app:useSimpleSummaryProvider="true"
                 android:title="@string/prefs_heartrate_alert_active_high_threshold" />
+
+            <SwitchPreferenceCompat
+                android:defaultValue="false"
+                android:icon="@drawable/ic_warning_gray"
+                android:key="heartrate_alert_abnormal_cardiac"
+                android:layout="@layout/preference_checkbox"
+                android:title="@string/pref_heartrate_alert_abnormal_cardiac" />
         </PreferenceCategory>
 
         <!-- Stress Monitoring -->

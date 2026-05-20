@@ -549,7 +549,7 @@ message ActivitySyncRequestToday {
 
 message SpO2 {
   optional uint32 unknown1 = 1; // 1
-  optional bool allDayTracking = 2;
+  optional uint32 allDayTracking = 2;
   optional Spo2AlarmLow alarmLow = 4;
 }
 
@@ -567,6 +567,8 @@ message HeartRate {
   optional uint32 unknown7 = 7; // 1
   optional HeartRateAlarmLow heartRateAlarmLow = 8;
   optional uint32 breathingScore = 9; // 1 on, 2 off
+  optional uint32 abnormalCardiac = 10; // 1 on, 2 off (irregular heart rate alert)
+  optional uint32 breathingRate = 11; // 1 on, 2 off (sleep breathing rate monitoring)
 }
 
 message AdvancedMonitoring {
@@ -588,7 +590,7 @@ message StandingReminder {
 }
 
 message Stress {
-  optional bool allDayTracking = 1;
+  optional uint32 allDayTracking = 1;
   optional RelaxReminder relaxReminder = 2;
 }
 

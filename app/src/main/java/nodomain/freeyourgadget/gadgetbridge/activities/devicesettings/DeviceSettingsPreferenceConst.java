@@ -223,6 +223,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_HEARTRATE_STRESS_MONITORING = "heartrate_stress_monitoring";
     public static final String PREF_HEARTRATE_STRESS_RELAXATION_REMINDER = "heartrate_stress_relaxation_reminder";
     public static final String PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING = "heartrate_sleep_breathing_quality_monitoring";
+    public static final String PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC = "heartrate_alert_abnormal_cardiac";
+
     public static final String PREF_SPO2_ALL_DAY_MONITORING = "spo2_all_day_monitoring_enabled";
     public static final String PREF_SPO2_MEASUREMENT_INTERVAL = "spo2_measurement_interval";
     public static final String PREF_SPO2_MEASUREMENT_TIME = "spo2_measurement_time";

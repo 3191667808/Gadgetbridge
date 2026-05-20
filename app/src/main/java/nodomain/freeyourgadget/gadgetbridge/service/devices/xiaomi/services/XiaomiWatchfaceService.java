@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
+
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiFWHelper;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
@@ -128,11 +128,11 @@ public class XiaomiWatchfaceService extends AbstractXiaomiService implements Xia
             facesCache.add(gbDeviceApp);
         }
 
-        final List<GBDeviceApp> appsAndFaces = new ArrayList<>(facesCache);
-        appsAndFaces.addAll(getSupport().getRpkService().getInstalledAppsCache());
-        final GBDeviceEventAppInfo appInfoCmd = new GBDeviceEventAppInfo();
-        appInfoCmd.apps = appsAndFaces.toArray(new GBDeviceApp[0]);
-        getSupport().evaluateGBDeviceEvent(appInfoCmd);
+        // Notify via the central method which always merges both caches.
+        // Do NOT call requestRpkList() here – that would create a chain where
+        // each watchface refresh triggers an RPK refresh, causing a race where
+        // the last-arriving list overwrites the other's entries in the UI.
+        getSupport().notifyAppListChanged();
     }
 
     public void setWatchface(final UUID uuid) {

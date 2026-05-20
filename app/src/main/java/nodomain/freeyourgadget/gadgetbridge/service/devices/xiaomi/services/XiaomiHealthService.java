@@ -242,6 +242,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 return true;
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION:
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING:
+            case DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC:
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL:
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ENABLED:
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD:
@@ -448,7 +449,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
                 .withPreference(XiaomiPreferences.FEAT_SPO2, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, spo2.getAllDayTracking())
+                .withPreference(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, spo2.getAllDayTracking() != 0)
                 .withPreference(
                         DeviceSettingsPreferenceConst.PREF_SPO2_LOW_ALERT_THRESHOLD,
                         String.valueOf(spo2.getAlarmLow().getAlarmLowEnabled() ? spo2.getAlarmLow().getAlarmLowThreshold() : 0)
@@ -473,7 +474,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
         final XiaomiProto.SpO2.Builder spo2 = XiaomiProto.SpO2.newBuilder()
                 .setUnknown1(1)
-                .setAllDayTracking(allDayMonitoring)
+                .setAllDayTracking(allDayMonitoring ? 2 : 0)
                 .setAlarmLow(spo2alarmLowBuilder);
 
         getSupport().sendCommand(
@@ -500,7 +501,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         }
 
         eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION, heartRate.getAdvancedMonitoring().getEnabled());
-        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, heartRate.getBreathingScore() == 1);
+        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, heartRate.getBreathingScore() == 1 || heartRate.getBreathingRate() == 1);
+        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC, heartRate.getAbnormalCardiac() == 1);
 
         eventUpdatePreferences.withPreference(
                 DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD,
@@ -520,6 +522,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
         final boolean sleepDetection = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION, false);
         final boolean sleepBreathingQuality = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, false);
+        final boolean abnormalCardiac = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC, false);
         final int intervalSeconds = prefs.getInt(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, 0);
         final int alertHigh = prefs.getInt(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD, 0);
         final int alertLow = prefs.getInt(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_LOW_THRESHOLD, 0);
@@ -533,9 +536,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         }
 
         LOG.debug(
-                "Set heart rate config: sleepDetection={}, sleepBreathingQuality={}, intervalSeconds={}, alertHigh={}, alertLow={}",
+                "Set heart rate config: sleepDetection={}, sleepBreathingQuality={}, abnormalCardiac={}, intervalSeconds={}, alertHigh={}, alertLow={}",
                 sleepDetection,
                 sleepBreathingQuality,
+                abnormalCardiac,
                 intervalSeconds,
                 alertHigh,
                 alertLow
@@ -547,6 +551,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 .setAdvancedMonitoring(XiaomiProto.AdvancedMonitoring.newBuilder()
                         .setEnabled(sleepDetection))
                 .setBreathingScore(sleepBreathingQuality ? 1 : 2)
+                .setBreathingRate(sleepBreathingQuality ? 1 : 2)
+                .setAbnormalCardiac(abnormalCardiac ? 1 : 2)
                 .setAlarmHighEnabled(alertHigh > 0)
                 .setAlarmHighThreshold(alertHigh)
                 .setHeartRateAlarmLow(XiaomiProto.HeartRateAlarmLow.newBuilder()
@@ -619,7 +625,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
                 .withPreference(XiaomiPreferences.FEAT_STRESS, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_MONITORING, stress.getAllDayTracking())
+                .withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_MONITORING, stress.getAllDayTracking() != 0)
                 .withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_RELAXATION_REMINDER, stress.getRelaxReminder().getEnabled());
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
@@ -633,7 +639,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         final boolean relaxReminder = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_RELAXATION_REMINDER, false);
 
         final XiaomiProto.Stress.Builder stress = XiaomiProto.Stress.newBuilder()
-                .setAllDayTracking(enabled)
+                .setAllDayTracking(enabled ? 2 : 0)
                 .setRelaxReminder(XiaomiProto.RelaxReminder.newBuilder().setEnabled(relaxReminder).setUnknown2(0));
 
         getSupport().sendCommand(
