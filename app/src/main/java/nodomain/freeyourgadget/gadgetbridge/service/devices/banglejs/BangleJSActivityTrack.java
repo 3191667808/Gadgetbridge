@@ -170,6 +170,7 @@ class BangleJSActivityTrack {
             summary.setEndTime(endTime);
             ActivitySummaryData summaryData = BangleJSWorkoutParser.dataFromPoints(banglePoints);
             summary.setSummaryData(summaryData.toString());
+            summary.setHasGps(banglePoints.stream().anyMatch(p -> p.getLocation() != null));
             ActivityKind activityKind;
             final double speedAvg = summaryData.getNumber(SPEED_AVG, -1).doubleValue();
             if (speedAvg >= 10) {
@@ -197,7 +198,7 @@ class BangleJSActivityTrack {
             } catch (Exception ex) {
                 GB.toast(context, "Error setting user for activity track.", Toast.LENGTH_LONG, GB.ERROR, ex);
             }
-            boolean hasGPXReading = summaryData.hasGps();
+            boolean hasGPXReading = summary.getHasGps();
             boolean hasHRMReading = summaryData.has(HR_AVG);
             for (final BangleJSActivityPoint banglePoint : banglePoints) {
                 track.addTrackPoint(banglePoint.toActivityPoint());

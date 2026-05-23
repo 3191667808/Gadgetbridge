@@ -164,14 +164,6 @@ public class ActivitySummaryData {
         return Boolean.parseBoolean((String) value);
     }
 
-    public boolean hasGps() {
-        return getBoolean(ActivitySummaryEntries.INTERNAL_HAS_GPS, false);
-    }
-
-    public void setHasGps(final boolean gps) {
-        add(ActivitySummaryEntries.INTERNAL_HAS_GPS, String.valueOf(gps));
-    }
-
     @NonNull
     public static ActivitySummaryData fromJson(final String string) {
         if (StringUtils.isBlank(string)) {

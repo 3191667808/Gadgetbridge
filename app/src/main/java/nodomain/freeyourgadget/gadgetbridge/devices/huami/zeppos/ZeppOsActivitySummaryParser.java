@@ -114,7 +114,10 @@ public class ZeppOsActivitySummaryParser extends HuamiActivitySummaryParser {
             summary.setBaseAltitude(summaryProto.getLocation().getBaseAltitude() / 2);
             // TODO: Min/Max Latitude/Longitude
             summaryData.add(ALTITUDE_BASE, summaryProto.getLocation().getBaseAltitude() / 2f, UNIT_METERS);
-            summaryData.setHasGps(true);
+
+            summary.setHasGps(summaryProto.getLocation().getBaseLatitude() != 0.0 || summaryProto.getLocation().getBaseLongitude() != 0.0);
+        } else {
+            summary.setHasGps(false);
         }
 
         if (summaryProto.hasHeartRate()) {

@@ -227,7 +227,7 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                     qb.where(HuaweiWorkoutSummarySampleDao.Properties.UserId.eq(user.getId()));
                     final List<HuaweiWorkoutSummarySample> huaweiSummaries = qb.build().list();
                     if (!huaweiSummaries.isEmpty()) {
-                        activitySummaryData.setHasGps(huaweiSummaries.get(0).getRawGpsFileLocation() != null);
+                        summary.setHasGps(huaweiSummaries.get(0).getRawGpsFileLocation() != null);
                     }
                 } catch (Exception e) {
                     LOG.error("Failed to check whether activity has gps");
@@ -659,7 +659,6 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
                                                  final List<HuaweiActivityPoint> activityPoints) {
 
         ActivitySummaryData summaryData = new ActivitySummaryData();
-        summaryData.setHasGps(summary.getRawGpsFileLocation() != null);
 
         try {
 
@@ -1367,6 +1366,7 @@ public class HuaweiWorkoutGbParser implements ActivitySummaryParser {
             if (baseSummary.getGpxTrack() == null) {
                 baseSummary.setGpxTrack(summary.getGpxFileLocation());
             }
+            baseSummary.setHasGps(summary.getRawGpsFileLocation() != null);
 
             // start time never changes
             baseSummary.setEndTime(new Date(summary.getEndTimestamp() * 1000L));

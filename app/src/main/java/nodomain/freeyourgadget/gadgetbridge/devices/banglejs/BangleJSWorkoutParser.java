@@ -107,7 +107,6 @@ public class BangleJSWorkoutParser implements ActivitySummaryParser, ActivityTra
         int totalSteps = 0;
         long totalTime = 0;
         long totalActiveTime = 0;
-        boolean hasGps = false;
 
         final ActivityUser activityUser = new ActivityUser();
 
@@ -123,7 +122,6 @@ public class BangleJSWorkoutParser implements ActivitySummaryParser, ActivityTra
             //  Should distances be done via the GPX file we generate instead?
             if (previousPoint != null && previousPoint.getLocation() != null && p.getLocation() != null) {
                 distanceDiff = p.getLocation().getDistance(previousPoint.getLocation());
-                hasGps = true;
             } else {
                 distanceDiff = p.getSteps() * activityUser.getStepLengthCm() * 0.01d;
             }
@@ -190,8 +188,6 @@ public class BangleJSWorkoutParser implements ActivitySummaryParser, ActivityTra
         //  this (Karvonen method implemented to a degree in watch app "Run+")?
 
         // TODO: Does Bangle.js report laps in recorder logs?
-
-        summaryData.setHasGps(hasGps);
 
         return summaryData;
     }

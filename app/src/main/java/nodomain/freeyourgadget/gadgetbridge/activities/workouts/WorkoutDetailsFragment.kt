@@ -491,7 +491,7 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
     }
 
     private fun workoutHasGps(workout: Workout): Boolean {
-        if (workout.data.hasGps()) {
+        if (workout.summary.hasGps) {
             return true
         }
 

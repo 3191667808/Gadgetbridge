@@ -152,7 +152,7 @@ public class XiaomiSimpleActivityParser {
             }
         }
 
-        summaryData.setHasGps(summary.getRawDetailsPath() != null);
+        summary.setHasGps(summary.getRawDetailsPath() != null);
         summary.setSummaryData(summaryData.toString());
     }
 

@@ -76,7 +76,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(130, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(131, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 
@@ -1560,6 +1560,7 @@ public class GBDaoGenerator {
         summary.addToOne(user, userId);
         summary.addStringProperty("summaryData");
         summary.addByteArrayProperty("rawSummaryData");
+        summary.addBooleanProperty("hasGps");
     }
 
     private static Property findProperty(Entity entity, String propertyName) {

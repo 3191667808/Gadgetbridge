@@ -99,6 +99,13 @@ class GBProgressNotification(
         refresh(false)
     }
 
+    fun setTotal(totalProgress: Long, totalSize: Long) {
+        LOG.debug("setTotal id={}: {}/{}", notificationId, totalProgress, totalSize)
+        this.totalProgress = totalProgress
+        this.totalSize = totalSize
+        refresh(false)
+    }
+
     fun incrementTotalProgress(inc: Long) {
         LOG.debug("incrementTotalProgress id={}: {} += {}", notificationId, totalProgress, inc)
         this.chunkProgress = 0

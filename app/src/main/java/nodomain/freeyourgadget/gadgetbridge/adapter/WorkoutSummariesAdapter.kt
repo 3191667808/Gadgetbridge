@@ -82,17 +82,9 @@ class WorkoutSummariesAdapter(
         private val activityListItem = ActivityListItem(itemView)
 
         override fun fill(position: Int, summary: BaseActivitySummary, selected: Boolean) {
+            // We need to keep parsing here so that we get the most up-to-date data
             val parser = device.deviceCoordinator.getActivitySummaryParser(device, itemView.context)
             val workout = parser.parseWorkout(summary, false)
-
-            val hasGps = when {
-                workout.summary.gpxTrack != null -> true
-                workout.summary.summaryData?.contains(ActivitySummaryEntries.INTERNAL_HAS_GPS) == true -> {
-                    workout.data.getBoolean(ActivitySummaryEntries.INTERNAL_HAS_GPS, false)
-                }
-
-                else -> false
-            }
 
             activityListItem.update(
                 null,
@@ -104,7 +96,7 @@ class WorkoutSummariesAdapter(
                 -1,
                 -1f,
                 summary.endTime.time - summary.startTime.time,
-                hasGps,
+                workout.summary.hasGps,
                 summary.startTime,
                 position % 2 == 1,
                 selected

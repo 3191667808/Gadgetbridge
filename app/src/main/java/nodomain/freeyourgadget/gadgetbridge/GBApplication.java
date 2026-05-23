@@ -72,6 +72,7 @@ import java.util.Set;
 import nodomain.freeyourgadget.gadgetbridge.activities.ControlCenterv2;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.database.DataMigrationManager;
 import nodomain.freeyourgadget.gadgetbridge.database.PeriodicDbExporter;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceManager;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothStateChangeReceiver;
@@ -269,6 +270,7 @@ public class GBApplication extends Application {
         if (!GBEnvironment.env().isTest()) {
             PeriodicDbExporter.INSTANCE.scheduleNextExecution(context);
             PeriodicZipExporter.INSTANCE.scheduleNextExecution(context);
+            DataMigrationManager.INSTANCE.schedule(context);
         }
 
         notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);

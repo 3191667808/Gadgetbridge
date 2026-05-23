@@ -330,13 +330,6 @@ public class ActivitySummaryEntries {
     public static final String GROUP_GAS = "diving_gas";
     public static final String DIVING_HANG_TIME = "diving_hang_time";
 
-    /**
-     * Used to signal that this activity has a gps track. This is currently used by ActivitySummaryDetail
-     * to display the share and view gpx buttons, even though there's no gpx file.
-     * FIXME: We should have a cleaner way of doing this.
-     */
-    public static final String INTERNAL_HAS_GPS = "internal_hasGps";
-
     public static final Map<String, Integer> HR_ZONES = new LinkedHashMap<>() {{
         put(HR_ZONE_NA, 0);
         put(HR_ZONE_WARM_UP, R.color.hr_zone_warm_up_color);

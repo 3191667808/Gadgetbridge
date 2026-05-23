@@ -1125,7 +1125,7 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
             tableBuilder.addToSummaryData(summaryData);
         }
 
-        summaryData.setHasGps(
+        summary.setHasGps(
                 activityPoints.stream().anyMatch(GarminWorkoutParser::hasNonNullIslandLocation) ||
                         sessionActivityPoints.stream().anyMatch(GarminWorkoutParser::hasNonNullIslandLocation)
         );

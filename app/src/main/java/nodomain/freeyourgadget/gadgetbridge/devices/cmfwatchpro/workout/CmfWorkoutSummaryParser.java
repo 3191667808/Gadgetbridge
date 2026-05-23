@@ -140,7 +140,7 @@ public class CmfWorkoutSummaryParser implements ActivitySummaryParser {
             summary.setEndTime(new Date(endTime * 1000L));
 
             final boolean gps = buf.get() == 1;
-            summaryData.setHasGps(gps);
+            summary.setHasGps(gps);
             buf.get(); // ?
 
             if (buf.position() < buf.limit()) {
@@ -236,7 +236,7 @@ public class CmfWorkoutSummaryParser implements ActivitySummaryParser {
 
             if (buf.remaining() > 40) {
                 // TODO not sure, but it's the only sample I have with gps
-                summaryData.setHasGps(true);
+                summary.setHasGps(true);
 
                 buf.get(new byte[40]); //?
 
