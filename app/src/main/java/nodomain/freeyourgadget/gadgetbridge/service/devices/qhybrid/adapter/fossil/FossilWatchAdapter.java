@@ -285,8 +285,7 @@ public class FossilWatchAdapter extends WatchAdapter {
 
         queueWrite(new ConfigurationPutRequest(new ConfigurationPutRequest.ConfigItem[]{
                 new ConfigurationPutRequest.DailyStepGoalConfigItem(stepGoal),
-                new ConfigurationPutRequest.VibrationStrengthConfigItem(vibrationStrength),
-                new ConfigurationPutRequest.TimezoneOffsetConfigItem((short) timezoneOffset)
+                new ConfigurationPutRequest.VibrationStrengthConfigItem(vibrationStrength)
         }, this));
 
         setTime();

@@ -47,12 +47,12 @@ public abstract class PlayNotificationRequest extends FilePutRequest {
 
     private static byte[] createFile(NotificationType notificationType, int flags, String packageName, String sender, String message, int messageId){
         CRC32 crc = new CRC32();
-        crc.update(packageName.getBytes());
+        crc.update((packageName + "\0").getBytes());
         return createFile(notificationType, flags, packageName, sender, message, (int)crc.getValue(), messageId);
     }
 
     private static byte[] createFile(NotificationType notificationType, int flags, String title, String sender, String message, int packageCrc, int messageId) {
-        byte lengthBufferLength = (byte) 10;
+        byte lengthBufferLength = (byte) 12;
         byte uidLength = (byte) 4;
         byte appBundleCRCLength = (byte) 4;
 
@@ -67,7 +67,15 @@ public abstract class PlayNotificationRequest extends FilePutRequest {
         }
         String nullTerminatedMessage = StringUtils.terminateNull(message);
         byte[] messageBytes = nullTerminatedMessage.getBytes(charsetUTF8);
-        short mainBufferLength = (short) (lengthBufferLength + uidLength + appBundleCRCLength + titleBytes.length + senderBytes.length + messageBytes.length);
+
+        // Extra fields matching the official Fossil app format (required for vibration on HW.0.0 firmware)
+        byte[] sentinelBytes = new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+        int timestamp = (int) (System.currentTimeMillis() / 1000);
+        byte[] timestampBytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(timestamp).array();
+
+        short mainBufferLength = (short) (lengthBufferLength + uidLength + appBundleCRCLength
+                + titleBytes.length + senderBytes.length + messageBytes.length
+                + sentinelBytes.length + timestampBytes.length);
 
         ByteBuffer mainBuffer = ByteBuffer.allocate(mainBufferLength);
         mainBuffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -82,12 +90,16 @@ public abstract class PlayNotificationRequest extends FilePutRequest {
         mainBuffer.put((byte) titleBytes.length);
         mainBuffer.put((byte) senderBytes.length);
         mainBuffer.put((byte) messageBytes.length);
+        mainBuffer.put((byte) sentinelBytes.length);
+        mainBuffer.put((byte) timestampBytes.length);
 
         mainBuffer.putInt(messageId);
         mainBuffer.putInt(packageCrc);
         mainBuffer.put(titleBytes);
         mainBuffer.put(senderBytes);
         mainBuffer.put(messageBytes);
+        mainBuffer.put(sentinelBytes);
+        mainBuffer.put(timestampBytes);
         return mainBuffer.array();
     }
 

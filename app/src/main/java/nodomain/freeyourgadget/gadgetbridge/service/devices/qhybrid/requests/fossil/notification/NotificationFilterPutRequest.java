@@ -45,7 +45,7 @@ public class NotificationFilterPutRequest extends FilePutRequest {
             buffer.putShort((short) 25); //packet length
 
             CRC32 crc = new CRC32();
-            crc.update(config.getPackageName().getBytes());
+            crc.update((config.getPackageName() + "\0").getBytes());
 
             buffer.put(PacketID.PACKAGE_NAME_CRC.id);
             buffer.put((byte) 4);

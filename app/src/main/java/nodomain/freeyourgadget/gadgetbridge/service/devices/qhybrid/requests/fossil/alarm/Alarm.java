@@ -22,8 +22,8 @@ public class Alarm {
     public final int WEEKDAY_SUNDAY = 0;
     public final int WEEKDAY_MONDAY = 1;
     public final int WEEKDAY_TUESDAY = 2;
-    public final int WEEKDAY_THURSDAY = 3;
-    public final int WEEKDAY_WEDNESDAY = 4;
+    public final int WEEKDAY_WEDNESDAY = 3;
+    public final int WEEKDAY_THURSDAY = 4;
     public final int WEEKDAY_FRIDAY = 5;
     public final int WEEKDAY_SATURDAY = 6;
     private byte days = 0;
