@@ -208,6 +208,17 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private void cleanupSchedulers() {
+        for (Byte b : new ArrayList<>(schedulers.keySet())) {
+            cancelResponseTimeout(b);
+            ScheduledExecutorService s = schedulers.remove(b);
+            if (s != null) s.shutdownNow();
+        }
+        schedulers.clear();
+        pending.clear();
+        retryCounts.clear();
+    }
+
     public C60DeviceSupport() {
         super(LOG);
         addSupportedService(C60Constants.SERVICE);
@@ -219,6 +230,7 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
         notificationQueue.empty();
+        cleanupSchedulers();
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(C60Constants.CHARACTERISTIC_READ, true);
 //        builder.notify(C60Constants.READ_ECG, true);
@@ -274,6 +286,15 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.setDeviceState(GBDevice.State.INITIALIZED);
 
         return builder;
+    }
+
+    @Override
+    public void dispose() {
+        synchronized (ConnectionMonitor) {
+            LOG.info("Dispose");
+            cleanupSchedulers();
+            super.dispose();
+        }
     }
 
     @Override
@@ -538,6 +559,8 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
         buf.put((byte) 0);
         buf.put((byte) 0);
         buf.put((byte) 0xc0);
+
+        sendWrite("onFindDevice", buf.array());
     }
 
     @Override
@@ -1063,6 +1086,9 @@ public class C60DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private void handlePhoneControl(byte[] data) {
         byte[] trimmedData = trimData(data);
         LOG.debug("handlePhoneControl: payload - {}", GB.hexdump(trimmedData));
+        if (trimmedData[0] == 0x00) {
+            return;
+        }
         if (trimmedData[2] == 0x02) {
             GBDeviceEventCameraRemote cameraEvent = new GBDeviceEventCameraRemote();
             cameraEvent.event = GBDeviceEventCameraRemote.Event.TAKE_PICTURE;
