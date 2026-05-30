@@ -32,13 +32,13 @@ class JBLTune720BTCoordinator : AbstractBLEDeviceCoordinator() {
     override fun getDeviceNameResource() = R.string.devicetype_jbl_tune_720bt
     override fun getDefaultIconResource() = R.drawable.ic_device_headphones
     override fun getDeviceKind(device: GBDevice) = DeviceCoordinator.DeviceKind.HEADPHONES
-    override fun getDeviceSupportClass(device: GBDevice?) = Tune720BTSupport::class.java
+    override fun getDeviceSupportClass(device: GBDevice) = Tune720BTSupport::class.java
 
     override fun supportsPowerOff(device: GBDevice) = true
 
-    override fun getDeviceSpecificSettingsCustomizer(device: GBDevice?) =
+    override fun getDeviceSpecificSettingsCustomizer(device: GBDevice) =
         JBLHeadphoneSettingsCustomizer()
-    override fun getSupportedDeviceSpecificSettings(device: GBDevice?) =
+    override fun getSupportedDeviceSpecificSettings(device: GBDevice) =
         intArrayOf(
             R.xml.devicesettings_jbl_voiceaware
         )
