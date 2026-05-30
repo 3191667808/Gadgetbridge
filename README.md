@@ -74,6 +74,7 @@ Please see the [Features](https://gadgetbridge.org/basics/features/) page on the
 * Yukai Li (Lefun)
 * José Rebelo (Roidmi, Sony Headphones, Miband 7)
 * Arjan Schrijver (Fossil Hybrid HR watchfaces)
+* Lucas Stegman (Itech Active 3)
 
 ## Contribute
 
