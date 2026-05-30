@@ -451,7 +451,7 @@ public class OuraRing4Support extends AbstractBTLESingleDeviceSupport {
             if (!updated.isEmpty()) {
                 // Single insertOrReplaceInTx for all changed rows. Much faster than per-sample
                 // addGBActivitySample which wraps each call in its own implicit greenDAO tx.
-                provider.addGBActivitySamples(updated.toArray(new OuraActivitySample[0]));
+                provider.addGBActivitySamples(updated);
             }
             LOG.info("Oura HR merge: {} activity samples updated in window {}..{} ({} HR rows scanned)",
                     updated.size(), startSec, endSec, hrSamples.size());
