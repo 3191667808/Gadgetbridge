@@ -1349,7 +1349,7 @@ public class KeepFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
             KeepFitActivitySampleProvider sampleProvider = new KeepFitActivitySampleProvider(getDevice(), db.getDaoSession());
             Long userId = DBHelper.getUser(db.getDaoSession()).getId();
             Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
-            KeepFitActivitySample[] samples = (KeepFitActivitySample[]) sleepEntries
+            List<KeepFitActivitySample> samples = sleepEntries
                     .entrySet()
                     .stream()
                     .map(
@@ -1370,7 +1370,7 @@ public class KeepFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
                                 return gbSample;
                             }
                     )
-                    .toArray(KeepFitActivitySample[]::new);
+                    .toList();
             sampleProvider.addGBActivitySamples(samples);
         } catch (Exception e) {
             LOG.error("Error acquiring database for recording sleep samples", e);
@@ -1382,7 +1382,7 @@ public class KeepFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
             KeepFitActivitySampleProvider sampleProvider = new KeepFitActivitySampleProvider(getDevice(), db.getDaoSession());
             Long userId = DBHelper.getUser(db.getDaoSession()).getId();
             Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
-            KeepFitActivitySample[] samples = (KeepFitActivitySample[]) sportEntries
+            List<KeepFitActivitySample> samples = sportEntries
                     .stream()
                     .map(
                             e -> {
@@ -1419,7 +1419,7 @@ public class KeepFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
                                 return gbSample;
                             }
                     )
-                    .toArray(KeepFitActivitySample[]::new);
+                    .toList();
             sampleProvider.addGBActivitySamples(samples);
         } catch (Exception e) {
             LOG.error("Error acquiring database for recording sleep samples", e);
@@ -1431,7 +1431,7 @@ public class KeepFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
             KeepFitActivitySampleProvider sampleProvider = new KeepFitActivitySampleProvider(getDevice(), db.getDaoSession());
             Long userId = DBHelper.getUser(db.getDaoSession()).getId();
             Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
-            KeepFitActivitySample[] samples = (KeepFitActivitySample[]) stepEntries
+            List<KeepFitActivitySample> samples = stepEntries
                     .entrySet()
                     .stream()
                     .map(
@@ -1446,7 +1446,7 @@ public class KeepFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
                                 return gbSample;
                             }
                     )
-                    .toArray(KeepFitActivitySample[]::new);
+                    .toList();
             sampleProvider.addGBActivitySamples(samples);
         } catch (Exception e) {
             LOG.error("Error acquiring database for recording activity samples", e);
