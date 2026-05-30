@@ -48,7 +48,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.devices.miscale.MiScaleSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.MiScaleWeightSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.miscale.MiScaleS400Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.MiScaleWeightSample;
@@ -216,7 +216,7 @@ public class MiScaleS400DeviceSupport extends AbstractDeviceSupport {
         LOG.debug("Received S400 measurement from {}: weight={}kg", result.getDevice().getAddress(), measurement.getWeightKg());
 
         try (DBHandler db = GBApplication.acquireDB()) {
-            final MiScaleSampleProvider provider = new MiScaleSampleProvider(getDevice(), db.getDaoSession());
+            final MiScaleWeightSampleProvider provider = new MiScaleWeightSampleProvider(getDevice(), db.getDaoSession());
             final Long userId = DBHelper.getUser(db.getDaoSession()).getId();
             final Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
 
