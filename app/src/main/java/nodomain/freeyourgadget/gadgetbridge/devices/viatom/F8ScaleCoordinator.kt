@@ -103,7 +103,7 @@ class F8ScaleCoordinator : AbstractBLEDeviceCoordinator() {
         return "viatom"
     }
 
-    override fun getDeviceSupportClass(device: GBDevice?): Class<out DeviceSupport?> {
+    override fun getDeviceSupportClass(device: GBDevice): Class<out DeviceSupport?> {
         return F8Support::class.java
     }
 
@@ -119,7 +119,7 @@ class F8ScaleCoordinator : AbstractBLEDeviceCoordinator() {
         return R.drawable.ic_device_miscale
     }
 
-    override fun getDeviceSpecificSettings(device: GBDevice?): DeviceSpecificSettings {
+    override fun getDeviceSpecificSettings(device: GBDevice): DeviceSpecificSettings {
         val deviceSpecificSettings = DeviceSpecificSettings()
 
         val generic = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.GENERIC)
