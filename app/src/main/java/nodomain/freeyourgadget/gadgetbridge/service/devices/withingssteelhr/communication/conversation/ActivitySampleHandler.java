@@ -327,7 +327,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     @SuppressWarnings("unchecked")
     private <T extends AbstractWithingsActivitySample> void writeToDB(
             AbstractSampleProvider<T> provider, List<AbstractWithingsActivitySample> activitySamples) {
-        provider.addGBActivitySamples((T[]) activitySamples.toArray(new AbstractWithingsActivitySample[0]));
+        provider.addGBActivitySamples((List<T>) activitySamples);
     }
 
     private AbstractWithingsActivitySample convertToSample(
