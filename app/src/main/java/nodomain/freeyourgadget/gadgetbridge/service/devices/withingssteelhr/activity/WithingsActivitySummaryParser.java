@@ -1,0 +1,90 @@
+package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity;
+
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
+import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
+
+/**
+ * Withings currently stores live workouts directly as BaseActivitySummary rows without
+ * an additional device-specific binary payload. Returning the summary unchanged is enough
+ * to make the generic workouts UI load and render those entries safely.
+ */
+public class WithingsActivitySummaryParser implements ActivitySummaryParser {
+    private static final Logger logger = LoggerFactory.getLogger(WithingsActivitySummaryParser.class);
+
+    @Override
+    public BaseActivitySummary parseBinaryData(final BaseActivitySummary summary, final boolean forDetails) {
+        if (summary == null || summary.getStartTime() == null || summary.getEndTime() == null || summary.getDevice() == null) {
+            return summary;
+        }
+
+        Device dbDevice = summary.getDevice();
+        GBDevice gbDevice = DeviceHelper.getInstance().toGBDevice(dbDevice);
+        if (gbDevice == null) {
+            return summary;
+        }
+
+        try (DBHandler dbHandler = GBApplication.acquireDB()) {
+            DaoSession session = dbHandler.getDaoSession();
+            SampleProvider provider = gbDevice.getDeviceCoordinator().getSampleProvider(gbDevice, session);
+            if (provider != null) {
+                int startTs = (int) (summary.getStartTime().getTime() / 1000);
+                int endTs = (int) (summary.getEndTime().getTime() / 1000);
+                List<? extends ActivitySample> samples = provider.getAllActivitySamples(startTs, endTs);
+                
+                int totalCalories = 0;
+                int totalSteps = 0;
+                int totalDistance = 0;
+                
+                if (samples != null) {
+                    for (ActivitySample sample : samples) {
+                        if (sample instanceof AbstractWithingsActivitySample) {
+                            AbstractWithingsActivitySample withingsSample = (AbstractWithingsActivitySample) sample;
+                            totalCalories += withingsSample.getCalories();
+                            totalSteps += withingsSample.getSteps();
+                            totalDistance += withingsSample.getDistance();
+                        }
+                    }
+                }
+                
+                if (totalCalories > 0 || totalSteps > 0 || totalDistance > 0) {
+                    final ActivitySummaryData summaryData = ActivitySummaryData.fromJson(summary.getSummaryData());
+                    final double totalCaloriesKcal = totalCalories * 0.01d;
+
+                    // Withings sample calories are stored in centi-kcal; summing the raw sample values
+                    // directly would inflate the workout total by 100x (e.g. 213 -> 2.13 kcal).
+                    if (!summaryData.has(ActivitySummaryEntries.CALORIES_BURNT) && totalCaloriesKcal > 0) {
+                        summaryData.add(ActivitySummaryEntries.CALORIES_BURNT, totalCaloriesKcal, ActivitySummaryEntries.UNIT_KCAL);
+                    }
+                    if (!summaryData.has(ActivitySummaryEntries.STEPS) && totalSteps > 0) {
+                        summaryData.add(ActivitySummaryEntries.STEPS, totalSteps, ActivitySummaryEntries.UNIT_STEPS);
+                    }
+                    if (!summaryData.has(ActivitySummaryEntries.DISTANCE_METERS) && totalDistance > 0) {
+                        summaryData.add(ActivitySummaryEntries.DISTANCE_METERS, totalDistance * 0.01, ActivitySummaryEntries.UNIT_METERS);
+                    }
+
+                    summary.setSummaryData(summaryData.toJson());
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to enrich Withings activity summary with sample data", e);
+        }
+
+        return summary;
+    }
+}

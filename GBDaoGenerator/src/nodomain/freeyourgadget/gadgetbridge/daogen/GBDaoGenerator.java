@@ -147,6 +147,7 @@ public class GBDaoGenerator {
         addPineTimeActivitySample(schema, user, device);
         addPolarH10ActivitySample(schema, user, device);
         addWithingsSteelHRActivitySample(schema, user, device);
+        addWithingsScanwatchActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addGenericBloodPressureSample(schema, user, device));
         addHybridHRActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addHybridHRSpo2Sample(schema, user, device));
@@ -253,6 +254,7 @@ public class GBDaoGenerator {
 
         sampleProvidersToGenerate.add(addGenericHeartRateSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericSpo2Sample(schema, user, device));
+        sampleProvidersToGenerate.add(addGenericRespiratoryRateSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericStressSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericHrvValueSample(schema, user, device));
         addGenericTemperatureSample(schema, user, device);
@@ -1691,12 +1693,26 @@ public class GBDaoGenerator {
     private static Entity addWithingsSteelHRActivitySample(Schema schema, Entity user, Entity device) {
         Entity activitySample = addEntity(schema, "WithingsSteelHRActivitySample");
         activitySample.implementsSerializable();
-        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
-        activitySample.addIntProperty("duration").notNull();
+        addCommonActivitySampleProperties("AbstractWithingsActivitySample", activitySample, user, device);
+        activitySample.addIntProperty("duration").notNull().codeBeforeGetterAndSetter(OVERRIDE);
         activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
-        activitySample.addIntProperty("distance").notNull();
-        activitySample.addIntProperty("calories").notNull();
+        activitySample.addIntProperty("distance").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("calories").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        activitySample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        return activitySample;
+    }
+
+    private static Entity addWithingsScanwatchActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "WithingsScanwatchActivitySample");
+        activitySample.implementsSerializable();
+        addCommonActivitySampleProperties("AbstractWithingsActivitySample", activitySample, user, device);
+        activitySample.addIntProperty("duration").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("distance").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("calories").notNull().codeBeforeGetterAndSetter(OVERRIDE);
         addHeartRateProperties(activitySample);
         activitySample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         return activitySample;
@@ -2282,6 +2298,13 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractSpo2Sample", spo2sample, user, device);
         spo2sample.addIntProperty(SAMPLE_SPO2).notNull().codeBeforeGetter(OVERRIDE);
         return spo2sample;
+    }
+
+    private static Entity addGenericRespiratoryRateSample(Schema schema, Entity user, Entity device) {
+        Entity respiratoryRateSample = addEntity(schema, "GenericRespiratoryRateSample");
+        addCommonTimeSampleProperties("AbstractRespiratoryRateSample", respiratoryRateSample, user, device);
+        respiratoryRateSample.addFloatProperty("respiratoryRate").notNull().codeBeforeGetter(OVERRIDE);
+        return respiratoryRateSample;
     }
 
     private static Entity addGenericStressSample(Schema schema, Entity user, Entity device) {

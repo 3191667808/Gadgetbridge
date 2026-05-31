@@ -33,7 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.withingssteelhr.WithingsStee
 import nodomain.freeyourgadget.gadgetbridge.entities.WithingsSteelHRActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.SleepActivitySampleHelper;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.LiveHeartRate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
@@ -41,9 +41,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 
 public class LiveHeartrateHandler implements IncomingMessageHandler {
     private static final Logger logger = LoggerFactory.getLogger(LiveHeartrateHandler.class);
-    private final WithingsSteelHRDeviceSupport support;
+    private final WithingsBaseDeviceSupport support;
 
-    public LiveHeartrateHandler(WithingsSteelHRDeviceSupport support) {
+    public LiveHeartrateHandler(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 

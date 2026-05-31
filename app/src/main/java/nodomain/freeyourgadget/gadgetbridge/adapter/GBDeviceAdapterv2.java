@@ -434,12 +434,19 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                 batteryStatusLabels[batteryIndex].setVisibility(View.VISIBLE);
             }
         }
-        holder.heartRateStatusBox.setVisibility((device.isInitialized() && coordinator.supportsRealtimeData(device) && coordinator.supportsManualHeartRateMeasurement(device)) ? View.VISIBLE : View.GONE);
+        final boolean withingsLiveOnlyHeartRate = coordinator.supportsLiveOnlyHeartRateDisplay(device);
+        holder.heartRateStatusBox.setVisibility((device.isInitialized() && coordinator.supportsRealtimeData(device) && (!withingsLiveOnlyHeartRate || coordinator.supportsManualHeartRateMeasurement(device))) ? View.VISIBLE : View.GONE);
         if (parent.getContext() instanceof ControlCenterv2) {
             ActivitySample sample = ((ControlCenterv2) parent.getContext()).getCurrentHRSample(device);
             if (sample != null) {
                 holder.heartRateStatusLabel.setText(String.valueOf(sample.getHeartRate()));
+                if (withingsLiveOnlyHeartRate) {
+                    holder.heartRateStatusBox.setVisibility(View.VISIBLE);
+                }
             } else {
+                if (withingsLiveOnlyHeartRate) {
+                    holder.heartRateStatusBox.setVisibility(View.GONE);
+                }
                 holder.heartRateStatusLabel.setText("");
             }
 
@@ -451,15 +458,23 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
             }
         }
 
-        holder.heartRateStatusBox.setOnClickListener(new View.OnClickListener() {
-                                                         @Override
-                                                         public void onClick(View v) {
-                                                             GBApplication.deviceService(device).onHeartRateTest();
-                                                             HeartRateDialog dialog = new HeartRateDialog(device, context);
-                                                             dialog.show();
+        if (withingsLiveOnlyHeartRate) {
+            holder.heartRateStatusBox.setOnClickListener(null);
+            holder.heartRateStatusBox.setClickable(false);
+            holder.heartRateStatusBox.setFocusable(false);
+        } else {
+            holder.heartRateStatusBox.setOnClickListener(new View.OnClickListener() {
+                                                             @Override
+                                                             public void onClick(View v) {
+                                                                 GBApplication.deviceService(device).onHeartRateTest();
+                                                                 HeartRateDialog dialog = new HeartRateDialog(device, context);
+                                                                 dialog.show();
+                                                             }
                                                          }
-                                                     }
-        );
+            );
+            holder.heartRateStatusBox.setClickable(true);
+            holder.heartRateStatusBox.setFocusable(true);
+        }
 
         //device specific settings
         holder.deviceSpecificSettingsView.setVisibility(coordinator.getSupportedDeviceSpecificSettings(device)  != null ? View.VISIBLE : View.GONE);
@@ -1464,6 +1479,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
         int sleepGoalMinutes = activityUser.getSleepDurationGoal();
         int distanceGoal = activityUser.getDistanceGoalMeters() * 100;
         int stepLength = activityUser.getStepLengthCm();
+        int distanceForChart = distanceCm > 0 ? distanceCm : steps * stepLength;
         double distanceMeters = (distanceCm > 0 ? distanceCm : steps * stepLength) * 0.01;
         String distanceFormatted = FormatUtils.getFormattedDistanceLabel(distanceMeters);
 
@@ -1471,7 +1487,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
         setChartsData(holder.TotalStepsChart, steps, stepGoal, context.getString(R.string.steps), String.valueOf(steps), context);
 
         setUpChart(holder.TotalDistanceChart);
-        setChartsData(holder.TotalDistanceChart, steps * stepLength, distanceGoal, context.getString(R.string.distance), distanceFormatted, context);
+        setChartsData(holder.TotalDistanceChart, distanceForChart, distanceGoal, context.getString(R.string.distance), distanceFormatted, context);
 
         setUpChart(holder.SleepTimeChart);
         setChartsData(holder.SleepTimeChart, sleep, sleepGoalMinutes, context.getString(R.string.prefs_activity_in_device_card_sleep_title), String.format("%1s", getHM(sleep)), context);
@@ -1485,7 +1501,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
         Hashtable<PieChart, Pair<Boolean, Integer>> activitiesStatusMiniCharts = new Hashtable<>();
         activitiesStatusMiniCharts.put(holder.TotalStepsChart, new Pair<>(showActivitySteps && steps > 0, ActivityChartsActivity.getChartsTabIndex("stepsweek", device, context)));
         activitiesStatusMiniCharts.put(holder.SleepTimeChart, new Pair<>(showActivitySleep && sleep > 0, ActivityChartsActivity.getChartsTabIndex("sleep", device, context)));
-        activitiesStatusMiniCharts.put(holder.TotalDistanceChart, new Pair<>(showActivityDistance && steps > 0, ActivityChartsActivity.getChartsTabIndex("activity", device, context)));
+        activitiesStatusMiniCharts.put(holder.TotalDistanceChart, new Pair<>(showActivityDistance && distanceForChart > 0, ActivityChartsActivity.getChartsTabIndex("activity", device, context)));
 
         for (Map.Entry<PieChart, Pair<Boolean, Integer>> miniCharts : activitiesStatusMiniCharts.entrySet()) {
             PieChart miniChart = miniCharts.getKey();

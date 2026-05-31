@@ -183,8 +183,8 @@ public class FitProConstants {
 
     //00       01         00      96            03            08      16    7f
     //^^ zeros ^^ on/off  ^^ sep  ^^unknown     ^^minutes     ^^from  ^^ to ^^ unknown
-    //minutes are array of minutes by 15, in 45,60, 75...→ 3,4,5...
-    //the byte 4 → 96 could be experimented with to set different values..., byte 3 is probably Hi, byte 4 Low
+    //minutes are array of minutes by 15, in 45,60, 75...-> 3,4,5...
+    //the byte 4 -> 96 could be experimented with to set different values..., byte 3 is probably Hi, byte 4 Low
     //public static final byte[] CMD_SET_LONG_SIT_REMINDER = new byte[]{(byte) 0x12, (byte) 0x5};
     //maybe could be usign the ON/OFF?
     //public static final byte[] VALUE_SET_LONG_SIT_REMINDER_ON = new byte[]{0x0, 0x1, 0x0, (byte) 0x96};
@@ -194,7 +194,7 @@ public class FitProConstants {
     //Value: cd 00 0a 12 01 09 00 05 00 01 e0 05 28 OFF
     //       00 1  2  3  4  5  6  7  8  9  10 11 12
     //byte 8 on/off
-    // 9,10,11,12 → time from/to
+    // 9,10,11,12 -> time from/to
     //public static final byte[] CMD_SET_DISPLAY_ON_LIFT = new byte[]{(byte) 0x12, (byte) 0x9};
     //maybe could be usign the ON/OFF?
     //public static final byte VALUE_SET_DISPLAY_ON_LIFT_ON = 0x1;
@@ -207,7 +207,7 @@ public class FitProConstants {
     // (byte) 0x12, (byte) 0x01, (byte) 0x0b, (byte) 0x00, (byte) 0x01, (byte) 0x01};
 
     /*init procedure:
-    get pair cd 00 06 12 01 0a 00 01 02 → 18, 10
+    get pair cd 00 06 12 01 0a 00 01 02 -> 18, 10
     cd 00 09 12 01 01 00 04 55 f8 36 90
     cd 00 05 1a 01 0a 00 00
     cd 00 05 1a 01 0c 00 00
@@ -218,8 +218,8 @@ public class FitProConstants {
     cd 00 05 1a 01 0f 00 00
     cd 00 05 1a 01 10 00 00
     dc 00 05 1a 01 00 1c 01
-    something cd 00 05 20 01 02 00 00 → 32, 2
-    real time step cd 00 06 15 01 06 00 01 01 → 21, 6
+    something cd 00 05 20 01 02 00 00 -> 32, 2
+    real time step cd 00 06 15 01 06 00 01 01 -> 21, 6
      */
 
     //received heartrate

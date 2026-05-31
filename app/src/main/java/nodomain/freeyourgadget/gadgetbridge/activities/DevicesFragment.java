@@ -26,6 +26,8 @@ import android.content.IntentFilter;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -68,6 +70,8 @@ public class DevicesFragment extends Fragment {
     private FloatingActionButton fab;
     List<GBDevice> deviceList;
     private  HashMap<String, DailyTotals> deviceActivityHashMap = new HashMap();
+    private final Handler realtimeRefreshHandler = new Handler(Looper.getMainLooper());
+    private final HashMap<String, Runnable> realtimeHeartRateHideRunnables = new HashMap<>();
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -101,11 +105,33 @@ public class DevicesFragment extends Fragment {
             if (HeartRateUtils.getInstance().isValidHeartRateValue(sample.getHeartRate())) {
                 if (device != null) {
                     refreshSingleDevice(device);
+                    if (device.getDeviceCoordinator().supportsLiveOnlyHeartRateDisplay(device)) {
+                        scheduleRealtimeHeartRateHide(device);
+                    }
                 } else {
                     refreshPairedDevices();
                 }
             }
         }
+    }
+
+    private void scheduleRealtimeHeartRateHide(final GBDevice device) {
+        final String address = device.getAddress();
+        final Runnable existingRunnable = realtimeHeartRateHideRunnables.remove(address);
+        if (existingRunnable != null) {
+            realtimeRefreshHandler.removeCallbacks(existingRunnable);
+        }
+
+        final Runnable hideRunnable = new Runnable() {
+            @Override
+            public void run() {
+                realtimeHeartRateHideRunnables.remove(address);
+                refreshSingleDevice(device);
+            }
+        };
+
+        realtimeHeartRateHideRunnables.put(address, hideRunnable);
+        realtimeRefreshHandler.postDelayed(hideRunnable, ControlCenterv2.REALTIME_HR_SAMPLE_TTL_MS + 250L);
     }
 
     @Override
@@ -125,7 +151,7 @@ public class DevicesFragment extends Fragment {
         deviceListView.setAdapter(this.mGBDeviceAdapter);
 
         // get activity data asynchronously, this fills the deviceActivityHashMap
-        // and calls refreshPairedDevices() → notifyDataSetChanged
+        // and calls refreshPairedDevices() -> notifyDataSetChanged
         deviceListView.post(new Runnable() {
             @Override
             public void run() {
@@ -213,6 +239,8 @@ public class DevicesFragment extends Fragment {
     public void onDestroy() {
         if (deviceListView != null) unregisterForContextMenu(deviceListView);
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver);
+        realtimeRefreshHandler.removeCallbacksAndMessages(null);
+        realtimeHeartRateHideRunnables.clear();
         super.onDestroy();
     }
 

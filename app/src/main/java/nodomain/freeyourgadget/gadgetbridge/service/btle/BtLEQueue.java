@@ -137,6 +137,10 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                             if (LOG.isDebugEnabled()) {
                                 LOG.debug("execute server: {}", action);
                             }
+                            // Create latch BEFORE running the action, because the
+                            // callback (e.g. onNotificationSent) may fire immediately
+                            // on the same thread or a different one.
+                            mWaitForServerActionResultLatch = new CountDownLatch(1);
                             if (action.run(mBluetoothGattServer)) {
                                 // check again, maybe due to some condition, action did not need to write, so we can't wait
                                 boolean waitForResult = action.expectsResult();
@@ -149,6 +153,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                                 }
                             } else {
                                 LOG.error("Server action returned false: {}", action);
+                                mWaitForServerActionResultLatch = null;
                                 break; // abort the transaction
                             }
                         }
@@ -344,7 +349,12 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                 LOG.error("Error opening Gatt Server");
                 return false;
             }
+            LOG.debug("GATT server opened, adding {} server services", mSupportedServerServices.size());
             for(BluetoothGattService service : mSupportedServerServices) {
+                LOG.debug("Adding server service uuid={} type={} chars={}",
+                        service.getUuid(),
+                        service.getType() == BluetoothGattService.SERVICE_TYPE_PRIMARY ? "PRIMARY" : "SECONDARY",
+                        service.getCharacteristics().size());
                 mBluetoothGattServer.addService(service);
             }
         }
@@ -391,6 +401,37 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
 
             if (mGbDevice.getState() != State.NOT_CONNECTED) {
                 setDeviceConnectionState(State.NOT_CONNECTED);
+            }
+        }
+    }
+
+    /**
+     * Removes and re-adds all server services on the GATT server.
+     * <p>
+     * This is needed when a bonded device reconnects via bond restoration
+     * after the phone reboots: the GATT server services are re-created,
+     * but the device may not re-discover them because it was already
+     * connected when the services were added.  Cycling the services
+     * triggers Android's Service Changed indication to the bonded device,
+     * forcing it to re-discover services and re-subscribe to CCC
+     * descriptors.
+     */
+    public void refreshServerServices() {
+        synchronized (mGattMonitor) {
+            BluetoothGattServer gattServer = mBluetoothGattServer;
+            if (gattServer == null) {
+                LOG.warn("refreshServerServices: no GATT server");
+                return;
+            }
+            if (mSupportedServerServices.isEmpty()) {
+                LOG.debug("refreshServerServices: no server services to refresh");
+                return;
+            }
+            LOG.debug("refreshServerServices: removing and re-adding {} server services", mSupportedServerServices.size());
+            gattServer.clearServices();
+            for (BluetoothGattService service : mSupportedServerServices) {
+                LOG.debug("refreshServerServices: re-adding service uuid={}", service.getUuid());
+                gattServer.addService(service);
             }
         }
     }
@@ -1038,7 +1079,8 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
 
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
-            LOG.debug("gatt server connection state change, newState: {} {}", newState, BleNamesResolver.getStatusString(status));
+            LOG.debug("gatt server onConnectionStateChange device={}, newState={} (0=DISCONNECTED, 2=CONNECTED), status={}",
+                    device.getAddress(), newState, BleNamesResolver.getStatusString(status));
 
             if(!checkCorrectBluetoothDevice(device)) {
                 return;
@@ -1123,7 +1165,11 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
 
         @Override
         public void onServiceAdded(int status, BluetoothGattService service) {
-            LOG.debug("server.onServiceAdded {} {}", service.getUuid(), service.getInstanceId());
+            LOG.debug("server.onServiceAdded status={} uuid={} instanceId={} type={} characteristics={}",
+                    BleNamesResolver.getStatusString(status),
+                    service.getUuid(), service.getInstanceId(),
+                    service.getType() == BluetoothGattService.SERVICE_TYPE_PRIMARY ? "PRIMARY" : "SECONDARY",
+                    service.getCharacteristics().size());
         }
 
         @Override
@@ -1135,6 +1181,10 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         public void onNotificationSent(BluetoothDevice device, int status) {
             LOG.debug("server.onNotificationSent {}",
                     BleNamesResolver.getStatusString(status));
+            final CountDownLatch latch = mWaitForServerActionResultLatch;
+            if (latch != null) {
+                latch.countDown();
+            }
         }
 
         @Override
