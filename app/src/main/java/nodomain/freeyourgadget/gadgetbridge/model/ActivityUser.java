@@ -48,6 +48,7 @@ public class ActivityUser {
     private int activityUserActiveTimeGoalMinutes;
     private int activityUserStandingTimeGoalHours;
     private int activityUserStepLengthCm;
+    private int activityUserGoalWeightKg;
 
     private static final String defaultUserName = "gadgetbridge-user";
     public static final int defaultUserGender = GENDER_FEMALE;
@@ -168,6 +169,7 @@ public class ActivityUser {
         activityUserActiveTimeGoalMinutes = prefs.getInt(PREF_USER_ACTIVETIME_MINUTES, defaultUserActiveTimeGoalMinutes);
         activityUserStandingTimeGoalHours = prefs.getInt(PREF_USER_GOAL_STANDING_TIME_HOURS, defaultUserGoalStandingTimeHours);
         activityUserStepLengthCm = prefs.getInt(PREF_USER_STEP_LENGTH_CM, defaultUserStepLengthCm);
+        activityUserGoalWeightKg = prefs.getInt(PREF_USER_GOAL_WEIGHT_KG, defaultUserGoalWeightKg);
     }
 
     /**
@@ -213,5 +215,13 @@ public class ActivityUser {
             activityUserStandingTimeGoalHours = defaultUserGoalStandingTimeHours;
         }
         return activityUserStandingTimeGoalHours;
+    }
+
+    public int getWeightGoalKg()
+    {
+        if (activityUserGoalWeightKg < 1) {
+            activityUserGoalWeightKg = defaultUserGoalWeightKg;
+        }
+        return activityUserGoalWeightKg;
     }
 }

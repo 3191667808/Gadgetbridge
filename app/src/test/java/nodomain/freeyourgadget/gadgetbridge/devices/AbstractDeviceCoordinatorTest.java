@@ -205,6 +205,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("SR08", DeviceType.SR08_RING);
             put("Z10",DeviceType.Z10_BAND);
             put("BPW4500", DeviceType.BRAUN_BPW4500); // #5886
+            put("F8", DeviceType.F8SCALE); // #5748
         }};
 
         for (Map.Entry<String, DeviceType> e : bluetoothNameToExpectedType.entrySet()) {
