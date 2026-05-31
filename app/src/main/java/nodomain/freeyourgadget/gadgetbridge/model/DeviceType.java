@@ -424,6 +424,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWFC700NCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWFC710NCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWFSP800NCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWHXB910NCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWISP600NCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWH1000XM2Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWH1000XM3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWH1000XM4Coordinator;
@@ -811,6 +813,7 @@ public enum DeviceType {
     SONY_WF_SP800N(SonyWFSP800NCoordinator.class),
     SONY_WI_C100(SonyWIC100Coordinator.class),
     SONY_WI_SP600N(SonyWISP600NCoordinator.class),
+    SONY_WH_XB910N(SonyWHXB910NCoordinator.class),
     SONY_WH_1000XM4(SonyWH1000XM4Coordinator.class),
     SONY_WF_1000XM3(SonyWF1000XM3Coordinator.class),
     SONY_WH_1000XM2(SonyWH1000XM2Coordinator.class),
