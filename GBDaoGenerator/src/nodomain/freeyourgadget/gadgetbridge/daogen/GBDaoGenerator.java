@@ -198,6 +198,12 @@ public class GBDaoGenerator {
         addKeephealthActivitySample(schema, user, device);
         addKeephealthBloodPressureSample(schema, user, device);
         addKeephealthTemperatureSample(schema, user, device);
+        addKeepFitActivitySample(schema, user, device);
+        addKeepFitHeartRateSample(schema, user, device);
+        addKeepFitSleepSample(schema, user, device);
+        addKeepFitSpo2Sample(schema, user, device);
+        addKeepFitStressSample(schema, user, device);
+        addKeepFitBloodPressureSample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addHuaweiStressSample(schema, user, device));
@@ -2311,6 +2317,56 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
         sample.addIntProperty("value").notNull();
         return sample;
+    }
+
+    private static Entity addKeepFitActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "KeepFitActivitySample");
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.implementsSerializable();
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        activitySample.addIntProperty("distance");
+        activitySample.addIntProperty("calories");
+        return activitySample;
+    }
+
+    private static Entity addKeepFitHeartRateSample(Schema schema, Entity user, Entity device) {
+        Entity heartRateSample = addEntity(schema, "KeepFitHeartRateSample");
+        heartRateSample.implementsSerializable();
+        addCommonTimeSampleProperties("AbstractHeartRateSample", heartRateSample, user, device);
+        heartRateSample.addIntProperty(SAMPLE_HEART_RATE).notNull();
+        return heartRateSample;
+    }
+
+    private static Entity addKeepFitSleepSample(Schema schema, Entity user, Entity device) {
+        Entity sleepSample = addEntity(schema, "KeepFitSleepSample");
+        sleepSample.addImport(MAIN_PACKAGE + ".model.SleepScoreSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sleepSample, user, device);
+        sleepSample.implementsInterface("SleepScoreSample");
+        sleepSample.addIntProperty("sleepScore").notNull().codeBeforeGetter(OVERRIDE);
+        return sleepSample;
+    }
+
+    private static Entity addKeepFitSpo2Sample(Schema schema, Entity user, Entity device) {
+        Entity spo2sample = addEntity(schema, "KeepFitSpo2Sample");
+        addCommonTimeSampleProperties("AbstractSpo2Sample", spo2sample, user, device);
+        spo2sample.addIntProperty("spo2").notNull().codeBeforeGetter(OVERRIDE);
+        return spo2sample;
+    }
+
+    private static Entity addKeepFitStressSample(Schema schema, Entity user, Entity device) {
+        Entity stressSample = addEntity(schema, "KeepFitStressSample");
+        addCommonTimeSampleProperties("AbstractStressSample", stressSample, user, device);
+        stressSample.addIntProperty(SAMPLE_STRESS).notNull().codeBeforeGetter(OVERRIDE);
+        return stressSample;
+    }
+
+    private static Entity addKeepFitBloodPressureSample(Schema schema, Entity user, Entity device) {
+        Entity bpSample = addEntity(schema, "KeepFitBloodPressureSample");
+        addCommonTimeSampleProperties("AbstractBloodPressureSample", bpSample, user, device);
+        addBloodPressureProperies(bpSample);
+        return bpSample;
     }
 
     private static Entity addGenericWeightSample(Schema schema, Entity user, Entity device) {

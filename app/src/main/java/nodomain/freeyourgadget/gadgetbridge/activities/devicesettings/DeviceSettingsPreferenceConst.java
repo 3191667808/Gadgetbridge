@@ -756,4 +756,6 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_ATC_BLE_OEPL_MODEL = "pref_atc_ble_oepl_model";
     public static final String PREF_ATC_BLE_OEPL_BLE_ADV_INTERVAL = "pref_atc_ble_oepl_ble_adv_interval";
     public static final String PREF_ATC_BLE_OEPL_OEPL_PROTOCOL_ENABLE = "pref_atc_ble_oepl_oepl_protocol_enable";
+
+    public static final String PREF_PHONE_UNIQUE_ID = "pref_phone_unique_id";
 }

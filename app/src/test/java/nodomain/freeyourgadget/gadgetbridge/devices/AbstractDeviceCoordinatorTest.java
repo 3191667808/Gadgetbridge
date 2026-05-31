@@ -200,6 +200,10 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("C20", DeviceType.C20); // #4070
             put("C 20", DeviceType.C20); // #5495
             put("OV-Touch2.6_LE", DeviceType.OVTOUCH26); // #5628
+            put("Smart_Ring_01_02", DeviceType.COLMI_SR1);
+            put("Smart_Ring_01_18", DeviceType.COLMI_SR1);
+            put("SR08", DeviceType.SR08_RING);
+            put("Z10",DeviceType.Z10_BAND);
             put("BPW4500", DeviceType.BRAUN_BPW4500); // #5886
         }};
 
