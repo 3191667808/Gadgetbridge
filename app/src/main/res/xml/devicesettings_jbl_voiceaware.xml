@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <ListPreference
+        android:defaultValue="off"
+        android:entries="@array/pref_jbl_voiceaware_entries"
+        android:entryValues="@array/pref_jbl_voiceaware_values"
+        android:icon="@drawable/ic_voice"
+        android:key="pref_jbl_voiceaware"
+        android:summary="@string/pref_jbl_voiceaware_summary"
+        android:title="@string/pref_jbl_voiceaware" />
+
+</androidx.preference.PreferenceScreen>

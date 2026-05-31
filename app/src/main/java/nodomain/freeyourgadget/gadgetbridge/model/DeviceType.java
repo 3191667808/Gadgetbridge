@@ -331,6 +331,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportiGS630Coord
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportiGS630SCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportiGS800Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.itag.ITagCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.jbl.headphones.JBLTune720BTCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.BFH16DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.TeclastH30.TeclastH30Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.y5.Y5Coordinator;
@@ -978,6 +979,7 @@ public enum DeviceType {
     COOSPO_H6(CoospoH6Coordinator.class),
     COOSPO_HW9(CoospoHW9Coordinator.class),
     COOSPO_HW807(CoospoHW807Coordinator.class),
+    JBL_TUNE_720BT(JBLTune720BTCoordinator.class),
     COOSPO_H9Z(CoospoH9ZCoordinator.class),
     KEEPHEALTH_C60(C60DeviceCoordinator.class),
     GENERIC_WEIGHT_SCALE(GenericWeightScaleCoordinator.class),
