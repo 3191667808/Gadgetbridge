@@ -397,6 +397,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.onetouch.OneTouchCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoEncoAir2Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoEncoAirCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoEncoBuds2Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.oura.OuraRing4Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.overmax.OVTouch26Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.pinetime.PineTimeJFCoordinator;
@@ -956,6 +957,7 @@ public enum DeviceType {
     COLMI_R10(ColmiR10Coordinator.class),
     COLMI_R12(ColmiR12Coordinator.class),
     H59(H59Coordinator.class),
+    OURA_RING_4(OuraRing4Coordinator.class),
     COLMI_I28_ULTRA(ColmiI28UltraCoordinator.class),
     COLMI_P76(ColmiP76Coordinator.class),
     COLMI_P80(ColmiP80Coordinator.class),

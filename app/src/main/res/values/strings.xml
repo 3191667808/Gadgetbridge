@@ -2278,6 +2278,22 @@
     <string name="devicetype_colmi_r12" translatable="false">Colmi R12</string>
     <string name="devicetype_h59" translatable="false">H59</string>
     <string name="devicetype_c60" translatable="false">C60</string>
+    <string name="devicetype_oura_ring_4" translatable="false">Oura Ring 4</string>
+    <string name="pref_oura_daytime_hr_title">Daytime heart rate</string>
+    <string name="pref_oura_daytime_hr_summary">Continuously sample heart rate during waking hours. Increases battery drain.</string>
+    <string name="pref_oura_resting_hr_title">Resting heart rate</string>
+    <string name="pref_oura_resting_hr_summary">Track lowest stable heart rate periods; used for the daily readiness score.</string>
+    <string name="pref_oura_exercise_hr_title">Exercise heart rate</string>
+    <string name="pref_oura_exercise_hr_summary">Detect workouts automatically and sample heart rate at higher cadence while moving.</string>
+    <string name="pref_oura_real_steps_title">Step tracking</string>
+    <string name="pref_oura_real_steps_summary">Count steps using on-ring activity detection (vs. estimated from motion only).</string>
+    <string name="pref_oura_tap_to_tag_title">Tap-to-tag</string>
+    <string name="pref_oura_tap_to_tag_summary">Allow the ring to detect a double-tap gesture (used to mark events).</string>
+    <string name="pref_oura_charging_control_title">Charging control</string>
+    <string name="pref_oura_charging_control_summary">Let the ring manage charging behaviour on its dock.</string>
+    <string name="pref_oura_sync_interval_title">Sync cooldown</string>
+    <string name="pref_oura_sync_interval_summary">Minimum interval between automatic syncs.</string>
+    <string name="pref_oura_sync_interval_dialog_title">Sync cooldown</string>
     <string name="devicetype_colmi_i28_ultra" translatable="false">Colmi i28 Ultra</string>
     <string name="devicetype_colmi_p76" translatable="false">Colmi P76</string>
     <string name="devicetype_colmi_v72" translatable="false">Colmi V72</string>
