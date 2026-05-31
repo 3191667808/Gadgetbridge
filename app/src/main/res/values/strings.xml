@@ -2339,6 +2339,7 @@
     <string name="devicetype_keepfit_colmi_sr1" translatable="false">SR1 Ring</string>
     <string name="devicetype_keepfit_z10" translatable="false">Z10 Smart Bracelet</string>
     <string name="devicetype_braun_bpw4500" translatable="false">Braun iCheck 7 BPW4500</string>
+    <string name="devicetype_canon_eos200D" translatable="false">Canon EOS200D</string>
     <!-- Menus on the smart device -->
     <string name="menuitem_nothing">Nothing</string>
     <string name="menuitem_status">Status</string>
