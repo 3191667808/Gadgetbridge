@@ -4168,6 +4168,20 @@
         <item>8</item>
     </string-array>
 
+    <string-array name="earfun_qcc3072_audio_codec_names">
+        <item>@string/pref_title_stable_connection</item>
+        <item>aptX</item>
+        <item>aptX Adaptive</item>
+        <item>aptX Adaptive Lossless</item>
+    </string-array>
+
+    <string-array name="earfun_qcc3072_audio_codec_values">
+        <item>0</item>
+        <item>1</item>
+        <item>3</item>
+        <item>19</item>
+    </string-array>
+
     <string-array name="earfun_advanced_audio_mode_names">
         <item>Google Fast Pair</item>
         <item>LE Audio</item>
@@ -4246,6 +4260,54 @@
         <item>10</item>
         <item>11</item>
         <item>13</item>
+    </string-array>
+
+    <string-array name="earfun_air_pro_3_tap_action_names">
+        <item>@string/none</item>
+        <item>@string/pref_media_volumeup</item>
+        <item>@string/pref_media_volumedown</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_playpause</item>
+        <item>@string/pref_title_touch_voice_assistant</item>
+        <item>@string/prefs_ambient_mode</item>
+        <item>@string/prefs_game_mode</item>
+    </string-array>
+
+    <string-array name="earfun_air_pro_3_tap_action_values">
+        <item>16</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>4</item>
+        <item>1</item>
+        <item>6</item>
+        <item>8</item>
+        <item>7</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_ambient_mode_names">
+        <item>@string/pref_title_equalizer_natural</item>
+        <item>@string/earfun_ambient_mode_fully_transparent</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_ambient_mode_values">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_anc_mode_names">
+        <item>@string/pref_default</item>
+        <item>@string/earfun_anc_mode_ears_1</item>
+        <item>@string/earfun_anc_mode_ears_2</item>
+        <item>@string/earfun_anc_mode_ears_3</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_anc_mode_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
     </string-array>
 
     <string-array name="sony_ambient_sound_control_wind_noise_reduction_names">
