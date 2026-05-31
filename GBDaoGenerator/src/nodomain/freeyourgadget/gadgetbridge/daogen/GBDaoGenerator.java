@@ -221,6 +221,8 @@ public class GBDaoGenerator {
         addUltrahumanActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addUltrahumanDeviceStateSample(schema, user, device));
 
+        addVRingR26ActivitySample(schema, user, device);
+
         Entity huaweiWorkoutSummary = addHuaweiWorkoutSummarySample(schema, user, device);
         addHuaweiWorkoutSummaryAdditionalValuesSample(schema, huaweiWorkoutSummary);
         addHuaweiWorkoutDataSample(schema, huaweiWorkoutSummary);
@@ -2235,6 +2237,20 @@ public class GBDaoGenerator {
         sample.addIntProperty("batteryLevel");
         sample.addIntProperty("deviceState");
         sample.addIntProperty("deviceTemperature");
+
+        return sample;
+    }
+
+    private static Entity addVRingR26ActivitySample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "VRingR26ActivitySample");
+
+        addCommonActivitySampleProperties("AbstractVRingR26ActivitySample", sample, user, device);
+        sample.addIntProperty(SAMPLE_RAW_KIND).notNull();
+        sample.addIntProperty(SAMPLE_HEART_RATE).notNull();
+        sample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull();
+        sample.addIntProperty(SAMPLE_STEPS).notNull();
+        sample.addIntProperty("distance");
+        sample.addIntProperty("calories");
 
         return sample;
     }
