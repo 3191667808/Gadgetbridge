@@ -346,6 +346,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60DeviceCoordina
 import nodomain.freeyourgadget.gadgetbridge.devices.liveview.LiveviewCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.makibeshr3.MakibesHR3Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.marshall.MarshallActon3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.marstek.MarstekB2500DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.mijia_lywsd.MijiaLywsd02Coordinator;
@@ -973,6 +974,7 @@ public enum DeviceType {
     SCANNABLE(ScannableDeviceCoordinator.class),
     CYCLING_SENSOR(CyclingSensorCoordinator.class),
     BLE_GATT_CLIENT(BleGattClientCoordinator.class),
+    MARSHALL_ACTON_3(MarshallActon3Coordinator.class),
     MARSTEK_B2500(MarstekB2500DeviceCoordinator.class),
     GENERIC_HEADPHONES(GenericHeadphonesCoordinator.class),
     GENERIC_THERMAL_PRINTER(ThermalPrinterCoordinator.class),

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <Preference
+        android:icon="@drawable/ic_speaker"
+        android:key="pref_marshall_device_info"
+        android:summary="@string/marshall_acton_device_info_summary"
+        android:title="@string/marshall_acton_device_info_title" />
+
+    <SeekBarPreference
+        android:defaultValue="15"
+        android:icon="@drawable/ic_volume_up"
+        android:key="pref_marshall_volume"
+        android:max="31"
+        android:title="@string/marshall_pref_volume_title"
+        app:min="0"
+        app:showSeekBarValue="true" />
+
+    <SeekBarPreference
+        android:defaultValue="5"
+        android:icon="@drawable/ic_speaker"
+        android:key="pref_marshall_bass"
+        android:max="10"
+        android:title="@string/marshall_pref_bass_title"
+        app:min="0"
+        app:showSeekBarValue="true" />
+
+    <SeekBarPreference
+        android:defaultValue="5"
+        android:icon="@drawable/ic_speaker"
+        android:key="pref_marshall_treble"
+        android:max="10"
+        android:title="@string/marshall_pref_treble_title"
+        app:min="0"
+        app:showSeekBarValue="true" />
+
+    <ListPreference
+        android:defaultValue="bluetooth"
+        android:entries="@array/marshall_source_names"
+        android:entryValues="@array/marshall_source_values"
+        android:icon="@drawable/ic_bluetooth"
+        android:key="pref_marshall_source"
+        android:title="@string/marshall_pref_source_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <ListPreference
+        android:defaultValue="free"
+        android:entries="@array/marshall_placement_names"
+        android:entryValues="@array/marshall_placement_values"
+        android:icon="@drawable/ic_settings"
+        android:key="pref_marshall_placement"
+        android:title="@string/marshall_pref_placement_title"
+        app:useSimpleSummaryProvider="true" />
+
+</androidx.preference.PreferenceScreen>

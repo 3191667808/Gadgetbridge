@@ -4403,6 +4403,23 @@
     <string name="permission_query_all_packages_title">Query all packages</string>
     <string name="permission_query_all_packages_summary">Reading names and icons of all installed apps</string>
     <string name="about_build_details_copied_to_clipboard">Build details copied to clipboard</string>
+    <string name="devicetype_marshall_acton_3" translatable="false">Marshall Acton III</string>
+    <string name="marshall_acton_device_info_title">Device Information</string>
+    <string name="marshall_acton_device_info_summary">Marshall Acton III Speaker</string>
+    <string name="marshall_pref_volume_title">Volume</string>
+    <string name="marshall_pref_bass_title">Bass</string>
+    <string name="marshall_pref_treble_title">Treble</string>
+    <string name="marshall_pref_source_title">Source</string>
+    <string name="marshall_pref_placement_title">Placement</string>
+    <string name="marshall_source_bluetooth">Bluetooth</string>
+    <string name="marshall_source_aux">AUX</string>
+    <string name="marshall_placement_wall">Close to wall</string>
+    <string name="marshall_placement_edge">Close to edge</string>
+    <string name="marshall_placement_free">Free standing</string>
+    <string name="marshall_placement_wall_short">Wall</string>
+    <string name="marshall_placement_edge_short">Edge</string>
+    <string name="marshall_placement_free_short">Free</string>
+    <string name="marshall_error_sending_config">Failed to send configuration to device</string>
     <string name="devicetype_marstek_b2500" translatable="false">Marstek B2500</string>
     <string name="battery_discharge_intervals">Battery Discharge Intervals</string>
     <string name="discharge_interval_1">Discharge interval 1</string>
