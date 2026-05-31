@@ -1,4 +1,4 @@
-/*  Copyright (C) 2019-2024 Andreas Shimokawa, Carsten Pfeiffer, Daniel Dakhno
+/*  Copyright (C) 2019-2025 Andreas Shimokawa, Carsten Pfeiffer, Daniel Dakhno, Carmine Esposito
 
     This file is part of Gadgetbridge.
 
@@ -16,8 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.misfit;
 
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.ITEM_ACTIVITY_POINT;
+import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.ITEM_ACTIVITY_GOAL;
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.ITEM_STEP_COUNT;
+import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.ITEM_STEP_GOAL;
+import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.ITEM_VIBRATION_STRENGTH;
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.QHYBRID_EVENT_BUTTON_PRESS;
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport.QHYBRID_EVENT_FILE_UPLOADED;
 
@@ -45,6 +49,7 @@ import java.util.Queue;
 import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceManager;
 import nodomain.freeyourgadget.gadgetbridge.devices.qhybrid.NotificationConfiguration;
@@ -52,17 +57,21 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.model.GenericItem;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.QHybridSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.adapter.WatchAdapter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.Request;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.ActivityPointGetRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.AnimationRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.ActivationRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.BatteryLevelRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.DownloadFileRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.EraseFileRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.FileRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.FileRequestNoResp;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetCountdownSettingsRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetCurrentStepCountRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetPointGoalRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetStepGoalRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GetVibrationStrengthRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.GoalTrackingGetRequest;
@@ -74,7 +83,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.mis
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.ReleaseHandsControlRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.RequestHandControlRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SaveCalibrationRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetClockState;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetCurrentStepCountRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetPointGoalRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetStepGoalRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetTimeRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.SetVibrationStrengthRequest;
@@ -83,7 +94,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.mis
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
-public class MisfitWatchAdapter extends WatchAdapter {
+public class MisfitFlashWatchAdapter extends WatchAdapter {
     private int lastButtonIndex = -1;
     private final SparseArray<Request> responseFilters = new SparseArray<>();
 
@@ -94,7 +105,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
 
     private Logger logger = LoggerFactory.getLogger(getClass());
 
-    public MisfitWatchAdapter(QHybridSupport deviceSupport) {
+    public MisfitFlashWatchAdapter(QHybridSupport deviceSupport) {
         super(deviceSupport);
 
         fillResponseList();
@@ -102,15 +113,17 @@ public class MisfitWatchAdapter extends WatchAdapter {
 
     @Override
     public void initialize() {
-        requestQueue.add(new GetStepGoalRequest());
-        requestQueue.add(new GetVibrationStrengthRequest());
-        requestQueue.add(new ActivityPointGetRequest());
-        requestQueue.add(prepareSetTimeRequest());
-        requestQueue.add(new AnimationRequest());
-        requestQueue.add(new SetCurrentStepCountRequest((int) (999999 * getDeviceSupport().calculateNotificationProgress())));
 
-        queueWrite(new GetCurrentStepCountRequest());
-
+        queueWrite(new FileRequestNoResp());
+        queueWrite(new AnimationRequest());
+        queueWrite(new ActivationRequest());//CARMINE
+        queueWrite(prepareSetTimeRequest());
+        queueWrite(new  SetClockState()); //CARMINE
+        requestQueue.add(new BatteryLevelRequest()); //CARMINE
+        int fitnessGoal = GBApplication.getPrefs().getInt(ActivityUser.PREF_USER_STEPS_GOAL, ActivityUser.defaultUserStepsGoal);
+        requestQueue.add(new SetPointGoalRequest(fitnessGoal));//CARMINE
+        queueWrite(new ActivityPointGetRequest());//CARMINE
+        queueWrite(new GetPointGoalRequest());//CARMINE
         getDeviceSupport().getDevice().setUpdateState(GBDevice.State.INITIALIZED, getContext());
     }
 
@@ -153,34 +166,19 @@ public class MisfitWatchAdapter extends WatchAdapter {
             case WRITE_CHARACTERISTIC_UUID: {
                 return handleFileDownloadCharacteristic(characteristic, value);
             }
-            case "3dda0007-957f-7d4a-34a6-74696673696d": {
-                return handleFileUploadCharacteristic(characteristic, value);
-            }
             case X2_CHARACTERISTIC_UUID: {
                 return handleBasicCharacteristic(characteristic, value);
             }
-            case BUTTON_CHARACTERISTIC_UUID: {
-                return handleButtonCharacteristic(characteristic, value);
-            }
-            case "00002a19-0000-1000-8000-00805f9b34fb": {
-                short level = value[0];
-                gbDevice.setBatteryLevel(level);
 
-                GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
-                batteryInfo.level = gbDevice.getBatteryLevel();
-                batteryInfo.state = BatteryState.BATTERY_NORMAL;
-                getDeviceSupport().handleGBDeviceEvent(batteryInfo);
-                break;
-            }
             default: {
-                log("data in unknown characteristic " + characteristic.getUuid().toString() + ":  " + arrayToString(value));
+                log("data on unknown Characteristic:" + characteristic.getUuid().toString() + ":  " + arrayToString(value));
                 try {
                     File charLog = FileUtils.getExternalFile("qFiles/charLog.txt");
                     try (FileOutputStream fos = new FileOutputStream(charLog, true)) {
                         fos.write((new Date().toString() + ": " + characteristic.getUuid().toString() + ": " + arrayToString(value)).getBytes());
                     }
                 } catch (IOException e) {
-                    logger.error("error", e);
+                    GB.log("error", GB.ERROR, e);
                 }
                 break;
             }
@@ -197,6 +195,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
                 OTAEnterRequest.class,
                 GoalTrackingGetRequest.class,
                 ActivityPointGetRequest.class,
+                GetPointGoalRequest.class,
                 GetCountdownSettingsRequest.class
         };
         for (Class<? extends Request> c : classes) {
@@ -230,12 +229,16 @@ public class MisfitWatchAdapter extends WatchAdapter {
         request.handleResponse(characteristic, values);
 
         if (request instanceof GetStepGoalRequest) {
-//            gbDevice.addDeviceInfo(new GenericItem(ITEM_STEP_GOAL, String.valueOf(((GetStepGoalRequest) request).stepGoal)));
+            gbDevice.addDeviceInfo(new GenericItem(ITEM_STEP_GOAL, String.valueOf(((GetStepGoalRequest) request).stepGoal)));
         } else if (request instanceof GetVibrationStrengthRequest) {
             int strength = ((GetVibrationStrengthRequest) request).strength;
-//            gbDevice.addDeviceInfo(new GenericItem(ITEM_VIBRATION_STRENGTH, String.valueOf(strength)));
+            gbDevice.addDeviceInfo(new GenericItem(ITEM_VIBRATION_STRENGTH, String.valueOf(strength)));
+        } else if (request instanceof BatteryLevelRequest) {
+            
+            short blevel= ((BatteryLevelRequest) request).level;
+            gbDevice.setBatteryLevel(blevel);
         } else if (request instanceof GetCurrentStepCountRequest) {
-            int steps = ((GetCurrentStepCountRequest) request).steps;
+          int steps = ((GetCurrentStepCountRequest) request).steps;
             logger.debug("get current steps: " + steps);
             try {
                 File file = FileUtils.getExternalFile("qFiles/steps");
@@ -245,8 +248,8 @@ public class MisfitWatchAdapter extends WatchAdapter {
                 }
                 logger.debug("file written.");
             } catch (Exception e) {
-                logger.error("error", e);
-            }
+                GB.log("error", GB.ERROR, e);
+            } 
             gbDevice.addDeviceInfo(new GenericItem(ITEM_STEP_COUNT, String.valueOf(((GetCurrentStepCountRequest) request).steps)));
         } else if (request instanceof OTAEnterRequest) {
             if (((OTAEnterRequest) request).success) {
@@ -254,7 +257,10 @@ public class MisfitWatchAdapter extends WatchAdapter {
                 queueWrite(fileRequest);
             }
         } else if (request instanceof ActivityPointGetRequest) {
-            gbDevice.addDeviceInfo(new GenericItem(ITEM_ACTIVITY_POINT, String.valueOf(((ActivityPointGetRequest) request).activityPoint)));
+        gbDevice.addDeviceInfo(new GenericItem(ITEM_ACTIVITY_POINT, String.valueOf(((ActivityPointGetRequest) request).activityPoint)));
+        } else if (request instanceof GetPointGoalRequest) {
+        gbDevice.addDeviceInfo(new GenericItem(ITEM_ACTIVITY_GOAL, String.valueOf(((GetPointGoalRequest) request).pointGoal)));
+                   
         }
         try {
             queueWrite(requestQueue.remove());
@@ -265,7 +271,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
     }
 
 
-    private Request resolveAnswer(BluetoothGattCharacteristic characteristic, byte[] values) {
+     private Request resolveAnswer(BluetoothGattCharacteristic characteristic, byte[] values) {
         if (values[0] != 3) return null;
         return responseFilters.get(values[1]);
     }
@@ -323,7 +329,8 @@ public class MisfitWatchAdapter extends WatchAdapter {
         return true;
     }
 
-    private boolean handleButtonCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value) {
+/*
+        private boolean handleButtonCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value) {
         if (value.length != 11) {
             logger.debug("wrong button message");
             return true;
@@ -352,7 +359,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
             getContext().sendBroadcast(i);
         }
         return true;
-    }
+    }*/
 
     private void log(String message){
         logger.debug(message);
@@ -368,6 +375,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
         queueWrite(new PlayNotificationRequest(vibration, -1, -1));
     }
 
+    //@Override
     public void vibrateFindMyDevicePattern() {
         queueWrite(new VibrateRequest(false, (short) 4, (short) 1));
     }
@@ -422,6 +430,11 @@ public class MisfitWatchAdapter extends WatchAdapter {
 
     }
 
+    //@Override
+    public boolean supportsFindDevice() {
+        return supportsExtendedVibration();
+    }
+
     @Override
     public boolean supportsExtendedVibration() {
         String modelNumber = getDeviceSupport().getDevice().getModel();
@@ -429,6 +442,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
             case "HW.0.0":
                 return true;
             case "HL.0.0":
+            case "FL.2.0": //CARMINE
                 return false;
             case "DN.1.0":
                 return true;
@@ -443,6 +457,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
             case "HW.0.0":
                 return true;
             case "HL.0.0":
+            case "FL.2.0": //CARMINE
                 return false;
             case "DN.1.0":
                 return false;
@@ -453,9 +468,9 @@ public class MisfitWatchAdapter extends WatchAdapter {
     @Override
     public void onFetchActivityData() {
         requestQueue.add(new BatteryLevelRequest());
-        requestQueue.add(new GetCurrentStepCountRequest());
-        // requestQueue.add(new ListFilesRequest());
-        queueWrite(new ActivityPointGetRequest());
+        requestQueue.add(prepareSetTimeRequest());//CARMINE
+        queueWrite(new ActivityPointGetRequest());//CARMINE
+        queueWrite(new GetPointGoalRequest());//CARMINE
         getDeviceSupport().getDevice().unsetBusyTask();
         GB.updateTransferNotification(null, "", false, 100, getContext());
         getDeviceSupport().getDevice().sendDeviceUpdateIntent(getContext());
@@ -470,7 +485,12 @@ public class MisfitWatchAdapter extends WatchAdapter {
 
     @Override
     public void onSendConfiguration(String config) {
-
+                switch (config) {
+                case ActivityUser.PREF_USER_STEPS_GOAL:
+                     int fitnessGoal = GBApplication.getPrefs().getInt(ActivityUser.PREF_USER_STEPS_GOAL, ActivityUser.defaultUserStepsGoal);
+                     requestQueue.add(new SetPointGoalRequest(fitnessGoal));//CARMINE
+                    break;
+                }
     }
 
     @Override
@@ -486,7 +506,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
     }
 
     private void queueWrite(Request request) {
-        getDeviceSupport().createTransactionBuilder(request.getClass().getSimpleName()).write(request.getRequestUUID(), request.getRequestData()).queue();
+        getDeviceSupport().createTransactionBuilder(request.getClass().getSimpleName()).write(getDeviceSupport().getCharacteristic(request.getRequestUUID()), request.getRequestData()).queue();
         // if (request instanceof FileRequest) this.fileRequest = request;
 
         if (!request.expectsResponse()) {

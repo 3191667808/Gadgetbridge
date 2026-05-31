@@ -37,6 +37,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.file.FileHan
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.MoveHandsRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.qhybrid.requests.misfit.PlayNotificationRequest;
 
+
+
 public abstract class WatchAdapter {
     private QHybridSupport deviceSupport;
 
@@ -51,6 +53,12 @@ public abstract class WatchAdapter {
     public Context getContext(){
         return getDeviceSupport().getContext();
     }
+
+    public static final String X2_CHARACTERISTIC_UUID = "3dda0002-957f-7d4a-34a6-74696673696d";
+    public static final String WRITE_CHARACTERISTIC_UUID = "3dda0003-957f-7d4a-34a6-74696673696d";
+    public static final String UPLOAD_CHARACTERISTIC_UUID = "3dda0004-957f-7d4a-34a6-74696673696d";
+    public static final String AUTH_CHARACTERISTIC_UUID = "3dda0005-957f-7d4a-34a6-74696673696d";
+    public static final String BUTTON_CHARACTERISTIC_UUID = "3dda0006-957f-7d4a-34a6-74696673696d";
 
     public abstract void initialize();
 
@@ -88,6 +96,8 @@ public abstract class WatchAdapter {
             case "WA.0.0":
             case "VA.0.0":
                 return "Fossil Gen. 6 Hybrid";
+            case "FL.2.0":
+                return "Misftif Flash";
         }
         return "unknown Q";
     }
@@ -174,4 +184,5 @@ public abstract class WatchAdapter {
     public void dispose() {
 
     }
+
 }
