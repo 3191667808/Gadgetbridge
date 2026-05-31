@@ -339,6 +339,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.lefun.VivitarHrBpMonitorActi
 import nodomain.freeyourgadget.gadgetbridge.devices.lenovo.watchxplus.WatchXPlusDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.keephealth.C60DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.liveview.LiveviewCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.magene.MageneCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.makibeshr3.MakibesHR3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.marstek.MarstekB2500DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandCoordinator;
@@ -975,6 +976,7 @@ public enum DeviceType {
     SANITAS_SBM_67(SanitasSBM67Coordinator.class),
     SILVERCREST_SBM_67(SilverCrestSBM67Coordinator.class),
     BRAUN_BPW4500(BraunBPW4500DeviceCoordinator.class),
+    MAGENE_C606(MageneCoordinator.class),
     IGPSPORT_BSC200(IGPSportBSC200Coordinator.class),
     IGPSPORT_BSC200S(IGPSportBSC200SCoordinator.class),
     IGPSPORT_BSC300(IGPSportBSC300Coordinator.class),
