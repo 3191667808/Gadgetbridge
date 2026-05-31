@@ -4696,6 +4696,7 @@
     <string name="auth_settings">Authentication settings</string>
     <string name="devicetype_shokz_openswim_pro" translatable="false">Shokz OpenSwim Pro</string>
     <string name="devicetype_sinilink" translatable="false">Sinilink</string>
+    <string name="devicetype_teufel_mynd" translatable="false">Teufel Mynd</string>
     <string name="devicetype_onetouch" translatable="false">OneTouch Glucose Meter</string>
     <string name="equalizer_preset_standard">Standard</string>
     <string name="media_playback_mode">Playback mode</string>

@@ -456,6 +456,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.keepfit.ColmiSR1Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.keepfit.Z10Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.supercars.SuperCarsCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.test.TestDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.teufel.TeufelMyndCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.thermalprinter.ThermalPrinterCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.tlw64.TLW64Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.ultrahuman.UltrahumanDeviceCoordinator;
@@ -994,6 +995,7 @@ public enum DeviceType {
     SOLARFLOW(SolarFlowDeviceCoordinator.class),
     SANITAS_SBM_67(SanitasSBM67Coordinator.class),
     SILVERCREST_SBM_67(SilverCrestSBM67Coordinator.class),
+    TEUFEL_MYND(TeufelMyndCoordinator.class),
     SR08_RING(SR08RingCoordinator.class),
     COLMI_SR1(ColmiSR1Coordinator.class),
     Z10_BAND(Z10Coordinator.class),
