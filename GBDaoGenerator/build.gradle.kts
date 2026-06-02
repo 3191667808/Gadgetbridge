@@ -34,9 +34,9 @@ sourceSets {
     }
 }
 
-tasks.register<JavaExec>("genSources") {
+val generateSources by tasks.registering(JavaExec::class) {
     inputs.dir("src")
-    outputs.dir(project.rootProject.file("app/build/generated/sources/gbdao"))
+    outputs.dir(rootProject.layout.projectDirectory.dir("app/build/generated/sources/gbdao"))
 
     mainClass = application.mainClass
     classpath = sourceSets.main.get().runtimeClasspath
