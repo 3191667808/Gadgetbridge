@@ -230,6 +230,17 @@ public class XiaomiSupport extends AbstractDeviceSupport {
     }
 
     @Override
+    public void onReadConfiguration(final String config) {
+        for (final AbstractXiaomiService service : mServiceMap.values()) {
+            if (service.onReadConfiguration(config)) {
+                return;
+            }
+        }
+
+        LOG.warn("Unhandled config read: {}", config);
+    }
+
+    @Override
     public void onSetTime() {
         systemService.setCurrentTime();
 

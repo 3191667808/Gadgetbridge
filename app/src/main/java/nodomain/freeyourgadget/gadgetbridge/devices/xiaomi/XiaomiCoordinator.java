@@ -652,4 +652,11 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     public boolean supportsAlarms() {
         return true;
     }
+
+    /**
+     * Offset between Gadgetbridge alarm positions and watch alarm ids.
+     */
+    public int getAlarmIdOffset() {
+        return 1;
+    }
 }

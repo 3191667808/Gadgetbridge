@@ -56,6 +56,15 @@ public abstract class AbstractXiaomiService {
         return false;
     }
 
+    /**
+     * Handle a request to read a configuration value from the device.
+     * @param config the preference key
+     * @return true if the preference was handled, false otherwise
+     */
+    public boolean onReadConfiguration(final String config) {
+        return false;
+    }
+
     public XiaomiSupport getSupport() {
         return mSupport;
     }

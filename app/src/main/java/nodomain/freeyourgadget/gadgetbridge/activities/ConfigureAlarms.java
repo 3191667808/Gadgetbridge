@@ -51,6 +51,8 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
     private GBAlarmListAdapter mGBAlarmListAdapter;
     private boolean avoidSendAlarmsToDevice;
+    private boolean waitingForAlarmsFromDevice;
+    private boolean localAlarmsModified;
     private GBDevice gbDevice;
 
     @Override
@@ -72,11 +74,12 @@ public class ConfigureAlarms extends AbstractGBActivity {
         alarmsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         alarmsRecyclerView.setAdapter(mGBAlarmListAdapter);
         updateAlarmsFromDB();
+        requestAlarmsFromDevice();
     }
 
     @Override
     protected void onPause() {
-        if (!avoidSendAlarmsToDevice && gbDevice.isInitialized()) {
+        if (!avoidSendAlarmsToDevice && !waitingForAlarmsFromDevice && gbDevice.isInitialized()) {
             sendAlarmsToDevice();
         }
         super.onPause();
@@ -87,6 +90,8 @@ public class ConfigureAlarms extends AbstractGBActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_CONFIGURE_ALARM) {
             avoidSendAlarmsToDevice = false;
+            localAlarmsModified = true;
+            waitingForAlarmsFromDevice = false;
             updateAlarmsFromDB();
         }
     }
@@ -137,6 +142,19 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
     private void sendAlarmsToDevice() {
         GBApplication.deviceService(gbDevice).onSetAlarms(mGBAlarmListAdapter.getAlarmList());
+        localAlarmsModified = false;
+    }
+
+    private void requestAlarmsFromDevice() {
+        if (gbDevice.isInitialized()) {
+            waitingForAlarmsFromDevice = true;
+            GBApplication.deviceService(gbDevice).onReadConfiguration(DeviceService.CONFIG_ALARMS);
+        }
+    }
+
+    public void onAlarmChangedByUser() {
+        localAlarmsModified = true;
+        waitingForAlarmsFromDevice = false;
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -146,6 +164,11 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
             switch (action) {
                 case DeviceService.ACTION_SAVE_ALARMS: {
+                    waitingForAlarmsFromDevice = false;
+                    if (localAlarmsModified) {
+                        LOG.debug("Ignoring alarm update from device because local alarm changes are pending");
+                        break;
+                    }
                     updateAlarmsFromDB();
                     break;
                 }

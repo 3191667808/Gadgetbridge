@@ -146,6 +146,7 @@ public interface DeviceService extends EventHandler {
     String EXTRA_URI = "uri";
     String EXTRA_OPTIONS = "options";
     String EXTRA_CONFIG = "config";
+    String CONFIG_ALARMS = "alarms";
     String EXTRA_ALARMS = "alarms";
     String EXTRA_REMINDERS = "reminders";
     String EXTRA_LOYALTY_CARDS = "loyalty_cards";
