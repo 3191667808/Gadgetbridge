@@ -42,6 +42,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
+import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
@@ -101,6 +102,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final int WORKOUT_RESUMED = 1;
     private static final int WORKOUT_PAUSED = 2;
     private static final int WORKOUT_FINISHED = 3;
+    private static final long SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS = 15_000L;
 
     private boolean realtimeStarted = false;
     private boolean realtimeOneShot = false;
@@ -109,7 +111,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private boolean gpsStarted = false;
     private boolean gpsFixAcquired = false;
     private boolean workoutStarted = false;
+    private boolean spo2ConfigWriteInProgress = false;
+    private XiaomiProto.Spo2AlarmLow currentSpo2AlarmLow;
     private final Handler gpsTimeoutHandler = new Handler();
+    private final Handler configReadbackHandler = new Handler();
 
     private final Set<Integer> currentGoals = new LinkedHashSet<>();
     private final Set<Integer> supportedGoals = new LinkedHashSet<>();
@@ -140,6 +145,12 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 return;
             case CMD_CONFIG_SPO2_SET:
                 LOG.debug("Got spo2 set ack, status={}", cmd.getStatus());
+                spo2ConfigWriteInProgress = false;
+                getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+                configReadbackHandler.postDelayed(
+                        () -> getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET),
+                        SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS + 1_000L
+                );
                 return;
             case CMD_CONFIG_HEART_RATE_SET:
                 LOG.debug("Got heart rate set ack, status={}", cmd.getStatus());
@@ -211,6 +222,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     @Override
     public void dispose() {
         gpsTimeoutHandler.removeCallbacksAndMessages(null);
+        configReadbackHandler.removeCallbacksAndMessages(null);
         gpsStarted = false;
         gpsFixAcquired = false;
         workoutStarted = false;
@@ -447,9 +459,40 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleSpo2Config(final XiaomiProto.SpO2 spo2) {
         LOG.debug("Got SpO2 config");
 
+        if (spo2.hasAlarmLow()) {
+            currentSpo2AlarmLow = spo2.getAlarmLow();
+        }
+
+        final Prefs prefs = getDevicePrefs();
+        final boolean watchAllDayMonitoring = spo2.getAllDayTracking() != 0;
+        final boolean localAllDayMonitoring = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false);
+        final long localUpdateTimestamp = prefs.getLong(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS, 0L);
+        final boolean localUpdateIsRecent = localUpdateTimestamp > 0 &&
+                System.currentTimeMillis() - localUpdateTimestamp < SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS;
+
+        if (spo2ConfigWriteInProgress) {
+            LOG.debug("Ignoring SpO2 config read while local write is pending");
+            return;
+        }
+        if (localUpdateIsRecent && localAllDayMonitoring != watchAllDayMonitoring) {
+            LOG.debug(
+                    "Ignoring stale SpO2 config read allDay={} while recent local allDay={} is pending",
+                    watchAllDayMonitoring,
+                    localAllDayMonitoring
+            );
+            return;
+        }
+
+        if (localUpdateTimestamp > 0) {
+            prefs.getPreferences()
+                    .edit()
+                    .remove(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS)
+                    .apply();
+        }
+
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
                 .withPreference(XiaomiPreferences.FEAT_SPO2, true)
-                .withPreference(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, spo2.getAllDayTracking() != 0)
+                .withPreference(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, watchAllDayMonitoring)
                 .withPreference(
                         DeviceSettingsPreferenceConst.PREF_SPO2_LOW_ALERT_THRESHOLD,
                         String.valueOf(spo2.getAlarmLow().getAlarmLowEnabled() ? spo2.getAlarmLow().getAlarmLowThreshold() : 0)
@@ -459,24 +502,28 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     }
 
     private void setSpo2Config() {
-        LOG.debug("Set SpO2 config");
-
         final Prefs prefs = getDevicePrefs();
         final boolean allDayMonitoring = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false);
         final int lowAlertThreshold = prefs.getInt(DeviceSettingsPreferenceConst.PREF_SPO2_LOW_ALERT_THRESHOLD, 0);
+        final int allDayTracking = allDayMonitoring ? getCoordinator().getSpo2AllDayTrackingEnabledValue() : 0;
+
+        LOG.debug("Set SpO2 config: allDayMonitoring={}, allDayTracking={}, lowAlertThreshold={}", allDayMonitoring, allDayTracking, lowAlertThreshold);
 
         final XiaomiProto.Spo2AlarmLow.Builder spo2alarmLowBuilder = XiaomiProto.Spo2AlarmLow.newBuilder()
                 .setAlarmLowEnabled(lowAlertThreshold != 0);
 
         if (lowAlertThreshold != 0) {
             spo2alarmLowBuilder.setAlarmLowThreshold(lowAlertThreshold);
+        } else if (currentSpo2AlarmLow != null && currentSpo2AlarmLow.hasAlarmLowThreshold()) {
+            spo2alarmLowBuilder.setAlarmLowThreshold(currentSpo2AlarmLow.getAlarmLowThreshold());
         }
 
         final XiaomiProto.SpO2.Builder spo2 = XiaomiProto.SpO2.newBuilder()
                 .setUnknown1(1)
-                .setAllDayTracking(allDayMonitoring ? 2 : 0)
+                .setAllDayTracking(allDayTracking)
                 .setAlarmLow(spo2alarmLowBuilder);
 
+        spo2ConfigWriteInProgress = true;
         getSupport().sendCommand(
                 "set spo2 config",
                 XiaomiProto.Command.newBuilder()
@@ -500,9 +547,16 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL, String.valueOf(heartRate.getInterval()));
         }
 
+        final GBDevice device = getSupport().getDevice();
+        final XiaomiCoordinator coordinator = getCoordinator();
         eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION, heartRate.getAdvancedMonitoring().getEnabled());
-        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, heartRate.getBreathingScore() == 1 || heartRate.getBreathingRate() == 1);
-        eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC, heartRate.getAbnormalCardiac() == 1);
+        eventUpdatePreferences.withPreference(
+                DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING,
+                heartRate.getBreathingScore() == 1 || (coordinator.supportsSleepBreathingRateConfig(device) && heartRate.getBreathingRate() == 1)
+        );
+        if (coordinator.supportsAbnormalCardiacAlert(device)) {
+            eventUpdatePreferences.withPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC, heartRate.getAbnormalCardiac() == 1);
+        }
 
         eventUpdatePreferences.withPreference(
                 DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD,
@@ -519,6 +573,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
     public void setHeartRateConfig() {
         final Prefs prefs = getDevicePrefs();
+        final GBDevice device = getSupport().getDevice();
+        final XiaomiCoordinator coordinator = getCoordinator();
 
         final boolean sleepDetection = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_USE_FOR_SLEEP_DETECTION, false);
         final boolean sleepBreathingQuality = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_SLEEP_BREATHING_QUALITY_MONITORING, false);
@@ -551,14 +607,19 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 .setAdvancedMonitoring(XiaomiProto.AdvancedMonitoring.newBuilder()
                         .setEnabled(sleepDetection))
                 .setBreathingScore(sleepBreathingQuality ? 1 : 2)
-                .setBreathingRate(sleepBreathingQuality ? 1 : 2)
-                .setAbnormalCardiac(abnormalCardiac ? 1 : 2)
                 .setAlarmHighEnabled(alertHigh > 0)
                 .setAlarmHighThreshold(alertHigh)
                 .setHeartRateAlarmLow(XiaomiProto.HeartRateAlarmLow.newBuilder()
                         .setAlarmLowEnabled(alertLow > 0)
                         .setAlarmLowThreshold(alertLow))
                 .setUnknown7(1);
+
+        if (coordinator.supportsSleepBreathingRateConfig(device)) {
+            heartRate.setBreathingRate(sleepBreathingQuality ? 1 : 2);
+        }
+        if (coordinator.supportsAbnormalCardiacAlert(device)) {
+            heartRate.setAbnormalCardiac(abnormalCardiac ? 1 : 2);
+        }
 
         getSupport().sendCommand(
                 "set heart rate config",
@@ -639,7 +700,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         final boolean relaxReminder = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_RELAXATION_REMINDER, false);
 
         final XiaomiProto.Stress.Builder stress = XiaomiProto.Stress.newBuilder()
-                .setAllDayTracking(enabled ? 2 : 0)
+                .setAllDayTracking(enabled ? getCoordinator().getStressAllDayTrackingEnabledValue() : 0)
                 .setRelaxReminder(XiaomiProto.RelaxReminder.newBuilder().setEnabled(relaxReminder).setUnknown2(0));
 
         getSupport().sendCommand(

@@ -226,6 +226,7 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC = "heartrate_alert_abnormal_cardiac";
 
     public static final String PREF_SPO2_ALL_DAY_MONITORING = "spo2_all_day_monitoring_enabled";
+    public static final String PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS = "spo2_all_day_monitoring_local_update_ts";
     public static final String PREF_SPO2_MEASUREMENT_INTERVAL = "spo2_measurement_interval";
     public static final String PREF_SPO2_MEASUREMENT_TIME = "spo2_measurement_time";
     public static final String PREF_SPO2_MEASUREMENT_START = "spo2_measurement_start";

@@ -96,6 +96,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
 
     private int pendingAlarmAcks = 0;
     private int pendingReminderAcks = 0;
+    private boolean localAlarmWriteInProgress = false;
     private long lastAlarmRequestTimestamp = 0;
 
     public XiaomiScheduleService(final XiaomiSupport support) {
@@ -149,6 +150,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         watchReminders.clear();
         pendingAlarmAcks = 0;
         pendingReminderAcks = 0;
+        localAlarmWriteInProgress = false;
 
         if (getCoordinator().supportsAlarms()) {
             requestAlarms();
@@ -442,6 +444,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         final Set<Integer> persistedAlarmPositions = getPersistedAlarmPositions();
 
         pendingAlarmAcks = 0;
+        localAlarmWriteInProgress = true;
 
         for (final Alarm alarm : alarms) {
             Alarm watchAlarm = watchAlarms.get(alarm.getPosition());
@@ -553,6 +556,10 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
 
             pendingAlarmAcks++;
         }
+
+        if (pendingAlarmAcks <= 0) {
+            localAlarmWriteInProgress = false;
+        }
     }
 
     public void requestAlarms() {
@@ -567,6 +574,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
 
         LOG.debug("Got alarms {} ack, remaining {}", alarmCommandName(subtype), pendingAlarmAcks);
         if (pendingAlarmAcks <= 0) {
+            localAlarmWriteInProgress = false;
             LOG.debug("Requesting alarms after all acks");
             requestAlarms();
         }
@@ -613,6 +621,11 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
                 .withPreference(XiaomiPreferences.PREF_ALARM_SLOTS, alarms.getMaxAlarms());
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
+
+        if (localAlarmWriteInProgress || pendingAlarmAcks > 0) {
+            LOG.debug("Ignoring alarm read while local alarm write is pending");
+            return;
+        }
 
         watchAlarms.clear();
         for (final XiaomiProto.Alarm alarm : alarms.getAlarmList()) {

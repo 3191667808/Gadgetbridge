@@ -60,4 +60,29 @@ public class MiBand10Coordinator extends XiaomiCoordinator {
     public int getAlarmIdOffset() {
         return 0;
     }
+
+    @Override
+    public boolean supportsSleepRespiratoryRate(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsSleepBreathingRateConfig(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAbnormalCardiacAlert(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public int getStressAllDayTrackingEnabledValue() {
+        return 2;
+    }
+
+    @Override
+    public int getSpo2AllDayTrackingEnabledValue() {
+        return 2;
+    }
 }

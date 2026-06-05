@@ -219,6 +219,8 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
 
         DeviceCoordinator coordinator = device.getDeviceCoordinator();
         TimeSampleProvider<? extends RespiratoryRateSample> provider = coordinator.getRespiratoryRateSampleProvider(device, db.getDaoSession());
+        if (provider == null)
+            return null;
 
         List<? extends RespiratoryRateSample> samples = provider.getAllSamples(tsStart, tsEnd);
         if (samples.isEmpty())

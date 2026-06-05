@@ -53,6 +53,7 @@ public class ConfigureAlarms extends AbstractGBActivity {
     private boolean avoidSendAlarmsToDevice;
     private boolean waitingForAlarmsFromDevice;
     private boolean localAlarmsModified;
+    private boolean sentLocalAlarmsToDevice;
     private GBDevice gbDevice;
 
     @Override
@@ -91,6 +92,7 @@ public class ConfigureAlarms extends AbstractGBActivity {
         if (requestCode == REQ_CONFIGURE_ALARM) {
             avoidSendAlarmsToDevice = false;
             localAlarmsModified = true;
+            sentLocalAlarmsToDevice = false;
             waitingForAlarmsFromDevice = false;
             updateAlarmsFromDB();
         }
@@ -142,7 +144,7 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
     private void sendAlarmsToDevice() {
         GBApplication.deviceService(gbDevice).onSetAlarms(mGBAlarmListAdapter.getAlarmList());
-        localAlarmsModified = false;
+        sentLocalAlarmsToDevice = localAlarmsModified;
     }
 
     private void requestAlarmsFromDevice() {
@@ -154,6 +156,7 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
     public void onAlarmChangedByUser() {
         localAlarmsModified = true;
+        sentLocalAlarmsToDevice = false;
         waitingForAlarmsFromDevice = false;
     }
 
@@ -165,11 +168,13 @@ public class ConfigureAlarms extends AbstractGBActivity {
             switch (action) {
                 case DeviceService.ACTION_SAVE_ALARMS: {
                     waitingForAlarmsFromDevice = false;
-                    if (localAlarmsModified) {
+                    if (localAlarmsModified && !sentLocalAlarmsToDevice) {
                         LOG.debug("Ignoring alarm update from device because local alarm changes are pending");
                         break;
                     }
                     updateAlarmsFromDB();
+                    localAlarmsModified = false;
+                    sentLocalAlarmsToDevice = false;
                     break;
                 }
             }

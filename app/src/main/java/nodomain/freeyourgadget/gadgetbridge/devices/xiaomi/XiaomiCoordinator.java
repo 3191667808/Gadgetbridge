@@ -193,7 +193,9 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public TimeSampleProvider<? extends RespiratoryRateSample> getRespiratoryRateSampleProvider(@NonNull final GBDevice device, final DaoSession session) {
-        // TODO XiaomiSleepRespiratoryRateSampleProvider
+        if (supportsSleepRespiratoryRate(device)) {
+            return new XiaomiSleepRespiratoryRateSampleProvider(device, session);
+        }
         return super.getRespiratoryRateSampleProvider(device, session);
     }
 
@@ -333,8 +335,23 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsSleepRespiratoryRate(@NonNull GBDevice device) {
-        // TODO it does
-        return true;
+        return false;
+    }
+
+    public boolean supportsSleepBreathingRateConfig(@NonNull GBDevice device) {
+        return false;
+    }
+
+    public boolean supportsAbnormalCardiacAlert(@NonNull GBDevice device) {
+        return false;
+    }
+
+    public int getSpo2AllDayTrackingEnabledValue() {
+        return 1;
+    }
+
+    public int getStressAllDayTrackingEnabledValue() {
+        return 1;
     }
 
     @Override

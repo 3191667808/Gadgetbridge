@@ -79,6 +79,14 @@ public class XiaomiSettingsCustomizer implements DeviceSpecificSettingsCustomize
             hrAlertActivePref.setVisible(false);
         }
 
+        final GBDevice device = handler.getDevice();
+        final XiaomiCoordinator coordinator = (XiaomiCoordinator) device.getDeviceCoordinator();
+
+        final Preference hrAlertAbnormalCardiacPref = handler.findPreference(DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_ABNORMAL_CARDIAC);
+        if (hrAlertAbnormalCardiacPref != null && !coordinator.supportsAbnormalCardiacAlert(device)) {
+            hrAlertAbnormalCardiacPref.setVisible(false);
+        }
+
         populateOrHideListPreference(HuamiConst.PREF_DISPLAY_ITEMS_SORTABLE, handler, prefs);
 
         hidePrefIfNoneVisible(handler, DeviceSettingsPreferenceConst.PREF_HEADER_DISPLAY, Arrays.asList(

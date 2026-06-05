@@ -16,6 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.deviceevents;
 
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -33,6 +36,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class GBDeviceEventUpdatePreferences extends GBDeviceEvent {
     private static final Logger LOG = LoggerFactory.getLogger(GBDeviceEventUpdatePreferences.class);
+    private static final long SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS = 15_000L;
 
     public final Map<String, Object> preferences;
 
@@ -100,6 +104,25 @@ public class GBDeviceEventUpdatePreferences extends GBDeviceEvent {
             } else if (value instanceof Integer) {
                 editor.putInt(key, (Integer) value);
             } else if (value instanceof Boolean) {
+                if (PREF_SPO2_ALL_DAY_MONITORING.equals(key)) {
+                    final long localUpdateTimestamp = prefs.getLong(PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS, 0L);
+                    final boolean localUpdateIsRecent = localUpdateTimestamp > 0 &&
+                            System.currentTimeMillis() - localUpdateTimestamp < SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS;
+                    final boolean localValue = prefs.getBoolean(PREF_SPO2_ALL_DAY_MONITORING, false);
+                    final boolean incomingValue = (Boolean) value;
+
+                    if (localUpdateIsRecent && localValue != incomingValue) {
+                        LOG.debug(
+                                "Ignoring stale SpO2 preference update allDay={} while recent local allDay={} is pending",
+                                incomingValue,
+                                localValue
+                        );
+                        continue;
+                    }
+                    if (localUpdateTimestamp > 0 && localValue == incomingValue) {
+                        editor.remove(PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS);
+                    }
+                }
                 editor.putBoolean(key, (Boolean) value);
             } else if (value instanceof String) {
                 editor.putString(key, (String) value);
