@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services;
 
 import android.content.Intent;
+import android.os.Handler;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -97,7 +98,13 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
     private int pendingAlarmAcks = 0;
     private int pendingReminderAcks = 0;
     private boolean localAlarmWriteInProgress = false;
+    private boolean alarmRefreshPending = false;
     private long lastAlarmRequestTimestamp = 0;
+    private final Handler alarmRefreshHandler = new Handler();
+    private final Runnable alarmRefreshRunnable = () -> {
+        alarmRefreshPending = false;
+        requestAlarms();
+    };
 
     public XiaomiScheduleService(final XiaomiSupport support) {
         super(support);
@@ -151,6 +158,8 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         pendingAlarmAcks = 0;
         pendingReminderAcks = 0;
         localAlarmWriteInProgress = false;
+        alarmRefreshPending = false;
+        alarmRefreshHandler.removeCallbacksAndMessages(null);
 
         if (getCoordinator().supportsAlarms()) {
             requestAlarms();
@@ -181,6 +190,13 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         }
 
         return false;
+    }
+
+    @Override
+    public void dispose() {
+        alarmRefreshHandler.removeCallbacksAndMessages(null);
+        alarmRefreshPending = false;
+        localAlarmWriteInProgress = false;
     }
 
     public void requestReminders() {
@@ -563,6 +579,8 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
     }
 
     public void requestAlarms() {
+        alarmRefreshPending = false;
+        alarmRefreshHandler.removeCallbacks(alarmRefreshRunnable);
         lastAlarmRequestTimestamp = System.currentTimeMillis();
         getSupport().sendCommand("get alarms", COMMAND_TYPE, CMD_ALARMS_GET);
     }
@@ -575,6 +593,11 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         LOG.debug("Got alarms {} ack, remaining {}", alarmCommandName(subtype), pendingAlarmAcks);
         if (pendingAlarmAcks <= 0) {
             localAlarmWriteInProgress = false;
+            if (alarmRefreshPending) {
+                LOG.debug("Refreshing alarms after deferred alarm change event");
+            }
+            alarmRefreshPending = false;
+            alarmRefreshHandler.removeCallbacks(alarmRefreshRunnable);
             LOG.debug("Requesting alarms after all acks");
             requestAlarms();
         }
@@ -604,14 +627,24 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
     }
 
     private void handleAlarmsChanged() {
-        final long now = System.currentTimeMillis();
-        if (now - lastAlarmRequestTimestamp < ALARM_CHANGE_REFRESH_THROTTLE_MS) {
-            LOG.debug("Ignoring schedule alarm change event shortly after alarm request");
+        if (localAlarmWriteInProgress || pendingAlarmAcks > 0) {
+            LOG.debug("Deferring schedule alarm change event while local alarm write is pending");
+            alarmRefreshPending = true;
             return;
         }
 
-        LOG.debug("Alarms changed on watch, requesting alarms");
-        requestAlarms();
+        final long now = System.currentTimeMillis();
+        final long delay = Math.max(0L, ALARM_CHANGE_REFRESH_THROTTLE_MS - (now - lastAlarmRequestTimestamp));
+        alarmRefreshHandler.removeCallbacks(alarmRefreshRunnable);
+        alarmRefreshPending = true;
+
+        if (delay > 0) {
+            LOG.debug("Alarms changed on watch, requesting alarms in {} ms", delay);
+            alarmRefreshHandler.postDelayed(alarmRefreshRunnable, delay);
+        } else {
+            LOG.debug("Alarms changed on watch, requesting alarms");
+            alarmRefreshRunnable.run();
+        }
     }
 
     public void handleAlarms(final XiaomiProto.Alarms alarms) {

@@ -146,17 +146,27 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
             final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
             final Accumulator accumulator = new Accumulator();
-            for (float value : respiratoryRateData) {
-                accumulator.add(value);
+            if (respiratoryRateData != null) {
+                for (float value : respiratoryRateData) {
+                    if (value > 0) {
+                        accumulator.add(value);
+                    }
+                }
             }
-            overlay = new OverlayDataFloat(
-                    (float) (accumulator.getMin() / 2),
-                    (float) (1.5d * accumulator.getMax()),
-                    respiratoryRateData,
-                    OverlayDataFloat.NO_DATA,
-                    ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
-                    Color.RED
-            );
+            if (accumulator.getCount() > 0) {
+                final float axisMin = Math.max(6f, (float) accumulator.getMin() - 2f);
+                final float axisMax = Math.min(45f, (float) accumulator.getMax() + 4f);
+                if (axisMax > axisMin) {
+                    overlay = new OverlayDataFloat(
+                            axisMin,
+                            axisMax,
+                            respiratoryRateData,
+                            OverlayDataFloat.NO_DATA,
+                            ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
+                            Color.RED
+                    );
+                }
+            }
         }
 
         final DeviceChartsProvider chartsProvider = device.getDeviceCoordinator().getChartsProvider();

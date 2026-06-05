@@ -103,6 +103,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final int WORKOUT_PAUSED = 2;
     private static final int WORKOUT_FINISHED = 3;
     private static final long SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS = 15_000L;
+    private static final long SPO2_CONFIG_WRITE_TIMEOUT_MS = SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS + 5_000L;
 
     private boolean realtimeStarted = false;
     private boolean realtimeOneShot = false;
@@ -115,6 +116,13 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private XiaomiProto.Spo2AlarmLow currentSpo2AlarmLow;
     private final Handler gpsTimeoutHandler = new Handler();
     private final Handler configReadbackHandler = new Handler();
+    private final Runnable spo2ConfigDelayedReadbackRunnable =
+            () -> getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+    private final Runnable spo2ConfigWriteTimeoutRunnable = () -> {
+        LOG.debug("Timed out waiting for SpO2 set ack, requesting config readback");
+        spo2ConfigWriteInProgress = false;
+        getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+    };
 
     private final Set<Integer> currentGoals = new LinkedHashSet<>();
     private final Set<Integer> supportedGoals = new LinkedHashSet<>();
@@ -146,9 +154,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             case CMD_CONFIG_SPO2_SET:
                 LOG.debug("Got spo2 set ack, status={}", cmd.getStatus());
                 spo2ConfigWriteInProgress = false;
+                configReadbackHandler.removeCallbacks(spo2ConfigWriteTimeoutRunnable);
+                configReadbackHandler.removeCallbacks(spo2ConfigDelayedReadbackRunnable);
                 getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
                 configReadbackHandler.postDelayed(
-                        () -> getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET),
+                        spo2ConfigDelayedReadbackRunnable,
                         SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS + 1_000L
                 );
                 return;
@@ -208,6 +218,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         gpsFixAcquired = false;
         workoutStarted = false;
         gpsTimeoutHandler.removeCallbacksAndMessages(null);
+        configReadbackHandler.removeCallbacksAndMessages(null);
+        spo2ConfigWriteInProgress = false;
 
         setUserInfo();
         getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
@@ -226,6 +238,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         gpsStarted = false;
         gpsFixAcquired = false;
         workoutStarted = false;
+        spo2ConfigWriteInProgress = false;
         activityFetcher.dispose();
     }
 
@@ -524,6 +537,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 .setAlarmLow(spo2alarmLowBuilder);
 
         spo2ConfigWriteInProgress = true;
+        configReadbackHandler.removeCallbacks(spo2ConfigDelayedReadbackRunnable);
+        configReadbackHandler.removeCallbacks(spo2ConfigWriteTimeoutRunnable);
+        configReadbackHandler.postDelayed(spo2ConfigWriteTimeoutRunnable, SPO2_CONFIG_WRITE_TIMEOUT_MS);
         getSupport().sendCommand(
                 "set spo2 config",
                 XiaomiProto.Command.newBuilder()

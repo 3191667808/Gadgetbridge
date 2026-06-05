@@ -137,28 +137,37 @@ public class XiaomiSleepRespiratoryRateSampleProvider implements TimeSampleProvi
         sortedPulseTimestamps.sort(Comparator.naturalOrder());
 
         final List<RespiratoryRateSample> samples = new ArrayList<>();
+        int firstCandidateIndex = 1;
         for (long windowStart = timestampFrom; windowStart + WINDOW_MS <= timestampTo; windowStart += STEP_MS) {
             final long windowEnd = windowStart + WINDOW_MS;
             final List<Long> rrMidpoints = new ArrayList<>();
             final List<Double> rrIntervals = new ArrayList<>();
 
-            for (int i = 1; i < sortedPulseTimestamps.size(); i++) {
-                final long previousTimestamp = sortedPulseTimestamps.get(i - 1);
-                final long timestamp = sortedPulseTimestamps.get(i);
-                if (timestamp < windowStart) {
-                    continue;
-                }
-                if (previousTimestamp > windowEnd) {
+            while (firstCandidateIndex < sortedPulseTimestamps.size()) {
+                final long previousTimestamp = sortedPulseTimestamps.get(firstCandidateIndex - 1);
+                final long timestamp = sortedPulseTimestamps.get(firstCandidateIndex);
+                final long rrInterval = timestamp - previousTimestamp;
+                final long rrMidpoint = previousTimestamp + (rrInterval / 2L);
+                if (rrMidpoint >= windowStart) {
                     break;
                 }
+                firstCandidateIndex++;
+            }
+
+            for (int i = firstCandidateIndex; i < sortedPulseTimestamps.size(); i++) {
+                final long previousTimestamp = sortedPulseTimestamps.get(i - 1);
+                final long timestamp = sortedPulseTimestamps.get(i);
 
                 final long rrInterval = timestamp - previousTimestamp;
+                final long rrMidpoint = previousTimestamp + (rrInterval / 2L);
+                if (rrMidpoint > windowEnd) {
+                    break;
+                }
                 if (rrInterval < MIN_RR_MS || rrInterval > MAX_RR_MS) {
                     continue;
                 }
 
-                final long rrMidpoint = previousTimestamp + (rrInterval / 2L);
-                if (rrMidpoint < windowStart || rrMidpoint > windowEnd) {
+                if (rrMidpoint < windowStart) {
                     continue;
                 }
 
