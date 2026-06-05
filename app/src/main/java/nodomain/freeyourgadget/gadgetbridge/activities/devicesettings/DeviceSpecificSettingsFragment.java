@@ -1747,21 +1747,6 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
             pref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override
                 public boolean onPreferenceChange(Preference preference, Object newVal) {
-                    if (PREF_SPO2_ALL_DAY_MONITORING.equals(preferenceKey) && newVal instanceof Boolean) {
-                        getPreferenceManager().getSharedPreferences()
-                                .edit()
-                                .putBoolean(preferenceKey, (Boolean) newVal)
-                                .putLong(PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS, System.currentTimeMillis())
-                                .apply();
-                        GBApplication.deviceService(device).onSendConfiguration(preferenceKey);
-
-                        if (extraListener != null) {
-                            return extraListener.onPreferenceChange(preference, newVal);
-                        }
-
-                        return true;
-                    }
-
                     notifyPreferenceChanged(preferenceKey);
 
                     if (extraListener != null) {

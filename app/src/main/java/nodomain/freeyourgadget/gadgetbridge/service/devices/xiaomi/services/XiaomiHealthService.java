@@ -117,11 +117,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private final Handler gpsTimeoutHandler = new Handler();
     private final Handler configReadbackHandler = new Handler();
     private final Runnable spo2ConfigDelayedReadbackRunnable =
-            () -> getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+            this::requestSpo2Config;
     private final Runnable spo2ConfigWriteTimeoutRunnable = () -> {
         LOG.debug("Timed out waiting for SpO2 set ack, requesting config readback");
         spo2ConfigWriteInProgress = false;
-        getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+        requestSpo2Config();
     };
 
     private final Set<Integer> currentGoals = new LinkedHashSet<>();
@@ -156,7 +156,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 spo2ConfigWriteInProgress = false;
                 configReadbackHandler.removeCallbacks(spo2ConfigWriteTimeoutRunnable);
                 configReadbackHandler.removeCallbacks(spo2ConfigDelayedReadbackRunnable);
-                getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+                requestSpo2Config();
                 configReadbackHandler.postDelayed(
                         spo2ConfigDelayedReadbackRunnable,
                         SPO2_CONFIG_LOCAL_UPDATE_IGNORE_MS + 1_000L
@@ -222,7 +222,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         spo2ConfigWriteInProgress = false;
 
         setUserInfo();
-        getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+        requestSpo2Config();
         getSupport().sendCommand("get heart rate config", COMMAND_TYPE, CMD_CONFIG_HEART_RATE_GET);
         getSupport().sendCommand("get standing reminders config", COMMAND_TYPE, CMD_CONFIG_STANDING_REMINDER_GET);
         getSupport().sendCommand("get stress config", COMMAND_TYPE, CMD_CONFIG_STRESS_GET);
@@ -289,6 +289,18 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_MONITORING:
             case DeviceSettingsPreferenceConst.PREF_HEARTRATE_STRESS_RELAXATION_REMINDER:
                 setStressConfig();
+                return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean onReadConfiguration(final String config) {
+        switch (config) {
+            case DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING:
+            case DeviceSettingsPreferenceConst.PREF_SPO2_LOW_ALERT_THRESHOLD:
+                requestSpo2Config();
                 return true;
         }
 
@@ -514,6 +526,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
     }
 
+    private void requestSpo2Config() {
+        getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
+    }
+
     private void setSpo2Config() {
         final Prefs prefs = getDevicePrefs();
         final boolean allDayMonitoring = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false);
@@ -535,6 +551,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 .setUnknown1(1)
                 .setAllDayTracking(allDayTracking)
                 .setAlarmLow(spo2alarmLowBuilder);
+
+        prefs.getPreferences()
+                .edit()
+                .putLong(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING_LOCAL_UPDATE_TS, System.currentTimeMillis())
+                .apply();
 
         spo2ConfigWriteInProgress = true;
         configReadbackHandler.removeCallbacks(spo2ConfigDelayedReadbackRunnable);
