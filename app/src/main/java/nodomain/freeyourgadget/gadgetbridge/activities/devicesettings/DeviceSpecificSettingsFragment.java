@@ -169,6 +169,9 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
 
     @Override
     public void onDestroyView() {
+        if (deviceSpecificSettingsCustomizer != null) {
+            deviceSpecificSettingsCustomizer.onDestroyView(this);
+        }
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mDeviceUpdateReceiver);
         super.onDestroyView();
     }

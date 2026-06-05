@@ -58,4 +58,13 @@ public interface DeviceSpecificSettingsCustomizer extends Parcelable {
     default void onDeviceChanged(final DeviceSpecificSettingsHandler handler) {
         // Nothing to do by default
     }
+
+    /**
+     * Called when the settings fragment view is destroyed.
+     *
+     * @param handler    the {@link DeviceSpecificSettingsHandler}
+     */
+    default void onDestroyView(final DeviceSpecificSettingsHandler handler) {
+        // Nothing to do by default
+    }
 }

@@ -21,7 +21,6 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.Dev
 
 import android.content.Context;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Parcel;
 import android.widget.Toast;
 
@@ -57,11 +56,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 public class XiaomiSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
     private static final Logger LOG = LoggerFactory.getLogger(XiaomiSettingsCustomizer.class);
     private static final String HEART_RATE_SCREEN = "pref_screen_heartrate_monitoring";
-    private static final int SPO2_SETTINGS_READBACK_ATTEMPTS = 6;
-    private static final long SPO2_SETTINGS_READBACK_INTERVAL_MS = 5_000L;
-
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private int spo2SettingsReadbackGeneration = 0;
 
     @Override
     public void onPreferenceChange(final Preference preference, final DeviceSpecificSettingsHandler handler) {
@@ -95,7 +89,7 @@ public class XiaomiSettingsCustomizer implements DeviceSpecificSettingsCustomize
             hrAlertAbnormalCardiacPref.setVisible(false);
         }
 
-        scheduleSpo2SettingsReadback(handler, rootKey);
+        requestSpo2SettingsReadbackOnce(handler, rootKey);
 
         populateOrHideListPreference(HuamiConst.PREF_DISPLAY_ITEMS_SORTABLE, handler, prefs);
 
@@ -137,7 +131,7 @@ public class XiaomiSettingsCustomizer implements DeviceSpecificSettingsCustomize
     public void writeToParcel(@NonNull final Parcel dest, final int flags) {
     }
 
-    private void scheduleSpo2SettingsReadback(final DeviceSpecificSettingsHandler settingsHandler, final String rootKey) {
+    private void requestSpo2SettingsReadbackOnce(final DeviceSpecificSettingsHandler settingsHandler, final String rootKey) {
         if (!HEART_RATE_SCREEN.equals(rootKey)) {
             return;
         }
@@ -150,19 +144,8 @@ public class XiaomiSettingsCustomizer implements DeviceSpecificSettingsCustomize
             return;
         }
 
-        spo2SettingsReadbackGeneration++;
-        final int generation = spo2SettingsReadbackGeneration;
-
-        for (int i = 0; i < SPO2_SETTINGS_READBACK_ATTEMPTS; i++) {
-            handler.postDelayed(() -> {
-                if (generation != spo2SettingsReadbackGeneration) {
-                    return;
-                }
-
-                LOG.debug("Refreshing SpO2 config from watch");
-                GBApplication.deviceService(device).onReadConfiguration(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING);
-            }, i * SPO2_SETTINGS_READBACK_INTERVAL_MS);
-        }
+        LOG.debug("Refreshing SpO2 config from watch");
+        GBApplication.deviceService(device).onReadConfiguration(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING);
     }
 
     private static final AtomicBoolean PARSING_FROM_STORAGE = new AtomicBoolean(false);
