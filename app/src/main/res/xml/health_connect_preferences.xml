@@ -34,6 +34,60 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="pref_key_phone_sensor_collector"
+        android:title="@string/pref_phone_sensor_collector_title"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_phone_sensor_collector_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:summary="@string/pref_phone_sensor_collector_summary"
+            android:title="@string/pref_phone_sensor_collector_enabled_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="pref_phone_sensor_collector_enabled"
+            android:key="pref_phone_sensor_pressure_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/pref_phone_sensor_pressure_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="pref_phone_sensor_collector_enabled"
+            android:key="pref_phone_sensor_accel_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/pref_phone_sensor_accel_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="pref_phone_sensor_collector_enabled"
+            android:key="pref_phone_sensor_light_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/pref_phone_sensor_light_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="pref_phone_sensor_collector_enabled"
+            android:key="pref_phone_sensor_ambient_temp_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/pref_phone_sensor_ambient_temp_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="pref_phone_sensor_collector_enabled"
+            android:key="pref_phone_sensor_step_counter_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/pref_phone_sensor_step_counter_title"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="pref_key_healthconnect_sync"
         android:title="@string/pref_header_sync"
         app:iconSpaceReserved="false">

@@ -134,6 +134,7 @@
     <uses-permission android:name="android.permission.health.WRITE_RESPIRATORY_RATE" />
     <uses-permission android:name="android.permission.health.WRITE_RESTING_HEART_RATE" />
     <uses-permission android:name="android.permission.health.WRITE_BLOOD_GLUCOSE" />
+    <uses-permission android:name="android.permission.health.WRITE_FLOORS_CLIMBED" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS_CADENCE" />
     <uses-permission android:name="android.permission.health.WRITE_CYCLING_PEDALING_CADENCE" />
     <uses-sdk tools:overrideLibrary="androidx.health.connect.client"/>
@@ -635,6 +636,9 @@
         <service
             android:name=".service.DeviceCommunicationService"
             android:foregroundServiceType="connectedDevice" />
+        <service
+            android:name=".service.PhoneSensorCollectorService"
+            android:exported="false" />
         <service
             android:name=".devices.pinetime.PineTimeDFUService"
             android:label="PineTime Nordic DFU service"

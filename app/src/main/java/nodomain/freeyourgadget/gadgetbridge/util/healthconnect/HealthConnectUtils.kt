@@ -42,6 +42,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSyncState
 import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSyncStateDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
+import nodomain.freeyourgadget.gadgetbridge.util.sensorcontext.PhoneSensorContext
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectPermissionManager.PREF_KEY_LAST_GRANTED_HC_PERMISSIONS
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.*
@@ -291,6 +292,14 @@ class HealthConnectUtils {
                 LOG.debug("$HC_SYNC_TAG Checking data type {} for device {}", dataType.name, gbDevice.aliasOrName)
                 val permsNeededForThisDataType = HealthConnectPermissionManager.getRequiredPermissionsForDataType(dataType)
 
+                if (dataType == HealthConnectPermissionManager.HealthConnectDataType.FLOORS_CLIMBED &&
+                    targetAddress != selectedDevices.first()
+                ) {
+                    LOG.debug("$HC_SYNC_TAG Skipping phone-derived {} for non-primary selected device {}", dataType.name, gbDevice.aliasOrName)
+                    totalDataTypesSkipped++
+                    continue@dataTypeLoop
+                }
+
                 if (permsNeededForThisDataType.none { it in grantedPermissions }) {
                     LOG.info(
                         "$HC_SYNC_TAG Skipping sync for HealthConnectDataType '{}' on device {}: None of the required Health Connect permissions are granted. Needed: {}, Have: {}",
@@ -334,6 +343,7 @@ class HealthConnectUtils {
 
                 val metadata = when (dataType) {
                     HealthConnectPermissionManager.HealthConnectDataType.ACTIVITY -> Metadata.activelyRecorded(device)
+                    HealthConnectPermissionManager.HealthConnectDataType.FLOORS_CLIMBED -> Metadata.autoRecorded(Device(type = Device.TYPE_PHONE, manufacturer = "Android", model = "Phone"))
                     else -> Metadata.autoRecorded(device)
                 }
 
@@ -650,6 +660,10 @@ class HealthConnectUtils {
                     healthConnectClient, gbDevice, metadata, offset,
                     currentSliceStartTs, currentSliceEndTs, grantedPermissions
                 ))
+                HealthConnectPermissionManager.HealthConnectDataType.FLOORS_CLIMBED -> sliceStats.add(FloorsClimbedSyncer.sync(
+                    healthConnectClient, gbDevice, metadata, offset,
+                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                ))
                 HealthConnectPermissionManager.HealthConnectDataType.WORKOUTS -> {
                     // Sync explicitly recorded workouts from BaseActivitySummary
                     val coordinator = gbDevice.deviceCoordinator
@@ -681,6 +695,11 @@ class HealthConnectUtils {
             db: DBHandler,
             dataType: HealthConnectPermissionManager.HealthConnectDataType
         ): Instant? {
+            if (dataType == HealthConnectPermissionManager.HealthConnectDataType.FLOORS_CLIMBED) {
+                return PhoneSensorContext.snapshot().pressureSeries
+                    .minOfOrNull { it.tsMs }
+                    ?.let { Instant.ofEpochMilli(it) }
+            }
             return when (val provider = getProviderForDataType(deviceCoordinator, device, db, dataType)) {
                 is TimeSampleProvider<*> -> {
                     provider.firstSample?.timestamp?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) }
@@ -711,6 +730,11 @@ class HealthConnectUtils {
             db: DBHandler,
             dataType: HealthConnectPermissionManager.HealthConnectDataType
         ): Instant? {
+            if (dataType == HealthConnectPermissionManager.HealthConnectDataType.FLOORS_CLIMBED) {
+                return PhoneSensorContext.snapshot().pressureSeries
+                    .maxOfOrNull { it.tsMs }
+                    ?.let { Instant.ofEpochMilli(it) }
+            }
             return when (val provider = getProviderForDataType(deviceCoordinator, device, db, dataType)) {
                 is TimeSampleProvider<*> -> {
                     provider.latestSample?.timestamp?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) }
@@ -752,6 +776,7 @@ class HealthConnectUtils {
                 // For SpO2 and Temperature, there might be a specific provider or fallback to general sample provider
                 HealthConnectPermissionManager.HealthConnectDataType.SPO2 -> coordinator.getSpo2SampleProvider(device, db.daoSession) // Potentially add fallback if needed: ?: coordinator.getSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.TEMPERATURE -> coordinator.getTemperatureSampleProvider(device, db.daoSession) // Potentially add fallback: ?: coordinator.getSampleProvider(device, db.daoSession)
+                HealthConnectPermissionManager.HealthConnectDataType.FLOORS_CLIMBED -> PhoneSensorContext.snapshot().pressureSeries
                 HealthConnectPermissionManager.HealthConnectDataType.WORKOUTS -> db.daoSession.baseActivitySummaryDao
             }
         }

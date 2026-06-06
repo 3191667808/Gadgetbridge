@@ -3674,6 +3674,14 @@
     <string name="huawei_trusleep_warning">Warning: TruSleep&#8482; is not fully implemented. Enabling it on some devices will cause all sleep data to show up as light sleep in Gadgetbridge!</string>
     <string name="huawei_sleep_breath_summary">Assess your breathing in a quiet environment. May affect battery life.\nWarning: Not synced to the Gadgetbridge yet.</string>
     <string name="prefs_activity_recognition">Activity recognition settings</string>
+    <string name="pref_phone_sensor_collector_title">Phone sensor calibration</string>
+    <string name="pref_phone_sensor_collector_enabled_title">Collect phone sensor context</string>
+    <string name="pref_phone_sensor_collector_summary">Optional, permission-free phone sensor data for derived health metrics. GPS is not collected.</string>
+    <string name="pref_phone_sensor_pressure_title">Barometer pressure</string>
+    <string name="pref_phone_sensor_accel_title">Accelerometer magnitude</string>
+    <string name="pref_phone_sensor_light_title">Ambient light</string>
+    <string name="pref_phone_sensor_ambient_temp_title">Ambient temperature</string>
+    <string name="pref_phone_sensor_step_counter_title">Step counter</string>
     <string name="pref_activity_recognize_running">recognize running</string>
     <string name="pref_activity_recognize_biking">recognize biking</string>
     <string name="pref_activity_recognize_walking">recognize walking</string>
