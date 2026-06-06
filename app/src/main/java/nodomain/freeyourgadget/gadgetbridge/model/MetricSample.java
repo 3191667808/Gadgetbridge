@@ -57,11 +57,11 @@ public interface MetricSample extends TimeSample {
         setMetricExtra(extra);
     }
 
-    @IntRange(from = 0, to = 12)
+    @IntRange(from = 0, to = 18)
     int getMetricType();
 
     /// use {@link #setMetric(Metric)} or {@link #setMetric(Metric, Double, Long)} instead
-    void setMetricType(@IntRange(from = 1, to = 12) int type);
+    void setMetricType(@IntRange(from = 1, to = 18) int type);
 
     double getMetricScore();
 
@@ -109,6 +109,8 @@ public interface MetricSample extends TimeSample {
         GENERIC_RESTING_METABOLIC_RATE(11, UNIT_KCAL_PER_DAY),
         /// @see FitPhysiologicalMetrics#getMetMax()
         GENERIC_MAXIMUM_OXYGEN_UPTAKE(12, UNIT_ML_KG_MIN),
+        /// Sleep Regularity Index (SRI), Phillips 2017. Higher is more regular.
+        GENERIC_SLEEP_REGULARITY(18, UNIT_NONE),
         ;
 
         final public int dbId;

@@ -74,6 +74,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardGoalsW
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardHrvWidget;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardBloodPressureWidget;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardPaiWidget;
+import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardSleepRegularityWidget;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardSleepScoreWidget;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardSleepWidget;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.DashboardStepsWidget;
@@ -331,6 +332,9 @@ public class DashboardFragment extends Fragment implements MenuProvider {
                         break;
                     case "sleepscore":
                         widget = DashboardSleepScoreWidget.newInstance(dashboardData);
+                        break;
+                    case "sleepregularity":
+                        widget = DashboardSleepRegularityWidget.newInstance(dashboardData);
                         break;
                     default:
                         LOG.error("Unknown dashboard widget {}", widgetName);

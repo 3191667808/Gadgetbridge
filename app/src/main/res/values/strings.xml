@@ -1169,6 +1169,8 @@
     <string name="highest">Highest</string>
     <string name="sleep_score">Sleep Score</string>
     <string name="sleep_score_value">Score: %1d</string>
+    <string name="dashboard_sleep_regularity_title">Sleep regularity</string>
+    <string name="dashboard_sleep_regularity_summary">Consistency of your sleep/wake times across days</string>
     <string name="stats_empty_value">-</string>
     <string name="time_empty_value" translatable="false">--:--</string>
     <string name="date_placeholders__date__time">%1$s, %2$s</string>
