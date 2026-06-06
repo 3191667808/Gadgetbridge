@@ -482,4 +482,237 @@ public final class DerivedHealthMetrics {
         }
         return Math.sqrt(sumSq / r.size());
     }
+
+    // ========================================================================
+    // Body composition (HC: BasalMetabolicRate, LeanBodyMass)
+    // ========================================================================
+
+    /**
+     * Basal metabolic rate in kcal/day, Mifflin-St Jeor equation.
+     * Mifflin MD et al. (1990) Am J Clin Nutr 51:241-247.  Currently
+     * the most accurate predictive equation for normal-weight adults
+     * 19-78 yo (±10% of measured RMR).
+     */
+    public static double bmrMifflinStJeor(double weightKg, int heightCm,
+                                          int ageYears, boolean isMale) {
+        if (weightKg <= 0 || heightCm <= 0 || ageYears <= 0) return -1;
+        double base = 10.0 * weightKg + 6.25 * heightCm - 5.0 * ageYears;
+        return isMale ? base + 5 : base - 161;
+    }
+
+    /**
+     * Lean body mass in kg, Boer formula.
+     * Boer P (1984) Am J Physiol 247:F632-F636.  Validated against DXA
+     * for adults 18-65 with BMI 18-30.
+     */
+    public static double leanBodyMassBoer(double weightKg, int heightCm,
+                                          boolean isMale) {
+        if (weightKg <= 0 || heightCm <= 0) return -1;
+        return isMale
+                ? 0.407 * weightKg + 0.267 * heightCm - 19.2
+                : 0.252 * weightKg + 0.473 * heightCm - 48.3;
+    }
+
+    // ========================================================================
+    // Activity (HC: ExerciseSession active minutes / continuous segments)
+    // ========================================================================
+
+    /**
+     * Active minutes — total minutes where HR ≥ Zone-2 boundary (60% of HRR
+     * above rest), the WHO/ACSM "moderate-intensity" definition.
+     * Each HR sample contributes 1 minute when ≥ threshold (the R20
+     * background monitor stores at most one record per minute, so
+     * this gives WHO-style moderate-or-greater minutes).
+     */
+    public static int activeMinutes(List<? extends HeartRateSample> hr,
+                                    int hrMax, int hrRest) {
+        if (hr == null || hr.isEmpty() || hrMax <= hrRest) return 0;
+        int hrr = hrMax - hrRest;
+        int zone2Threshold = hrRest + (int) Math.round(hrr * 0.60);
+        int active = 0;
+        for (HeartRateSample s : hr) {
+            int v = s.getHeartRate();
+            if (v >= zone2Threshold && v < 240) active++;
+        }
+        return active;
+    }
+
+    /**
+     * Continuous moderate-intensity segments — find contiguous runs of HR
+     * samples ≥ Zone-2 lasting at least {@code minMinutes}, suitable for
+     * emitting as Health Connect {@code ExerciseSession} records.
+     * Returns a flat list of [startTsMs, endTsMs, startTsMs, endTsMs, ...].
+     * Each segment may have brief sub-threshold dips up to {@code gapToleranceMin}
+     * minutes (WHO counts continuous activity with short interruptions).
+     */
+    public static long[] continuousActiveSegments(List<? extends HeartRateSample> hr,
+                                                  int hrMax, int hrRest,
+                                                  int minMinutes,
+                                                  int gapToleranceMin) {
+        if (hr == null || hr.size() < minMinutes || hrMax <= hrRest)
+            return new long[0];
+        int hrr = hrMax - hrRest;
+        int z2 = hrRest + (int) Math.round(hrr * 0.60);
+        long[] tmp = new long[hr.size() * 2];
+        int n = 0;
+        long segStart = -1;
+        long lastActive = -1;
+        int activeCount = 0;
+        long gapMs = gapToleranceMin * 60_000L;
+        for (HeartRateSample s : hr) {
+            long t = s.getTimestamp();
+            int v = s.getHeartRate();
+            if (v >= z2 && v < 240) {
+                if (segStart < 0) segStart = t;
+                lastActive = t;
+                activeCount++;
+            } else if (segStart >= 0 && t - lastActive > gapMs) {
+                if (activeCount >= minMinutes) {
+                    tmp[n++] = segStart; tmp[n++] = lastActive;
+                }
+                segStart = -1; activeCount = 0;
+            }
+        }
+        if (segStart >= 0 && activeCount >= minMinutes) {
+            tmp[n++] = segStart; tmp[n++] = lastActive;
+        }
+        long[] out = new long[n];
+        System.arraycopy(tmp, 0, out, 0, n);
+        return out;
+    }
+
+    // ========================================================================
+    // Phone-sensor calibration layer (pure functions — no Android imports).
+    // These improve heuristic accuracy when the host device (phone/companion
+    // app) can provide additional sensor data the wearable lacks.
+    // The actual sensor-collection service is intentionally out of scope of
+    // this class; callers pass already-collected values.
+    // ========================================================================
+
+    /**
+     * Convert a sequence of phone barometer readings into floors-climbed.
+     * Each floor ≈ 3.05 m elevation (NFPA 5000 stair tread average),
+     * which at sea level corresponds to ≈ 0.36 hPa pressure drop
+     * (hypsometric equation: dh = 8.43 × dP for small deltas near 1013 hPa).
+     *
+     * <p>The algorithm sums monotonic ascending segments only — descents
+     * don't count as floors-climbed but the down-then-up zigzag of a
+     * staircase landing is preserved. Noise below {@code minSegmentMeters}
+     * (default ~1.5 m) is ignored to filter walking-with-the-phone-in-hand.
+     *
+     * @param hPaReadings pressure samples in hPa, oldest first
+     * @return integer floors climbed (≥ 0)
+     */
+    public static int floorsFromPressureSeries(double[] hPaReadings) {
+        if (hPaReadings == null || hPaReadings.length < 3) return 0;
+        double METRES_PER_FLOOR = 3.05;
+        double MIN_SEGMENT_METRES = 1.5;
+        double NOISE_HPA = 0.05;       // ≈ 0.4 m, below sensor accuracy
+        double totalAscent = 0;
+        double segStartPressure = hPaReadings[0];
+        double lastPressure = hPaReadings[0];
+        boolean ascending = false;
+        for (int i = 1; i < hPaReadings.length; i++) {
+            double p = hPaReadings[i];
+            if (lastPressure - p > NOISE_HPA) {              // pressure dropping = going up
+                if (!ascending) { segStartPressure = lastPressure; ascending = true; }
+            } else if (p - lastPressure > NOISE_HPA) {        // pressure rising = going down
+                if (ascending) {
+                    double segMetres = 8.43 * (segStartPressure - lastPressure);
+                    if (segMetres >= MIN_SEGMENT_METRES) totalAscent += segMetres;
+                    ascending = false;
+                }
+            }
+            lastPressure = p;
+        }
+        if (ascending) {
+            double segMetres = 8.43 * (segStartPressure - lastPressure);
+            if (segMetres >= MIN_SEGMENT_METRES) totalAscent += segMetres;
+        }
+        return (int) Math.floor(totalAscent / METRES_PER_FLOOR);
+    }
+
+    /**
+     * Calibrate a user's stride length from a paired (GPS distance, ring
+     * step count) walking sample. Replaces the height-based default
+     * {@code 0.415 × height_m} for men / {@code 0.413 × height_m} for
+     * women, which is only ±15% accurate at the population level.
+     *
+     * @return calibrated stride length in metres, or -1 on insufficient data
+     */
+    public static double calibrateStrideFromGps(int stepsDuringWalk, double gpsMetres) {
+        if (stepsDuringWalk < 200 || gpsMetres < 100) return -1;
+        double stride = gpsMetres / stepsDuringWalk;
+        // sanity clamp — adults are 0.4–1.0 m stride at walking pace
+        if (stride < 0.40 || stride > 1.10) return -1;
+        return stride;
+    }
+
+    /** Phone-context activity classes derived from accelerometer + ring HR. */
+    public enum PhoneActivity { RESTING, WALKING, RUNNING, CYCLING, UNKNOWN }
+
+    /**
+     * Lightweight activity classifier using mean+variance of accelerometer
+     * magnitude (m/s²) over a 10-second window plus the concurrent HR.
+     * Rules are derived from Karantonis et al, <i>IEEE Trans Inf Technol
+     * Biomed</i> 10(1):156-167 (2006) thresholds adapted for trouser-pocket
+     * placement.
+     *
+     * <p>The classification is useful for separating exercise HR (which
+     * should count toward training load) from psychological/stress HR
+     * (which should count toward stress score) when the ring sees an
+     * elevated HR but doesn't know why.
+     */
+    public static PhoneActivity classifyActivity(double accelMeanMs2,
+                                                 double accelStdMs2,
+                                                 int currentHr) {
+        if (accelStdMs2 < 0 || accelMeanMs2 < 0) return PhoneActivity.UNKNOWN;
+        if (accelStdMs2 < 0.20)                                  // quasi-stationary
+            return PhoneActivity.RESTING;
+        if (accelStdMs2 < 1.50 && currentHr < 110)               // walking pace
+            return PhoneActivity.WALKING;
+        if (accelStdMs2 >= 1.50 && accelStdMs2 < 4.50)           // strong rhythmic impact
+            return PhoneActivity.RUNNING;
+        if (accelStdMs2 < 1.50 && currentHr >= 110)              // elevated HR, low impact
+            return PhoneActivity.CYCLING;
+        return PhoneActivity.UNKNOWN;
+    }
+
+    /**
+     * Correct a ring-measured skin temperature for ambient temperature.
+     * Aoyagi (1997) showed peripheral skin temperature follows ambient
+     * temperature with gain ≈ 0.10 °C of error per 5 °C of ambient
+     * deviation from thermoneutral (≈ 22 °C / 71 °F). The correction is
+     * a linear back-projection toward the thermoneutral baseline.
+     *
+     * @param ringSkinC raw skin-temperature reading from the device, °C
+     * @param ambientC  ambient temperature measured by the phone, °C
+     * @return corrected skin temperature, °C
+     */
+    public static double ambientCorrectSkinTemp(double ringSkinC, double ambientC) {
+        if (ringSkinC <= 0 || ambientC <= -50) return ringSkinC;
+        double thermoneutral = 22.0;
+        double gain = 0.02;   // 0.10 °C per 5 °C
+        return ringSkinC - gain * (ambientC - thermoneutral);
+    }
+
+    /**
+     * Backfill missing ring step deltas using the phone hardware step
+     * counter (TYPE_STEP_COUNTER) for periods when the ring was off the
+     * finger (charging, washing). The phone counter is monotonic since
+     * device boot, so callers pass before/after totals and the elapsed
+     * minutes.
+     *
+     * <p>Returns the step count to credit for the window, clamped to a
+     * physiological maximum of 200 spm to reject sensor glitches.
+     */
+    public static int backfillStepsFromPhone(long phoneTotalBefore,
+                                             long phoneTotalAfter,
+                                             int windowMinutes) {
+        if (windowMinutes <= 0) return 0;
+        long delta = phoneTotalAfter - phoneTotalBefore;
+        if (delta <= 0) return 0;
+        long cap = (long) windowMinutes * 200;
+        return (int) Math.min(delta, cap);
+    }
 }
