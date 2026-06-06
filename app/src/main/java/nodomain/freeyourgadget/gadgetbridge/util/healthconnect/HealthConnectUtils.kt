@@ -755,8 +755,14 @@ class HealthConnectUtils {
                 HealthConnectPermissionManager.HealthConnectDataType.HRV -> coordinator.getHrvValueSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.RESPIRATORY_RATE -> coordinator.getRespiratoryRateSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.RESTING_HEART_RATE -> coordinator.getHeartRateRestingSampleProvider(device, db.daoSession)
-                HealthConnectPermissionManager.HealthConnectDataType.DEDICATED_HEART_RATE -> coordinator.getHeartRateMaxSampleProvider(device, db.daoSession)
-                HealthConnectPermissionManager.HealthConnectDataType.DEDICATED_SLEEP -> nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider(device, db.daoSession)
+                HealthConnectPermissionManager.HealthConnectDataType.DEDICATED_HEART_RATE ->
+                    if (coordinator.supportsDedicatedHeartRateSync(device))
+                        coordinator.getHeartRateMaxSampleProvider(device, db.daoSession)
+                    else null
+                HealthConnectPermissionManager.HealthConnectDataType.DEDICATED_SLEEP ->
+                    if (coordinator.supportsDedicatedSleepStageSync(device))
+                        nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider(device, db.daoSession)
+                    else null
                 HealthConnectPermissionManager.HealthConnectDataType.BLOOD_GLUCOSE -> GlucoseSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.WEIGHT -> coordinator.getWeightSampleProvider(device, db.daoSession)
                 // For SpO2 and Temperature, there might be a specific provider or fallback to general sample provider
