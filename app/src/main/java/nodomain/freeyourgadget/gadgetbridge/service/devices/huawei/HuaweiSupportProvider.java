@@ -65,6 +65,8 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventDisplayMessage;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiSleepStageSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCompatTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinator;
@@ -79,17 +81,14 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPdrParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSequenceDataFileParser;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepStatsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiStressParser;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTruSleepParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTrueSleepSequenceDataParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.CameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.GpsAndTime;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Notifications;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.ui.HuaweiStressCalibrationFragment;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
@@ -101,9 +100,6 @@ import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStatsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiStressSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSwimSegmentsSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSwimSegmentsSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.export.AutoGpxExporter;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationProviderType;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
@@ -1881,7 +1877,7 @@ public class HuaweiSupportProvider {
                 samples.add(activitySample);
             }
 
-            sampleProvider.addGBActivitySamples(samples.toArray(new HuaweiActivitySample[0]));
+            sampleProvider.addGBActivitySamples(samples);
         } catch (Exception e) {
             LOG.error("Failed to add sleep activity to database", e);
         }
@@ -2734,8 +2730,8 @@ public class HuaweiSupportProvider {
                             }
                             try (DBHandler db = GBApplication.acquireDB()) {
                                 final DaoSession session = db.getDaoSession();
-                                new HuaweiSleepStatsSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, sleepStatsSamples);
-                                new HuaweiSleepStageSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, sleepStageSamples);
+                                new HuaweiSleepStatsSampleProvider(gbDevice, session).persistSamples(sleepStatsSamples, context);
+                                new HuaweiSleepStageSampleProvider(gbDevice, session).persistSamples(sleepStageSamples, context);
                             } catch (Exception e) {
                                 LOG.error("Cannot save sleep, continue");
                             }

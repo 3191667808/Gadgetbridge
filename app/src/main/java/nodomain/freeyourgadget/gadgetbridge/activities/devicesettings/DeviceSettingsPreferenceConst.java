@@ -328,6 +328,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_HYDRATION_DND = "pref_hydration_dnd";
     public static final String PREF_HYDRATION_DND_START = "pref_hydration_dnd_start";
     public static final String PREF_HYDRATION_DND_END = "pref_hydration_dnd_end";
+    public static final String PREF_HYDRATION_REMINDER_START = "pref_hydration_reminder_start";
+    public static final String PREF_HYDRATION_REMINDER_END = "pref_hydration_reminder_end";
     public static final String PREF_AMPM_ENABLED = "pref_ampm_enabled";
 
     public static final String PREF_SONYSWR12_LOW_VIBRATION = "vibration_preference";
@@ -379,7 +381,7 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_NOTHING_EAR1_ULTRA_BASS_LEVEL = "pref_nothing_ultra_bass_level";
     public static final String PREF_HEADPHONES_EQUALIZER = "pref_headphones_equalizer";
     public static final String PREF_HEADPHONES_LOW_LATENCY = "pref_headphones_low_latency";
-
+    public static final String PREF_NOTHING_EAR1_SPATIAL_AUDIO = "pref_nothing_spatial_audio";
 
     public static final String PREF_HUAWEI_FREEBUDS_INEAR = "pref_freebuds_inear_detection";
     public static final String PREF_HUAWEI_FREEBUDS_AUDIOMODE = "pref_freebuds_audiomode";

@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.activities;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -106,7 +105,7 @@ public class DataManagementActivity extends AbstractGBActivity {
                                 startBackupIntent.putExtra(BackupRestoreProgressActivity.EXTRA_ACTION, "import");
                                 startActivity(startBackupIntent);
                             })
-                            .setNegativeButton(R.string.Cancel, (dialog, which) -> {
+                            .setNegativeButton(R.string.cancel, (dialog, which) -> {
                             })
                             .show();
                 }
@@ -234,7 +233,7 @@ public class DataManagementActivity extends AbstractGBActivity {
                         GB.toast(DataManagementActivity.this, getString(R.string.dbmanagementactivity_error_exporting_db, ex.getLocalizedMessage()), Toast.LENGTH_LONG, GB.ERROR, ex);
                     }
                 })
-                .setNegativeButton(R.string.Cancel, (dialog, which) -> {
+                .setNegativeButton(R.string.cancel, (dialog, which) -> {
                 })
                 .show();
     }
@@ -256,7 +255,7 @@ public class DataManagementActivity extends AbstractGBActivity {
                     }
                     importShared();
                 })
-                .setNegativeButton(R.string.Cancel, (dialog, which) -> {
+                .setNegativeButton(R.string.cancel, (dialog, which) -> {
                 })
                 .show();
     }

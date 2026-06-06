@@ -453,8 +453,8 @@
     <string name="dbmanagementactivity_old_activity_db_successfully_deleted">Les dades antigues d\'activitats s\'han esborrat.</string>
     <string name="dbmanagementactivity_old_activity_db_deletion_failed">Ha fallat la supressió de la base de dades antiga d\'activitats.</string>
     <string name="dbmanagementactivity_overwrite">Sobreescriu</string>
-    <string name="Cancel">Cancel·la</string>
-    <string name="Delete">Suprimeix</string>
+    <string name="cancel">Cancel·la</string>
+    <string name="delete">Suprimeix</string>
     <string name="title_activity_vibration">Vibració</string>
     <string name="title_activity_pebble_pairing">Aparellament amb Pebble</string>
     <string name="pebble_pairing_hint">Apareixerà un diàleg d\'aparellament al vostre aparell Android. Si no, cerqueu-lo entre les notificacions i accepteu la petició d\'aparellament. Després accepteu l\'aparellament també al Pebble.</string>
@@ -582,8 +582,8 @@
     <string name="language_and_region_prefs">Configuració de llengua i regió</string>
     <string name="lack_of_sleep">Manca de son: %1$s</string>
     <string name="overslept">Son de més: %1$s</string>
-    <string name="lack_of_step">Manca de passes: %1$d</string>
-    <string name="overstep">Passes de més: %1$d</string>
+    <string name="lack_of_step">Manca de passes: %1$s</string>
+    <string name="overstep">Passes de més: %1$s</string>
     <string name="no_data">No hi ha dades</string>
     <string name="live_activity_max_heart_rate">Ritme cardíac actual / màxim: %1$d / %2$d</string>
     <string name="title_activity_notification_filter">Filtre de notificacions</string>

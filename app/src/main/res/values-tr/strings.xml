@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="Cancel">İptal</string>
+    <string name="cancel">İptal</string>
     <string name="DEVINFO_HR_VER">"Kalp ritmi: "</string>
-    <string name="Delete">Sil</string>
+    <string name="delete">Sil</string>
     <string name="FetchActivityOperation_about_to_transfer_since">%1$s tarihinden itibaren verileri aktarmak üzere</string>
     <string name="StringUtils_sender">(%1$s)</string>
     <string name="_pebble_watch_mute">Sessiz</string>
@@ -306,7 +306,7 @@
     <string name="kind_watchface">Saat Arayüzü</string>
     <string name="korean">Korece</string>
     <string name="lack_of_sleep">Eksik uyku: %1$s</string>
-    <string name="lack_of_step">Eksik adım sayısı: %1$d</string>
+    <string name="lack_of_step">Eksik adım sayısı: %1$s</string>
     <string name="language_and_region_prefs">Dil ve bölge ayarları</string>
     <string name="left">Sol</string>
     <string name="live_activity_current_steps_per_minute">Şu anki adım sayısı/dk</string>
@@ -414,7 +414,7 @@
     <string name="on">Açık</string>
     <string name="other">Diğer</string>
     <string name="overslept">Fazla uyku: %1$s</string>
-    <string name="overstep">Fazla adım: %1$d</string>
+    <string name="overstep">Fazla adım: %1$s</string>
     <string name="pairing">%s ile eşleştiriliyor…</string>
     <string name="pairing_already_bonded">%1$s (%2$s) ile zaten etkileşimde, bağlanıyor…</string>
     <string name="pairing_creating_bond_with">%1$s (%2$s) ile etkileşim başlıyor</string>
@@ -3870,4 +3870,7 @@
     <string name="auto_export_invalid_location">Geçersiz dışa aktarma konumu: %s</string>
     <string name="save">Kaydet</string>
     <string name="done">Bitti</string>
+    <string name="phone_gps_not_available">Telefon GPS\'i erişilebilir değil.</string>
+    <string name="diving_nitrogen_load">Azot yükü</string>
+    <string name="diving_oxygen_toxicity">Oksijen Toksisitesi</string>
 </resources>

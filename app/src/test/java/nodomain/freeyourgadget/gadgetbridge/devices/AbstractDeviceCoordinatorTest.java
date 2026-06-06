@@ -57,6 +57,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("Forerunner 165 Music", DeviceType.GARMIN_FORERUNNER_165_MUSIC);
             put("R60", DeviceType.BLACKVIEW_R60);
             put("eTrex SE", DeviceType.GARMIN_ETREX_SE);
+            put("GPSMAP H1", DeviceType.GARMIN_GPSMAP_H1); // #6122
             put("GPSMAP 66S", DeviceType.GARMIN_GPSMAP_66S); // matrix
             put("GPSMAP 66S #1234512345", DeviceType.GARMIN_GPSMAP_66S); // matrix
             put("Instinct Tactical", DeviceType.GARMIN_INSTINCT_TACTICAL);
@@ -73,6 +74,8 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("Redmi Buds 6 Pro", DeviceType.REDMIBUDS6PRO);
             put("Xiaomi Watch S4 AB01", DeviceType.XIAOMI_WATCH_S4);
             put("HUAWEI WATCH FIT 4 Pro-CC6", DeviceType.HUAWEIWATCHFIT4PRO);
+            put("HUAWEI WATCH FIT 5-810", DeviceType.HUAWEIWATCHFIT5); // #6097
+            put("Huawei Watch Fit 5 Pro-F64", DeviceType.HUAWEIWATCHFIT5PRO); // #6100
             put("HUAWEI Band 11-CEF", DeviceType.HUAWEIBAND11); // #5839
             put("HUAWEI Band 11 Pro-C5A", DeviceType.HUAWEIBAND11PRO); // #5989
             put("Edge Explore", DeviceType.GARMIN_EDGE_EXPLORE); // #4855
@@ -132,6 +135,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("vívomove Trend", DeviceType.GARMIN_VIVOMOVE_TREND); // #3875
             put("fenix 5", DeviceType.GARMIN_FENIX_5); // #3869
             put("Forerunner 255S", DeviceType.GARMIN_FORERUNNER_255S); // #3841
+            put("Space Travel 2 Ultra", DeviceType.MOONDROP_SPACE_TRAVEL_2_ULTRA); // matrix
             put("Venu 2", DeviceType.GARMIN_VENU_2); // #3835
             put("Venu 4 45mm", DeviceType.GARMIN_VENU_4); // #5461
             put("Venu 4 - 45mm", DeviceType.GARMIN_VENU_4); // matrix
@@ -196,6 +200,7 @@ public class AbstractDeviceCoordinatorTest extends TestBase {
             put("C 20", DeviceType.C20); // #5495
             put("OV-Touch2.6_LE", DeviceType.OVTOUCH26); // #5628
             put("BPW4500", DeviceType.BRAUN_BPW4500); // #5886
+            put("MATSON Monitor", DeviceType.BM2_BATTERY_MONITOR); // #6212
         }};
 
         for (Map.Entry<String, DeviceType> e : bluetoothNameToExpectedType.entrySet()) {

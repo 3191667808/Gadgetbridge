@@ -39,7 +39,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvi
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.r20.R20Constants;
-import nodomain.freeyourgadget.gadgetbridge.devices.sbm_67.GenericBloodPressureSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
@@ -409,7 +409,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     long ts = sessions.get(sessions.size() - 1).endTimeMs;
                     GenericMetricSample gms = new GenericMetricSample(
                             ts, deviceId, userId,
-                            MetricSample.Metric.GENERIC_VO2MAX.getDbId(),
+                            MetricSample.Metric.GENERIC_MAXIMUM_OXYGEN_UPTAKE.getDbId(),
                             vo2, Math.round(ageDelta * 100));
                     metricProvider.addSample(gms);
                 }

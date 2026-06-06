@@ -1,11 +1,11 @@
-/*  Copyright (C) 2015-2025 Andreas Böhler, Andreas Shimokawa, Arjan
+/*  Copyright (C) 2015-2026 Andreas Böhler, Andreas Shimokawa, Arjan
     Schrijver, Avamander, Carsten Pfeiffer, Daniel Dakhno, Daniele Gobbetti,
     Daniel Hauck, Davis Mosenkovs, Dikay900, Dmitriy Bogdanov, Frank Slezak,
     Gabriele Monaco, Gordon Williams, ivanovlev, João Paulo Barraca, José
-    Rebelo, Julien Pivotto, Kasha, keeshii, Martin, Matthieu Baerts, mvn23,
-    NekoBox, Nephiel, Petr Vaněk, Sebastian Kranz, Sergey Trofimov, Steffen
-    Liebergeld, Taavi Eomäe, TylerWilliamson, Uwe Hermann, Yoran Vulker,
-    Thomas Kuehne
+    Rebelo, Julien Pivotto, Kasha, keeshii, Martin, Martin Braun, Matthieu
+    Baerts, mvn23, NekoBox, Nephiel, Petr Vaněk, Sebastian Kranz, Sergey
+    Trofimov, Steffen Liebergeld, Taavi Eomäe, TylerWilliamson, Uwe Hermann,
+    Yoran Vulker, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -79,6 +79,7 @@ import nodomain.freeyourgadget.gadgetbridge.capabilities.loyaltycards.LoyaltyCar
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.DeviceAlarmReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothConnectReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothPairingRequestReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CMWeatherReceiver;
@@ -552,6 +553,10 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         deviceSettingsIntentFilter.addAction(DeviceSettingsReceiver.COMMAND);
         ContextCompat.registerReceiver(this, deviceSettingsReceiver, deviceSettingsIntentFilter, ContextCompat.RECEIVER_EXPORTED);
         globalReceivers.add(deviceSettingsReceiver);
+
+        final DeviceAlarmReceiver deviceAlarmReceiver = new DeviceAlarmReceiver();
+        ContextCompat.registerReceiver(this, deviceAlarmReceiver, deviceAlarmReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);
+        globalReceivers.add(deviceAlarmReceiver);
 
         final IntentApiReceiver intentApiReceiver = new IntentApiReceiver();
         ContextCompat.registerReceiver(this, intentApiReceiver, intentApiReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);
@@ -1145,7 +1150,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 deviceSupport.onAppReorder(uuids);
                 break;
             }
-            case ACTION_INSTALL:
+            case ACTION_INSTALL: {
                 Uri uri = intentCopy.getParcelableExtra(EXTRA_URI);
                 Bundle options = Objects.requireNonNullElse(intentCopy.getBundleExtra(EXTRA_OPTIONS), Bundle.EMPTY);
                 if (uri != null) {
@@ -1155,6 +1160,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                     LOG.error("Got null uri for app to install");
                 }
                 break;
+            }
             case ACTION_SET_ALARMS:
                 ArrayList<? extends Alarm> alarms = (ArrayList<? extends Alarm>) intentCopy.getSerializableExtra(EXTRA_ALARMS);
                 deviceSupport.onSetAlarms(alarms);
@@ -1206,7 +1212,8 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 break;
             }
             case ACTION_TEST_NEW_FUNCTION: {
-                deviceSupport.onTestNewFunction();
+                Bundle options = intentCopy.getBundleExtra(EXTRA_OPTIONS);
+                deviceSupport.onTestNewFunction(options);
                 break;
             }
             case ACTION_SEND_WEATHER: {
@@ -1251,10 +1258,10 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 deviceSupport.onMusicListReq();
                 break;
             case ACTION_REQUEST_MUSIC_OPERATION:
-                int operation = intentCopy.getIntExtra("operation", -1);
-                int playlistIndex = intentCopy.getIntExtra("playlistIndex", -1);
-                String playlistName = intentCopy.getStringExtra("playlistName");
-                ArrayList<Integer> musics = (ArrayList<Integer>) intentCopy.getSerializableExtra("musicIds");
+                int operation = intentCopy.getIntExtra(EXTRA_REQUEST_MUSIC_OPERATION, -1);
+                int playlistIndex = intentCopy.getIntExtra(EXTRA_REQUEST_MUSIC_PLAY_LIST_INDEX, -1);
+                String playlistName = intentCopy.getStringExtra(EXTRA_REQUEST_MUSIC_PLAY_LIST_NAME);
+                ArrayList<Integer> musics = (ArrayList<Integer>) intentCopy.getSerializableExtra(EXTRA_REQUEST_MUSIC_MUSIC_IDS);
                 deviceSupport.onMusicOperation(operation, playlistIndex, playlistName, musics);
                 break;
         }

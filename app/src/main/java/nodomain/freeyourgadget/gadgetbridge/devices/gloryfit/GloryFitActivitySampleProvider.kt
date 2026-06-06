@@ -18,6 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.gloryfit
 
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.GloryFitStepsSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericActivitySample
@@ -110,7 +111,7 @@ open class GloryFitActivitySampleProvider(device: GBDevice, session: DaoSession)
         throw UnsupportedOperationException("Read-only sample provider")
     }
 
-    override fun addGBActivitySamples(activitySamples: Array<GenericActivitySample>) {
+    override fun addGBActivitySamples(activitySamples: List<GenericActivitySample>) {
         throw UnsupportedOperationException("Read-only sample provider")
     }
 

@@ -421,8 +421,8 @@
     <string name="dbmanagementactivity_old_activity_db_successfully_deleted">Oude activiteitsgegevens verwijderd.</string>
     <string name="dbmanagementactivity_old_activity_db_deletion_failed">Oude activiteitsdatabase verwijderen mislukt.</string>
     <string name="dbmanagementactivity_overwrite">Overschrijven</string>
-    <string name="Cancel">Annuleren</string>
-    <string name="Delete">Verwijder</string>
+    <string name="cancel">Annuleren</string>
+    <string name="delete">Verwijder</string>
     <string name="title_activity_vibration">Vibratie</string>
     <string name="title_activity_pebble_pairing">Pebble koppelen</string>
     <string name="pebble_pairing_hint">Er zal een koppelingsdialoogvenster verschijnen op uw Android-apparaat. Als dat niet gebeurt, kijk dan tussen uw meldingen en accepteer het koppelingsverzoek. Accepteer het daarna ook op uw Pebble.</string>
@@ -546,8 +546,8 @@
     <string name="minutes_5">5 minuten</string>
     <string name="minutes_10">10 minuten</string>
     <string name="minutes_30">30 minuten</string>
-    <string name="lack_of_step">Tekort aan stappen: %1$d</string>
-    <string name="overstep">Overschrijding aantal stappen: %1$d</string>
+    <string name="lack_of_step">Tekort aan stappen: %1$s</string>
+    <string name="overstep">Overschrijding aantal stappen: %1$s</string>
     <string name="live_activity_max_heart_rate">Huidige / Max hartslag: %1$d / %2$d</string>
     <string name="mi3_prefs_night_mode">Nacht modus</string>
     <string name="mi3_prefs_night_mode_summary">Verlaag \'s nachts automatisch de scherm helderheid</string>
@@ -4337,4 +4337,15 @@
     <string name="pref_summary_supported_devices">Deze functie wordt niet door alle apparaten ondersteund. Klik hier voor meer informatie.</string>
     <string name="pref_title_supported_devices">Ondersteunde apparaten</string>
     <string name="intent_api_allow_global_settings_summary">Sta externe apps toe om globale Gadgetbridge-instellingen aan te passen via intents. Gadgetbridge moet herstart worden voordat deze instelling effect heeft.</string>
+    <string name="phone_gps_not_available">GPS van de telefoon is niet beschikbaar</string>
+    <string name="stamina">Uithoudingsvermogen</string>
+    <string name="step_length">Staplengte</string>
+    <string name="diving_cns_toxicity">CNS-toxiciteit</string>
+    <string name="diving_nitrogen_load">Stikstofbelasting</string>
+    <string name="diving_oxygen_toxicity">Zuurstoftoxiciteit</string>
+    <string name="unit_oxygen_toxicity_units">OTU</string>
+    <string name="diving_surface_interval">Oppervlakte-interval</string>
+    <string name="pref_title_third_party_app_device_alarms">Toestaan dat apps van derden alarmen instellen</string>
+    <string name="pref_summary_third_party_app_device_alarms">Sta andere geïnstalleerde apps van derden toe om alarmen op het apparaat in te stellen via intents.</string>
+    <string name="pref_summary_chart_sleep_range">Bepaalt aan welke dag een slaapsessie wordt toegewezen</string>
 </resources>

@@ -679,6 +679,8 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_HYDRATION_DND);
         addPreferenceHandlerFor(PREF_HYDRATION_DND_START);
         addPreferenceHandlerFor(PREF_HYDRATION_DND_END);
+        addPreferenceHandlerFor(PREF_HYDRATION_REMINDER_START);
+        addPreferenceHandlerFor(PREF_HYDRATION_REMINDER_END);
         addPreferenceHandlerFor(PREF_AMPM_ENABLED);
         addPreferenceHandlerFor(PREF_SOUNDS);
         addPreferenceHandlerFor(PREF_CAMERA_REMOTE);
@@ -738,9 +740,10 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_NOTHING_EAR1_INEAR);
         addPreferenceHandlerFor(PREF_NOTHING_EAR1_AUDIOMODE);
         addPreferenceHandlerFor(PREF_HEADPHONES_LOW_LATENCY);
+        addPreferenceHandlerFor(PREF_HEADPHONES_EQUALIZER);
         addPreferenceHandlerFor(PREF_NOTHING_EAR1_ULTRA_BASS_ENABLED);
         addPreferenceHandlerFor(PREF_NOTHING_EAR1_ULTRA_BASS_LEVEL);
-        addPreferenceHandlerFor(PREF_HEADPHONES_EQUALIZER);
+        addPreferenceHandlerFor(PREF_NOTHING_EAR1_SPATIAL_AUDIO);
 
         addPreferenceHandlerFor(PREF_HUAWEI_FREEBUDS_INEAR);
         addPreferenceHandlerFor(PREF_HUAWEI_FREEBUDS_AUDIOMODE);
@@ -1664,11 +1667,20 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
                     R.xml.devicesettings_device_support_can_reconnect
             );
 
-            deviceSpecificSettings.addRootScreen(
-                    DeviceSpecificSettingsScreen.DEVELOPER,
+            final List<Integer> intentApiSubScreens = new ArrayList<>();
+            Collections.addAll(
+                    intentApiSubScreens,
                     R.xml.devicesettings_header_intent_api,
                     R.xml.devicesettings_settings_third_party_apps
             );
+            if (coordinator.getAlarmSlotCount(device) > 0) {
+                intentApiSubScreens.add(R.xml.devicesettings_alarms_third_party_apps);
+            }
+            deviceSpecificSettings.addRootScreen(
+                    DeviceSpecificSettingsScreen.DEVELOPER,
+                    intentApiSubScreens
+            );
+
             if (coordinator.getConnectionType().usesBluetoothLE()) {
                 deviceSpecificSettings.addRootScreen(
                         DeviceSpecificSettingsScreen.DEVELOPER,

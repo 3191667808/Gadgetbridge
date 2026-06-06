@@ -39,13 +39,11 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.SwitchPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
 import com.bytehamster.lib.preferencesearch.SearchPreferenceResult;
@@ -521,7 +519,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                                 editor.putString("opentracks_packagename", fitnessAppEditText.getText().toString());
                                 editor.apply();
                             })
-                            .setNegativeButton(R.string.Cancel, (dialog, which) -> {})
+                            .setNegativeButton(R.string.cancel, (dialog, which) -> {})
                             .show();
                     return false;
                 });

@@ -362,8 +362,8 @@
     <string name="dbmanagementactivity_old_activity_db_successfully_deleted">Aktivitetsdata slettet.</string>
     <string name="dbmanagementactivity_old_activity_db_deletion_failed">Sletting av gammel aktivitetsdatabase mislyktes.</string>
     <string name="dbmanagementactivity_overwrite">Overskriv</string>
-    <string name="Cancel">Avbryt</string>
-    <string name="Delete">Slett</string>
+    <string name="cancel">Avbryt</string>
+    <string name="delete">Slett</string>
     <string name="title_activity_vibration">Vibrasjon</string>
     <string name="title_activity_pebble_pairing">Pebble-paring</string>
     <string name="pebble_pairing_hint">En paringsdialog vil dukke opp på Android-enheten din. Hvis ikke, se i varselslinjen og godta paringsforespørselen. Godta den også på Pebble etterpå.</string>
@@ -529,8 +529,8 @@
     <string name="notif_battery_low_extended">%1$s batteri lavt: %2$s</string>
     <string name="lack_of_sleep">Mangel på søvn: %1$s</string>
     <string name="overslept">Oversovet: %1$s</string>
-    <string name="lack_of_step">Mangler trinn: %1$d</string>
-    <string name="overstep">Overskritt: %1$d</string>
+    <string name="lack_of_step">Mangler trinn: %1$s</string>
+    <string name="overstep">Overskritt: %1$s</string>
     <string name="live_activity_max_heart_rate">Nåværende / Maks hjertefrekvens: %1$d / %2$d</string>
     <string name="activity_prefs_charts">Diagraminnstillinger</string>
     <string name="pref_title_contextual_arabic">Kontekstuell arabisk</string>

@@ -1,4 +1,4 @@
-/*  Copyright (C) 2016-2024 Andreas Shimokawa, Arjan Schrijver, Carsten
+/*  Copyright (C) 2016-2026 Andreas Shimokawa, Arjan Schrijver, Carsten
     Pfeiffer, Damien Gaignon, Daniel Dakhno, Daniele Gobbetti, Davis Mosenkovs,
     fparri, José Rebelo, mamucho, maxirnilian, mkusnierz, Petr Vaněk, Taavi
     Eomäe
@@ -87,6 +87,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -635,7 +636,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
 
                                                                  }
                                                              })
-                                                             .setNegativeButton(R.string.Cancel, new DialogInterface.OnClickListener() {
+                                                             .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
                                                                  @Override
                                                                  public void onClick(DialogInterface dialog, int which) {
                                                                      // do nothing
@@ -786,7 +787,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                                 }
                             }
                         });
-                builder.setNegativeButton(context.getResources().getString(R.string.Cancel), new DialogInterface.OnClickListener() {
+                builder.setNegativeButton(context.getResources().getString(R.string.cancel), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         dialog.cancel();
@@ -947,7 +948,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                     return true;
                 } else if (itemId == R.id.controlcenter_device_submenu_test_new_function) {
                     if (device.isInitialized()) {
-                        GBApplication.deviceService(device).onTestNewFunction();
+                        GBApplication.deviceService(device).onTestNewFunction(null);
                         showTransientSnackbar(R.string.controlcenter_test_new_function);
                     }
                     return true;
@@ -996,9 +997,9 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                 .setCancelable(true)
                 .setTitle(context.getString(R.string.controlcenter_delete_device_name, device.getAliasOrName()))
                 .setMessage(R.string.controlcenter_delete_device_dialogmessage)
-                .setPositiveButton(R.string.Delete,
+                .setPositiveButton(R.string.delete,
                         (dialog, which) -> removeDevice(device, true))
-                .setNegativeButton(R.string.Cancel, (dialog, which) -> {});
+                .setNegativeButton(R.string.cancel, (dialog, which) -> {});
 
         if (deviceHasFiles(device)) {
             builder.setNeutralButton(R.string.delete_device_and_retain_files,
@@ -1158,7 +1159,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                         }
                     }
                 })
-                .setNegativeButton(R.string.Cancel, new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                     }
@@ -1225,7 +1226,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
                         }
                     }
                 })
-                .setNegativeButton(R.string.Cancel, new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         // do nothing
@@ -1468,7 +1469,7 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
         String distanceFormatted = FormatUtils.getFormattedDistanceLabel(distanceMeters);
 
         setUpChart(holder.TotalStepsChart);
-        setChartsData(holder.TotalStepsChart, steps, stepGoal, context.getString(R.string.steps), String.valueOf(steps), context);
+        setChartsData(holder.TotalStepsChart, steps, stepGoal, context.getString(R.string.steps), NumberFormat.getInstance().format(steps), context);
 
         setUpChart(holder.TotalDistanceChart);
         setChartsData(holder.TotalDistanceChart, steps * stepLength, distanceGoal, context.getString(R.string.distance), distanceFormatted, context);

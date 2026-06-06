@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit;
 
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE;
+
 import android.content.Context;
 import android.widget.Toast;
 
@@ -41,26 +43,28 @@ import java.util.TreeMap;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.devices.AbstractTimeSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.BaseActivitySummaryProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.BatteryLevelProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminBodyEnergySampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminHeartRateRestingSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminHrvSummarySampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminHrvValueSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminIntensityMinutesSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminNapSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminRespiratoryRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminRestingMetabolicRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GarminSleepRestlessMomentsSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminSleepStageSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminSleepStatsSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericTrainingLoadAcuteSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericTrainingLoadChronicSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.PersistanceProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminActivitySampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminBodyEnergySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminEventSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminHeartRateRestingSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminHrvSummarySampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminHrvValueSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminIntensityMinutesSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminNapSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminRespiratoryRateSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminRestingMetabolicRateSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminSleepStageSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminSleepStatsSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminSpo2SampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminWorkoutParser;
-import nodomain.freeyourgadget.gadgetbridge.entities.AbstractTimeSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.BatteryLevel;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -88,6 +92,7 @@ import nodomain.freeyourgadget.gadgetbridge.export.AutoGpxExporter;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack;
 import nodomain.freeyourgadget.gadgetbridge.model.FitActivityTrackProvider;
@@ -430,7 +435,7 @@ public class FitImporter {
                 final double endurance = (rawEndurance == null) ? Double.NaN : rawEndurance.doubleValue();
                 if (endurance > 0.0) {
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_HILL_ENDURANCE, endurance, level);
                     genericMetricSamples.add(sample);
                 }
@@ -439,7 +444,7 @@ public class FitImporter {
                 final double score = (rawScore == null) ? Double.NaN : rawScore.doubleValue();
                 if (score > 0.0) {
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_HILL_SCORE, score, level);
                     genericMetricSamples.add(sample);
                 }
@@ -448,7 +453,7 @@ public class FitImporter {
                 final double strength = (rawStrength == null) ? Double.NaN : rawStrength.doubleValue();
                 if (strength > 0.0) {
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_HILL_STRENGTH, strength, level);
                     genericMetricSamples.add(sample);
                 }
@@ -461,7 +466,7 @@ public class FitImporter {
 
                 if ((level != null && level > 0) || (readiness != null && readiness > 0)) {
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_TRAINING_READINESS, readiness, level);
                     genericMetricSamples.add(sample);
                 }
@@ -474,7 +479,7 @@ public class FitImporter {
 
                 if ((level != null && level > 0) || (score != null && score > 0)) {
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_ENDURANCE_SCORE, score, level);
                     genericMetricSamples.add(sample);
                 }
@@ -486,7 +491,7 @@ public class FitImporter {
                     final Long hr = (rawHr == null) ? null : rawHr.longValue();
 
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_FUNCTIONAL_THRESHOLD_POWER, ftp, hr);
                     genericMetricSamples.add(sample);
                 }
@@ -498,7 +503,7 @@ public class FitImporter {
                     final Long hr = (rawHr == null) ? null : rawHr.longValue();
 
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_RUNNING_LACTATE_THRESHOLD_POWER, ltp, hr);
                     genericMetricSamples.add(sample);
                 }
@@ -511,7 +516,7 @@ public class FitImporter {
 
                 if ((vo2Max != null && vo2Max > 0) || (maxMetCategory != null && maxMetCategory > 0)) {
                     final GenericMetricSample sample = new GenericMetricSample();
-                    sample.setTimestamp(ts);
+                    sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_MET_MAX_VO2, vo2Max, maxMetCategory);
                     genericMetricSamples.add(sample);
                 }
@@ -616,8 +621,8 @@ public class FitImporter {
             final DaoSession session = handler.getDaoSession();
             final long deviceId = DBHelper.getDevice(gbDevice, session).getId();
             final long userId = DBHelper.getUser(session).getId();
-            persistBattery(session, deviceId);
-            persistGenericMetrics(session, deviceId, userId);
+            persistAbstractSamples(batterySamples, new BatteryLevelProvider(gbDevice, session));
+            persistMetricSamples(session);
         } catch (final Exception e) {
             GB.toast(context, "Error saving generic samples", Toast.LENGTH_LONG, GB.ERROR, e);
         }
@@ -628,23 +633,35 @@ public class FitImporter {
         }
     }
 
-    private void persistBattery(final DaoSession session, final long deviceId) {
-        if (!batterySamples.isEmpty()) {
-            for (BatteryLevel batteryLevel : batterySamples) {
-                batteryLevel.setDeviceId(deviceId);
-            }
-            session.getBatteryLevelDao().insertOrReplaceInTx(batterySamples);
-        }
-    }
+    private void persistMetricSamples(@NonNull final DaoSession session) {
+        // During the transition phase some samples are persisted twice:
+        // 1) to the old individual tables (see importFile)
+        // 2) to the new generic metrics table (here)
+        // this enables thorough testing without risking data loss.
 
-    private void persistGenericMetrics(final DaoSession session, final long deviceId, final long userId) {
-        if (!genericMetricSamples.isEmpty()) {
-            genericMetricSamples.forEach(sample -> {
-                sample.setUserId(userId);
-                sample.setDeviceId(deviceId);
-            });
-            session.getGenericMetricSampleDao().insertOrReplaceInTx(genericMetricSamples);
+        for (final GenericTrainingLoadAcuteSample legacy : trainingLoadAcuteSamples) {
+            GenericMetricSample metric = new GenericMetricSample();
+            metric.setTimestamp(legacy.getTimestamp());
+            metric.setMetric(MetricSample.Metric.GENERIC_TRAINING_LOAD_ACUTE, legacy.getValue());
+            genericMetricSamples.add(metric);
         }
+
+        for (final GenericTrainingLoadChronicSample legacy : trainingLoadChronicSamples) {
+            final GenericMetricSample metric = new GenericMetricSample();
+            metric.setTimestamp(legacy.getTimestamp());
+            metric.setMetric(MetricSample.Metric.GENERIC_TRAINING_LOAD_CHRONIC, legacy.getValue());
+            genericMetricSamples.add(metric);
+        }
+
+        for (final GarminRestingMetabolicRateSample legacy : restingMetabolicRateSamples) {
+            final GenericMetricSample metric = new GenericMetricSample();
+            metric.setTimestamp(legacy.getTimestamp());
+            metric.setMetric(MetricSample.Metric.GENERIC_RESTING_METABOLIC_RATE, legacy.getRestingMetabolicRate());
+            genericMetricSamples.add(metric);
+        }
+
+        final GenericMetricSampleProvider provider = new GenericMetricSampleProvider(gbDevice, session);
+        persistAbstractSamples(genericMetricSamples, provider);
     }
 
     private void persistWorkout(final File file, final DaoSession session, boolean isReprocessing, FitFile fitFile) {
@@ -688,17 +705,13 @@ public class FitImporter {
         }
 
         workoutParser.updateSummary(summary);
+        final GenericMetricSampleProvider provider = new GenericMetricSampleProvider(gbDevice, session);
+        persistAbstractSamples(workoutParser.getGenericMetricSamples(), provider);
 
         summary.setRawDetailsPath(file.getAbsolutePath());
 
         try {
-            final Device device = DBHelper.getDevice(gbDevice, session);
-            final User user = DBHelper.getUser(session);
-
-            summary.setDevice(device);
-            summary.setUser(user);
-
-            session.getBaseActivitySummaryDao().insertOrReplace(summary);
+            persistAbstractSamples(List.of(summary), new BaseActivitySummaryProvider(gbDevice, session));
         } catch (final Exception e) {
             GB.toast(context, "Error saving workout", Toast.LENGTH_LONG, GB.ERROR, e);
         }
@@ -874,20 +887,8 @@ public class FitImporter {
             }
         }
 
-        LOG.debug("Will persist {} activity samples", activitySamples.size());
-
         try {
-            final Device device = DBHelper.getDevice(gbDevice, session);
-            final User user = DBHelper.getUser(session);
-
-            final GarminActivitySampleProvider sampleProvider = new GarminActivitySampleProvider(gbDevice, session);
-
-            for (final GarminActivitySample sample : activitySamples) {
-                sample.setDevice(device);
-                sample.setUser(user);
-            }
-
-            sampleProvider.addGBActivitySamples(activitySamples.toArray(new GarminActivitySample[0]));
+            persistAbstractSamples(activitySamples, new GarminActivitySampleProvider(gbDevice, session));
         } catch (final Exception e) {
             GB.toast(context, "Error saving activity samples", Toast.LENGTH_LONG, GB.ERROR, e);
         }
@@ -924,9 +925,6 @@ public class FitImporter {
 
         // We only need to fake sleep start and end times, the sample provider will take care of the rest
         try {
-            final Device device = DBHelper.getDevice(gbDevice, session);
-            final User user = DBHelper.getUser(session);
-
             final GarminEventSampleProvider sampleProvider = new GarminEventSampleProvider(gbDevice, session);
 
             final GarminEventSample sampleFallAsleep = new GarminEventSample();
@@ -934,27 +932,22 @@ public class FitImporter {
             sampleFallAsleep.setEvent(74); // sleep
             sampleFallAsleep.setEventType(0); // sleep start
             sampleFallAsleep.setData(-1L); // in actual samples they're a garmin epoch, this way we can identify them
-            sampleFallAsleep.setDevice(device);
-            sampleFallAsleep.setUser(user);
 
             final GarminEventSample sampleWakeUp = new GarminEventSample();
             sampleWakeUp.setTimestamp(wakeTimeMillis);
             sampleWakeUp.setEvent(74); // sleep
             sampleWakeUp.setEventType(1); // sleep end
             sampleWakeUp.setData(-1L); // in actual samples they're a garmin epoch, this way we can identify them
-            sampleWakeUp.setDevice(device);
-            sampleWakeUp.setUser(user);
 
-            sampleProvider.addSample(sampleFallAsleep);
-            sampleProvider.addSample(sampleWakeUp);
+            persistAbstractSamples(List.of(sampleFallAsleep, sampleWakeUp), sampleProvider);
         } catch (final Exception e) {
             GB.toast(context, "Error faking event samples", Toast.LENGTH_LONG, GB.ERROR, e);
         }
     }
 
-    private <T extends AbstractTimeSample> void persistAbstractSamples(final List<T> samples,
-                                                                       final AbstractTimeSampleProvider<T> sampleProvider) {
-        sampleProvider.persistForDevice(context, gbDevice, samples);
+    private <T> void persistAbstractSamples(@NonNull final List<T> samples,
+                                            @NonNull final PersistanceProvider<T> sampleProvider) {
+        sampleProvider.persistSamples(samples, context);
     }
 
     public static String getFilePath(final FitFileId fileId) {
