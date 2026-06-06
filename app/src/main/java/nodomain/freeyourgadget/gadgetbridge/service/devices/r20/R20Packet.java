@@ -148,8 +148,21 @@ public final class R20Packet {
      * @param start  {@code true} to start, {@code false} to stop.
      */
     public static R20Packet startMeasurement(int type, boolean start) {
+        // Discovered via HCI snoop of the official companion app:
+        // payload is exactly 2 bytes — [action, type] — not [0x01, type, action].
+        // action 0x01 = start, 0x00 = stop.
         return new R20Packet(R20Constants.APP_START_MEASUREMENT,
-                new byte[]{0x01, (byte) type, (byte) (start ? 1 : 0)});
+                new byte[]{(byte) (start ? 1 : 0), (byte) type});
+    }
+
+    /** Pre-measurement sensor-mode toggle observed in the companion app
+     *  (opcode 0x030C with payload {@code [0x01, 0x01]}). Sent immediately
+     *  before {@link #startMeasurement(int, boolean)} to prime the PPG
+     *  hardware. The exact semantics are firmware-internal; empirically
+     *  measurements are more reliable when this precedes the start command.
+     */
+    public static R20Packet primeSensors() {
+        return new R20Packet(0x030C, new byte[]{0x01, 0x01});
     }
 
     /** Empty-payload history fetch (e.g. {@code HEALTH_HISTORY_HEART}). */
@@ -168,6 +181,18 @@ public final class R20Packet {
                 (byte) (blockLen & 0xFF),
                 (byte) ((blockLen >> 8) & 0xFF),
         });
+    }
+
+    /**
+     * Delete a history category from the ring after a successful sync.
+     * The firmware retains records until this command is sent, otherwise
+     * the same data is re-pushed on every subsequent sync. Verified by
+     * HCI snoop of the companion app.
+     *
+     * @param deleteOpcode one of {@code R20Constants.HEALTH_DELETE_*}
+     */
+    public static R20Packet deleteHistory(int deleteOpcode) {
+        return new R20Packet(deleteOpcode, new byte[]{0x02});
     }
 
     // -------- Static parsers --------

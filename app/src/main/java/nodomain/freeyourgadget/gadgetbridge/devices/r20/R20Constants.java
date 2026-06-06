@@ -79,6 +79,16 @@ public final class R20Constants {
     public static final int HEALTH_STREAM_ALL         = 0x0518;
     public static final int HEALTH_HISTORY_ACK        = 0x0580;
 
+    /** Delete-after-sync opcodes — the firmware retains history records
+     *  until the app explicitly clears them.  Without these the ring
+     *  re-sends the same records on every sync. */
+    public static final int HEALTH_DELETE_SPORT       = 0x0540;
+    public static final int HEALTH_DELETE_SLEEP       = 0x0541;
+    public static final int HEALTH_DELETE_HEART       = 0x0542;
+    public static final int HEALTH_DELETE_BLOOD       = 0x0543;
+    public static final int HEALTH_DELETE_ALL         = 0x0544;
+    public static final int REAL_UPLOAD_SNAPSHOT      = 0x0600;
+
     // Real-time push frames (group 6)
     public static final int REAL_UPLOAD_HEART         = 0x0601;
     public static final int REAL_UPLOAD_BLOOD_OXY     = 0x0602;

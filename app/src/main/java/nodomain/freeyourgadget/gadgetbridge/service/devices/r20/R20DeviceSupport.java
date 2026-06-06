@@ -208,15 +208,34 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             case R20Constants.HEALTH_STREAM_HEART:
                 handleHrHistory(p);
+                sendHistoryDelete(R20Constants.HEALTH_DELETE_HEART);
                 break;
             case R20Constants.HEALTH_STREAM_BLOOD:
                 handleBpHistory(p);
+                sendHistoryDelete(R20Constants.HEALTH_DELETE_BLOOD);
                 break;
             case R20Constants.HEALTH_STREAM_SLEEP:
                 handleSleepHistory(p);
+                sendHistoryDelete(R20Constants.HEALTH_DELETE_SLEEP);
                 break;
             case R20Constants.HEALTH_STREAM_ALL:
                 handleAllHistory(p);
+                sendHistoryDelete(R20Constants.HEALTH_DELETE_ALL);
+                break;
+            case R20Constants.HEALTH_STREAM_SPORT:
+                LOG.info("R20 Sport history block: {} bytes (parser TBD)", p.length);
+                sendHistoryDelete(R20Constants.HEALTH_DELETE_SPORT);
+                break;
+            case R20Constants.REAL_UPLOAD_SNAPSHOT:
+                // Real-time multi-metric snapshot push (0x0600). Last byte is HR;
+                // bytes 0-3 are a timestamp/sequence header — exact layout TBD.
+                if (p.length >= 5) {
+                    int hr = p[4] & 0xFF;
+                    LOG.info("R20 snapshot (0x0600): hr={} bpm  raw={}", hr, bytesToHex(p));
+                    if (hr > 0 && hr < 240) {
+                        persistHr(System.currentTimeMillis(), hr);
+                    }
+                }
                 break;
             default:
                 LOG.debug("R20 unhandled frame dtype=0x{} payload={}",
@@ -419,6 +438,21 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             b.queue();
         } catch (Exception e) {
             LOG.warn("R20 history ACK failed", e);
+        }
+    }
+
+    /** Tell the ring to clear the just-synced history category. Discovered
+     *  by HCI-snooping the companion app: the firmware retains records
+     *  until this command is acknowledged, otherwise the same data is
+     *  re-sent on every subsequent sync. */
+    private void sendHistoryDelete(int deleteOpcode) {
+        try {
+            TransactionBuilder b = createTransactionBuilder("R20 history delete");
+            writePacket(b, R20Packet.deleteHistory(deleteOpcode));
+            b.queue();
+        } catch (Exception e) {
+            LOG.warn("R20 history delete (0x{}) failed",
+                    Integer.toHexString(deleteOpcode), e);
         }
     }
 
