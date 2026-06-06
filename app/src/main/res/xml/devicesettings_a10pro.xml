@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:key="pref_category_a10pro_anc"
+        android:title="@string/pref_title_anc_mode">
+
+        <ListPreference
+            android:defaultValue="1"
+            android:entries="@array/pref_a10pro_anc_mode"
+            android:entryValues="@array/pref_a10pro_anc_mode_values"
+            android:key="pref_a10pro_anc_mode"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/pref_title_anc_mode" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="pref_category_a10pro_audio"
+        android:title="@string/pref_title_a10pro_audio_model">
+
+        <ListPreference
+            android:defaultValue="0"
+            android:entries="@array/pref_a10pro_audio_model"
+            android:entryValues="@array/pref_a10pro_audio_model_values"
+            android:key="pref_a10pro_audio_model"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/pref_title_a10pro_audio_model" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="pref_category_a10pro_find"
+        android:title="@string/pref_title_find_earphones">
+
+        <Preference
+            android:key="pref_a10pro_find_earphones"
+            android:title="@string/pref_title_find_earphones"
+            android:summary="@string/pref_summary_find_earphones" />
+
+    </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

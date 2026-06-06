@@ -3633,6 +3633,11 @@
     <string name="qhybrid_summary_on_device_confirmation">On-device pairing confirmations can get annoying. Disabling them might lose you functionality.</string>
     <string name="devicetype_vesc" translatable="false">VESC</string>
     <string name="devicetype_bose_qc35" translatable="false">Bose QC35</string>
+    <string name="devicetype_a10pro_earbuds" translatable="false">FreeFit iEnjoy V2 / G2-ADV</string>
+    <string name="pref_title_anc_mode">Active noise cancellation mode</string>
+    <string name="pref_title_a10pro_audio_model">Audio preset</string>
+    <string name="pref_title_find_earphones">Find my earphones</string>
+    <string name="pref_summary_find_earphones">Play a locator beep on the earbuds</string>
     <string name="devicetype_onemore_sonoflow" translatable="false">1MORE SonoFlow</string>
     <string name="devicetype_sony_wena3" translatable="false">Sony Wena 3</string>
     <string name="devicetype_withings_steel_hr" translatable="false">Withings Steel HR</string>

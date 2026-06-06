@@ -5788,4 +5788,32 @@
         <item>audio_card</item>
         <item>aux</item>
     </string-array>
+<<<<<<< HEAD
 </resources>
+=======
+<<<<<<< HEAD
+</resources>
+=======
+    <string-array name="pref_a10pro_anc_mode">
+        <item>Off</item>
+        <item>ANC (noise cancelling)</item>
+        <item>Transparency (ambient sound)</item>
+    </string-array>
+    <string-array name="pref_a10pro_anc_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+    <string-array name="pref_a10pro_audio_model">
+        <item>Music</item>
+        <item>Movie</item>
+        <item>Game (low-latency)</item>
+    </string-array>
+    <string-array name="pref_a10pro_audio_model_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+</resources>
+>>>>>>> e39c860e8 (Add FreeFit iEnjoy V2 / G2-ADV BLE earbuds support)
+>>>>>>> e39c860e8 (Add FreeFit iEnjoy V2 / G2-ADV BLE earbuds support)
