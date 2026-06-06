@@ -37,6 +37,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvide
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.r20.R20Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
@@ -118,9 +119,8 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         // (the standard 0x2A37 stream returns a stale value with sensor-contact
         // flag = NO).
         writePacket(builder, R20Packet.settingTime());
-        writePacket(builder, R20Packet.setMonitorInterval(5));
+        applySpo2MonitoringPreferences(builder);
         writePacket(builder, R20Packet.enableHealthSensors(true));
-        writePacket(builder, R20Packet.enableBgSpO2Monitor(true));
 
         // Initial info pulls.
         writePacket(builder, R20Packet.getDeviceName());
@@ -134,6 +134,56 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private static void writePacket(TransactionBuilder builder, R20Packet pkt) {
         builder.write(R20Constants.UUID_CHAR_WRITE, pkt.encode());
+    }
+
+    /**
+     * Read user-configured background SpO2 monitoring preferences and push
+     * the corresponding firmware-side enable + interval commands. The R20's
+     * onboard MCU then samples SpO2 autonomously and writes results to the
+     * internal composite history buffer (opcode 0x0518), which we drain on
+     * the next sync — no phone-side AlarmManager/WorkManager scheduling is
+     * needed, so the BLE radio is only used during the existing sync
+     * cadence.
+     *
+     * <p>Preference keys reused from the standard SpO2 settings screen:
+     * <ul>
+     *   <li>{@code spo2_all_day_monitoring_enabled} (boolean, default false)
+     *   <li>{@code spo2_measurement_interval} (string, seconds; default "600" = 10 min)
+     * </ul>
+     * The interval is clamped to 1..240 minutes for the firmware opcode
+     * (Yucheng SDK uses a single byte).
+     */
+    private void applySpo2MonitoringPreferences(TransactionBuilder builder) {
+        boolean enabled = getDevicePrefs().getBoolean(
+                DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false);
+        int intervalSec;
+        try {
+            intervalSec = Integer.parseInt(getDevicePrefs().getString(
+                    DeviceSettingsPreferenceConst.PREF_SPO2_MEASUREMENT_INTERVAL, "600"));
+        } catch (NumberFormatException e) {
+            intervalSec = 600;
+        }
+        int intervalMin = Math.max(1, Math.min(240, intervalSec / 60));
+        LOG.info("R20 background SpO2 monitoring: enabled={} interval={}min",
+                enabled, intervalMin);
+        writePacket(builder, R20Packet.setMonitorInterval(intervalMin));
+        writePacket(builder, R20Packet.enableBgSpO2Monitor(enabled));
+    }
+
+    @Override
+    public void onSendConfiguration(final String config) {
+        if (DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING.equals(config)
+                || DeviceSettingsPreferenceConst.PREF_SPO2_MEASUREMENT_INTERVAL.equals(config)) {
+            try {
+                TransactionBuilder b = createTransactionBuilder("R20 update SpO2 monitor pref");
+                applySpo2MonitoringPreferences(b);
+                b.queue();
+            } catch (Exception e) {
+                LOG.warn("R20 onSendConfiguration({}) failed", config, e);
+            }
+            return;
+        }
+        super.onSendConfiguration(config);
     }
 
     @Override
