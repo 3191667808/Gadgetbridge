@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInf
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
@@ -43,10 +44,12 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericMetricSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCharacteristic;
@@ -342,6 +345,30 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             LOG.info("R20 sleep debt over last {} sessions: {} hours",
                     sessions.size(), String.format("%.1f", debtH));
 
+            // Persist sleep score per session + Sleep Regularity Index for the block
+            GenericMetricSampleProvider metricProvider =
+                    new GenericMetricSampleProvider(getDevice(), session);
+            for (R20Packet.SleepSession s : sessions) {
+                int score = R20DerivedMetrics.sleepScore(s);
+                if (score >= 0) {
+                    long durSec = (long)(s.deepSleepSec + s.lightSleepSec + s.remSleepSec);
+                    GenericMetricSample gms = new GenericMetricSample(
+                            s.endTimeMs, deviceId, userId,
+                            MetricSample.Metric.GENERIC_SLEEP_SCORE.getDbId(),
+                            (double) score, durSec);
+                    metricProvider.addSample(gms);
+                }
+            }
+            int sri = R20DerivedMetrics.sleepRegularityIndex(sessions);
+            if (sri >= 0 && !sessions.isEmpty()) {
+                long ts = sessions.get(sessions.size() - 1).endTimeMs;
+                GenericMetricSample gms = new GenericMetricSample(
+                        ts, deviceId, userId,
+                        MetricSample.Metric.GENERIC_SLEEP_REGULARITY.getDbId(),
+                        (double) sri, (long) sessions.size());
+                metricProvider.addSample(gms);
+            }
+
             // Cardiorespiratory fitness — VO2max from HRmax/HRrest ratio (Uth 2004).
             // Logged for now; persistence will arrive once a generic VO2max
             // provider exists in upstream Gadgetbridge.
@@ -360,6 +387,12 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 if (vo2 > 0) {
                     LOG.info("R20 derived VO2max: {} ml/kg/min (HRmax={} RHR={}); cv-age delta: {} years",
                             String.format("%.1f", vo2), hrMax, rhr, String.format("%+.1f", ageDelta));
+                    long ts = sessions.get(sessions.size() - 1).endTimeMs;
+                    GenericMetricSample gms = new GenericMetricSample(
+                            ts, deviceId, userId,
+                            MetricSample.Metric.GENERIC_VO2MAX.getDbId(),
+                            vo2, Math.round(ageDelta * 100));
+                    metricProvider.addSample(gms);
                 }
             } catch (Exception e) {
                 LOG.debug("R20 VO2max compute skipped: {}", e.getMessage());

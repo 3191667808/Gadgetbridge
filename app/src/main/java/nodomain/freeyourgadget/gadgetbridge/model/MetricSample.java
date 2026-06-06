@@ -45,7 +45,7 @@ public interface MetricSample extends TimeSample {
     int getMetricType();
 
     /// use {@link #setMetric(Metric)} or {@link #setMetric(Metric, Double, Long)} instead
-    void setMetricType(@IntRange(from = 0, to = 8) int type);
+    void setMetricType(@IntRange(from = 0, to = 15) int type);
 
     @Nullable
     Double getMetricScore();
@@ -82,12 +82,37 @@ public interface MetricSample extends TimeSample {
         GARMIN_RUNNING_LACTATE_THRESHOLD_POWER(7),
         /// @see FitTrainingReadiness#getTrainingReadiness()
         /// @see FitTrainingReadiness#getLevel()
-        GARMIN_TRAINING_READINESS(8);
+        GARMIN_TRAINING_READINESS(8),
+        /// Composite 0-100 sleep-quality score (Watson 2015 + Ohayon 2017).
+        /// metricScore: 0-100. metricExtra: total sleep duration seconds.
+        GENERIC_SLEEP_SCORE(9),
+        /// Composite 0-100 readiness/recovery score (sleep + RHR + HRV deviations).
+        /// metricScore: 0-100. metricExtra: unused.
+        GENERIC_READINESS(10),
+        /// Composite 0-100 daily energy / recovered-capacity score.
+        /// metricScore: 0-100. metricExtra: unused.
+        GENERIC_ENERGY(11),
+        /// Running 0-100 body-battery / energy-reserve metric.
+        /// metricScore: 0-100. metricExtra: unused.
+        GENERIC_BODY_BATTERY(12),
+        /// Estimated VO2max in ml/kg/min (Uth 2004 HRmax/HRrest ratio).
+        /// metricScore: ml/kg/min. metricExtra: cardiovascular-age delta years * 100.
+        GENERIC_VO2MAX(13),
+        /// Edwards Training Impulse (TRIMP) — cumulative cardiac strain.
+        /// metricScore: TRIMP units. metricExtra: unused.
+        GENERIC_CARDIAC_STRAIN(14),
+        /// Sleep Regularity Index (Phillips 2017) — 0-100, higher = more regular.
+        /// metricScore: 0-100. metricExtra: number of nights compared.
+        GENERIC_SLEEP_REGULARITY(15);
 
         final int dbId;
 
         Metric(int dbId) {
             this.dbId = dbId;
+        }
+
+        public int getDbId() {
+            return dbId;
         }
 
         @Nullable
