@@ -62,11 +62,6 @@ public class MiBand10Coordinator extends XiaomiCoordinator {
     }
 
     @Override
-    public boolean supportsSleepRespiratoryRate(@NonNull final GBDevice device) {
-        return true;
-    }
-
-    @Override
     public boolean supportsSleepBreathingRateConfig(@NonNull final GBDevice device) {
         return true;
     }
