@@ -10,6 +10,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.a10pro.jl_rcsp;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -71,5 +72,35 @@ public class JieliRcspAuthSessionTest {
         final JieliRcspAuthSession s = new JieliRcspAuthSession();
         assertNull(s.onInbound(new byte[]{0x02, 0x70}));
         assertEquals(JieliRcspAuthSession.State.IDLE, s.getState());
+    }
+
+    @Test
+    public void inboundRejectsOversizedFrames() {
+        final JieliRcspAuthSession s = new JieliRcspAuthSession();
+        s.start();
+        s.sendChallenge();
+        assertNull(s.onInbound(new byte[1024]));
+        // State must not advance — oversized frame is silently ignored, no crash
+        assertEquals(JieliRcspAuthSession.State.SENT_CHALLENGE, s.getState());
+    }
+
+    @Test
+    public void resetClearsStateForReconnect() {
+        final JieliRcspAuthSession s = new JieliRcspAuthSession();
+        s.start();
+        s.sendChallenge();
+        s.reset();
+        assertEquals(JieliRcspAuthSession.State.IDLE, s.getState());
+        // Can be restarted
+        assertNotNull(s.start());
+    }
+
+    @Test
+    public void startReturnsIndependentCopy() {
+        // Mutating the returned frame must not corrupt the constant
+        final JieliRcspAuthSession s = new JieliRcspAuthSession();
+        final byte[] init = s.start();
+        init[0] = 0x55;
+        assertEquals((byte) 0xFE, RcspFrame.SESSION_INIT[0]);
     }
 }

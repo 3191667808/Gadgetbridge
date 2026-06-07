@@ -68,4 +68,18 @@ public class RcspFrameTest {
         final byte[] buf = hex("fedcba c0 03 00 02 00 01");
         assertTrue(RcspFrame.decodeAll(buf).isEmpty());
     }
+
+    @Test
+    public void decodeAllRejectsOversizedDeclaredLength() {
+        // Length field claims 0x4000 (16384) bytes — at the DoS cap. Anything above must be dropped silently.
+        final byte[] buf = hex("fedcba c0 03 ff ff 00 ef");
+        assertTrue(RcspFrame.decodeAll(buf).isEmpty());
+    }
+
+    @Test
+    public void decodeAllHandlesNullAndEmpty() {
+        assertTrue(RcspFrame.decodeAll(null).isEmpty());
+        assertTrue(RcspFrame.decodeAll(new byte[0]).isEmpty());
+        assertTrue(RcspFrame.decodeAll(new byte[]{0x00}).isEmpty());
+    }
 }

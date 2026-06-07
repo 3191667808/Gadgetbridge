@@ -82,6 +82,9 @@ public final class RcspFrame {
         return new RcspFrame(FLAG_REQUEST_ACK, opCode, body).encode();
     }
 
+    /** Upper bound on a body length we will accept — guards against DoS / OOM on malformed input. */
+    public static final int MAX_BODY_LEN = 16 * 1024;
+
     /** Scan a buffer for valid RCSP frames. Returns all decoded frames found. */
     public static List<RcspFrame> decodeAll(final byte[] buffer) {
         final List<RcspFrame> frames = new ArrayList<>();
@@ -95,6 +98,10 @@ public final class RcspFrame {
             final byte flags = buffer[i + 3];
             final byte opCode = buffer[i + 4];
             final int len = ((buffer[i + 5] & 0xff) << 8) | (buffer[i + 6] & 0xff);
+            if (len < 0 || len > MAX_BODY_LEN) {
+                i++;
+                continue;
+            }
             final int tailIdx = i + 7 + len;
             if (tailIdx >= buffer.length || buffer[tailIdx] != TAIL) {
                 i++;

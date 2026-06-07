@@ -121,6 +121,38 @@ public class A10ProProtocolTest {
     @Test public void alarmClock_oneAlarmLayout() { byte[] frame = P.encodeAlarmClock(new Alarm[]{alarm(true, 6, 30, Alarm.ALARM_DAILY)}); assertEquals(19, frame.length); assertEquals(2, frame[0]); assertEquals(3, frame[1]); assertEquals(1, frame[2]); assertEquals(6, frame[3]); assertEquals(30, frame[4]); assertEquals(1, frame[14]); }
     @Test public void alarmClock_fiveAlarmsLayout() { byte[] frame = P.encodeAlarmClock(new Alarm[]{alarm(true,1,2,3), alarm(false,4,5,6), alarm(true,7,8,9), alarm(false,10,11,12), alarm(true,13,14,15)}); assertEquals(23, frame.length); assertEquals(5, frame[14]); assertEquals(0, frame[15]); assertEquals(10, frame[16]); assertEquals(1, frame[19]); assertEquals(13, frame[20]); }
     @Test public void userInfo_packsWeightAgeHeightStrideGenderGoal() { assertArrayEquals(new byte[]{2,1,0,70,26,(byte) 180,75,1,0,0,31,64}, P.encodeUserInfo(70, 26, 180, 75, 1, 8000)); }
+
+    @Test public void callerStateNotification_matchesLiveHebrewCapture() {
+        // Live-captured zwsvibe → G2-ADV: '23 00 13 "Lea " + "מעצבת" + ":In"'
+        // Hebrew bytes from snoop: d7 9e d7 a2 d7 a6 d7 91 d7 aa = U+05E9..U+05EA "מעצבת"
+        byte[] expected = new byte[] {
+                0x23, 0x00, 0x13,
+                'L', 'e', 'a', ' ',
+                (byte) 0xd7, (byte) 0x9e, (byte) 0xd7, (byte) 0xa2,
+                (byte) 0xd7, (byte) 0xa6, (byte) 0xd7, (byte) 0x91, (byte) 0xd7, (byte) 0xaa,
+                ':', 'I', 'n'
+        };
+        assertArrayEquals(expected, P.encodeCallerStateNotification("Lea \u05DE\u05E2\u05E6\u05D1\u05EA", "In"));
+    }
+
+    @Test public void callerStateNotification_ongoingStateTag() {
+        byte[] f = P.encodeCallerStateNotification("Alice", "On");
+        assertArrayEquals(new byte[] {0x23, 0x00, 0x0A, 'A','l','i','c','e',':','O','n'}, f);
+    }
+    @Test public void callerStateNotification_truncatesAtUtf8Boundary() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) sb.append("\u05DE");
+        byte[] f = P.encodeCallerStateNotification(sb.toString(), "In");
+        int declared = f[2] & 0xff;
+        assertEquals(declared, f.length - 1);
+        byte[] tail = new byte[3];
+        System.arraycopy(f, f.length - 3, tail, 0, 3);
+        assertArrayEquals(new byte[]{':','I','n'}, tail);
+        for (int i = 3; i < f.length - 3; i += 2) {
+            assertEquals((byte) 0xd7, f[i]);
+            assertEquals((byte) 0x9e, f[i + 1]);
+        }
+    }
     @Test public void findBandSwitch_uses51() { assertArrayEquals(new byte[]{0x51, 0x01}, P.encodeFindBandSwitch(true)); }
     @Test public void volumeCap_usesFb08Checksum() { assertArrayEquals(new byte[]{(byte) 0xFB,0x08,0x01,0x07,80,0x5B,0x01}, P.encodeVolumeMaxValue(80)); }
     @Test public void barrageEmpty_clearsSlot() { List<byte[]> frames = P.encodeBarrage("", 2, 20); assertArrayEquals(new byte[]{(byte) 0xBB,1,2,0,0,0,0}, frames.get(0)); }

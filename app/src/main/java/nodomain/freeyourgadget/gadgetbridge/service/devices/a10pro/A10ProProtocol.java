@@ -327,6 +327,41 @@ public class A10ProProtocol extends GBDeviceProtocol {
         return chunkUtf8(CMD_MSG_PUSH, appId, text, false);
     }
 
+    /**
+     * Live-validated short caller-state frame from the zwsvibe → G2-ADV capture.
+     * Wire format: {@code 23 00 [len] [UTF-8 displayName]:[state]} where state is
+     * "In" (incoming), "On" (ongoing), "Of" (ended).
+     *
+     * <pre>
+     *   23 00 13 "Lea מעצבת:In"   ← incoming call
+     *   23 00 13 "Lea מעצבת:On"   ← ongoing
+     * </pre>
+     *
+     * The case displays the UTF-8 string verbatim on the LCD, so non-Latin scripts
+     * (Hebrew, Arabic, Chinese) render correctly.
+     */
+    public byte[] encodeCallerStateNotification(@NonNull final String displayName, @NonNull final String stateTag) {
+        final String tag = stateTag.length() > 8 ? stateTag.substring(0, 8) : stateTag;
+        final byte[] tagBytes = (":" + tag).getBytes(StandardCharsets.UTF_8);
+        final int nameBudget = Math.max(0, 252 - tagBytes.length);
+        byte[] nameBytes = displayName.getBytes(StandardCharsets.UTF_8);
+        if (nameBytes.length > nameBudget) {
+            int safeLen = nameBudget;
+            while (safeLen > 0 && (nameBytes[safeLen] & 0xC0) == 0x80) safeLen--;
+            final byte[] trimmed = new byte[safeLen];
+            System.arraycopy(nameBytes, 0, trimmed, 0, safeLen);
+            nameBytes = trimmed;
+        }
+        final int payloadLen = nameBytes.length + tagBytes.length;
+        final byte[] frame = new byte[3 + payloadLen];
+        frame[0] = 0x23;
+        frame[1] = 0x00;
+        frame[2] = (byte) (frame.length - 1);
+        System.arraycopy(nameBytes, 0, frame, 3, nameBytes.length);
+        System.arraycopy(tagBytes, 0, frame, 3 + nameBytes.length, tagBytes.length);
+        return frame;
+    }
+
     public byte[] encodeAlarmClock(@NonNull final Alarm[] alarms) {
         final int count = Math.min(5, alarms.length);
         final byte[] frame = new byte[count >= 5 ? 23 : 19];

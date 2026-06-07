@@ -83,6 +83,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(notifyCharacteristic, true);
         if (prefRcspAuthEnabled()) {
+            authSession.reset();
             LOG.info("FreeFit V2: attempting JieLi RCSP authentication");
             write(builder, authSession.start());
             write(builder, authSession.sendChallenge());
@@ -189,17 +190,23 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onSetCallState(final CallSpec callSpec) {
         if (callSpec == null) return;
+        final String display = callSpec.name != null && !callSpec.name.isEmpty() ? callSpec.name
+                : (callSpec.number != null ? callSpec.number : "Unknown");
         switch (callSpec.command) {
             case CallSpec.CALL_INCOMING:
+                send("incoming call (caller state)", protocol.encodeCallerStateNotification(display, "In"));
                 send("incoming call", protocol.encodeIncomingCall(callSpec.name, callSpec.number));
                 break;
             case CallSpec.CALL_ACCEPT:
+                send("ongoing call", protocol.encodeCallerStateNotification(display, "On"));
                 send("answer call", protocol.encodeCallAnswer());
                 break;
             case CallSpec.CALL_REJECT:
+                send("ended call", protocol.encodeCallerStateNotification(display, "Of"));
                 send("decline call", protocol.encodeCallDecline());
                 break;
             case CallSpec.CALL_END:
+                send("ended call", protocol.encodeCallerStateNotification(display, "Of"));
                 send("end call", protocol.encodeCallEnd());
                 break;
             default:
