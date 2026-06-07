@@ -384,6 +384,8 @@ public final class DerivedHealthMetrics {
      */
     public static int respiratoryRateProxy(List<? extends HeartRateSample> hr) {
         if (hr == null || hr.size() < 60) return -1;
+        long span = hr.get(hr.size() - 1).getTimestamp() - hr.get(0).getTimestamp();
+        if (span <= 0 || (double) hr.size() / (span / 1000.0) < 0.9) return -1;
         double mean = avgBpm(hr);
         double std  = stdBpm(hr, mean);
         if (std < 1.0) return -1;
@@ -405,11 +407,11 @@ public final class DerivedHealthMetrics {
      *  15(3):235-245 (2018). */
     public static int dailyStress(List<? extends HeartRateSample> today,
                                   List<? extends HeartRateSample> baseline) {
-        if (today == null || today.isEmpty() || baseline == null || baseline.size() < 10) return -1;
+        if (today == null || today.size() < 5 || baseline == null || baseline.size() < 30) return -1;
         double tAvg = avgBpm(today);
         double bAvg = avgBpm(baseline);
         double bStd = stdBpm(baseline, bAvg);
-        if (bStd < 0.5) bStd = 0.5;
+        if (bStd < 2.0) bStd = 2.0;
         double z = (tAvg - bAvg) / bStd;
         return (int) Math.round(100.0 / (1.0 + Math.exp(-z)));
     }
