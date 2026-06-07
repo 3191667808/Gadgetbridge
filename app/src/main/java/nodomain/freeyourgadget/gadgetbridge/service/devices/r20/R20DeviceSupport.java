@@ -80,10 +80,14 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(R20DeviceSupport.class);
 
     /** Buffer real-time HR notifications to one DB write per N samples
-     *  (the standard 0x2A37 stream fires at ~1 Hz). */
-    private static final int HR_BUFFER_FLUSH_THRESHOLD = 30;
+     *  (the standard 0x2A37 stream fires at ~1 Hz). Lowered from 30 → 5
+     *  to avoid losing samples on early disconnect / sparse HR streams. */
+    private static final int HR_BUFFER_FLUSH_THRESHOLD = 5;
+    /** Force-flush HR buffer at least this often (ms) even if threshold not reached. */
+    private static final long HR_BUFFER_FLUSH_INTERVAL_MS = 30_000L;
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
+    private long hrBufferLastFlushMs = 0L;
 
     /** Tracks whether we've already attempted a stale-bond recovery this session
      *  to avoid spinning if the firmware persistently refuses our commands. */
@@ -203,13 +207,9 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (R20Constants.UUID_CHAR_WRITE.equals(uuid) || R20Constants.UUID_CHAR_NOTIFY.equals(uuid)) {
             R20Packet pkt = R20Packet.decode(data);
             if (pkt == null) {
-                LOG.warn("R20 RX: malformed frame on {}: {}", uuid, bytesToHex(data));
+                LOG.debug("R20 dropped malformed frame: {}", bytesToHex(data));
                 return true;
             }
-            LOG.info("R20 RX: dtype=0x{} len={} payload={}",
-                    Integer.toHexString(pkt.getDataType()),
-                    pkt.getPayload() == null ? 0 : pkt.getPayload().length,
-                    pkt.getPayload() == null ? "" : bytesToHex(pkt.getPayload()));
             if (isRejection(pkt)) {
                 triggerStaleBondRecovery(pkt);
                 return true;
@@ -367,13 +367,18 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void persistBp(long timestampMs, int systolic, int diastolic, int hr) {
-        if (systolic <= 0 || diastolic <= 0 || systolic > 250 || diastolic > 200) return;
+        if (systolic <= 0 || diastolic <= 0 || systolic > 250 || diastolic > 200) {
+            LOG.warn("R20 persistBp: rejected out-of-range sys={} dia={} hr={}", systolic, diastolic, hr);
+            return;
+        }
+        LOG.info("R20 persistBp: sys={} dia={} hr={} ts={}", systolic, diastolic, hr, timestampMs);
         withDb((session, deviceId, userId) -> {
             GenericBloodPressureSampleProvider provider =
                     new GenericBloodPressureSampleProvider(getDevice(), session);
             provider.addSample(new GenericBloodPressureSample(
                     timestampMs, deviceId, userId,
                     systolic, diastolic, null, null, hr > 0 ? hr : null, 0));
+            LOG.info("R20 persistBp: written deviceId={} userId={}", deviceId, userId);
         });
     }
 
@@ -543,21 +548,31 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
      * 1 Hz standard 0x2A37 stream would open a fresh DBHandler every second.
      */
     private void persistHr(long timestampMs, int bpm) {
-        if (bpm <= 0 || bpm >= 240) return;
+        if (bpm <= 0 || bpm >= 240) {
+            LOG.debug("R20 persistHr: rejected out-of-range bpm={}", bpm);
+            return;
+        }
         List<GenericHeartRateSample> toFlush = null;
         synchronized (hrBufferLock) {
             // We don't yet know deviceId/userId, but the sample constructor
             // needs them — defer by stashing tuples; resolve in flush().
             hrBuffer.add(new GenericHeartRateSample(timestampMs, 0L, 0L, bpm));
-            if (hrBuffer.size() >= HR_BUFFER_FLUSH_THRESHOLD) {
+            long now = System.currentTimeMillis();
+            boolean sizeReady = hrBuffer.size() >= HR_BUFFER_FLUSH_THRESHOLD;
+            boolean timeReady = hrBufferLastFlushMs > 0 && (now - hrBufferLastFlushMs) >= HR_BUFFER_FLUSH_INTERVAL_MS;
+            if (sizeReady || timeReady) {
                 toFlush = new ArrayList<>(hrBuffer);
                 hrBuffer.clear();
+                hrBufferLastFlushMs = now;
+            } else if (hrBufferLastFlushMs == 0L) {
+                hrBufferLastFlushMs = now;
             }
         }
         if (toFlush != null) flushHrBuffer(toFlush);
     }
 
     private void flushHrBuffer(final List<GenericHeartRateSample> buf) {
+        LOG.info("R20 flushHrBuffer: persisting {} HR samples", buf.size());
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider provider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -567,15 +582,21 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         s.getTimestamp(), deviceId, userId, s.getHeartRate()));
             }
             provider.addSamples(renumbered);
+            LOG.info("R20 flushHrBuffer: written {} samples for deviceId={}", renumbered.size(), deviceId);
         });
     }
 
     private void persistSpo2(long timestampMs, int pct) {
-        if (pct < 50 || pct > 100) return;
+        if (pct < 50 || pct > 100) {
+            LOG.debug("R20 persistSpo2: rejected out-of-range pct={}", pct);
+            return;
+        }
+        LOG.info("R20 persistSpo2: pct={} ts={}", pct, timestampMs);
         withDb((session, deviceId, userId) -> {
             GenericSpo2SampleProvider provider =
                     new GenericSpo2SampleProvider(getDevice(), session);
             provider.addSample(new GenericSpo2Sample(timestampMs, deviceId, userId, pct));
+            LOG.info("R20 persistSpo2: written for deviceId={}", deviceId);
         });
     }
 
