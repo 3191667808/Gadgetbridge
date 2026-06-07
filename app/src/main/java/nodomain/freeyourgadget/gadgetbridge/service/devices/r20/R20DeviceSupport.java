@@ -37,6 +37,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvide
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.r20.R20Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
@@ -84,6 +85,10 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
 
+    /** Tracks whether we've already attempted a stale-bond recovery this session
+     *  to avoid spinning if the firmware persistently refuses our commands. */
+    private final java.util.concurrent.atomic.AtomicBoolean recoveryAttempted = new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public R20DeviceSupport() {
         super(LOG);
         addSupportedService(GattService.UUID_SERVICE_HEART_RATE);
@@ -118,9 +123,8 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         // (the standard 0x2A37 stream returns a stale value with sensor-contact
         // flag = NO).
         writePacket(builder, R20Packet.settingTime());
-        writePacket(builder, R20Packet.setMonitorInterval(5));
+        applySpo2MonitoringPreferences(builder);
         writePacket(builder, R20Packet.enableHealthSensors(true));
-        writePacket(builder, R20Packet.enableBgSpO2Monitor(true));
 
         // Initial info pulls.
         writePacket(builder, R20Packet.getDeviceName());
@@ -134,6 +138,56 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private static void writePacket(TransactionBuilder builder, R20Packet pkt) {
         builder.write(R20Constants.UUID_CHAR_WRITE, pkt.encode());
+    }
+
+    /**
+     * Read user-configured background SpO2 monitoring preferences and push
+     * the corresponding firmware-side enable + interval commands. The R20's
+     * onboard MCU then samples SpO2 autonomously and writes results to the
+     * internal composite history buffer (opcode 0x0518), which we drain on
+     * the next sync — no phone-side AlarmManager/WorkManager scheduling is
+     * needed, so the BLE radio is only used during the existing sync
+     * cadence.
+     *
+     * <p>Preference keys reused from the standard SpO2 settings screen:
+     * <ul>
+     *   <li>{@code spo2_all_day_monitoring_enabled} (boolean, default false)
+     *   <li>{@code spo2_measurement_interval} (string, seconds; default "600" = 10 min)
+     * </ul>
+     * The interval is clamped to 1..240 minutes for the firmware opcode
+     * (Yucheng SDK uses a single byte).
+     */
+    private void applySpo2MonitoringPreferences(TransactionBuilder builder) {
+        boolean enabled = getDevicePrefs().getBoolean(
+                DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false);
+        int intervalSec;
+        try {
+            intervalSec = Integer.parseInt(getDevicePrefs().getString(
+                    DeviceSettingsPreferenceConst.PREF_SPO2_MEASUREMENT_INTERVAL, "600"));
+        } catch (NumberFormatException e) {
+            intervalSec = 600;
+        }
+        int intervalMin = Math.max(1, Math.min(240, intervalSec / 60));
+        LOG.info("R20 background SpO2 monitoring: enabled={} interval={}min",
+                enabled, intervalMin);
+        writePacket(builder, R20Packet.setMonitorInterval(intervalMin));
+        writePacket(builder, R20Packet.enableBgSpO2Monitor(enabled));
+    }
+
+    @Override
+    public void onSendConfiguration(final String config) {
+        if (DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING.equals(config)
+                || DeviceSettingsPreferenceConst.PREF_SPO2_MEASUREMENT_INTERVAL.equals(config)) {
+            try {
+                TransactionBuilder b = createTransactionBuilder("R20 update SpO2 monitor pref");
+                applySpo2MonitoringPreferences(b);
+                b.queue();
+            } catch (Exception e) {
+                LOG.warn("R20 onSendConfiguration({}) failed", config, e);
+            }
+            return;
+        }
+        super.onSendConfiguration(config);
     }
 
     @Override
@@ -150,6 +204,10 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             R20Packet pkt = R20Packet.decode(data);
             if (pkt == null) {
                 LOG.debug("R20 dropped malformed frame: {}", bytesToHex(data));
+                return true;
+            }
+            if (isRejection(pkt)) {
+                triggerStaleBondRecovery(pkt);
                 return true;
             }
             handleVendor(pkt);
@@ -548,5 +606,44 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         StringBuilder sb = new StringBuilder(data.length * 2);
         for (byte b : data) sb.append(String.format("%02x", b));
         return sb.toString();
+    }
+
+    /**
+     * Yucheng error-ack pattern: a single-byte payload of 0xFC signals
+     * "command refused". We saw 26+ of these in the 2026-06-07 capture when
+     * the ring's bonded-user state had drifted after re-pairing or a firmware
+     * reboot — every battery / history / measurement request returned 0xFC
+     * and no real-time HR/SpO2/BP data streamed at all.
+     */
+    private static boolean isRejection(R20Packet pkt) {
+        byte[] p = pkt.getPayload();
+        return p != null && p.length == 1 && (p[0] & 0xFF) == 0xFC;
+    }
+
+    /**
+     * Send a fresh time + sensor-enable + identity burst to re-prime the
+     * ring's bonded-user state. Called once per session when we first see
+     * a 0xFC rejection; further rejections after that are logged and ignored
+     * so we don't spin on a permanently-mis-paired device.
+     */
+    private void triggerStaleBondRecovery(R20Packet pkt) {
+        if (!recoveryAttempted.compareAndSet(false, true)) {
+            LOG.warn("R20 still rejecting after recovery attempt (dtype=0x{}); user must re-pair the ring",
+                    Integer.toHexString(pkt.getDataType()));
+            return;
+        }
+        LOG.info("R20 received 0xFC rejection on dtype=0x{}; attempting stale-bond recovery",
+                Integer.toHexString(pkt.getDataType()));
+        try {
+            TransactionBuilder b = createTransactionBuilder("R20 stale-bond recovery");
+            writePacket(b, R20Packet.settingTime());
+            applySpo2MonitoringPreferences(b);
+            writePacket(b, R20Packet.enableHealthSensors(true));
+            writePacket(b, R20Packet.getDeviceInfo());
+            writePacket(b, R20Packet.getPowerStatistics());
+            b.queue();
+        } catch (Exception e) {
+            LOG.warn("R20 stale-bond recovery transaction failed", e);
+        }
     }
 }
