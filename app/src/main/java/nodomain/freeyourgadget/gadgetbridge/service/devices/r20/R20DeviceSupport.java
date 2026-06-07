@@ -203,9 +203,13 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (R20Constants.UUID_CHAR_WRITE.equals(uuid) || R20Constants.UUID_CHAR_NOTIFY.equals(uuid)) {
             R20Packet pkt = R20Packet.decode(data);
             if (pkt == null) {
-                LOG.debug("R20 dropped malformed frame: {}", bytesToHex(data));
+                LOG.warn("R20 RX: malformed frame on {}: {}", uuid, bytesToHex(data));
                 return true;
             }
+            LOG.info("R20 RX: dtype=0x{} len={} payload={}",
+                    Integer.toHexString(pkt.getDataType()),
+                    pkt.getPayload() == null ? 0 : pkt.getPayload().length,
+                    pkt.getPayload() == null ? "" : bytesToHex(pkt.getPayload()));
             if (isRejection(pkt)) {
                 triggerStaleBondRecovery(pkt);
                 return true;
