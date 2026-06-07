@@ -44,9 +44,11 @@ public class JieliRcspAuthSession {
     public boolean isFailed() { return state == State.FAILED; }
 
     /** First write: hard-coded session-init RCSP frame. */
+    /** First write: hard-coded session-init RCSP frame. */
     public synchronized byte[] start() {
         if (state != State.IDLE) throw new IllegalStateException("session already started: " + state);
         state = State.SENT_INIT;
+        LOG.info("JieLi RCSP: SESSION_INIT sent, state -> SENT_INIT");
         return RcspFrame.SESSION_INIT.clone();
     }
 
@@ -55,6 +57,7 @@ public class JieliRcspAuthSession {
         if (state != State.SENT_INIT) throw new IllegalStateException("bad state for challenge: " + state);
         phoneChallenge = JieliRcspAuth.getRandomAuthData();
         state = State.SENT_CHALLENGE;
+        LOG.info("JieLi RCSP: phone challenge sent ({}B), state -> SENT_CHALLENGE", phoneChallenge.length);
         return phoneChallenge.clone();
     }
 

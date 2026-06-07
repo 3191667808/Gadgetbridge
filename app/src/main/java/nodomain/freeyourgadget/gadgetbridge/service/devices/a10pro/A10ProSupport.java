@@ -113,10 +113,14 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
                                            final byte[] data) {
         super.onCharacteristicChanged(gatt, characteristic, data);
         if (data == null || data.length == 0) return false;
-        LOG.debug("FreeFit V2 RX {}", GB.hexdump(data));
+        // INFO-level hex trace so end-users debugging via logcat see every frame
+        LOG.info("FreeFit V2 RX op=0x{} len={} hex={}",
+                String.format("%02x", data[0] & 0xFF), data.length, GB.hexdump(data));
         if (prefRcspAuthEnabled() && !authSession.isComplete() && !authSession.isFailed()) {
             final byte[] reply = authSession.onInbound(data);
             if (reply != null) {
+                LOG.info("FreeFit V2 RCSP auth: replying state={} replyLen={}",
+                        authSession.getState(), reply.length);
                 send("rcsp auth reply", reply);
             }
             // Auth packets are never RCSP/FreeFit responses, so don't double-parse.
@@ -125,8 +129,15 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
         final GBDeviceEvent[] events = protocol.decodeResponse(data);
-        for (final GBDeviceEvent event : events) {
-            if (event != null) handleGBDeviceEvent(event);
+        if (events.length == 0) {
+            LOG.debug("FreeFit V2: no event from op=0x{}", String.format("%02x", data[0] & 0xFF));
+        } else {
+            for (final GBDeviceEvent event : events) {
+                if (event != null) {
+                    LOG.info("FreeFit V2: dispatching {}", event.getClass().getSimpleName());
+                    handleGBDeviceEvent(event);
+                }
+            }
         }
         if ((data[0] & 0xFF) == (A10ProProtocol.CMD_DEVICE_REQUEST_SYNC_TIME & 0xFF)) {
             send("sync time on request", protocol.encodeSyncTime(prefIs24Hour(), 0));
@@ -156,7 +167,10 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onNotification(final NotificationSpec notificationSpec) {
-        if (notificationSpec == null) return;
+        if (notificationSpec == null) {
+            LOG.warn("FreeFit V2 onNotification: null spec");
+            return;
+        }
         final StringBuilder text = new StringBuilder();
         if (notificationSpec.sourceName != null) text.append(notificationSpec.sourceName).append(": ");
         if (notificationSpec.title != null) text.append(notificationSpec.title);
@@ -165,7 +179,12 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
             text.append(notificationSpec.body);
         }
         final int appId = notificationSpec.type != null ? notificationSpec.type.ordinal() & 0xFF : 0;
-        sendAll("notification", protocol.encodeNotification(appId, text.toString(), protocol.getFamily()));
+        LOG.info("FreeFit V2 onNotification: family={} appId={} textLen={} text='{}'",
+                protocol.getFamily(), appId, text.length(),
+                text.length() > 40 ? text.substring(0, 40) + "..." : text);
+        final List<byte[]> frames = protocol.encodeNotification(appId, text.toString(), protocol.getFamily());
+        LOG.info("FreeFit V2 onNotification: encoded {} frame(s)", frames == null ? 0 : frames.size());
+        sendAll("notification", frames);
     }
 
     @Override
@@ -287,18 +306,24 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void send(final String label, final byte[] frame) {
-        if (frame == null) return;
+        if (frame == null) {
+            LOG.warn("FreeFit V2 [{}]: null frame, skipping", label);
+            return;
+        }
         try {
             final TransactionBuilder builder = performInitialized(label);
             write(builder, frame);
             builder.queue();
         } catch (final IOException e) {
-            LOG.warn("Unable to send FreeFit V2 {}", label, e);
+            LOG.warn("FreeFit V2 [{}]: queue failed", label, e);
         }
     }
 
     private void sendAll(final String label, final List<byte[]> frames) {
-        if (frames == null || frames.isEmpty()) return;
+        if (frames == null || frames.isEmpty()) {
+            LOG.debug("FreeFit V2 [{}]: no frames to send", label);
+            return;
+        }
         try {
             final TransactionBuilder builder = performInitialized(label);
             for (final byte[] frame : frames) {
@@ -307,13 +332,14 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
             }
             builder.queue();
         } catch (final IOException e) {
-            LOG.warn("Unable to send FreeFit V2 {}", label, e);
+            LOG.warn("FreeFit V2 [{}]: queue failed ({} frames)", label, frames.size(), e);
         }
     }
 
     private void write(final TransactionBuilder builder, final byte[] frame) {
         if (frame == null) return;
-        LOG.debug("FreeFit V2 TX {}", GB.hexdump(frame));
+        LOG.info("FreeFit V2 TX op=0x{} len={} hex={}",
+                String.format("%02x", frame[0] & 0xFF), frame.length, GB.hexdump(frame));
         builder.write(writeCharacteristic != null ? writeCharacteristic : getCharacteristic(WRITE_UUID), frame);
     }
 
