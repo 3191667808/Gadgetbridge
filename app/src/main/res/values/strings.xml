@@ -3638,6 +3638,21 @@
     <string name="pref_title_a10pro_audio_model">Audio preset</string>
     <string name="pref_title_find_earphones">Find my earphones</string>
     <string name="pref_summary_find_earphones">Play a locator beep on the earbuds</string>
+    <string name="pref_title_a10pro_case">Case controls</string>
+    <string name="pref_title_a10pro_anti_lost">Anti-lost alert</string>
+    <string name="pref_summary_a10pro_anti_lost">Ask the case to alert when the phone disconnects</string>
+    <string name="pref_title_a10pro_find_band">Find phone from case</string>
+    <string name="pref_summary_a10pro_find_band">Enable the reverse find-phone control on supported firmware</string>
+    <string name="pref_title_a10pro_metric_units">Metric units</string>
+    <string name="pref_summary_a10pro_metric_units">Use metric distance and Celsius temperature on the case</string>
+    <string name="pref_title_a10pro_volume_cap">Maximum volume</string>
+    <string name="pref_title_a10pro_marquee">Scrolling text</string>
+    <string name="pref_summary_a10pro_marquee">Send text to the case barrage / marquee page</string>
+    <string name="pref_title_a10pro_danger_zone">Danger zone</string>
+    <string name="pref_title_a10pro_power_off">Power off case</string>
+    <string name="pref_summary_a10pro_power_off">Send the FreeFit power-off command</string>
+    <string name="pref_title_a10pro_factory_reset">Factory reset case</string>
+    <string name="pref_summary_a10pro_factory_reset">Reset FreeFit firmware settings on the case</string>
     <string name="devicetype_onemore_sonoflow" translatable="false">1MORE SonoFlow</string>
     <string name="devicetype_sony_wena3" translatable="false">Sony Wena 3</string>
     <string name="devicetype_withings_steel_hr" translatable="false">Withings Steel HR</string>

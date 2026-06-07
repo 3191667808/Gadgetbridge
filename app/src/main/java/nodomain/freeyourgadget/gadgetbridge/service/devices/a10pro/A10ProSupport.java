@@ -34,7 +34,12 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
+import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
+import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Contact;
+import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
@@ -84,6 +89,11 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         write(builder, protocol.encodeQueryEq());
         write(builder, protocol.encodeQueryKeyCode());
         write(builder, protocol.encodeQueryBlueName());
+        final ActivityUser user = new ActivityUser();
+        if (user != null) {
+            write(builder, protocol.encodeUserInfo(user.getWeightKg(), user.getAge(), user.getHeightCm(),
+                    user.getStepLengthCm(), user.getGender(), user.getStepsGoal()));
+        }
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
     }
@@ -127,7 +137,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onNotification(final NotificationSpec notificationSpec) {
-        if (notificationSpec == null) return;
+        if (notificationSpec == null || !protocol.supportsUploadMessage()) return;
         final StringBuilder text = new StringBuilder();
         if (notificationSpec.sourceName != null) text.append(notificationSpec.sourceName).append(": ");
         if (notificationSpec.title != null) text.append(notificationSpec.title);
@@ -137,6 +147,52 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         }
         final int appId = notificationSpec.type != null ? notificationSpec.type.ordinal() & 0xFF : 0;
         sendAll("notification", protocol.encodeNotification(appId, text.toString(), protocol.getFamily()));
+    }
+
+    @Override
+    public void onSetMusicInfo(final MusicSpec musicSpec) {
+        if (musicSpec == null) return;
+        final List<byte[]> frames = new ArrayList<>();
+        frames.addAll(protocol.encodeMusicText(musicSpec.artist, 1));
+        frames.addAll(protocol.encodeMusicText(musicSpec.track, 2));
+        sendAll("music info", frames);
+    }
+
+    @Override
+    public void onSetMusicState(final MusicStateSpec stateSpec) {
+        if (stateSpec == null) return;
+        if (stateSpec.state == MusicStateSpec.STATE_PLAYING) {
+            send("music play", protocol.encodeMusicControl(0));
+        } else if (stateSpec.state == MusicStateSpec.STATE_PAUSED || stateSpec.state == MusicStateSpec.STATE_STOPPED) {
+            send("music pause", protocol.encodeMusicControl(1));
+        }
+    }
+
+    @Override
+    public void onSetCallState(final CallSpec callSpec) {
+        if (callSpec == null) return;
+        switch (callSpec.command) {
+            case CallSpec.CALL_INCOMING:
+                send("incoming call", protocol.encodeIncomingCall(callSpec.name, callSpec.number));
+                break;
+            case CallSpec.CALL_ACCEPT:
+                send("answer call", protocol.encodeCallAnswer());
+                break;
+            case CallSpec.CALL_REJECT:
+                send("decline call", protocol.encodeCallDecline());
+                break;
+            case CallSpec.CALL_END:
+                send("end call", protocol.encodeCallEnd());
+                break;
+            default:
+                break;
+        }
+    }
+
+    @Override
+    public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
+        if (alarms == null) return;
+        send("alarms", protocol.encodeAlarmClock(alarms.toArray(new Alarm[0])));
     }
 
     @Override
@@ -152,12 +208,29 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         final int current = kelvinToCelsius(weather.getCurrentTemp());
         final int max = kelvinToCelsius(weather.getTodayMaxTemp() == 0 ? weather.getCurrentTemp() : weather.getTodayMaxTemp());
         final int min = kelvinToCelsius(weather.getTodayMinTemp() == 0 ? weather.getCurrentTemp() : weather.getTodayMinTemp());
-        final int code = mapWeatherCode(weather.getCurrentConditionCode());
-        final int windLevel = Math.max(0, Math.min(12, weather.windSpeedAsBeaufort()));
+        final int[] icons = new int[5];
+        final int[] highs = new int[5];
+        final int[] lows = new int[5];
+        icons[0] = mapWeatherCode(weather.getCurrentConditionCode());
+        highs[0] = max;
+        lows[0] = min;
+        for (int i = 1; i < icons.length; i++) {
+            final int forecastIndex = i - 1;
+            if (weather.getForecasts().size() > forecastIndex) {
+                final WeatherSpec.Daily day = weather.getForecasts().get(forecastIndex);
+                icons[i] = mapWeatherCode(day.getConditionCode());
+                highs[i] = kelvinToCelsius(day.getMaxTemp());
+                lows[i] = kelvinToCelsius(day.getMinTemp());
+            } else {
+                icons[i] = icons[i - 1];
+                highs[i] = highs[i - 1];
+                lows[i] = lows[i - 1];
+            }
+        }
         final int windDirection = mapWindDirection(weather.getWindDirection());
         final String city = weather.getLocation() == null || weather.getLocation().isEmpty() ? "Weather" : weather.getLocation();
-        sendAll("weather", protocol.encodeWeatherForFamily(protocol.getFamily(), code, current, max, min,
-                weather.getCurrentHumidity(), windLevel, windDirection, city));
+        sendAll("weather", protocol.encodeWeatherForFamily(protocol.getFamily(), icons, highs, lows,
+                current, Math.round(weather.getUvIndex()), windDirection, weather.getCurrentHumidity(), city));
     }
 
     @Override
@@ -169,6 +242,20 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
             send("set audio model", protocol.encodeSetAudioModel(parseInt(prefs.getString(config, "0"), 0)));
         } else if ("pref_a10pro_find_earphones".equals(config)) {
             send("find earbuds", protocol.encodeFindHeadphones(3));
+        } else if ("pref_a10pro_anti_lost".equals(config)) {
+            send("anti lost", protocol.encodeAntiLost(prefs.getBoolean(config, false)));
+        } else if ("pref_a10pro_find_band".equals(config)) {
+            send("find band", protocol.encodeFindBandSwitch(prefs.getBoolean(config, false)));
+        } else if ("pref_a10pro_metric_units".equals(config)) {
+            send("unit", protocol.encodeUnit(prefs.getBoolean(config, true), true));
+        } else if ("pref_a10pro_volume_cap".equals(config)) {
+            send("volume cap", protocol.encodeVolumeMaxValue(prefs.getInt(config, 100)));
+        } else if ("pref_a10pro_marquee".equals(config)) {
+            sendAll("marquee", protocol.encodeBarrage(prefs.getString(config, ""), 1, 20));
+        } else if ("pref_a10pro_factory_reset".equals(config)) {
+            send("factory reset", protocol.encodeReset());
+        } else if ("pref_a10pro_power_off".equals(config)) {
+            send("power off", protocol.encodeTurnOff(2));
         } else {
             super.onSendConfiguration(config);
         }
@@ -221,16 +308,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private int mapWeatherCode(final int openWeatherCode) {
-        if (openWeatherCode >= 200 && openWeatherCode < 300) return 12;
-        if (openWeatherCode >= 300 && openWeatherCode < 600) return 15;
-        if (openWeatherCode >= 600 && openWeatherCode < 700) return 24;
-        if (openWeatherCode >= 700 && openWeatherCode < 800) return 10;
-        if (openWeatherCode == 800) return 0;
-        if (openWeatherCode == 801) return 1;
-        if (openWeatherCode == 802) return 2;
-        if (openWeatherCode == 803) return 3;
-        if (openWeatherCode == 804) return 4;
-        return 0;
+        return A10ProProtocol.mapOpenWeatherToJlIcon(openWeatherCode);
     }
 
     private int mapWindDirection(final int degrees) {

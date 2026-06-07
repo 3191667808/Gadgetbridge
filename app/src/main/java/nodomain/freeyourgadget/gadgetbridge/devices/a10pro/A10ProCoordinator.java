@@ -103,9 +103,41 @@ public class A10ProCoordinator extends AbstractBLEDeviceCoordinator {
         settings.addConnectedPreferences(
                 "pref_a10pro_anc_mode",
                 "pref_a10pro_audio_model",
-                "pref_a10pro_find_earphones"
+                "pref_a10pro_find_earphones",
+                "pref_a10pro_anti_lost",
+                "pref_a10pro_find_band",
+                "pref_a10pro_metric_units",
+                "pref_a10pro_volume_cap",
+                "pref_a10pro_marquee",
+                "pref_a10pro_factory_reset",
+                "pref_a10pro_power_off"
         );
         return settings;
+    }
+
+    @Override
+    public int getAlarmSlotCount(final GBDevice device) {
+        return 5;
+    }
+
+    @Override
+    public boolean supportsMusicInfo(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsWeather(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsFindDevice(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsPowerOff(@NonNull final GBDevice device) {
+        return true;
     }
 
     @Override

@@ -41,4 +41,59 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:key="pref_category_a10pro_case"
+        android:title="@string/pref_title_a10pro_case">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_a10pro_anti_lost"
+            android:title="@string/pref_title_a10pro_anti_lost"
+            android:summary="@string/pref_summary_a10pro_anti_lost" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_a10pro_find_band"
+            android:title="@string/pref_title_a10pro_find_band"
+            android:summary="@string/pref_summary_a10pro_find_band" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="pref_a10pro_metric_units"
+            android:title="@string/pref_title_a10pro_metric_units"
+            android:summary="@string/pref_summary_a10pro_metric_units" />
+
+        <SeekBarPreference
+            android:defaultValue="100"
+            android:key="pref_a10pro_volume_cap"
+            android:max="100"
+            android:title="@string/pref_title_a10pro_volume_cap"
+            app:min="0"
+            app:showSeekBarValue="true" />
+
+        <EditTextPreference
+            android:defaultValue=""
+            android:key="pref_a10pro_marquee"
+            android:title="@string/pref_title_a10pro_marquee"
+            android:summary="@string/pref_summary_a10pro_marquee"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="pref_category_a10pro_danger"
+        android:title="@string/pref_title_a10pro_danger_zone">
+
+        <Preference
+            android:key="pref_a10pro_power_off"
+            android:title="@string/pref_title_a10pro_power_off"
+            android:summary="@string/pref_summary_a10pro_power_off" />
+
+        <Preference
+            android:key="pref_a10pro_factory_reset"
+            android:title="@string/pref_title_a10pro_factory_reset"
+            android:summary="@string/pref_summary_a10pro_factory_reset" />
+
+    </PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>

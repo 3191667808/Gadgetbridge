@@ -32,8 +32,11 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
@@ -65,6 +68,7 @@ public class A10ProProtocol extends GBDeviceProtocol {
     static final byte CMD_GET_FW_VERSION = 0x1F;
     static final byte CMD_FIND_BAND = (byte) 0xD1;
     static final byte CMD_CALL_PHONE = 0x55;
+    static final byte CMD_FIND_PHONE = 0x53;
     static final byte CMD_MSG_PUSH = 0x73;
     static final byte CMD_LOW_BATTERY = 0x72;
     static final byte CMD_DIAL_SET = (byte) 0x98;
@@ -97,6 +101,7 @@ public class A10ProProtocol extends GBDeviceProtocol {
     static final byte WRITE = 0x01;
 
     private DeviceFamily family = DeviceFamily.UNKNOWN;
+    private boolean supportsUploadMessage;
 
     public A10ProProtocol(final GBDevice device) {
         super(device);
@@ -108,6 +113,10 @@ public class A10ProProtocol extends GBDeviceProtocol {
 
     public void setFamily(final DeviceFamily family) {
         this.family = family == null ? DeviceFamily.UNKNOWN : family;
+    }
+
+    public boolean supportsUploadMessage() {
+        return supportsUploadMessage;
     }
 
     public byte[] encodeSyncTime(final boolean is24Hour, final int languageCode) {
@@ -131,16 +140,22 @@ public class A10ProProtocol extends GBDeviceProtocol {
     public byte[] encodeReset() { return new byte[]{CMD_RESET, 0x01, 0x02, 0x03}; }
     public byte[] encodeTurnOff(final int model) { return new byte[]{CMD_TURN_OFF, (byte) model}; }
     public byte[] encodeFindBand(final boolean start) { return new byte[]{CMD_FIND_BAND, (byte) (start ? 1 : 0)}; }
+    public byte[] encodeFindBandSwitch(final boolean start) { return new byte[]{0x51, (byte) (start ? 1 : 0)}; }
     public byte[] encodeAntiLost(final boolean enabled) { return new byte[]{0x70, (byte) (enabled ? 1 : 0)}; }
     public byte[] encodeCameraControl(final boolean enabled) { return new byte[]{0x52, (byte) (enabled ? 1 : 0)}; }
     public byte[] encodeUnit(final boolean metric, final boolean celsius) { return new byte[]{0x11, (byte) (metric ? 0 : 1), (byte) (celsius ? 0 : 1), 0, 0}; }
-    public byte[] encodeMusicVolume(final int volume) { return new byte[]{0x41, (byte) volume}; }
-    public byte[] encodeMusicControl(final int action) { return new byte[]{CMD_MUSIC_CONTROL, (byte) action}; }
-    public byte[] encodeCall(final boolean alert, final String number, final String name) { return prefixedText(CMD_CALL_PHONE, alert ? 1 : 0, safeJoin(name, number), StandardCharsets.UTF_8, 17); }
+    public byte[] encodeMusicVolume(final int volume) { return new byte[]{0x41, 0x04, (byte) clamp(volume, 0, 100)}; }
+    public byte[] encodeMusicControl(final int action) { return new byte[]{CMD_MUSIC_CONTROL, (byte) clamp(action, 0, 3)}; }
+    public byte[] encodeIncomingCall(final String name, final String number) { return encodeCallState(1, name, number); }
+    public byte[] encodeCallEnd() { return new byte[]{CMD_CALL_PHONE, 2, 0, 0}; }
+    public byte[] encodeCallAnswer() { return new byte[]{CMD_CALL_PHONE, 3, 0, 0}; }
+    public byte[] encodeCallDecline() { return new byte[]{CMD_CALL_PHONE, 4, 0, 0}; }
+    public byte[] encodeCall(final boolean alert, final String number, final String name) { return alert ? encodeIncomingCall(name, number) : encodeCallEnd(); }
     public byte[] encodeDialSet(final int index) { return new byte[]{CMD_DIAL_SET, (byte) index}; }
-    public byte[] encodeBarrage(final String text) { return prefixedText(CMD_BARRAGE, 0, text, StandardCharsets.UTF_8, 18); }
+    public List<byte[]> encodeBarrage(final String text) { return encodeBarrage(text, 1, 20); }
     public byte[] encodeSticker(final int index) { return new byte[]{CMD_STICKER, (byte) index}; }
     public byte[] encodeWkString(final String text) { return prefixedText(CMD_WK_STRING, 0, text, StandardCharsets.UTF_8, 18); }
+    public byte[] encodeVolumeMaxValue(final int value) { return withChecksum(new byte[]{FB_PREFIX, 0x08, WRITE, 7, (byte) clamp(value, 0, 100)}); }
 
     public byte[] encodeQueryBattery() { return withChecksum(new byte[]{FB_PREFIX, SUB_BATTERY, READ, 6}); }
     public byte[] encodeQueryEq() { return withChecksum(new byte[]{FB_PREFIX, SUB_EQ, READ, 6}); }
@@ -196,16 +211,34 @@ public class A10ProProtocol extends GBDeviceProtocol {
     public byte[] encodeWeatherJl(final int code, final int tempNowC, final int tempMaxC,
                                   final int tempNightC, final int humidity, final int windLevel,
                                   final int windDirection) {
+        return encodeWeatherJl(new int[]{code, code, code, code, code},
+                new int[]{tempMaxC, tempMaxC, tempMaxC, tempMaxC, tempMaxC},
+                new int[]{tempNightC, tempNightC, tempNightC, tempNightC, tempNightC},
+                tempNowC, 0, windDirection, humidity);
+    }
+
+    public byte[] encodeWeatherJl(@NonNull final int[] icons5, @NonNull final int[] hi5,
+                                  @NonNull final int[] lo5, final int currentTemp,
+                                  final int uv, final int windDir, final int humidity) {
+        if (icons5.length < 4 || hi5.length < 4 || lo5.length < 4) {
+            throw new IllegalArgumentException("JL weather needs today plus three forecast days");
+        }
         final byte[] frame = new byte[20];
         frame[0] = CMD_WEATHER_JL;
         frame[1] = 0x00;
-        frame[2] = (byte) code;
-        frame[3] = (byte) tempNowC;
-        frame[4] = (byte) tempMaxC;
-        frame[5] = (byte) tempNightC;
-        frame[6] = (byte) humidity;
-        frame[7] = (byte) windLevel;
-        frame[8] = (byte) windDirection;
+        frame[2] = (byte) icons5[0];
+        frame[3] = (byte) currentTemp;
+        frame[4] = (byte) hi5[0];
+        frame[5] = (byte) lo5[0];
+        for (int day = 1; day <= 3; day++) {
+            final int offset = 3 + day * 3;
+            frame[offset] = (byte) icons5[day];
+            frame[offset + 1] = (byte) hi5[day];
+            frame[offset + 2] = (byte) lo5[day];
+        }
+        frame[15] = (byte) clamp(uv, 0, 15);
+        frame[16] = (byte) clamp(windDir, 0, 9);
+        frame[17] = (byte) clamp(humidity, 0, 100);
         return frame;
     }
 
@@ -234,6 +267,29 @@ public class A10ProProtocol extends GBDeviceProtocol {
         if (f == DeviceFamily.UNKNOWN || f == DeviceFamily.JL) frames.add(encodeWeatherJl(code, tempNowC, tempMaxC, tempMinC, humidity, windLevel, windDirection));
         if (f == DeviceFamily.UNKNOWN || f == DeviceFamily.ZK) frames.add(encodeWeatherZk(tempNowC, tempMaxC, code, city));
         return frames;
+    }
+
+    public List<byte[]> encodeWeatherForFamily(final DeviceFamily deviceFamily, @NonNull final int[] icons5,
+                                               @NonNull final int[] hi5, @NonNull final int[] lo5,
+                                               final int currentTemp, final int uv, final int windDir,
+                                               final int humidity, @NonNull final String city) {
+        final List<byte[]> frames = new ArrayList<>();
+        final DeviceFamily f = deviceFamily == null ? DeviceFamily.UNKNOWN : deviceFamily;
+        if (f == DeviceFamily.UNKNOWN || f == DeviceFamily.FIR) frames.add(encodeWeatherFir(icons5[0], currentTemp, hi5[0]));
+        if (f == DeviceFamily.UNKNOWN || f == DeviceFamily.JL) frames.add(encodeWeatherJl(icons5, hi5, lo5, currentTemp, uv, windDir, humidity));
+        if (f == DeviceFamily.UNKNOWN || f == DeviceFamily.ZK) frames.add(encodeWeatherZk(currentTemp, hi5[0], icons5[0], city));
+        return frames;
+    }
+
+    public static int mapOpenWeatherToJlIcon(final int openWeatherCode) {
+        if (openWeatherCode >= 200 && openWeatherCode < 300) return openWeatherCode == 210 || openWeatherCode == 211 ? 4 : 33;
+        if (openWeatherCode >= 300 && openWeatherCode < 400) return 11;
+        if (openWeatherCode >= 500 && openWeatherCode < 600) return openWeatherCode >= 502 ? 7 : 39;
+        if (openWeatherCode >= 600 && openWeatherCode < 700) return 38;
+        if (openWeatherCode >= 700 && openWeatherCode < 800) return 40;
+        if (openWeatherCode == 800) return 1;
+        if (openWeatherCode >= 801 && openWeatherCode <= 804) return openWeatherCode == 801 ? 0 : 40;
+        return 0;
     }
 
     public List<byte[]> encodeGpsAddress(@NonNull String address) {
@@ -269,6 +325,83 @@ public class A10ProProtocol extends GBDeviceProtocol {
             return chunkUtf8(f == DeviceFamily.ZK ? (byte) 0x23 : CMD_MSG_PUSH, appId, text, true);
         }
         return chunkUtf8(CMD_MSG_PUSH, appId, text, false);
+    }
+
+    public byte[] encodeAlarmClock(@NonNull final Alarm[] alarms) {
+        final int count = Math.min(5, alarms.length);
+        final byte[] frame = new byte[count >= 5 ? 23 : 19];
+        frame[0] = 0x02;
+        frame[1] = CMD_DEVICE_ALARM;
+        for (int i = 0; i < count; i++) {
+            final int offset = i < 3 ? 2 + i * 4 : 15 + (i - 3) * 4;
+            final Alarm alarm = alarms[i];
+            frame[offset] = (byte) (alarm.getEnabled() ? 1 : 0);
+            frame[offset + 1] = (byte) alarm.getHour();
+            frame[offset + 2] = (byte) alarm.getMinute();
+            frame[offset + 3] = (byte) alarm.getRepetition();
+        }
+        frame[14] = (byte) count;
+        return frame;
+    }
+
+    public byte[] encodeUserInfo(final int weightKg, final int age, final int heightCm,
+                                 final int stepLengthCm, final int gender, final int stepGoal) {
+        return new byte[]{
+                0x02, 0x01,
+                (byte) ((weightKg >> 8) & 0xFF), (byte) (weightKg & 0xFF),
+                (byte) clamp(age, 0, 120), (byte) clamp(heightCm, 0, 255),
+                (byte) clamp(stepLengthCm, 0, 255), (byte) clamp(gender, 0, 2),
+                (byte) ((stepGoal >> 24) & 0xFF), (byte) ((stepGoal >> 16) & 0xFF),
+                (byte) ((stepGoal >> 8) & 0xFF), (byte) (stepGoal & 0xFF)
+        };
+    }
+
+    public List<byte[]> encodeMusicText(@Nullable final String text, final int type) {
+        final byte[] body = (text == null ? "" : text).getBytes(StandardCharsets.UTF_16BE);
+        final List<byte[]> frames = new ArrayList<>();
+        int offset = 0;
+        int packet = 1;
+        while (offset < body.length || frames.isEmpty()) {
+            final int len = Math.min(16, body.length - offset);
+            final byte[] frame = new byte[4 + Math.max(0, len)];
+            frame[0] = CMD_MUSIC_CONTROL;
+            frame[1] = 0x02;
+            frame[2] = (byte) type;
+            frame[3] = (byte) packet++;
+            if (len > 0) System.arraycopy(body, offset, frame, 4, len);
+            frames.add(frame);
+            offset += Math.max(0, len);
+            if (offset >= body.length) break;
+        }
+        frames.add(new byte[]{CMD_MUSIC_CONTROL, 0x02, (byte) type, (byte) 0xFF});
+        return frames;
+    }
+
+    public List<byte[]> encodeBarrage(@Nullable final String text, final int index, final int mtu) {
+        final byte[] bytes = (text == null ? "" : text).getBytes(StandardCharsets.UTF_8);
+        if (bytes.length == 0) {
+            final List<byte[]> clear = new ArrayList<>();
+            clear.add(new byte[]{CMD_BARRAGE, 0x01, (byte) index, 0, 0, 0, 0});
+            return clear;
+        }
+        final int packetSize = Math.max(20, mtu);
+        final int payloadSize = packetSize - 7;
+        final int packets = (bytes.length + payloadSize - 1) / payloadSize;
+        final List<byte[]> frames = new ArrayList<>();
+        for (int i = 0; i < packets; i++) {
+            final int len = Math.min(payloadSize, bytes.length - i * payloadSize);
+            final byte[] frame = new byte[7 + len];
+            frame[0] = CMD_BARRAGE;
+            frame[1] = 0x01;
+            frame[2] = (byte) index;
+            frame[3] = (byte) packets;
+            frame[4] = (byte) (i + 1);
+            frame[5] = (byte) (bytes.length & 0xFF);
+            frame[6] = (byte) ((bytes.length >> 8) & 0xFF);
+            System.arraycopy(bytes, i * payloadSize, frame, 7, len);
+            frames.add(frame);
+        }
+        return frames;
     }
 
     public List<byte[]> encodeContacts(@NonNull final List<? extends nodomain.freeyourgadget.gadgetbridge.model.Contact> contacts) {
@@ -345,9 +478,11 @@ public class A10ProProtocol extends GBDeviceProtocol {
             case 0x85: return ackFamily("Weather FIR", data, DeviceFamily.FIR);
             case 0x90: return ackFamily("Weather JL", data, DeviceFamily.JL);
             case 0x94: return decodeClassicBattery(data);
+            case 0x99: return decodeMusicControl(data);
             case 0x9F: return decodeFirmwareVersion(data);
             case 0xA5: return ackFamily("Weather ZK", data, DeviceFamily.ZK);
             case 0x0D: return ackFamily("Device requested time", data, null);
+            case 0x53: return decodeFindPhone(data);
             case 0xFB: return decodeFbFrame(data);
             default:
                 LOG.debug("FreeFit V2 unhandled frame opcode 0x{}", Integer.toHexString(data[0] & 0xFF));
@@ -404,7 +539,30 @@ public class A10ProProtocol extends GBDeviceProtocol {
             LOG.info("FreeFit V2 function info: anc={} customEq={} aiMode={} fwRev={} maxName={}",
                     supportsAnc, supportsCustomEq, aiMode, fwRev, data[4] & 0xFF);
         }
+        supportsUploadMessage = data.length > 18 && (data[18] & 0x01) != 0;
         return new GBDeviceEvent[0];
+    }
+
+    private GBDeviceEvent[] decodeFindPhone(final byte[] data) {
+        final GBDeviceEventFindPhone evt = new GBDeviceEventFindPhone();
+        evt.event = data.length > 1 && data[1] == 0 ? GBDeviceEventFindPhone.Event.STOP : GBDeviceEventFindPhone.Event.START;
+        return new GBDeviceEvent[]{evt};
+    }
+
+    private GBDeviceEvent[] decodeMusicControl(final byte[] data) {
+        if (data.length < 2) return new GBDeviceEvent[0];
+        final GBDeviceEventMusicControl.Event event;
+        switch (data[1] & 0xFF) {
+            case 0: event = GBDeviceEventMusicControl.Event.PAUSE; break;
+            case 1: event = GBDeviceEventMusicControl.Event.PLAYPAUSE; break;
+            case 2: event = GBDeviceEventMusicControl.Event.PLAY; break;
+            case 3: event = GBDeviceEventMusicControl.Event.PREVIOUS; break;
+            case 4: event = GBDeviceEventMusicControl.Event.NEXT; break;
+            case 5: event = GBDeviceEventMusicControl.Event.VOLUMEUP; break;
+            case 6: event = GBDeviceEventMusicControl.Event.VOLUMEDOWN; break;
+            default: return new GBDeviceEvent[0];
+        }
+        return new GBDeviceEvent[]{new GBDeviceEventMusicControl(event)};
     }
 
     private GBDeviceEventBatteryInfo batteryEvent(final int index, final byte raw) {
@@ -453,6 +611,23 @@ public class A10ProProtocol extends GBDeviceProtocol {
         final String aa = a == null ? "" : a;
         final String bb = b == null ? "" : b;
         return aa.isEmpty() ? bb : (bb.isEmpty() ? aa : aa + " " + bb);
+    }
+
+    private byte[] encodeCallState(final int state, @Nullable final String name, @Nullable final String number) {
+        final byte[] nameBytes = (name == null ? "" : name).getBytes(StandardCharsets.UTF_8);
+        final byte[] numberBytes = (number == null ? "" : number).getBytes(StandardCharsets.UTF_8);
+        final byte[] out = new byte[nameBytes.length + numberBytes.length + 4];
+        out[0] = CMD_CALL_PHONE;
+        out[1] = (byte) state;
+        out[2] = (byte) nameBytes.length;
+        System.arraycopy(nameBytes, 0, out, 3, nameBytes.length);
+        out[3 + nameBytes.length] = (byte) numberBytes.length;
+        System.arraycopy(numberBytes, 0, out, 4 + nameBytes.length, numberBytes.length);
+        return out;
+    }
+
+    private static int clamp(final int value, final int min, final int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static byte checksum8(final byte[] data, final int len) {

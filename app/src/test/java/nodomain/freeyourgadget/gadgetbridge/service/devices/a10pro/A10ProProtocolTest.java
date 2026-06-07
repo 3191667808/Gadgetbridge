@@ -26,6 +26,9 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
+import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 
 public class A10ProProtocolTest {
@@ -63,7 +66,7 @@ public class A10ProProtocolTest {
     @Test public void syncTime_12HourEncodedAs2() { assertEquals(0x02, P.encodeSyncTime(false, 0)[9]); }
 
     @Test public void weatherFir_isFourBytes() { assertArrayEquals(new byte[]{0x05, 0x0B, 18, 22}, P.encodeWeatherFir(11, 18, 22)); }
-    @Test public void weatherJl_isTwentyBytes() { byte[] frame = P.encodeWeatherJl(3, 18, 24, 16, 55, 3, 1); assertEquals(20, frame.length); assertEquals(0x10, frame[0]); assertEquals(3, frame[2]); assertEquals(55, frame[6]); }
+    @Test public void weatherJl_isTwentyBytes() { byte[] frame = P.encodeWeatherJl(3, 18, 24, 16, 55, 3, 1); assertEquals(20, frame.length); assertEquals(0x10, frame[0]); assertEquals(3, frame[2]); assertEquals(3, frame[6]); assertEquals(55, frame[17]); }
     @Test public void weatherZk_padsCityWithFf() { byte[] frame = P.encodeWeatherZk(25, 30, 0, "Tel Aviv"); assertEquals(20, frame.length); assertEquals(0x25, frame[0]); assertEquals('T', frame[4]); assertEquals((byte) 0xFF, frame[19]); }
     @Test public void unknownFamilyWeather_emitsAllThreeVariants() { List<byte[]> frames = P.encodeWeatherForFamily(A10ProProtocol.DeviceFamily.UNKNOWN, 0, 22, 28, 16, 50, 3, 1, "TA"); assertEquals(3, frames.size()); assertEquals(0x05, frames.get(0)[0]); assertEquals(0x10, frames.get(1)[0]); assertEquals(0x25, frames.get(2)[0]); }
 
@@ -74,6 +77,56 @@ public class A10ProProtocolTest {
     @Test public void notificationZk_uses23AndEndMarker() { List<byte[]> frames = P.encodeNotification(4, "hello", A10ProProtocol.DeviceFamily.ZK); assertEquals(1, frames.size()); assertEquals(0x23, frames.get(0)[0]); assertEquals((byte) 0xFF, frames.get(0)[frames.get(0).length - 1]); }
     @Test public void notificationLongTextChunksAt17Bytes() { List<byte[]> frames = P.encodeNotification(1, "abcdefghijklmnopqr", A10ProProtocol.DeviceFamily.JL); assertEquals(2, frames.size()); assertEquals(0, frames.get(0)[1]); assertEquals(1, frames.get(1)[1]); }
 
+    @Test public void jlWeather_liveLayoutToday() { byte[] f = P.encodeWeatherJl(new int[]{1, 40, 39, 38, 0}, new int[]{30, 31, 32, 33, 34}, new int[]{20, 21, 22, 23, 24}, 27, 5, 6, 72); assertArrayEquals(new byte[]{0x10,0,1,27,30,20,40,31,21,39,32,22,38,33,23,5,6,72,0,0}, f); }
+    @Test public void jlWeather_requiresFourDays() { try { P.encodeWeatherJl(new int[]{1}, new int[]{2}, new int[]{3}, 4, 5, 6, 7); } catch (IllegalArgumentException e) { return; } throw new AssertionError("expected exception"); }
+    @Test public void weatherForFamilyJl_onlyJlFrame() { List<byte[]> frames = P.encodeWeatherForFamily(A10ProProtocol.DeviceFamily.JL, new int[]{1,2,3,4,5}, new int[]{10,11,12,13,14}, new int[]{0,1,2,3,4}, 9, 8, 7, 6, "TA"); assertEquals(1, frames.size()); assertEquals(0x10, frames.get(0)[0]); }
+    @Test public void weatherForFamilyUnknown_sendsThreeFrames() { List<byte[]> frames = P.encodeWeatherForFamily(A10ProProtocol.DeviceFamily.UNKNOWN, new int[]{1,2,3,4,5}, new int[]{10,11,12,13,14}, new int[]{0,1,2,3,4}, 9, 8, 7, 6, "TA"); assertEquals(3, frames.size()); assertEquals(0x05, frames.get(0)[0]); assertEquals(0x10, frames.get(1)[0]); assertEquals(0x25, frames.get(2)[0]); }
+    @Test public void weatherIcon_sun() { assertEquals(1, A10ProProtocol.mapOpenWeatherToJlIcon(800)); }
+    @Test public void weatherIcon_cloud() { assertEquals(40, A10ProProtocol.mapOpenWeatherToJlIcon(804)); }
+    @Test public void weatherIcon_thunderstorm() { assertEquals(33, A10ProProtocol.mapOpenWeatherToJlIcon(202)); }
+    @Test public void weatherIcon_thunderstormWithSun() { assertEquals(4, A10ProProtocol.mapOpenWeatherToJlIcon(211)); }
+    @Test public void weatherIcon_heavyRain() { assertEquals(7, A10ProProtocol.mapOpenWeatherToJlIcon(502)); }
+    @Test public void weatherIcon_drizzle() { assertEquals(11, A10ProProtocol.mapOpenWeatherToJlIcon(301)); }
+    @Test public void weatherIcon_snow() { assertEquals(38, A10ProProtocol.mapOpenWeatherToJlIcon(600)); }
+    @Test public void weatherIcon_rain() { assertEquals(39, A10ProProtocol.mapOpenWeatherToJlIcon(500)); }
+
+    @Test public void musicVolume_hasVolumeSubcommand() { assertArrayEquals(new byte[]{0x41, 0x04, 55}, P.encodeMusicVolume(55)); }
+    @Test public void musicVolume_clampsHigh() { assertEquals(100, P.encodeMusicVolume(150)[2]); }
+    @Test public void musicVolume_clampsLow() { assertEquals(0, P.encodeMusicVolume(-1)[2]); }
+    @Test public void musicControl_play() { assertArrayEquals(new byte[]{(byte) 0x99, 0}, P.encodeMusicControl(0)); }
+    @Test public void musicControl_pause() { assertArrayEquals(new byte[]{(byte) 0x99, 1}, P.encodeMusicControl(1)); }
+    @Test public void musicControl_next() { assertArrayEquals(new byte[]{(byte) 0x99, 2}, P.encodeMusicControl(2)); }
+    @Test public void musicControl_prev() { assertArrayEquals(new byte[]{(byte) 0x99, 3}, P.encodeMusicControl(3)); }
+    @Test public void decodeMusicControlPause() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0x99, 0}); assertEquals(GBDeviceEventMusicControl.Event.PAUSE, ((GBDeviceEventMusicControl) events[0]).event); }
+    @Test public void decodeMusicControlPlay() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0x99, 2}); assertEquals(GBDeviceEventMusicControl.Event.PLAY, ((GBDeviceEventMusicControl) events[0]).event); }
+    @Test public void decodeMusicControlNext() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0x99, 4}); assertEquals(GBDeviceEventMusicControl.Event.NEXT, ((GBDeviceEventMusicControl) events[0]).event); }
+    @Test public void decodeMusicControlPrev() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0x99, 3}); assertEquals(GBDeviceEventMusicControl.Event.PREVIOUS, ((GBDeviceEventMusicControl) events[0]).event); }
+    @Test public void decodeMusicControlVolumeUp() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0x99, 5}); assertEquals(GBDeviceEventMusicControl.Event.VOLUMEUP, ((GBDeviceEventMusicControl) events[0]).event); }
+    @Test public void decodeMusicControlVolumeDown() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0x99, 6}); assertEquals(GBDeviceEventMusicControl.Event.VOLUMEDOWN, ((GBDeviceEventMusicControl) events[0]).event); }
+    @Test public void musicText_artistUtf16AndEnd() { List<byte[]> frames = P.encodeMusicText("AB", 1); assertArrayEquals(new byte[]{(byte) 0x99,2,1,1,0,'A',0,'B'}, frames.get(0)); assertArrayEquals(new byte[]{(byte) 0x99,2,1,(byte) 0xFF}, frames.get(1)); }
+    @Test public void musicText_chunksAt16Bytes() { List<byte[]> frames = P.encodeMusicText("123456789", 2); assertEquals(3, frames.size()); assertEquals(16, frames.get(0).length - 4); }
+
+    @Test public void incomingCall_packsNameAndNumberLengths() { assertArrayEquals(new byte[]{0x55,1,3,'B','o','b',3,'1','2','3'}, P.encodeIncomingCall("Bob", "123")); }
+    @Test public void incomingCall_nullsBecomeEmpty() { assertArrayEquals(new byte[]{0x55,1,0,0}, P.encodeIncomingCall(null, null)); }
+    @Test public void callEnd_isState2() { assertArrayEquals(new byte[]{0x55,2,0,0}, P.encodeCallEnd()); }
+    @Test public void callAnswer_isState3() { assertArrayEquals(new byte[]{0x55,3,0,0}, P.encodeCallAnswer()); }
+    @Test public void callDecline_isState4() { assertArrayEquals(new byte[]{0x55,4,0,0}, P.encodeCallDecline()); }
+    @Test public void decodeFindPhoneStart() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{0x53, 1}); assertEquals(1, events.length); assertEquals(GBDeviceEventFindPhone.Event.START, ((GBDeviceEventFindPhone) events[0]).event); }
+    @Test public void decodeFindPhoneStop() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{0x53, 0}); assertEquals(GBDeviceEventFindPhone.Event.STOP, ((GBDeviceEventFindPhone) events[0]).event); }
+
+    @Test public void notificationSupport_defaultsFalse() { A10ProProtocol p = new A10ProProtocol(null); assertEquals(false, p.supportsUploadMessage()); }
+    @Test public void functionInfoBit18_enablesNotifications() { A10ProProtocol p = new A10ProProtocol(null); byte[] data = new byte[19]; data[0] = (byte) 0x83; data[18] = 1; p.decodeResponse(data); assertEquals(true, p.supportsUploadMessage()); }
+    @Test public void functionInfoBit18_disabledForG2Adv() { A10ProProtocol p = new A10ProProtocol(null); byte[] data = new byte[19]; data[0] = (byte) 0x83; p.decodeResponse(data); assertEquals(false, p.supportsUploadMessage()); }
+
+    @Test public void alarmClock_oneAlarmLayout() { byte[] frame = P.encodeAlarmClock(new Alarm[]{alarm(true, 6, 30, Alarm.ALARM_DAILY)}); assertEquals(19, frame.length); assertEquals(2, frame[0]); assertEquals(3, frame[1]); assertEquals(1, frame[2]); assertEquals(6, frame[3]); assertEquals(30, frame[4]); assertEquals(1, frame[14]); }
+    @Test public void alarmClock_fiveAlarmsLayout() { byte[] frame = P.encodeAlarmClock(new Alarm[]{alarm(true,1,2,3), alarm(false,4,5,6), alarm(true,7,8,9), alarm(false,10,11,12), alarm(true,13,14,15)}); assertEquals(23, frame.length); assertEquals(5, frame[14]); assertEquals(0, frame[15]); assertEquals(10, frame[16]); assertEquals(1, frame[19]); assertEquals(13, frame[20]); }
+    @Test public void userInfo_packsWeightAgeHeightStrideGenderGoal() { assertArrayEquals(new byte[]{2,1,0,70,26,(byte) 180,75,1,0,0,31,64}, P.encodeUserInfo(70, 26, 180, 75, 1, 8000)); }
+    @Test public void findBandSwitch_uses51() { assertArrayEquals(new byte[]{0x51, 0x01}, P.encodeFindBandSwitch(true)); }
+    @Test public void volumeCap_usesFb08Checksum() { assertArrayEquals(new byte[]{(byte) 0xFB,0x08,0x01,0x07,80,0x5B,0x01}, P.encodeVolumeMaxValue(80)); }
+    @Test public void barrageEmpty_clearsSlot() { List<byte[]> frames = P.encodeBarrage("", 2, 20); assertArrayEquals(new byte[]{(byte) 0xBB,1,2,0,0,0,0}, frames.get(0)); }
+    @Test public void barrageShort_packsHeader() { List<byte[]> frames = P.encodeBarrage("hello", 1, 20); assertEquals(1, frames.size()); assertEquals((byte) 0xBB, frames.get(0)[0]); assertEquals(1, frames.get(0)[4]); assertEquals(5, frames.get(0)[5]); assertEquals('h', frames.get(0)[7]); }
+    @Test public void barrageLong_chunksByMtuMinusHeader() { List<byte[]> frames = P.encodeBarrage("abcdefghijklmn", 1, 20); assertEquals(2, frames.size()); assertEquals(2, frames.get(0)[3]); assertEquals(2, frames.get(1)[4]); }
+
     @Test public void decodeBattery_extractsLevelsAndChargingFlags() { byte[] data = {(byte) 0xFB, 0x03, 0x03, 0x08, (byte) 0x95, 0x32, 0x00, 0x00}; GBDeviceEvent[] events = P.decodeBattery(data); assertEquals(2, events.length); GBDeviceEventBatteryInfo left = (GBDeviceEventBatteryInfo) events[0]; GBDeviceEventBatteryInfo right = (GBDeviceEventBatteryInfo) events[1]; assertEquals(0, left.batteryIndex); assertEquals(21, left.level); assertEquals(BatteryState.BATTERY_CHARGING, left.state); assertEquals(1, right.batteryIndex); assertEquals(50, right.level); assertEquals(BatteryState.BATTERY_NORMAL, right.state); }
     @Test public void decodeBattery_threePayloadBytesAddsCase() { byte[] data = {(byte) 0xFB, 0x03, 0x03, 0x09, 10, 20, 30, 0, 0}; assertEquals(3, P.decodeBattery(data).length); }
     @Test public void decodeClassicBattery_extractsTwoBuds() { GBDeviceEvent[] events = P.decodeClassicBattery(new byte[]{(byte) 0x94, 11, (byte) 0x8C}); assertEquals(2, events.length); assertEquals(BatteryState.BATTERY_CHARGING, ((GBDeviceEventBatteryInfo) events[1]).state); }
@@ -82,4 +135,24 @@ public class A10ProProtocolTest {
     @Test public void decodeWeatherAckDetectsFir() { P.setFamily(A10ProProtocol.DeviceFamily.UNKNOWN); P.decodeResponse(new byte[]{(byte) 0x85, 0}); assertEquals(A10ProProtocol.DeviceFamily.FIR, P.getFamily()); }
     @Test public void decodeUnknownOpcode_returnsEmpty() { assertEquals(0, P.decodeResponse(new byte[]{0x42, 0x00}).length); }
     @Test public void checksum_helperMatchesByHand() { byte[] out = A10ProProtocol.withChecksum(new byte[]{(byte) 0xFB, 0x05, 0x01, 0x07, 0x02}); assertEquals(7, out.length); assertEquals(0x0A, out[5] & 0xFF); assertEquals(0x01, out[6] & 0xFF); }
+
+    private static Alarm alarm(final boolean enabled, final int hour, final int minute, final int repetition) {
+        return new Alarm() {
+            public int getPosition() { return 0; }
+            public boolean getEnabled() { return enabled; }
+            public boolean getUnused() { return false; }
+            public boolean getSmartWakeup() { return false; }
+            public Integer getSmartWakeupInterval() { return 0; }
+            public boolean getSnooze() { return false; }
+            public int getRepetition() { return repetition; }
+            public boolean isRepetitive() { return repetition != 0; }
+            public boolean getRepetition(final int dow) { return (repetition & dow) != 0; }
+            public int getHour() { return hour; }
+            public int getMinute() { return minute; }
+            public String getTitle() { return ""; }
+            public String getDescription() { return ""; }
+            public int getSoundCode() { return 0; }
+            public boolean getBacklight() { return false; }
+        };
+    }
 }
