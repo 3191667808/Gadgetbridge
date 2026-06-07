@@ -45,6 +45,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.a10pro.jl_rcsp.JieliRcspAuthSession;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.a10pro.jl_rcsp.RcspFrame;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /** BLE support for the FreeFit iEnjoy V2 / G2-ADV family. */
@@ -58,6 +60,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
     private final A10ProProtocol protocol;
     private BluetoothGattCharacteristic writeCharacteristic;
     private BluetoothGattCharacteristic notifyCharacteristic;
+    private final JieliRcspAuthSession authSession = new JieliRcspAuthSession();
 
     public A10ProSupport() {
         super(LOG);
@@ -79,6 +82,11 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
 
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(notifyCharacteristic, true);
+        if (prefRcspAuthEnabled()) {
+            LOG.info("FreeFit V2: attempting JieLi RCSP authentication");
+            write(builder, authSession.start());
+            write(builder, authSession.sendChallenge());
+        }
         write(builder, protocol.encodeSyncTime(prefIs24Hour(), 0));
         write(builder, protocol.encodeGetFunction());
         write(builder, protocol.encodeGetFirmwareVersion());
@@ -105,6 +113,16 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         super.onCharacteristicChanged(gatt, characteristic, data);
         if (data == null || data.length == 0) return false;
         LOG.debug("FreeFit V2 RX {}", GB.hexdump(data));
+        if (prefRcspAuthEnabled() && !authSession.isComplete() && !authSession.isFailed()) {
+            final byte[] reply = authSession.onInbound(data);
+            if (reply != null) {
+                send("rcsp auth reply", reply);
+            }
+            // Auth packets are never RCSP/FreeFit responses, so don't double-parse.
+            if (data.length >= 1 && (data[0] == 0x00 || data[0] == 0x01 || data[0] == 0x02)) {
+                return true;
+            }
+        }
         final GBDeviceEvent[] events = protocol.decodeResponse(data);
         for (final GBDeviceEvent event : events) {
             if (event != null) handleGBDeviceEvent(event);
@@ -300,6 +318,15 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         } catch (final Exception ignored) {
         }
         return true;
+    }
+
+    private boolean prefRcspAuthEnabled() {
+        try {
+            final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+            return prefs.getBoolean("pref_a10pro_rcsp_auth", false);
+        } catch (final Exception ignored) {
+            return false;
+        }
     }
 
     private int kelvinToCelsius(final int kelvin) {

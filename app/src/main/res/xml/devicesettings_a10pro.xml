@@ -96,4 +96,16 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:key="pref_category_a10pro_experimental"
+        android:title="@string/pref_title_a10pro_experimental">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_a10pro_rcsp_auth"
+            android:title="@string/pref_title_a10pro_rcsp_auth"
+            android:summary="@string/pref_summary_a10pro_rcsp_auth" />
+
+    </PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>

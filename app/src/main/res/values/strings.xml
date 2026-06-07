@@ -3653,6 +3653,9 @@
     <string name="pref_summary_a10pro_power_off">Send the FreeFit power-off command</string>
     <string name="pref_title_a10pro_factory_reset">Factory reset case</string>
     <string name="pref_summary_a10pro_factory_reset">Reset FreeFit firmware settings on the case</string>
+    <string name="pref_title_a10pro_experimental">Experimental</string>
+    <string name="pref_title_a10pro_rcsp_auth">Attempt JieLi RCSP authentication</string>
+    <string name="pref_summary_a10pro_rcsp_auth">Run the JieLi RCSP challenge/response handshake on connect. Required to unlock contacts, GPS map, and clock-face uploads. Disable if the case rejects the handshake.</string>
     <string name="devicetype_onemore_sonoflow" translatable="false">1MORE SonoFlow</string>
     <string name="devicetype_sony_wena3" translatable="false">Sony Wena 3</string>
     <string name="devicetype_withings_steel_hr" translatable="false">Withings Steel HR</string>
