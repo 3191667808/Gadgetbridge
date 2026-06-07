@@ -322,8 +322,15 @@ public class A10ProProtocol extends GBDeviceProtocol {
 
     public List<byte[]> encodeNotification(final int appId, @NonNull final String text, final DeviceFamily deviceFamily) {
         final DeviceFamily f = deviceFamily == null ? DeviceFamily.UNKNOWN : deviceFamily;
-        if (f == DeviceFamily.JL || f == DeviceFamily.ZK) {
-            return chunkUtf8(f == DeviceFamily.ZK ? (byte) 0x23 : CMD_MSG_PUSH, appId, text, true);
+        // Vendor app (com.czw.freefit.device.FreeFitDevice#sendMessage): always opcode 0x73,
+        // 17-byte UTF-8 chunks with header [0x73, chunkIndex, appId], NO end marker.
+        // The previous 0xFF terminator on the last short chunk was a guess that broke
+        // the firmware's "wait for next 0x73 [n+1]" state machine and dropped the whole
+        // notification.
+        if (f == DeviceFamily.ZK) {
+            // ZK firmware uses the same wire shape but opcode 0x23. Live snoop showed
+            // the case ack-ing 0x23 frames carrying Hebrew UTF-8.
+            return chunkUtf8((byte) 0x23, appId, text, false);
         }
         return chunkUtf8(CMD_MSG_PUSH, appId, text, false);
     }

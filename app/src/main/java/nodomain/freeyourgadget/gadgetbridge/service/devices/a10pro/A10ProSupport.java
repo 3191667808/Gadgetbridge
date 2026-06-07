@@ -152,7 +152,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onFindDevice(final boolean start) {
-        send("find earbuds", protocol.encodeFindHeadphones(start ? 3 : 0));
+        send("find earbuds", protocol.encodeFindHeadphones(start ? 1 : 0));
     }
 
     @Override
@@ -285,7 +285,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
         } else if ("pref_a10pro_audio_model".equals(config)) {
             send("set audio model", protocol.encodeSetAudioModel(parseInt(prefs.getString(config, "0"), 0)));
         } else if ("pref_a10pro_find_earphones".equals(config)) {
-            send("find earbuds", protocol.encodeFindHeadphones(3));
+            send("find earbuds", protocol.encodeFindHeadphones(1));
         } else if ("pref_a10pro_anti_lost".equals(config)) {
             send("anti lost", protocol.encodeAntiLost(prefs.getBoolean(config, false)));
         } else if ("pref_a10pro_find_band".equals(config)) {

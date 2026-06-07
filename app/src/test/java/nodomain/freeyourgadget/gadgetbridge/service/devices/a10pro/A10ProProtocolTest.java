@@ -75,7 +75,7 @@ public class A10ProProtocolTest {
     @Test public void gpsAddress_longStringMultipackets() { List<byte[]> packets = P.encodeGpsAddress("12345678901234567890"); assertEquals(3, packets.size()); assertEquals(0x07, packets.get(1)[0]); assertEquals(0x01, packets.get(1)[1]); }
 
     @Test public void notificationFir_uses73Chunks() { List<byte[]> frames = P.encodeNotification(2, "hello", A10ProProtocol.DeviceFamily.FIR); assertEquals(1, frames.size()); assertEquals(0x73, frames.get(0)[0]); assertEquals(0, frames.get(0)[1]); assertEquals(2, frames.get(0)[2]); }
-    @Test public void notificationZk_uses23AndEndMarker() { List<byte[]> frames = P.encodeNotification(4, "hello", A10ProProtocol.DeviceFamily.ZK); assertEquals(1, frames.size()); assertEquals(0x23, frames.get(0)[0]); assertEquals((byte) 0xFF, frames.get(0)[frames.get(0).length - 1]); }
+    @Test public void notificationZk_uses23NoEndMarker() { List<byte[]> frames = P.encodeNotification(4, "hello", A10ProProtocol.DeviceFamily.ZK); assertEquals(1, frames.size()); assertEquals(0x23, frames.get(0)[0]); assertEquals('o', frames.get(0)[frames.get(0).length - 1]); }
     @Test public void notificationLongTextChunksAt17Bytes() { List<byte[]> frames = P.encodeNotification(1, "abcdefghijklmnopqr", A10ProProtocol.DeviceFamily.JL); assertEquals(2, frames.size()); assertEquals(0, frames.get(0)[1]); assertEquals(1, frames.get(1)[1]); }
 
     @Test public void jlWeather_liveLayoutToday() { byte[] f = P.encodeWeatherJl(new int[]{1, 40, 39, 38, 0}, new int[]{30, 31, 32, 33, 34}, new int[]{20, 21, 22, 23, 24}, 27, 5, 6, 72); assertArrayEquals(new byte[]{0x10,0,1,27,30,20,40,31,21,39,32,22,38,33,23,5,6,72,0,0}, f); }
