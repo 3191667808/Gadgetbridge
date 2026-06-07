@@ -52,3 +52,14 @@ The following vendor-app capabilities flow through RCSP-authenticated channels:
 * **OTA firmware update** — `0xFA OTAState` + RCSP file transfer
 
 The authentication handshake itself is now available via `JieliRcspAuth` (ported from MIT-licensed `web-bluetooth-e87`). Wiring these higher-level RCSP file-transfer protocols into Gadgetbridge is the next milestone; each requires its own framing layer that we have not yet ported.
+
+## Hidden JieLi service: classic-BT unlock confirmed (2026-06-07)
+
+Live signal-capture (`research/rcsp_signal_capture.py`) on the zwsvibe snoop confirmed:
+
+* The hidden JieLi service is reached via **GATT handle 0x001B** on the same BLE connection — not a separate transport.
+* zwsvibe writes RCSP frames (e.g. `e5 fc 00 02 11 01 04 82 b3 13 03 fd 40 01 …`) and HTTP-over-BLE payloads (`X-Android-Received-Millis`, `success_fraction:0.01`, etc.) directly to that handle.
+* The handle is **only visible to the phone after classic-BT authentication completes** (HCI Authentication Complete event 0x18 on the classic ACL handle 0x0bd1). Android handles this transparently when the user pairs the headphones for music; we never see SMP (BLE pairing) frames on this case.
+* Our Gadgetbridge driver opens only the BLE GATT — no classic-BT bonding — so handle 0x001B never enumerates and contacts/GPS/dial-set requests have no transport.
+
+**Unblocking would require** Gadgetbridge to also initiate classic-BT bonding for the headphones before opening GATT, then re-enumerate services after the AuthComplete event. That's a substantial cross-cutting change (new device transport plumbing) and is filed as a follow-up rather than landed here.

@@ -26,6 +26,7 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
@@ -113,6 +114,32 @@ public class A10ProProtocolTest {
     @Test public void callDecline_isState4() { assertArrayEquals(new byte[]{0x55,4,0,0}, P.encodeCallDecline()); }
     @Test public void decodeFindPhoneStart() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{0x53, 1}); assertEquals(1, events.length); assertEquals(GBDeviceEventFindPhone.Event.START, ((GBDeviceEventFindPhone) events[0]).event); }
     @Test public void decodeFindPhoneStop() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{0x53, 0}); assertEquals(GBDeviceEventFindPhone.Event.STOP, ((GBDeviceEventFindPhone) events[0]).event); }
+
+    @Test public void decodeCameraShutter_liveCapturedFrame() {
+        // Live frame from new_snoop.log (G2-ADV pressing case shutter button)
+        byte[] wire = new byte[]{
+                (byte) 0xa2, (byte) 0x09, 0x00, 0x02, 0x0a, 0x01, 0x04,
+                (byte) 0x84, (byte) 0xa2, 0x13, 0x04, 0x01, 0x63, (byte) 0xdc, 0x00
+        };
+        GBDeviceEvent[] events = P.decodeResponse(wire);
+        assertEquals(1, events.length);
+        assertEquals(GBDeviceEventCameraRemote.Event.TAKE_PICTURE, ((GBDeviceEventCameraRemote) events[0]).event);
+    }
+
+    @Test public void decodeCameraShutter_ignoresNonShutterA2() {
+        // Frame ending in 01 03 91 — UI button-list response, not a shutter press
+        byte[] wire = new byte[]{
+                (byte) 0xa2, (byte) 0x8a, 0x00, 0x02, 0x0a, 0x01, 0x04,
+                (byte) 0x85, (byte) 0x93, 0x13, 0x01, 0x03, (byte) 0x91, 0x20, 0x00
+        };
+        GBDeviceEvent[] events = P.decodeResponse(wire);
+        assertEquals(0, events.length);
+    }
+
+    @Test public void decodeCameraShutter_rejectsShortFrame() {
+        GBDeviceEvent[] events = P.decodeResponse(new byte[]{(byte) 0xa2, 0x00});
+        assertEquals(0, events.length);
+    }
 
     @Test public void notificationSupport_defaultsTrue() { A10ProProtocol p = new A10ProProtocol(null); assertEquals(true, p.supportsUploadMessage()); }
     @Test public void functionInfoBit18_enablesNotifications() { A10ProProtocol p = new A10ProProtocol(null); byte[] data = new byte[19]; data[0] = (byte) 0x83; data[18] = 1; p.decodeResponse(data); assertEquals(true, p.supportsUploadMessage()); }

@@ -32,6 +32,7 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
@@ -518,6 +519,7 @@ public class A10ProProtocol extends GBDeviceProtocol {
             case 0xA5: return ackFamily("Weather ZK", data, DeviceFamily.ZK);
             case 0x0D: return ackFamily("Device requested time", data, null);
             case 0x53: return decodeFindPhone(data);
+            case 0xA2: return decodeCameraShutter(data);
             case 0xFB: return decodeFbFrame(data);
             default:
                 LOG.debug("FreeFit V2 unhandled frame opcode 0x{}", Integer.toHexString(data[0] & 0xFF));
@@ -584,6 +586,43 @@ public class A10ProProtocol extends GBDeviceProtocol {
         final GBDeviceEventFindPhone evt = new GBDeviceEventFindPhone();
         evt.event = data.length > 1 && data[1] == 0 ? GBDeviceEventFindPhone.Event.STOP : GBDeviceEventFindPhone.Event.START;
         return new GBDeviceEvent[]{evt};
+    }
+
+    /**
+     * Camera shutter button press from the case.
+     *
+     * <p>Live-captured short event frame from the G2-ADV (zwsvibe → phone):
+     * <pre>
+     *   a2 09 00 02 0a 01 04 84 a2 13 04 01 63 dc 00
+     *   |  |  |  |  |     |             |  |  |
+     *   |  |  |  |  |     |             |  |  +-- frame trailer
+     *   |  |  |  |  |     |             |  +----- button code 0x63 = shutter
+     *   |  |  |  |  |     |             +-------- sub-action "button pressed"
+     *   |  |  |  |  |     +---------------------- session id (varies)
+     *   |  |  |  |  +---------------------------- inner length
+     *   |  |  |  +------------------------------- type byte
+     *   |  |  +---------------------------------- payload length high
+     *   |  +------------------------------------- frame sequence number
+     *   +---------------------------------------- opcode 0xA2 (camera/UI event)
+     * </pre>
+     *
+     * We accept any 13+ byte 0xA2 frame whose inner trailer is {@code 04 01 63}
+     * as a shutter press; everything else (status acks, button-list responses,
+     * etc.) is ignored so we don't spam the camera app.
+     */
+    private GBDeviceEvent[] decodeCameraShutter(final byte[] data) {
+        if (data.length < 13) return new GBDeviceEvent[0];
+        // Walk from the tail backwards looking for 04 01 63 before the trailing chk/00 bytes.
+        // The trailer position is consistent across captured frames (data[len-5..len-3]).
+        final int len = data.length;
+        if (data[len - 5] == 0x04 && data[len - 4] == 0x01 && data[len - 3] == 0x63) {
+            final GBDeviceEventCameraRemote evt = new GBDeviceEventCameraRemote();
+            evt.event = GBDeviceEventCameraRemote.Event.TAKE_PICTURE;
+            return new GBDeviceEvent[]{evt};
+        }
+        LOG.debug("FreeFit V2 0xA2 frame ignored (not a shutter event): {}",
+                Integer.toHexString(data[len - 5] & 0xFF) + " " + Integer.toHexString(data[len - 4] & 0xFF));
+        return new GBDeviceEvent[0];
     }
 
     private GBDeviceEvent[] decodeMusicControl(final byte[] data) {
