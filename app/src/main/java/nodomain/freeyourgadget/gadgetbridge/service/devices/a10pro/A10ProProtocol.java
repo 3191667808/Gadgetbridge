@@ -101,7 +101,7 @@ public class A10ProProtocol extends GBDeviceProtocol {
     static final byte WRITE = 0x01;
 
     private DeviceFamily family = DeviceFamily.UNKNOWN;
-    private boolean supportsUploadMessage;
+    private boolean supportsUploadMessage = true;
 
     public A10ProProtocol(final GBDevice device) {
         super(device);
@@ -539,7 +539,9 @@ public class A10ProProtocol extends GBDeviceProtocol {
             LOG.info("FreeFit V2 function info: anc={} customEq={} aiMode={} fwRev={} maxName={}",
                     supportsAnc, supportsCustomEq, aiMode, fwRev, data[4] & 0xFF);
         }
-        supportsUploadMessage = data.length > 18 && (data[18] & 0x01) != 0;
+        // Live G2-ADV captures show the case accepts 0x73 MsgPush frames regardless of byte 18,
+        // so we keep supportsUploadMessage informationally true and let onNotification() always send.
+        supportsUploadMessage = true;
         return new GBDeviceEvent[0];
     }
 

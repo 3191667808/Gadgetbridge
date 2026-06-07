@@ -137,7 +137,7 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onNotification(final NotificationSpec notificationSpec) {
-        if (notificationSpec == null || !protocol.supportsUploadMessage()) return;
+        if (notificationSpec == null) return;
         final StringBuilder text = new StringBuilder();
         if (notificationSpec.sourceName != null) text.append(notificationSpec.sourceName).append(": ");
         if (notificationSpec.title != null) text.append(notificationSpec.title);

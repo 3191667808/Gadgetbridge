@@ -29,8 +29,26 @@ Live-confirmed icon codes include: `0` cloud, `1` sun, `4` thunderstorm with sun
 
 ## G2-ADV firmware gates
 
-The G2-ADV case live-tested for this PR does not advertise upload-message support in function-info byte 18, so notification pushes are encoded but silently skipped unless firmware reports support. GPS/map, custom clock-face images, OTA, and health tracking are intentionally not exposed for this earbud/case device.
+The G2-ADV case live-tested for this PR does not set function-info byte 18 bit 0, but the official zwsvibe app still pushes `0x73 MsgPush` frames that the case acknowledges. We therefore default `supportsUploadMessage` to true and use the byte-18 bit purely as an informational marker.
 
-## Deferred by design
+## RCSP authentication
 
-OTA firmware update, GPS/map display, clock-face image upload, and health/sport/sleep history remain out of scope because they are either unsupported by G2-ADV firmware or risky without device-specific validation.
+The `jl_rcsp.JieliRcspAuth` helper ports the MIT-licensed JieLi RCSP challenge/response cipher from `hybridherbst/web-bluetooth-e87` (TypeScript) to Java, with a parity unit test against the upstream reference vector. This unlocks the proprietary feature path used by zwsvibe:
+
+* **Contacts upload** (`com.jieli.jl_rcsp.task.contacts.UpdateContactsTask` analogue)
+* **GPS map / navigation** (`0xB4 NaviInfo`, `0xDD GPS`, `0x07 GPS-Address`, `0x18 PositionInfo`)
+* **Custom clock-face / dial image upload** (`0x98 DialSet` + RCSP file transfer)
+* **OTA firmware update** (`0xFA OTAState` + RCSP file transfer)
+
+These features are not yet wired into Gadgetbridge UI surfaces but the auth primitive (`getRandomAuthData`, `getEncryptedAuthData`) is in place and verified.
+
+## RCSP-only features (auth available, wiring deferred)
+
+The following vendor-app capabilities flow through RCSP-authenticated channels:
+
+* **Contacts upload** — `com.jieli.jl_rcsp.task.contacts.UpdateContactsTask`
+* **GPS map / navigation** — `0xB4 NaviInfo`, `0xDD GPS`, `0x07 GPS-Address`, `0x18 PositionInfo`
+* **Custom clock-face / dial image upload** — `0x98 DialSet` + RCSP file transfer
+* **OTA firmware update** — `0xFA OTAState` + RCSP file transfer
+
+The authentication handshake itself is now available via `JieliRcspAuth` (ported from MIT-licensed `web-bluetooth-e87`). Wiring these higher-level RCSP file-transfer protocols into Gadgetbridge is the next milestone; each requires its own framing layer that we have not yet ported.

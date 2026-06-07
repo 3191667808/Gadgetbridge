@@ -114,9 +114,9 @@ public class A10ProProtocolTest {
     @Test public void decodeFindPhoneStart() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{0x53, 1}); assertEquals(1, events.length); assertEquals(GBDeviceEventFindPhone.Event.START, ((GBDeviceEventFindPhone) events[0]).event); }
     @Test public void decodeFindPhoneStop() { GBDeviceEvent[] events = P.decodeResponse(new byte[]{0x53, 0}); assertEquals(GBDeviceEventFindPhone.Event.STOP, ((GBDeviceEventFindPhone) events[0]).event); }
 
-    @Test public void notificationSupport_defaultsFalse() { A10ProProtocol p = new A10ProProtocol(null); assertEquals(false, p.supportsUploadMessage()); }
+    @Test public void notificationSupport_defaultsTrue() { A10ProProtocol p = new A10ProProtocol(null); assertEquals(true, p.supportsUploadMessage()); }
     @Test public void functionInfoBit18_enablesNotifications() { A10ProProtocol p = new A10ProProtocol(null); byte[] data = new byte[19]; data[0] = (byte) 0x83; data[18] = 1; p.decodeResponse(data); assertEquals(true, p.supportsUploadMessage()); }
-    @Test public void functionInfoBit18_disabledForG2Adv() { A10ProProtocol p = new A10ProProtocol(null); byte[] data = new byte[19]; data[0] = (byte) 0x83; p.decodeResponse(data); assertEquals(false, p.supportsUploadMessage()); }
+    @Test public void functionInfoBit18_unsetStillAllowsPush() { A10ProProtocol p = new A10ProProtocol(null); byte[] data = new byte[19]; data[0] = (byte) 0x83; p.decodeResponse(data); assertEquals(true, p.supportsUploadMessage()); }
 
     @Test public void alarmClock_oneAlarmLayout() { byte[] frame = P.encodeAlarmClock(new Alarm[]{alarm(true, 6, 30, Alarm.ALARM_DAILY)}); assertEquals(19, frame.length); assertEquals(2, frame[0]); assertEquals(3, frame[1]); assertEquals(1, frame[2]); assertEquals(6, frame[3]); assertEquals(30, frame[4]); assertEquals(1, frame[14]); }
     @Test public void alarmClock_fiveAlarmsLayout() { byte[] frame = P.encodeAlarmClock(new Alarm[]{alarm(true,1,2,3), alarm(false,4,5,6), alarm(true,7,8,9), alarm(false,10,11,12), alarm(true,13,14,15)}); assertEquals(23, frame.length); assertEquals(5, frame[14]); assertEquals(0, frame[15]); assertEquals(10, frame[16]); assertEquals(1, frame[19]); assertEquals(13, frame[20]); }
