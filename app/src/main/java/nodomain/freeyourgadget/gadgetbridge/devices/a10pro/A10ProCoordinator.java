@@ -34,8 +34,11 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.a10pro.A10ProSupport
  * The live-tested transport is BLE service 6E40FC00 with FC20 write and FC21 notify.
  */
 public class A10ProCoordinator extends AbstractBLEDeviceCoordinator {
+    // Anchored to start (^) per #6257 reviewer feedback — avoids accidentally
+    // matching unrelated devices whose advertised name happens to contain
+    // "A10 Pro" or "FreeFit" as a substring.
     private static final Pattern DEVICE_NAMES = Pattern.compile(
-            "A10\\s*Pro|FreeFit|iEnjoy|ZWS\\s*Vibe|G2[-_ ]?ADV|G2ADV",
+            "^(A10\\s*Pro|FreeFit|iEnjoy|ZWS\\s*Vibe|G2[-_ ]?ADV|G2ADV)",
             Pattern.CASE_INSENSITIVE
     );
 
