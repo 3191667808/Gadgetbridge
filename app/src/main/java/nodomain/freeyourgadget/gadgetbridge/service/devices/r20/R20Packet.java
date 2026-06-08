@@ -375,25 +375,44 @@ public final class R20Packet {
         public final int  systolic;  // mmHg, 0 = absent
         public final int  diastolic; // mmHg, 0 = absent
         public final int  spo2;      // %,    0 = absent
-        public final int  steps;     // interval step count or activity proxy
-        public AllRecord(long ts, int hr, int sys, int dia, int spo2, int steps) {
+        public final int  steps;     // interval step count (uint16)
+        public final int  respiratoryRate; // breaths/min, 0 = absent
+        public final int  hrv;       // SDNN-equivalent, 0 = absent
+        public final int  cvrr;      // coefficient of variation of RR (Yucheng vendor metric)
+        public final double temperature; // body temp °C, 0 = absent
+        public final double bodyFatPct;  // %, 0 = absent
+        public final int  bloodSugar;    // mmol/L * 10 firmware-side, 0 = absent
+        public AllRecord(long ts, int hr, int sys, int dia, int spo2, int steps,
+                         int rr, int hrv, int cvrr, double temp, double bf, int bs) {
             this.timestampMs = ts; this.hr = hr; this.systolic = sys; this.diastolic = dia;
             this.spo2 = spo2; this.steps = steps;
+            this.respiratoryRate = rr; this.hrv = hrv; this.cvrr = cvrr;
+            this.temperature = temp; this.bodyFatPct = bf; this.bloodSugar = bs;
         }
     }
 
     /**
      * Parses an {@code HEALTH_STREAM_ALL} (0x0518) payload — 20-byte
-     * composite records per ~30 min interval:
+     * composite records, layout confirmed against the YCBT SDK reference
+     * (<code>com.yucheng.ycbtsdk.core.DataUnpack.unpackHealthData</code>
+     * case 9, mirrored at
+     * <a href="https://github.com/auroraphtgrp01/ble-sleeping">auroraphtgrp01/ble-sleeping</a>):
      * <pre>
-     *   bytes  0..3   ts (+EPOCH_2000_UNIX_SECONDS, uint32 LE)
-     *   bytes  4..5   flags / sentinel (not yet decoded)
-     *   byte   6      HR bpm
-     *   byte   7      systolic mmHg
-     *   byte   8      diastolic mmHg
-     *   byte   9      SpO2 %
-     *   bytes 10..13  interval step count or activity proxy (uint32 LE)
-     *   bytes 14..19  reserved (zero on R20 fw 2.32)
+     *   bytes  0..3   timestamp (uint32 LE, + EPOCH_2000_UNIX_SECONDS)
+     *   bytes  4..5   stepValue (uint16 LE)
+     *   byte   6      heartValue (bpm)
+     *   byte   7      SBPValue (systolic, mmHg)
+     *   byte   8      DBPValue (diastolic, mmHg)
+     *   byte   9      OOValue (SpO2 %)
+     *   byte  10      respiratoryRateValue (breaths/min)
+     *   byte  11      hrvValue
+     *   byte  12      cvrrValue
+     *   byte  13      tempIntValue (°C integer part)
+     *   byte  14      tempFloatValue (°C fractional part, 1/100)
+     *   byte  15      bodyFatIntValue (%, integer part)
+     *   byte  16      bodyFatFloatValue (%, fractional part, 1/100)
+     *   byte  17      bloodSugarValue
+     *   bytes 18..19  padding (zero on R20 fw 2.32)
      * </pre>
      */
     public static List<AllRecord> parseAllRecords(byte[] payload) {
@@ -401,15 +420,22 @@ public final class R20Packet {
         if (payload == null) return out;
         for (int i = 0; i + 20 <= payload.length; i += 20) {
             long ts = ts2k_to_unix_ms(payload, i);
+            int steps = (payload[i + 4] & 0xFF) | ((payload[i + 5] & 0xFF) << 8);
             int hr  = payload[i + 6] & 0xFF;
             int sys = payload[i + 7] & 0xFF;
             int dia = payload[i + 8] & 0xFF;
             int spo = payload[i + 9] & 0xFF;
-            int steps = (payload[i + 10] & 0xFF)
-                      | ((payload[i + 11] & 0xFF) << 8)
-                      | ((payload[i + 12] & 0xFF) << 16)
-                      | ((payload[i + 13] & 0xFF) << 24);
-            out.add(new AllRecord(ts, hr, sys, dia, spo, steps));
+            int rr  = payload[i + 10] & 0xFF;
+            int hrv = payload[i + 11] & 0xFF;
+            int cvrr = payload[i + 12] & 0xFF;
+            int tInt  = payload[i + 13] & 0xFF;
+            int tFrac = payload[i + 14] & 0xFF;
+            int bfInt  = payload[i + 15] & 0xFF;
+            int bfFrac = payload[i + 16] & 0xFF;
+            int bs  = payload[i + 17] & 0xFF;
+            double temp = (tInt == 0 && tFrac == 0) ? 0.0 : tInt + tFrac / 100.0;
+            double bf   = (bfInt == 0 && bfFrac == 0) ? 0.0 : bfInt + bfFrac / 100.0;
+            out.add(new AllRecord(ts, hr, sys, dia, spo, steps, rr, hrv, cvrr, temp, bf, bs));
         }
         return out;
     }

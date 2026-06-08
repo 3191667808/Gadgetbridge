@@ -410,6 +410,8 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     new GenericSpo2SampleProvider(getDevice(), session);
             GenericBloodPressureSampleProvider bpProvider =
                     new GenericBloodPressureSampleProvider(getDevice(), session);
+            GenericHrvValueSampleProvider hrvProvider =
+                    new GenericHrvValueSampleProvider(getDevice(), session);
             for (R20Packet.AllRecord r : records) {
                 if (r.hr > 0 && r.hr < 240) {
                     hrProvider.addSample(new GenericHeartRateSample(r.timestampMs, deviceId, userId, r.hr));
@@ -422,6 +424,19 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             r.timestampMs, deviceId, userId,
                             r.systolic, r.diastolic, null, null,
                             r.hr > 0 ? r.hr : null, 0));
+                }
+                if (r.hrv > 0 && r.hrv < 200) {
+                    hrvProvider.addSample(new GenericHrvValueSample(r.timestampMs, deviceId, userId, r.hrv));
+                }
+                // Temperature, body fat, blood sugar, respiration logged but not
+                // persisted: no generic sample providers exist for these yet in
+                // upstream Gadgetbridge. Will be wired up in a follow-up PR.
+                if (r.temperature > 30.0 || r.respiratoryRate > 0 || r.bloodSugar > 0) {
+                    LOG.debug("R20 ext metrics @{}: rr={} temp={} bf={} bs={} cvrr={}",
+                            r.timestampMs, r.respiratoryRate,
+                            String.format("%.2f", r.temperature),
+                            String.format("%.2f", r.bodyFatPct),
+                            r.bloodSugar, r.cvrr);
                 }
             }
         });
