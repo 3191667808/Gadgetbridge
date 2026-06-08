@@ -85,6 +85,20 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final int HR_BUFFER_FLUSH_THRESHOLD = 5;
     /** Force-flush HR buffer at least this often (ms) even if threshold not reached. */
     private static final long HR_BUFFER_FLUSH_INTERVAL_MS = 30_000L;
+
+    /**
+     * Multi-app friendliness: never instruct the ring to drop history that is
+     * less than 7 days old, so the OEM "SmartHealth" app (or any other
+     * companion app sharing this device) can still pull it.  We only send the
+     * per-type {@code HEALTH_DELETE_*} command when the entire just-received
+     * batch is older than this cutoff — that keeps the on-ring buffer from
+     * growing unbounded over months of use while preserving the recent window
+     * other apps care about.
+     *
+     * <p>Records are de-duplicated by timestamp in the receiving DAOs, so
+     * re-fetching the same fresh samples on every connect is harmless.
+     */
+    private static final long HISTORY_DELETE_AGE_THRESHOLD_MS = 7L * 24L * 60L * 60L * 1000L;
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
     private long hrBufferLastFlushMs = 0L;
@@ -278,24 +292,19 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.info("R20 measurement complete (0x040E): {}", bytesToHex(p));
                 break;
             case R20Constants.HEALTH_STREAM_HEART:
-                handleHrHistory(p);
-                sendHistoryDelete(R20Constants.HEALTH_DELETE_HEART);
+                maybeDelete(handleHrHistory(p), R20Constants.HEALTH_DELETE_HEART, "HR");
                 break;
             case R20Constants.HEALTH_STREAM_BLOOD:
-                handleBpHistory(p);
-                sendHistoryDelete(R20Constants.HEALTH_DELETE_BLOOD);
+                maybeDelete(handleBpHistory(p), R20Constants.HEALTH_DELETE_BLOOD, "BP");
                 break;
             case R20Constants.HEALTH_STREAM_SLEEP:
-                handleSleepHistory(p);
-                sendHistoryDelete(R20Constants.HEALTH_DELETE_SLEEP);
+                maybeDelete(handleSleepHistory(p), R20Constants.HEALTH_DELETE_SLEEP, "Sleep");
                 break;
             case R20Constants.HEALTH_STREAM_ALL:
-                handleAllHistory(p);
-                sendHistoryDelete(R20Constants.HEALTH_DELETE_ALL);
+                maybeDelete(handleAllHistory(p), R20Constants.HEALTH_DELETE_ALL, "All");
                 break;
             case R20Constants.HEALTH_STREAM_SPORT:
-                handleSportHistory(p);
-                sendHistoryDelete(R20Constants.HEALTH_DELETE_SPORT);
+                maybeDelete(handleSportHistory(p), R20Constants.HEALTH_DELETE_SPORT, "Sport");
                 break;
             case R20Constants.REAL_UPLOAD_SNAPSHOT:
                 // Real-time multi-metric snapshot push (0x0600). Last byte is HR;
@@ -356,7 +365,41 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     // -------- History --------
 
-    private void handleHrHistory(byte[] payload) {
+    /**
+     * Send {@code HEALTH_DELETE_*} only when every record in the just-received
+     * batch is older than {@link #HISTORY_DELETE_AGE_THRESHOLD_MS}. This
+     * guarantees that other companion apps (OEM SmartHealth, etc.) can still
+     * read data &lt;7 days old from the ring even after Gadgetbridge has synced
+     * it. {@code newestTsMs == 0} means the batch was empty — nothing to delete.
+     */
+    private void maybeDelete(long newestTsMs, int deleteOpcode, String label) {
+        if (shouldDeleteHistory(newestTsMs, System.currentTimeMillis(), HISTORY_DELETE_AGE_THRESHOLD_MS)) {
+            long ageDays = (System.currentTimeMillis() - newestTsMs) / (24L * 3600_000L);
+            LOG.info("R20 {} delete: batch newest is {}d old (>= 7d cutoff), sending DELETE 0x{}",
+                    label, ageDays, Integer.toHexString(deleteOpcode));
+            sendHistoryDelete(deleteOpcode);
+        } else if (newestTsMs <= 0L) {
+            LOG.debug("R20 {} delete skipped: empty batch", label);
+        } else {
+            long ageHours = (System.currentTimeMillis() - newestTsMs) / 3600_000L;
+            LOG.info("R20 {} delete skipped: batch contains <7d records (newest is {}h old) — preserving on-ring history for other apps",
+                    label, ageHours);
+        }
+    }
+
+    /**
+     * Visible-for-testing 7-day delete gate. Returns {@code true} when the
+     * just-received batch is non-empty <em>and</em> the newest record in it is
+     * at least {@code thresholdMs} old — which means it is safe to instruct
+     * the ring to drop this entire batch because no fresh data would be lost
+     * for other apps reading the same on-device buffer.
+     */
+    static boolean shouldDeleteHistory(long newestTsMs, long nowMs, long thresholdMs) {
+        if (newestTsMs <= 0L) return false;
+        return (nowMs - newestTsMs) >= thresholdMs;
+    }
+
+    private long handleHrHistory(byte[] payload) {
         final List<R20Packet.HrRecord> records = R20Packet.parseHrRecords(payload);
         LOG.info("R20 HR history block: {} records", records.size());
         withDb((session, deviceId, userId) -> {
@@ -377,9 +420,12 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         });
         sendHistoryAck(R20Constants.HEALTH_STREAM_HEART, payload.length);
+        long newest = 0L;
+        for (R20Packet.HrRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
+        return newest;
     }
 
-    private void handleBpHistory(byte[] payload) {
+    private long handleBpHistory(byte[] payload) {
         List<R20Packet.BpRecord> records = R20Packet.parseBpRecords(payload);
         LOG.info("R20 BP history block: {} records", records.size());
         withDb((session, deviceId, userId) -> {
@@ -402,6 +448,9 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         });
         sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
+        long newest = 0L;
+        for (R20Packet.BpRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
+        return newest;
     }
 
     private void persistBp(long timestampMs, int systolic, int diastolic, int hr) {
@@ -420,7 +469,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         });
     }
 
-    private void handleAllHistory(byte[] payload) {
+    private long handleAllHistory(byte[] payload) {
         final List<R20Packet.AllRecord> records = R20Packet.parseAllRecords(payload);
         LOG.info("R20 All-metrics history block: {} records", records.size());
         withDb((session, deviceId, userId) -> {
@@ -461,6 +510,9 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         });
         sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
+        long newest = 0L;
+        for (R20Packet.AllRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
+        return newest;
     }
 
     /** Parse + log sport-history records (active periods with steps / distance / calories).
@@ -468,17 +520,20 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
      *  are aggregated daily by Gadgetbridge from the ring's "now-step" reading; the
      *  per-interval records logged here give us the granular session breakdown for
      *  future activity-summary support. */
-    private void handleSportHistory(byte[] payload) {
+    private long handleSportHistory(byte[] payload) {
         final List<R20Packet.SportRecord> records = R20Packet.parseSportRecords(payload);
         LOG.info("R20 Sport history block: {} records ({} bytes)", records.size(), payload.length);
+        long newest = 0L;
         for (R20Packet.SportRecord r : records) {
             LOG.info("  Sport @{}..{}: steps={} distance={}m kcal={} duration={}s",
                     r.startTimeMs, r.endTimeMs, r.steps, r.distanceMeters, r.calorieKcal, r.durationSec());
+            if (r.endTimeMs > newest) newest = r.endTimeMs;
         }
         sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
+        return newest;
     }
 
-    private void handleSleepHistory(byte[] payload) {
+    private long handleSleepHistory(byte[] payload) {
         final List<R20Packet.SleepSession> sessions = R20Packet.parseSleepSessions(payload);
         LOG.info("R20 Sleep history block: {} session(s)", sessions.size());
         withDb((session, deviceId, userId) -> {
@@ -553,6 +608,9 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         });
         sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
+        long newest = 0L;
+        for (R20Packet.SleepSession s : sessions) if (s.endTimeMs > newest) newest = s.endTimeMs;
+        return newest;
     }
 
     /** Map Yucheng sleep-stage type code to Gadgetbridge {@link ActivityKind}. */
