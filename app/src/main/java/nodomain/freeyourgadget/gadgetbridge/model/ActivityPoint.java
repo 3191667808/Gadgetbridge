@@ -40,6 +40,15 @@ public class ActivityPoint {
     private float n2Load = -1.0f;
     private double altitude = GPSCoordinate.UNKNOWN_ALTITUDE;
 
+    // Running dynamics (Garmin running watches with HRM-Pro / RD-Pod). All Float so
+    // the unset sentinel is NaN; non-running sports leave these untouched.
+    private float verticalOscillation = Float.NaN; // mm
+    private float stanceTimePercent = Float.NaN;   // %
+    private float stanceTime = Float.NaN;          // ms
+    private float verticalRatio = Float.NaN;       // %
+    private float stanceTimeBalance = Float.NaN;   // % (left/right)
+    private int performanceCondition = Integer.MIN_VALUE; // 0–100, integer per FIT spec
+
     // e.g. to describe a pause during the activity
     private @Nullable String description;
 
@@ -198,6 +207,60 @@ public class ActivityPoint {
         this.depth = depth;
     }
 
+    /// vertical bounce of torso while running, in mm
+    public float getVerticalOscillation() {
+        return verticalOscillation;
+    }
+
+    public void setVerticalOscillation(final float verticalOscillation) {
+        this.verticalOscillation = verticalOscillation;
+    }
+
+    /// fraction of step cycle the foot is on the ground, in %
+    public float getStanceTimePercent() {
+        return stanceTimePercent;
+    }
+
+    public void setStanceTimePercent(final float stanceTimePercent) {
+        this.stanceTimePercent = stanceTimePercent;
+    }
+
+    /// foot ground-contact time, in ms
+    public float getStanceTime() {
+        return stanceTime;
+    }
+
+    public void setStanceTime(final float stanceTime) {
+        this.stanceTime = stanceTime;
+    }
+
+    /// vertical oscillation as % of step length
+    public float getVerticalRatio() {
+        return verticalRatio;
+    }
+
+    public void setVerticalRatio(final float verticalRatio) {
+        this.verticalRatio = verticalRatio;
+    }
+
+    /// left/right stance-time balance, in %
+    public float getStanceTimeBalance() {
+        return stanceTimeBalance;
+    }
+
+    public void setStanceTimeBalance(final float stanceTimeBalance) {
+        this.stanceTimeBalance = stanceTimeBalance;
+    }
+
+    /// performance condition score 0–100 (Garmin)
+    public int getPerformanceCondition() {
+        return performanceCondition;
+    }
+
+    public void setPerformanceCondition(final int performanceCondition) {
+        this.performanceCondition = performanceCondition;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof ActivityPoint that)) return false;
@@ -247,6 +310,12 @@ public class ActivityPoint {
         private float stamina = Float.NaN;
         private float cnsToxicity = Float.NaN;
         private float n2Load = Float.NaN;
+        private float verticalOscillation = Float.NaN;
+        private float stanceTimePercent = Float.NaN;
+        private float stanceTime = Float.NaN;
+        private float verticalRatio = Float.NaN;
+        private float stanceTimeBalance = Float.NaN;
+        private int performanceCondition = Integer.MIN_VALUE;
 
         public Builder() {
         }
@@ -509,6 +578,30 @@ public class ActivityPoint {
             this.n2Load = n2Load;
         }
 
+        public void setVerticalOscillation(@Nullable Number verticalOscillation) {
+            this.verticalOscillation = (verticalOscillation == null) ? Float.NaN : verticalOscillation.floatValue();
+        }
+
+        public void setStanceTimePercent(@Nullable Number stanceTimePercent) {
+            this.stanceTimePercent = (stanceTimePercent == null) ? Float.NaN : stanceTimePercent.floatValue();
+        }
+
+        public void setStanceTime(@Nullable Number stanceTime) {
+            this.stanceTime = (stanceTime == null) ? Float.NaN : stanceTime.floatValue();
+        }
+
+        public void setVerticalRatio(@Nullable Number verticalRatio) {
+            this.verticalRatio = (verticalRatio == null) ? Float.NaN : verticalRatio.floatValue();
+        }
+
+        public void setStanceTimeBalance(@Nullable Number stanceTimeBalance) {
+            this.stanceTimeBalance = (stanceTimeBalance == null) ? Float.NaN : stanceTimeBalance.floatValue();
+        }
+
+        public void setPerformanceCondition(@Nullable Number performanceCondition) {
+            this.performanceCondition = (performanceCondition == null) ? Integer.MIN_VALUE : performanceCondition.intValue();
+        }
+
 
         public ActivityPoint build() {
             final ActivityPoint activityPoint = new ActivityPoint(date);
@@ -570,6 +663,24 @@ public class ActivityPoint {
             }
             if(!Float.isNaN(n2Load)){
                 activityPoint.n2Load = n2Load;
+            }
+            if (!Float.isNaN(verticalOscillation)) {
+                activityPoint.verticalOscillation = verticalOscillation;
+            }
+            if (!Float.isNaN(stanceTimePercent)) {
+                activityPoint.stanceTimePercent = stanceTimePercent;
+            }
+            if (!Float.isNaN(stanceTime)) {
+                activityPoint.stanceTime = stanceTime;
+            }
+            if (!Float.isNaN(verticalRatio)) {
+                activityPoint.verticalRatio = verticalRatio;
+            }
+            if (!Float.isNaN(stanceTimeBalance)) {
+                activityPoint.stanceTimeBalance = stanceTimeBalance;
+            }
+            if (performanceCondition > Integer.MIN_VALUE) {
+                activityPoint.performanceCondition = performanceCondition;
             }
 
             return activityPoint;

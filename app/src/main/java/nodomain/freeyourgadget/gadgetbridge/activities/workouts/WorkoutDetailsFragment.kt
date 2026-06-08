@@ -72,6 +72,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.workouts.entries.Activity
 import nodomain.freeyourgadget.gadgetbridge.databinding.FragmentWorkoutDetailsBinding
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
 import nodomain.freeyourgadget.gadgetbridge.entities.Device
+import nodomain.freeyourgadget.gadgetbridge.export.FitExporter
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData
@@ -581,6 +582,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 true
             }
 
+            R.id.activity_action_share_fit -> {
+                exportFit(workout)
+                true
+            }
+
             R.id.activity_summary_detail_action_edit_name -> {
                 currentWorkout?.let {
                     workoutEditor.editWorkoutName(it, object : WorkoutEditor.Callback {
@@ -927,6 +933,45 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 GB.ERROR,
                 e
             )
+        }
+    }
+
+    private fun exportFit(workout: Workout) {
+        lifecycleScope.launch {
+            try {
+                val targetFile = withContext(Dispatchers.IO) {
+                    val activityTrackProvider = gbDevice.deviceCoordinator
+                        .getActivityTrackProvider(gbDevice, requireContext())
+                    val track = try {
+                        activityTrackProvider?.getActivityTrack(workout.summary)
+                    } catch (e: Exception) {
+                        LOG.warn("Failed to load activity track for FIT export", e)
+                        null
+                    }
+
+                    val kindLabel = ActivityKind.fromCode(workout.summary.activityKind)
+                        .getLabel(requireContext()).lowercase()
+                    val fileName = FileUtils.makeValidFileName(
+                        "Workout-${kindLabel}-${DateTimeUtils.formatIso8601(workout.summary.startTime)}.fit"
+                    )
+                    val cacheSubDir = File(requireContext().cacheDir, "raw")
+                    cacheSubDir.mkdirs()
+                    val outFile = File(cacheSubDir, fileName)
+
+                    FitExporter().performExport(track, workout.summary, workout.data, outFile)
+                    outFile
+                }
+                AndroidUtils.shareFile(requireContext(), targetFile, "application/octet-stream")
+            } catch (e: Exception) {
+                LOG.error("Failed to export FIT file", e)
+                GB.toast(
+                    requireContext(),
+                    getString(R.string.activity_detail_export_fit_failed),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+            }
         }
     }
 
