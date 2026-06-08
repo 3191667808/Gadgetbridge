@@ -41,6 +41,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvide
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.generic_hr.GenericHeartRateActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -148,11 +149,12 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
-        // R20 firmware streams discrete metrics, not aggregate ActivitySamples — but UI
-        // surfaces (chart fragments, dashboard) call this before checking
-        // supportsActivityTracking(), so a non-null empty provider prevents an NPE on the
-        // dashboard "Visualizing data" path.
-        return new R20EmptyActivitySampleProvider();
+        // R20 firmware streams discrete HR / BP / SpO2 records (no per-minute ActivitySamples).
+        // Synthesize ActivitySample rows on the fly from our GenericHeartRateSample DAO so the
+        // dashboard's main "today" chart, the HR-overlay line, and the latest-HR widgets all
+        // see real data instead of an empty view. Pattern lifted from
+        // {@link nodomain.freeyourgadget.gadgetbridge.devices.generic_hr.GenericHeartRateActivitySampleProvider}.
+        return new GenericHeartRateActivitySampleProvider(device, session);
     }
 
     @Override
