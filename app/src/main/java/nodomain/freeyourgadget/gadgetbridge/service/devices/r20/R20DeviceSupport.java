@@ -136,6 +136,15 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         writePacket(builder, R20Packet.getPowerStatistics());
         writePacket(builder, R20Packet.getNowStep());
 
+        // Drain the on-ring composite history buffer (HR / BP / SpO2 / sleep / sport)
+        // immediately on connect. The firmware samples autonomously between sessions;
+        // without this initial drain the user only sees data after a manual "sync now"
+        // from the device-detail screen.
+        writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_HEART));
+        writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_BLOOD));
+        writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SLEEP));
+        writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT));
+
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
     }
