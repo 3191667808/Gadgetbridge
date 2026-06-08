@@ -207,6 +207,22 @@ public class BluetoothNameTest extends TestBase {
             put("MATSON Monitor", DeviceType.BM2_BATTERY_MONITOR); // #6212
             put("Xiaomi Smart Band 10 Pro AB01", DeviceType.MIBAND10PRO); // #6248
             put("SmartShunt HQ2303UCHFV", DeviceType.VICTRON_SMARTSHUNT); // #6263
+            // A10 Pro / FreeFit V2 / G2-ADV / ZWS Vibe / iEnjoy V2 — all
+            // share the JieLi-based BLE earbuds firmware, see PR #6257.
+            put("A10 Pro", DeviceType.A10PRO_EARBUDS);
+            put("A10Pro", DeviceType.A10PRO_EARBUDS);
+            put("FreeFit V2", DeviceType.A10PRO_EARBUDS);
+            put("FreeFit V2-A1B2", DeviceType.A10PRO_EARBUDS);
+            put("G2-ADV", DeviceType.A10PRO_EARBUDS);
+            put("G2 ADV", DeviceType.A10PRO_EARBUDS);
+            put("G2ADV", DeviceType.A10PRO_EARBUDS);
+            put("ZWS Vibe", DeviceType.A10PRO_EARBUDS);
+            put("ZWS Vibe Pro", DeviceType.A10PRO_EARBUDS);
+            put("iEnjoy V2", DeviceType.A10PRO_EARBUDS);
+            put("iEnjoy V2 Case", DeviceType.A10PRO_EARBUDS);
+            // Substring matches should NOT trigger (anchored ^ pattern).
+            put("My A10 Pro", null);
+            put("Not FreeFit", null);
         }};
 
         for (Map.Entry<String, DeviceType> e : bluetoothNameToExpectedType.entrySet()) {

@@ -280,28 +280,39 @@ public class A10ProSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onSendConfiguration(final String config) {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        if ("pref_a10pro_anc_mode".equals(config)) {
-            send("set ANC", protocol.encodeSetAnc(parseInt(prefs.getString(config, "0"), 0)));
-        } else if ("pref_a10pro_audio_model".equals(config)) {
-            send("set audio model", protocol.encodeSetAudioModel(parseInt(prefs.getString(config, "0"), 0)));
-        } else if ("pref_a10pro_find_earphones".equals(config)) {
-            send("find earbuds", protocol.encodeFindHeadphones(1));
-        } else if ("pref_a10pro_anti_lost".equals(config)) {
-            send("anti lost", protocol.encodeAntiLost(prefs.getBoolean(config, false)));
-        } else if ("pref_a10pro_find_band".equals(config)) {
-            send("find band", protocol.encodeFindBandSwitch(prefs.getBoolean(config, false)));
-        } else if ("pref_a10pro_metric_units".equals(config)) {
-            send("unit", protocol.encodeUnit(prefs.getBoolean(config, true), true));
-        } else if ("pref_a10pro_volume_cap".equals(config)) {
-            send("volume cap", protocol.encodeVolumeMaxValue(prefs.getInt(config, 100)));
-        } else if ("pref_a10pro_marquee".equals(config)) {
-            sendAll("marquee", protocol.encodeBarrage(prefs.getString(config, ""), 1, 20));
-        } else if ("pref_a10pro_factory_reset".equals(config)) {
-            send("factory reset", protocol.encodeReset());
-        } else if ("pref_a10pro_power_off".equals(config)) {
-            send("power off", protocol.encodeTurnOff(2));
-        } else {
-            super.onSendConfiguration(config);
+        switch (config) {
+            case "pref_a10pro_anc_mode":
+                send("set ANC", protocol.encodeSetAnc(parseInt(prefs.getString(config, "0"), 0)));
+                break;
+            case "pref_a10pro_audio_model":
+                send("set audio model", protocol.encodeSetAudioModel(parseInt(prefs.getString(config, "0"), 0)));
+                break;
+            case "pref_a10pro_find_earphones":
+                send("find earbuds", protocol.encodeFindHeadphones(1));
+                break;
+            case "pref_a10pro_anti_lost":
+                send("anti lost", protocol.encodeAntiLost(prefs.getBoolean(config, false)));
+                break;
+            case "pref_a10pro_find_band":
+                send("find band", protocol.encodeFindBandSwitch(prefs.getBoolean(config, false)));
+                break;
+            case "pref_a10pro_metric_units":
+                send("unit", protocol.encodeUnit(prefs.getBoolean(config, true), true));
+                break;
+            case "pref_a10pro_volume_cap":
+                send("volume cap", protocol.encodeVolumeMaxValue(prefs.getInt(config, 100)));
+                break;
+            case "pref_a10pro_marquee":
+                sendAll("marquee", protocol.encodeBarrage(prefs.getString(config, ""), 1, 20));
+                break;
+            case "pref_a10pro_factory_reset":
+                send("factory reset", protocol.encodeReset());
+                break;
+            case "pref_a10pro_power_off":
+                send("power off", protocol.encodeTurnOff(2));
+                break;
+            default:
+                super.onSendConfiguration(config);
         }
     }
 

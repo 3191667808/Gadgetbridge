@@ -5788,12 +5788,6 @@
         <item>audio_card</item>
         <item>aux</item>
     </string-array>
-<<<<<<< HEAD
-</resources>
-=======
-<<<<<<< HEAD
-</resources>
-=======
     <string-array name="pref_a10pro_anc_mode">
         <item>Off</item>
         <item>ANC (noise cancelling)</item>
@@ -5815,5 +5809,3 @@
         <item>2</item>
     </string-array>
 </resources>
->>>>>>> e39c860e8 (Add FreeFit iEnjoy V2 / G2-ADV BLE earbuds support)
->>>>>>> e39c860e8 (Add FreeFit iEnjoy V2 / G2-ADV BLE earbuds support)
