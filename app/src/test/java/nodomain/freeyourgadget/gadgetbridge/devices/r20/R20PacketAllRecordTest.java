@@ -87,10 +87,15 @@ public class R20PacketAllRecordTest {
         assertEquals("CVRR", 5,   r.cvrr);
         assertEquals("bloodSugar", 0, r.bloodSugar);
 
-        // Timestamp: 0x2f9c49a7 = 798,852,007 sec since 2000-01-01 UTC
-        //   + 946684800 (2000-01-01 in Unix epoch) = 1,745,536,807 -> 2025-04-24T22:00:07Z
-        long expectedSec = 0x2f9c49a7L + 946684800L;
-        assertEquals("timestamp", expectedSec * 1000L, r.timestampMs);
+        // Timestamp: 0x2f9c49a7 = 798,852,007 sec since 2000-01-01.
+        // The ring stores wall-clock local time as if it were UTC, so the
+        // parser subtracts TimeZone.getDefault().getOffset() to recover the
+        // real Unix-epoch UTC timestamp. Compute the expected value using the
+        // same offset for the JVM running this test so the assertion is
+        // independent of the build/CI machine's locale.
+        long expectedLocalAsUtcMs = (0x2f9c49a7L + 946684800L) * 1000L;
+        long tzOffsetMs = java.util.TimeZone.getDefault().getOffset(expectedLocalAsUtcMs);
+        assertEquals("timestamp", expectedLocalAsUtcMs - tzOffsetMs, r.timestampMs);
     }
 
     @Test

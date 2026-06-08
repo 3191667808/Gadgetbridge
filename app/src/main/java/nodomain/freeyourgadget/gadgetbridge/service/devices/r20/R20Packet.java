@@ -218,12 +218,27 @@ public final class R20Packet {
     //   History record types & parsers
     // ====================================================================
 
+    /**
+     * Convert a 4-byte little-endian "seconds since 2000-01-01 local-time"
+     * field to a Unix-epoch millisecond value.
+     *
+     * <p>The Yucheng firmware stores wall-clock local time interpreted as
+     * UTC (this is how {@code R20Packet.settingTime()} sends it).
+     * {@code DataUnpack.unpackHealthData} in the YCBT SDK accounts for this
+     * by subtracting {@code TimeZone.getDefault().getOffset()} from the
+     * resulting Unix timestamp — otherwise records appear up to ~14 hours
+     * in the future relative to actual UTC. Verified in the user's
+     * 2026-06-08 capture where ring-supplied timestamps were ~3 h
+     * (Israel summer / IDT = UTC+3) ahead of {@code System.currentTimeMillis()}.
+     */
     private static long ts2k_to_unix_ms(byte[] data, int off) {
         long ts = ((long)(data[off]     & 0xFF))
                 | ((long)(data[off + 1] & 0xFF) << 8)
                 | ((long)(data[off + 2] & 0xFF) << 16)
                 | ((long)(data[off + 3] & 0xFF) << 24);
-        return (ts + R20Constants.EPOCH_2000_UNIX_SECONDS) * 1000L;
+        long localAsUtcMs = (ts + R20Constants.EPOCH_2000_UNIX_SECONDS) * 1000L;
+        long tzOffsetMs = java.util.TimeZone.getDefault().getOffset(localAsUtcMs);
+        return localAsUtcMs - tzOffsetMs;
     }
 
     /** Single historical heart-rate reading. */

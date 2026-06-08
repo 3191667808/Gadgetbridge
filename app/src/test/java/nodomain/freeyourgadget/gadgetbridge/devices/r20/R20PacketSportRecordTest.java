@@ -67,8 +67,13 @@ public class R20PacketSportRecordTest {
         List<R20Packet.SportRecord> records = R20Packet.parseSportRecords(payload);
         assertEquals(1, records.size());
         R20Packet.SportRecord r = records.get(0);
-        assertEquals(start * 1000L, r.startTimeMs);
-        assertEquals(end   * 1000L, r.endTimeMs);
+        // Parser subtracts TZ offset (ring stores wall-clock local time as UTC),
+        // so reconstruct the expected value the same way for TZ-portable tests.
+        long startMs = start * 1000L;
+        long endMs   = end   * 1000L;
+        long tz = java.util.TimeZone.getDefault().getOffset(startMs);
+        assertEquals(startMs - tz, r.startTimeMs);
+        assertEquals(endMs   - tz, r.endTimeMs);
         assertEquals(3210, r.steps);
         assertEquals(2480, r.distanceMeters);
         assertEquals(142,  r.calorieKcal);

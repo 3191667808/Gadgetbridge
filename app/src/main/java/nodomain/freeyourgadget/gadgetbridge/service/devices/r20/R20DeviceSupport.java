@@ -393,19 +393,31 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return recordTsMs > 0L && recordTsMs > hwmTsMs;
     }
 
-    /** Read the HWM for a given metric. Returns 0 if no records have ever been processed. */
+    /** Read the HWM for a given metric. Returns 0 if no records have ever been processed.
+     *
+     *  <p>Defensive: if a stored HWM is in the future (which used to happen with the
+     *  pre-2026-06-08 buggy TZ handling that left HWMs ~3h ahead of wall-clock UTC),
+     *  treat it as 0 so we can start fresh instead of dropping every real record. */
     private long getHwm(String key) {
+        long raw;
         try {
-            return getDevicePrefs().getLong(key, 0L);
+            raw = getDevicePrefs().getLong(key, 0L);
         } catch (Exception e) {
-            // Some upstream prefs paths return String — accept both.
             try {
-                String s = getDevicePrefs().getString(key, "0");
-                return Long.parseLong(s);
+                raw = Long.parseLong(getDevicePrefs().getString(key, "0"));
             } catch (Exception e2) {
-                return 0L;
+                raw = 0L;
             }
         }
+        long now = System.currentTimeMillis();
+        if (raw > now) {
+            LOG.warn("R20 HWM {} is in the future ({} > {}), resetting to 0", key, raw, now);
+            try {
+                getDevicePrefs().getPreferences().edit().remove(key).apply();
+            } catch (Exception ignored) {}
+            return 0L;
+        }
+        return raw;
     }
 
     /** Advance the per-metric HWM if {@code candidateMs} exceeds the current value. */
@@ -461,7 +473,14 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         new GenericHrvValueSample(ts, deviceId, userId, hrvInt));
             }
         });
-        sendHistoryAck(R20Constants.HEALTH_STREAM_HEART, payload.length);
+        // Only ACK the block when it carries records we actually persisted.
+        // The firmware treats ACK as "send next page": ACKing an already-seen
+        // block in our read-only-ring mode (no HEALTH_DELETE_* afterwards) puts
+        // us in an infinite loop because the read cursor never advances.
+        // Skipping the ACK lets the firmware time out and stop the stream.
+        if (!records.isEmpty()) {
+            sendHistoryAck(R20Constants.HEALTH_STREAM_HEART, payload.length);
+        }
         long newest = 0L;
         for (R20Packet.HrRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
         advanceHwm(HWM_HR, newest);
@@ -493,7 +512,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 }
             }
         });
-        sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
+        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
         long newest = 0L;
         for (R20Packet.BpRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
         advanceHwm(HWM_BP, newest);
@@ -558,7 +577,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 }
             }
         });
-        sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
+        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
         long newest = 0L;
         for (R20Packet.AllRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
         advanceHwm(HWM_ALL, newest);
@@ -579,7 +598,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     r.startTimeMs, r.endTimeMs, r.steps, r.distanceMeters, r.calorieKcal, r.durationSec());
             if (r.endTimeMs > newest) newest = r.endTimeMs;
         }
-        sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
+        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
         advanceHwm(HWM_SPORT, newest);
         return newest;
     }
@@ -661,7 +680,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.debug("R20 VO2max compute skipped: {}", e.getMessage());
             }
         });
-        sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
+        if (!sessions.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
         long newest = 0L;
         for (R20Packet.SleepSession s : sessions) if (s.endTimeMs > newest) newest = s.endTimeMs;
         advanceHwm(HWM_SLEEP, newest);
