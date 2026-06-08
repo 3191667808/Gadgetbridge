@@ -395,9 +395,14 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Read the HWM for a given metric. Returns 0 if no records have ever been processed.
      *
-     *  <p>Defensive: if a stored HWM is in the future (which used to happen with the
-     *  pre-2026-06-08 buggy TZ handling that left HWMs ~3h ahead of wall-clock UTC),
-     *  treat it as 0 so we can start fresh instead of dropping every real record. */
+     *  <p>Defensive: if a stored HWM is more than 5 minutes in the future (which used
+     *  to happen with the pre-2026-06-08 buggy TZ handling that left HWMs ~3h ahead of
+     *  wall-clock UTC), treat it as 0 so we can start fresh instead of dropping every
+     *  real record. A 5-minute tolerance accommodates normal BLE clock skew between
+     *  the ring's wall clock and the phone's clock (typically &lt; 1 s) without
+     *  triggering on every persist. */
+    private static final long HWM_FUTURE_TOLERANCE_MS = 5L * 60L * 1000L;
+
     private long getHwm(String key) {
         long raw;
         try {
@@ -410,8 +415,9 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
         long now = System.currentTimeMillis();
-        if (raw > now) {
-            LOG.warn("R20 HWM {} is in the future ({} > {}), resetting to 0", key, raw, now);
+        if (raw > now + HWM_FUTURE_TOLERANCE_MS) {
+            LOG.warn("R20 HWM {} is >5 min in the future ({} > {}+5min), resetting to 0",
+                    key, raw, now);
             try {
                 getDevicePrefs().getPreferences().edit().remove(key).apply();
             } catch (Exception ignored) {}
