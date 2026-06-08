@@ -39,6 +39,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvi
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.r20.R20Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -56,6 +57,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDevic
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCharacteristic;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /**
  * Gadgetbridge driver for the R20 smart ring (Yucheng YCBT family).
@@ -238,7 +240,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (R20Constants.UUID_CHAR_WRITE.equals(uuid) || R20Constants.UUID_CHAR_NOTIFY.equals(uuid)) {
             R20Packet pkt = R20Packet.decode(data);
             if (pkt == null) {
-                LOG.debug("R20 dropped malformed frame: {}", bytesToHex(data));
+                LOG.debug("R20 dropped malformed frame: {}", GB.hexdump(data));
                 return true;
             }
             if (isRejection(pkt)) {
@@ -299,7 +301,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case R20Constants.MEASUREMENT_COMPLETE:
                 LOG.info("R20 measurement complete (0x040E), {} bytes", p.length);
                 if (LOG.isDebugEnabled()) {
-                    LOG.debug("R20 measurement complete raw: {}", bytesToHex(p));
+                    LOG.debug("R20 measurement complete raw: {}", GB.hexdump(p));
                 }
                 break;
             case R20Constants.HEALTH_STREAM_HEART:
@@ -324,7 +326,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     int hr = p[4] & 0xFF;
                     LOG.info("R20 snapshot (0x0600): hr={} bpm", hr);
                     if (LOG.isDebugEnabled()) {
-                        LOG.debug("R20 snapshot raw ({}b): {}", p.length, bytesToHex(p));
+                        LOG.debug("R20 snapshot raw ({}b): {}", p.length, GB.hexdump(p));
                     }
                     if (hr > 0 && hr < 240) {
                         persistHr(System.currentTimeMillis(), hr);
@@ -353,18 +355,18 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // app paired to the ring issues them.
                 LOG.debug("R20 history control echo dtype=0x{}", Integer.toHexString(dtype));
                 break;
-            case R20Constants.SETTING_TIME:        // 0x0100
-            case 0x0103:                           // setting echo (unit/language)
-            case R20Constants.ENABLE_HEALTH_SENSORS: // 0x0104
-            case 0x0109:                           // setting echo (user info)
-            case 0x010C:                           // sensor mode echo (primeSensors / spo2 cadence)
-            case 0x0112:                           // setting echo (sedentary etc.)
-            case 0x0126:                           // setting echo (background-monitor cadence)
+            case R20Constants.SETTING_TIME:
+            case R20Constants.SETTING_USER_INFO:
+            case R20Constants.ENABLE_HEALTH_SENSORS:
+            case R20Constants.SETTING_USER_BIND_ECHO:
+            case R20Constants.SET_MONITOR_INTERVAL:
+            case R20Constants.SETTING_REMINDER_ECHO:
+            case R20Constants.ENABLE_BG_SPO2_MONITOR:
                 LOG.debug("R20 setting ACK dtype=0x{}", Integer.toHexString(dtype));
                 break;
             default:
                 LOG.debug("R20 unhandled frame dtype=0x{} payload={}",
-                        Integer.toHexString(dtype), bytesToHex(p));
+                        Integer.toHexString(dtype), GB.hexdump(p));
         }
     }
 
@@ -500,22 +502,27 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         for (R20Packet.BpRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
         logHistoryBlock("BP", all.size(), records.size(), hwm, payload.length);
         withDb((session, deviceId, userId) -> {
-            GenericHeartRateSampleProvider hrProvider =
-                    new GenericHeartRateSampleProvider(getDevice(), session);
-            GenericBloodPressureSampleProvider bpProvider =
-                    new GenericBloodPressureSampleProvider(getDevice(), session);
+            // Batch-build, then a single addSamples() per provider — addSample()
+            // in a loop opens a fresh transaction per row which is wasteful
+            // (see review comment on PR #6239).
+            final java.util.List<GenericHeartRateSample> hrBatch = new ArrayList<>(records.size());
+            final java.util.List<GenericBloodPressureSample> bpBatch = new ArrayList<>(records.size());
             for (R20Packet.BpRecord r : records) {
                 LOG.info("  BP @{}: {}/{} mmHg @ {} bpm",
                         r.timestampMs, r.systolic, r.diastolic, r.hr);
-                bpProvider.addSample(new GenericBloodPressureSample(
+                bpBatch.add(new GenericBloodPressureSample(
                         r.timestampMs, deviceId, userId,
                         r.systolic, r.diastolic, /*userIndex*/ null,
                         /*MAP*/ null, r.hr > 0 ? r.hr : null,
                         /*measurementStatus*/ 0));
                 if (r.hr > 0) {
-                    hrProvider.addSample(new GenericHeartRateSample(
+                    hrBatch.add(new GenericHeartRateSample(
                             r.timestampMs, deviceId, userId, r.hr));
                 }
+            }
+            new GenericBloodPressureSampleProvider(getDevice(), session).addSamples(bpBatch);
+            if (!hrBatch.isEmpty()) {
+                new GenericHeartRateSampleProvider(getDevice(), session).addSamples(hrBatch);
             }
         });
         if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
@@ -547,41 +554,47 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         for (R20Packet.AllRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
         logHistoryBlock("All-metrics", all.size(), records.size(), hwm, payload.length);
         withDb((session, deviceId, userId) -> {
-            GenericHeartRateSampleProvider hrProvider =
-                    new GenericHeartRateSampleProvider(getDevice(), session);
-            GenericSpo2SampleProvider spo2Provider =
-                    new GenericSpo2SampleProvider(getDevice(), session);
-            GenericBloodPressureSampleProvider bpProvider =
-                    new GenericBloodPressureSampleProvider(getDevice(), session);
-            GenericHrvValueSampleProvider hrvProvider =
-                    new GenericHrvValueSampleProvider(getDevice(), session);
+            final java.util.List<GenericHeartRateSample> hrBatch = new ArrayList<>(records.size());
+            final java.util.List<GenericSpo2Sample> spo2Batch = new ArrayList<>(records.size());
+            final java.util.List<GenericBloodPressureSample> bpBatch = new ArrayList<>(records.size());
+            final java.util.List<GenericHrvValueSample> hrvBatch = new ArrayList<>(records.size());
+            final java.util.List<nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample> tempBatch = new ArrayList<>(records.size());
             for (R20Packet.AllRecord r : records) {
                 if (r.hr > 0 && r.hr < 240) {
-                    hrProvider.addSample(new GenericHeartRateSample(r.timestampMs, deviceId, userId, r.hr));
+                    hrBatch.add(new GenericHeartRateSample(r.timestampMs, deviceId, userId, r.hr));
                 }
                 if (r.spo2 >= 50 && r.spo2 <= 100) {
-                    spo2Provider.addSample(new GenericSpo2Sample(r.timestampMs, deviceId, userId, r.spo2));
+                    spo2Batch.add(new GenericSpo2Sample(r.timestampMs, deviceId, userId, r.spo2));
                 }
                 if (r.systolic > 0 && r.diastolic > 0) {
-                    bpProvider.addSample(new GenericBloodPressureSample(
+                    bpBatch.add(new GenericBloodPressureSample(
                             r.timestampMs, deviceId, userId,
                             r.systolic, r.diastolic, null, null,
                             r.hr > 0 ? r.hr : null, 0));
                 }
                 if (r.hrv > 0 && r.hrv < 200) {
-                    hrvProvider.addSample(new GenericHrvValueSample(r.timestampMs, deviceId, userId, r.hrv));
+                    hrvBatch.add(new GenericHrvValueSample(r.timestampMs, deviceId, userId, r.hrv));
                 }
-                // Temperature, body fat, blood sugar, respiration logged but not
-                // persisted: no generic sample providers exist for these yet in
-                // upstream Gadgetbridge. Will be wired up in a follow-up PR.
-                if (r.temperature > 30.0 || r.respiratoryRate > 0 || r.bloodSugar > 0) {
-                    LOG.debug("R20 ext metrics @{}: rr={} temp={} bf={} bs={} cvrr={}",
+                if (r.temperature >= 30.0 && r.temperature <= 45.0) {
+                    tempBatch.add(new nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample(
+                            r.timestampMs, deviceId, userId, (float) r.temperature,
+                            nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample.TYPE_UNKNOWN,
+                            nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample.LOCATION_FINGER));
+                }
+                // Body fat, blood sugar, respiration logged but not persisted:
+                // no Gadgetbridge generic providers exist for these yet.
+                if (r.respiratoryRate > 0 || r.bloodSugar > 0 || r.bodyFatPct > 0) {
+                    LOG.debug("R20 ext metrics @{}: rr={} bf={} bs={} cvrr={}",
                             r.timestampMs, r.respiratoryRate,
-                            String.format("%.2f", r.temperature),
                             String.format("%.2f", r.bodyFatPct),
                             r.bloodSugar, r.cvrr);
                 }
             }
+            if (!hrBatch.isEmpty())   new GenericHeartRateSampleProvider(getDevice(), session).addSamples(hrBatch);
+            if (!spo2Batch.isEmpty()) new GenericSpo2SampleProvider(getDevice(), session).addSamples(spo2Batch);
+            if (!bpBatch.isEmpty())   new GenericBloodPressureSampleProvider(getDevice(), session).addSamples(bpBatch);
+            if (!hrvBatch.isEmpty())  new GenericHrvValueSampleProvider(getDevice(), session).addSamples(hrvBatch);
+            if (!tempBatch.isEmpty()) new GenericTemperatureSampleProvider(getDevice(), session).addSamples(tempBatch);
         });
         if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
         long newest = 0L;
@@ -814,12 +827,6 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         } catch (Exception e) {
             LOG.warn("R20 onFetchRecordedData failed", e);
         }
-    }
-
-    private static String bytesToHex(byte[] data) {
-        StringBuilder sb = new StringBuilder(data.length * 2);
-        for (byte b : data) sb.append(String.format("%02x", b));
-        return sb.toString();
     }
 
     /**

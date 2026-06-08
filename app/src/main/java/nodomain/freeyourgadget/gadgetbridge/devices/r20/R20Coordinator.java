@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvid
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.generic_hr.GenericHeartRateActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -52,6 +53,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -62,6 +64,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvValueSample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.StressSample;
+import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.r20.R20DeviceSupport;
 
@@ -144,6 +147,7 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
         map.put(session.getGenericSleepStageSampleDao(),     GenericSleepStageSampleDao.Properties.DeviceId);
         map.put(session.getGenericHrvValueSampleDao(),       GenericHrvValueSampleDao.Properties.DeviceId);
         map.put(session.getGenericStressSampleDao(),         GenericStressSampleDao.Properties.DeviceId);
+        map.put(session.getGenericTemperatureSampleDao(),    GenericTemperatureSampleDao.Properties.DeviceId);
         return map;
     }
 
@@ -200,6 +204,13 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
         return new GenericStressSampleProvider(device, session);
     }
 
+    /** Finger temperature from the composite all-metrics stream (offset 13.14 in the
+     *  20-byte record per YCBT SDK DataUnpack case 9). */
+    @Override
+    public TimeSampleProvider<? extends TemperatureSample> getTemperatureSampleProvider(GBDevice device, DaoSession session) {
+        return new GenericTemperatureSampleProvider(device, session);
+    }
+
     // -------- Capabilities --------
 
     @Override public boolean supportsStepCounter(@NonNull GBDevice device)      { return true; }
@@ -212,6 +223,7 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
     /** R20 doesn't measure HRV in hardware — supplied as a software-derived proxy. */
     @Override public boolean supportsHrvMeasurement(@NonNull GBDevice device) { return true; }
     @Override public boolean supportsStressMeasurement(@NonNull GBDevice device) { return true; }
+    @Override public boolean supportsTemperatureMeasurement(@NonNull GBDevice device) { return true; }
 
     @Override public boolean isExperimental() { return true; }
 

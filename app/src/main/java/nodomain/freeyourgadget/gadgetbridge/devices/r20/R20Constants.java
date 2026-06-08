@@ -49,7 +49,11 @@ public final class R20Constants {
     public static final int SETTING_TIME              = 0x0100;
     public static final int SETTING_USER_INFO         = 0x0103;
     public static final int ENABLE_HEALTH_SENSORS     = 0x0104;
+    /** Yucheng "user-bind" / pairing-state echo observed on every connect. */
+    public static final int SETTING_USER_BIND_ECHO    = 0x0109;
     public static final int SET_MONITOR_INTERVAL      = 0x010C;
+    /** Yucheng "sedentary reminder" / activity-goal echo. */
+    public static final int SETTING_REMINDER_ECHO     = 0x0112;
     public static final int ENABLE_BG_SPO2_MONITOR    = 0x0126;
 
     public static final int GET_DEVICE_INFO           = 0x0200;
