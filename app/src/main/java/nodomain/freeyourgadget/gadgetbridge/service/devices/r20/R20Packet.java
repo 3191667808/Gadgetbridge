@@ -183,18 +183,6 @@ public final class R20Packet {
         });
     }
 
-    /**
-     * Delete a history category from the ring after a successful sync.
-     * The firmware retains records until this command is sent, otherwise
-     * the same data is re-pushed on every subsequent sync. Verified by
-     * HCI snoop of the companion app.
-     *
-     * @param deleteOpcode one of {@code R20Constants.HEALTH_DELETE_*}
-     */
-    public static R20Packet deleteHistory(int deleteOpcode) {
-        return new R20Packet(deleteOpcode, new byte[]{0x02});
-    }
-
     // -------- Static parsers --------
 
     public static int parseBatteryPercent(byte[] payload) {

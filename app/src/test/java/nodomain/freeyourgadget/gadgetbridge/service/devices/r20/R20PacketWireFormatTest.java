@@ -58,23 +58,6 @@ public class R20PacketWireFormatTest {
     }
 
     @Test
-    public void deleteHistory_sendsSinglePayloadByte0x02() {
-        for (int op : new int[]{
-                R20Constants.HEALTH_DELETE_SPORT,
-                R20Constants.HEALTH_DELETE_SLEEP,
-                R20Constants.HEALTH_DELETE_HEART,
-                R20Constants.HEALTH_DELETE_BLOOD,
-                R20Constants.HEALTH_DELETE_ALL}) {
-            R20Packet pkt = R20Packet.deleteHistory(op);
-            byte[] bytes = pkt.encode();
-            assertEquals(7, bytes.length); // grp key lo hi 0x02 crc_lo crc_hi
-            assertEquals((op >> 8) & 0xFF, bytes[0] & 0xFF);
-            assertEquals(op & 0xFF, bytes[1] & 0xFF);
-            assertEquals(0x02, bytes[4] & 0xFF);
-        }
-    }
-
-    @Test
     public void historyAck_isFourPayloadBytes() {
         R20Packet pkt = R20Packet.historyAck(R20Constants.HEALTH_STREAM_ALL, 20);
         byte[] bytes = pkt.encode();

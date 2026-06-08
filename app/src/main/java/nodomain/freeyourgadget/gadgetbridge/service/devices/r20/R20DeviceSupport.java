@@ -297,7 +297,10 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 }
                 break;
             case R20Constants.MEASUREMENT_COMPLETE:
-                LOG.info("R20 measurement complete (0x040E): {}", bytesToHex(p));
+                LOG.info("R20 measurement complete (0x040E), {} bytes", p.length);
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("R20 measurement complete raw: {}", bytesToHex(p));
+                }
                 break;
             case R20Constants.HEALTH_STREAM_HEART:
                 handleHrHistory(p);
@@ -319,7 +322,10 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // bytes 0-3 are a timestamp/sequence header — exact layout TBD.
                 if (p.length >= 5) {
                     int hr = p[4] & 0xFF;
-                    LOG.info("R20 snapshot (0x0600): hr={} bpm  raw={}", hr, bytesToHex(p));
+                    LOG.info("R20 snapshot (0x0600): hr={} bpm", hr);
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("R20 snapshot raw ({}b): {}", p.length, bytesToHex(p));
+                    }
                     if (hr > 0 && hr < 240) {
                         persistHr(System.currentTimeMillis(), hr);
                     }
@@ -340,9 +346,11 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case R20Constants.HEALTH_DELETE_BLOOD:
             case R20Constants.HEALTH_DELETE_ALL:
             case R20Constants.HEALTH_HISTORY_ACK:
-                // Echo / confirmation of our own delete + history-ack sends. These are
-                // expected — silence at DEBUG to keep the log readable when the user
-                // is actually trying to diagnose a real issue.
+                // Echo from another companion app (or the firmware itself) of
+                // a history delete or history-ACK frame. Gadgetbridge never sends
+                // these in production, but we silence them defensively to avoid
+                // adding "unhandled frame" payload dumps to the log if another
+                // app paired to the ring issues them.
                 LOG.debug("R20 history control echo dtype=0x{}", Integer.toHexString(dtype));
                 break;
             case R20Constants.SETTING_TIME:        // 0x0100
@@ -414,13 +422,28 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    /**
+     * Single point for per-block summary logging. Logs at INFO when there is
+     * at least one new record (signal worth surfacing); at DEBUG when every
+     * record was filtered as already-seen (expected on every reconnect once
+     * the HWM has caught up). Keeps the log readable across long sessions.
+     */
+    private void logHistoryBlock(String label, int total, int newCount, long hwm, int payloadBytes) {
+        if (newCount > 0 || total == 0) {
+            LOG.info("R20 {} history block: {} records ({} new, {} already-seen, hwm={}, {}b)",
+                    label, total, newCount, total - newCount, hwm, payloadBytes);
+        } else {
+            LOG.debug("R20 {} history block: {} records (all already-seen, hwm={}, {}b)",
+                    label, total, hwm, payloadBytes);
+        }
+    }
+
     private long handleHrHistory(byte[] payload) {
         final List<R20Packet.HrRecord> all = R20Packet.parseHrRecords(payload);
         final long hwm = getHwm(HWM_HR);
         final List<R20Packet.HrRecord> records = new ArrayList<>(all.size());
         for (R20Packet.HrRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
-        LOG.info("R20 HR history block: {} records ({} new, {} already-seen, hwm={})",
-                all.size(), records.size(), all.size() - records.size(), hwm);
+        logHistoryBlock("HR", all.size(), records.size(), hwm, payload.length);
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -450,8 +473,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final long hwm = getHwm(HWM_BP);
         final List<R20Packet.BpRecord> records = new ArrayList<>(all.size());
         for (R20Packet.BpRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
-        LOG.info("R20 BP history block: {} records ({} new, {} already-seen, hwm={})",
-                all.size(), records.size(), all.size() - records.size(), hwm);
+        logHistoryBlock("BP", all.size(), records.size(), hwm, payload.length);
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -483,14 +505,13 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             LOG.warn("R20 persistBp: rejected out-of-range sys={} dia={} hr={}", systolic, diastolic, hr);
             return;
         }
-        LOG.info("R20 persistBp: sys={} dia={} hr={} ts={}", systolic, diastolic, hr, timestampMs);
+        LOG.debug("R20 persistBp: sys={} dia={} hr={} ts={}", systolic, diastolic, hr, timestampMs);
         withDb((session, deviceId, userId) -> {
             GenericBloodPressureSampleProvider provider =
                     new GenericBloodPressureSampleProvider(getDevice(), session);
             provider.addSample(new GenericBloodPressureSample(
                     timestampMs, deviceId, userId,
                     systolic, diastolic, null, null, hr > 0 ? hr : null, 0));
-            LOG.info("R20 persistBp: written deviceId={} userId={}", deviceId, userId);
         });
     }
 
@@ -499,8 +520,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final long hwm = getHwm(HWM_ALL);
         final List<R20Packet.AllRecord> records = new ArrayList<>(all.size());
         for (R20Packet.AllRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
-        LOG.info("R20 All-metrics history block: {} records ({} new, {} already-seen, hwm={})",
-                all.size(), records.size(), all.size() - records.size(), hwm);
+        logHistoryBlock("All-metrics", all.size(), records.size(), hwm, payload.length);
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -552,8 +572,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final long hwm = getHwm(HWM_SPORT);
         final List<R20Packet.SportRecord> records = new ArrayList<>(all.size());
         for (R20Packet.SportRecord r : all) if (isNewRecord(r.endTimeMs, hwm)) records.add(r);
-        LOG.info("R20 Sport history block: {} records ({} new, {} already-seen, hwm={}, {} bytes)",
-                all.size(), records.size(), all.size() - records.size(), hwm, payload.length);
+        logHistoryBlock("Sport", all.size(), records.size(), hwm, payload.length);
         long newest = 0L;
         for (R20Packet.SportRecord r : records) {
             LOG.info("  Sport @{}..{}: steps={} distance={}m kcal={} duration={}s",
@@ -570,8 +589,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final long hwm = getHwm(HWM_SLEEP);
         final List<R20Packet.SleepSession> sessions = new ArrayList<>(allSessions.size());
         for (R20Packet.SleepSession s : allSessions) if (isNewRecord(s.endTimeMs, hwm)) sessions.add(s);
-        LOG.info("R20 Sleep history block: {} session(s) ({} new, {} already-seen, hwm={})",
-                allSessions.size(), sessions.size(), allSessions.size() - sessions.size(), hwm);
+        logHistoryBlock("Sleep", allSessions.size(), sessions.size(), hwm, payload.length);
         withDb((session, deviceId, userId) -> {
             GenericSleepStageSampleProvider provider =
                     new GenericSleepStageSampleProvider(getDevice(), session);
@@ -671,21 +689,6 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /** Tell the ring to clear the just-synced history category. Discovered
-     *  by HCI-snooping the companion app: the firmware retains records
-     *  until this command is acknowledged, otherwise the same data is
-     *  re-sent on every subsequent sync. */
-    private void sendHistoryDelete(int deleteOpcode) {
-        try {
-            TransactionBuilder b = createTransactionBuilder("R20 history delete");
-            writePacket(b, R20Packet.deleteHistory(deleteOpcode));
-            b.queue();
-        } catch (Exception e) {
-            LOG.warn("R20 history delete (0x{}) failed",
-                    Integer.toHexString(deleteOpcode), e);
-        }
-    }
-
     // -------- Persistence helpers --------
 
     /** Single point of access for sample writes. The block runs inside a
@@ -735,7 +738,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void flushHrBuffer(final List<GenericHeartRateSample> buf) {
-        LOG.info("R20 flushHrBuffer: persisting {} HR samples", buf.size());
+        LOG.debug("R20 flushHrBuffer: persisting {} HR samples", buf.size());
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider provider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -745,7 +748,6 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         s.getTimestamp(), deviceId, userId, s.getHeartRate()));
             }
             provider.addSamples(renumbered);
-            LOG.info("R20 flushHrBuffer: written {} samples for deviceId={}", renumbered.size(), deviceId);
         });
     }
 
@@ -754,12 +756,11 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             LOG.debug("R20 persistSpo2: rejected out-of-range pct={}", pct);
             return;
         }
-        LOG.info("R20 persistSpo2: pct={} ts={}", pct, timestampMs);
+        LOG.debug("R20 persistSpo2: pct={} ts={}", pct, timestampMs);
         withDb((session, deviceId, userId) -> {
             GenericSpo2SampleProvider provider =
                     new GenericSpo2SampleProvider(getDevice(), session);
             provider.addSample(new GenericSpo2Sample(timestampMs, deviceId, userId, pct));
-            LOG.info("R20 persistSpo2: written for deviceId={}", deviceId);
         });
     }
 
