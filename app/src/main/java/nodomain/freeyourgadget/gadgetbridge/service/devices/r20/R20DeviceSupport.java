@@ -299,6 +299,15 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     }
                 }
                 break;
+            case R20Constants.HEALTH_HISTORY_HEART:
+            case R20Constants.HEALTH_HISTORY_BLOOD:
+            case R20Constants.HEALTH_HISTORY_SLEEP:
+            case R20Constants.HEALTH_HISTORY_SPORT:
+            case R20Constants.HEALTH_HISTORY_ALL:
+                // Empty-payload ACK from the ring acknowledging our history-fetch request.
+                // Real data arrives separately via the HEALTH_STREAM_* opcodes; nothing to do here.
+                LOG.debug("R20 history ACK dtype=0x{} (no data)", Integer.toHexString(dtype));
+                break;
             default:
                 LOG.debug("R20 unhandled frame dtype=0x{} payload={}",
                         Integer.toHexString(dtype), bytesToHex(p));

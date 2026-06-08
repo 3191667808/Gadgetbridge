@@ -16,6 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.r20;
 
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import android.bluetooth.le.ScanFilter;
 import android.os.ParcelUuid;
 
@@ -143,7 +146,11 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
-        return null; // R20 firmware streams discrete metrics, not aggregate ActivitySamples
+        // R20 firmware streams discrete metrics, not aggregate ActivitySamples — but UI
+        // surfaces (chart fragments, dashboard) call this before checking
+        // supportsActivityTracking(), so a non-null empty provider prevents an NPE on the
+        // dashboard "Visualizing data" path.
+        return new R20EmptyActivitySampleProvider();
     }
 
     @Override
@@ -194,4 +201,21 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
     @Override public boolean supportsStressMeasurement(@NonNull GBDevice device) { return true; }
 
     @Override public boolean isExperimental() { return true; }
+
+    /**
+     * Continuous SpO2 monitoring is performed firmware-side: when enabled,
+     * the ring's onboard MCU samples the PPG at the configured interval
+     * and writes results into its internal flash buffer. The phone retrieves
+     * those samples on every sync via the composite history opcode (0x0518).
+     *
+     * <p>This avoids any AlarmManager / WorkManager scheduling on the phone:
+     * the BLE radio is only used during the existing periodic syncs.
+     */
+    @Override
+    public DeviceSpecificSettings getDeviceSpecificSettings(final GBDevice device) {
+        final DeviceSpecificSettings settings = new DeviceSpecificSettings();
+        settings.addRootScreen(DeviceSpecificSettingsScreen.HEALTH)
+                .add(R.xml.devicesettings_spo2);
+        return settings;
+    }
 }
