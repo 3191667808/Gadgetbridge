@@ -87,18 +87,26 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final long HR_BUFFER_FLUSH_INTERVAL_MS = 30_000L;
 
     /**
-     * Multi-app friendliness: never instruct the ring to drop history that is
-     * less than 7 days old, so the OEM "SmartHealth" app (or any other
-     * companion app sharing this device) can still pull it.  We only send the
-     * per-type {@code HEALTH_DELETE_*} command when the entire just-received
-     * batch is older than this cutoff — that keeps the on-ring buffer from
-     * growing unbounded over months of use while preserving the recent window
-     * other apps care about.
+     * Read-only ring policy: Gadgetbridge never instructs the R20 to delete
+     * its on-device history buffer.  The ring's records remain intact so other
+     * companion apps (the OEM "SmartHealth" app, other watches/rings sharing
+     * this Yucheng firmware family, etc.) keep working.
      *
-     * <p>Records are de-duplicated by timestamp in the receiving DAOs, so
-     * re-fetching the same fresh samples on every connect is harmless.
+     * <p>To avoid re-processing the same records on every reconnect we track a
+     * per-metric "high-water mark" (newest record timestamp we've already
+     * persisted) in the device-scoped {@link android.content.SharedPreferences}.
+     * Records with timestamp ≤ HWM are dropped before any DB write, which keeps
+     * DAO traffic linear in <em>new</em> data instead of total on-ring history.
+     *
+     * <p>Pref keys live under the per-device prefs namespace so multiple R20
+     * rings paired to the same phone don't collide.
      */
-    private static final long HISTORY_DELETE_AGE_THRESHOLD_MS = 7L * 24L * 60L * 60L * 1000L;
+    private static final String PREF_HWM_PREFIX = "r20_history_hwm_";
+    static final String HWM_HR     = PREF_HWM_PREFIX + "hr";
+    static final String HWM_BP     = PREF_HWM_PREFIX + "bp";
+    static final String HWM_SLEEP  = PREF_HWM_PREFIX + "sleep";
+    static final String HWM_SPORT  = PREF_HWM_PREFIX + "sport";
+    static final String HWM_ALL    = PREF_HWM_PREFIX + "all";
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
     private long hrBufferLastFlushMs = 0L;
@@ -292,19 +300,19 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.info("R20 measurement complete (0x040E): {}", bytesToHex(p));
                 break;
             case R20Constants.HEALTH_STREAM_HEART:
-                maybeDelete(handleHrHistory(p), R20Constants.HEALTH_DELETE_HEART, "HR");
+                handleHrHistory(p);
                 break;
             case R20Constants.HEALTH_STREAM_BLOOD:
-                maybeDelete(handleBpHistory(p), R20Constants.HEALTH_DELETE_BLOOD, "BP");
+                handleBpHistory(p);
                 break;
             case R20Constants.HEALTH_STREAM_SLEEP:
-                maybeDelete(handleSleepHistory(p), R20Constants.HEALTH_DELETE_SLEEP, "Sleep");
+                handleSleepHistory(p);
                 break;
             case R20Constants.HEALTH_STREAM_ALL:
-                maybeDelete(handleAllHistory(p), R20Constants.HEALTH_DELETE_ALL, "All");
+                handleAllHistory(p);
                 break;
             case R20Constants.HEALTH_STREAM_SPORT:
-                maybeDelete(handleSportHistory(p), R20Constants.HEALTH_DELETE_SPORT, "Sport");
+                handleSportHistory(p);
                 break;
             case R20Constants.REAL_UPLOAD_SNAPSHOT:
                 // Real-time multi-metric snapshot push (0x0600). Last byte is HR;
@@ -366,42 +374,53 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     // -------- History --------
 
     /**
-     * Send {@code HEALTH_DELETE_*} only when every record in the just-received
-     * batch is older than {@link #HISTORY_DELETE_AGE_THRESHOLD_MS}. This
-     * guarantees that other companion apps (OEM SmartHealth, etc.) can still
-     * read data &lt;7 days old from the ring even after Gadgetbridge has synced
-     * it. {@code newestTsMs == 0} means the batch was empty — nothing to delete.
+     * High-water-mark gate. Returns {@code true} if a record at {@code recordTsMs}
+     * is strictly newer than the persisted HWM and should be written to the DB.
+     * The caller is responsible for advancing the HWM after the batch is
+     * processed via {@link #advanceHwm(String, long)}.
+     *
+     * <p>Visible-for-testing pure function.
      */
-    private void maybeDelete(long newestTsMs, int deleteOpcode, String label) {
-        if (shouldDeleteHistory(newestTsMs, System.currentTimeMillis(), HISTORY_DELETE_AGE_THRESHOLD_MS)) {
-            long ageDays = (System.currentTimeMillis() - newestTsMs) / (24L * 3600_000L);
-            LOG.info("R20 {} delete: batch newest is {}d old (>= 7d cutoff), sending DELETE 0x{}",
-                    label, ageDays, Integer.toHexString(deleteOpcode));
-            sendHistoryDelete(deleteOpcode);
-        } else if (newestTsMs <= 0L) {
-            LOG.debug("R20 {} delete skipped: empty batch", label);
-        } else {
-            long ageHours = (System.currentTimeMillis() - newestTsMs) / 3600_000L;
-            LOG.info("R20 {} delete skipped: batch contains <7d records (newest is {}h old) — preserving on-ring history for other apps",
-                    label, ageHours);
+    static boolean isNewRecord(long recordTsMs, long hwmTsMs) {
+        return recordTsMs > 0L && recordTsMs > hwmTsMs;
+    }
+
+    /** Read the HWM for a given metric. Returns 0 if no records have ever been processed. */
+    private long getHwm(String key) {
+        try {
+            return getDevicePrefs().getLong(key, 0L);
+        } catch (Exception e) {
+            // Some upstream prefs paths return String — accept both.
+            try {
+                String s = getDevicePrefs().getString(key, "0");
+                return Long.parseLong(s);
+            } catch (Exception e2) {
+                return 0L;
+            }
         }
     }
 
-    /**
-     * Visible-for-testing 7-day delete gate. Returns {@code true} when the
-     * just-received batch is non-empty <em>and</em> the newest record in it is
-     * at least {@code thresholdMs} old — which means it is safe to instruct
-     * the ring to drop this entire batch because no fresh data would be lost
-     * for other apps reading the same on-device buffer.
-     */
-    static boolean shouldDeleteHistory(long newestTsMs, long nowMs, long thresholdMs) {
-        if (newestTsMs <= 0L) return false;
-        return (nowMs - newestTsMs) >= thresholdMs;
+    /** Advance the per-metric HWM if {@code candidateMs} exceeds the current value. */
+    private void advanceHwm(String key, long candidateMs) {
+        if (candidateMs <= 0L) return;
+        long cur = getHwm(key);
+        if (candidateMs > cur) {
+            try {
+                getDevicePrefs().getPreferences().edit().putLong(key, candidateMs).apply();
+                LOG.debug("R20 HWM {} -> {}", key, candidateMs);
+            } catch (Exception e) {
+                LOG.warn("R20 failed to persist HWM {}", key, e);
+            }
+        }
     }
 
     private long handleHrHistory(byte[] payload) {
-        final List<R20Packet.HrRecord> records = R20Packet.parseHrRecords(payload);
-        LOG.info("R20 HR history block: {} records", records.size());
+        final List<R20Packet.HrRecord> all = R20Packet.parseHrRecords(payload);
+        final long hwm = getHwm(HWM_HR);
+        final List<R20Packet.HrRecord> records = new ArrayList<>(all.size());
+        for (R20Packet.HrRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
+        LOG.info("R20 HR history block: {} records ({} new, {} already-seen, hwm={})",
+                all.size(), records.size(), all.size() - records.size(), hwm);
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -422,12 +441,17 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         sendHistoryAck(R20Constants.HEALTH_STREAM_HEART, payload.length);
         long newest = 0L;
         for (R20Packet.HrRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
+        advanceHwm(HWM_HR, newest);
         return newest;
     }
 
     private long handleBpHistory(byte[] payload) {
-        List<R20Packet.BpRecord> records = R20Packet.parseBpRecords(payload);
-        LOG.info("R20 BP history block: {} records", records.size());
+        final List<R20Packet.BpRecord> all = R20Packet.parseBpRecords(payload);
+        final long hwm = getHwm(HWM_BP);
+        final List<R20Packet.BpRecord> records = new ArrayList<>(all.size());
+        for (R20Packet.BpRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
+        LOG.info("R20 BP history block: {} records ({} new, {} already-seen, hwm={})",
+                all.size(), records.size(), all.size() - records.size(), hwm);
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -450,6 +474,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
         long newest = 0L;
         for (R20Packet.BpRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
+        advanceHwm(HWM_BP, newest);
         return newest;
     }
 
@@ -470,8 +495,12 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private long handleAllHistory(byte[] payload) {
-        final List<R20Packet.AllRecord> records = R20Packet.parseAllRecords(payload);
-        LOG.info("R20 All-metrics history block: {} records", records.size());
+        final List<R20Packet.AllRecord> all = R20Packet.parseAllRecords(payload);
+        final long hwm = getHwm(HWM_ALL);
+        final List<R20Packet.AllRecord> records = new ArrayList<>(all.size());
+        for (R20Packet.AllRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
+        LOG.info("R20 All-metrics history block: {} records ({} new, {} already-seen, hwm={})",
+                all.size(), records.size(), all.size() - records.size(), hwm);
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
@@ -512,17 +541,19 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
         long newest = 0L;
         for (R20Packet.AllRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
+        advanceHwm(HWM_ALL, newest);
         return newest;
     }
 
     /** Parse + log sport-history records (active periods with steps / distance / calories).
-     *  Persisted via the existing per-record HR/Spo2 stream — sport activity counters
-     *  are aggregated daily by Gadgetbridge from the ring's "now-step" reading; the
-     *  per-interval records logged here give us the granular session breakdown for
-     *  future activity-summary support. */
+     *  Records older than the per-metric HWM are dropped without DB writes. */
     private long handleSportHistory(byte[] payload) {
-        final List<R20Packet.SportRecord> records = R20Packet.parseSportRecords(payload);
-        LOG.info("R20 Sport history block: {} records ({} bytes)", records.size(), payload.length);
+        final List<R20Packet.SportRecord> all = R20Packet.parseSportRecords(payload);
+        final long hwm = getHwm(HWM_SPORT);
+        final List<R20Packet.SportRecord> records = new ArrayList<>(all.size());
+        for (R20Packet.SportRecord r : all) if (isNewRecord(r.endTimeMs, hwm)) records.add(r);
+        LOG.info("R20 Sport history block: {} records ({} new, {} already-seen, hwm={}, {} bytes)",
+                all.size(), records.size(), all.size() - records.size(), hwm, payload.length);
         long newest = 0L;
         for (R20Packet.SportRecord r : records) {
             LOG.info("  Sport @{}..{}: steps={} distance={}m kcal={} duration={}s",
@@ -530,12 +561,17 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             if (r.endTimeMs > newest) newest = r.endTimeMs;
         }
         sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
+        advanceHwm(HWM_SPORT, newest);
         return newest;
     }
 
     private long handleSleepHistory(byte[] payload) {
-        final List<R20Packet.SleepSession> sessions = R20Packet.parseSleepSessions(payload);
-        LOG.info("R20 Sleep history block: {} session(s)", sessions.size());
+        final List<R20Packet.SleepSession> allSessions = R20Packet.parseSleepSessions(payload);
+        final long hwm = getHwm(HWM_SLEEP);
+        final List<R20Packet.SleepSession> sessions = new ArrayList<>(allSessions.size());
+        for (R20Packet.SleepSession s : allSessions) if (isNewRecord(s.endTimeMs, hwm)) sessions.add(s);
+        LOG.info("R20 Sleep history block: {} session(s) ({} new, {} already-seen, hwm={})",
+                allSessions.size(), sessions.size(), allSessions.size() - sessions.size(), hwm);
         withDb((session, deviceId, userId) -> {
             GenericSleepStageSampleProvider provider =
                     new GenericSleepStageSampleProvider(getDevice(), session);
@@ -610,6 +646,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
         long newest = 0L;
         for (R20Packet.SleepSession s : sessions) if (s.endTimeMs > newest) newest = s.endTimeMs;
+        advanceHwm(HWM_SLEEP, newest);
         return newest;
     }
 
