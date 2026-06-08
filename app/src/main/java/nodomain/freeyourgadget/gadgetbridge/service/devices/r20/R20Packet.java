@@ -439,4 +439,46 @@ public final class R20Packet {
         }
         return out;
     }
+
+    /**
+     * Sport-history record (14 bytes per record) from {@code HEALTH_STREAM_SPORT}
+     * (0x0511). Layout cross-verified against
+     * {@code com.yucheng.ycbtsdk.core.DataUnpack.unpackHealthData} case 2:
+     * <pre>
+     *   bytes  0..3   startTime (uint32 LE, + EPOCH_2000_UNIX_SECONDS)
+     *   bytes  4..7   endTime   (uint32 LE, + EPOCH_2000_UNIX_SECONDS)
+     *   bytes  8..9   stepValue (uint16 LE)
+     *   bytes 10..11  sportDistance (uint16 LE, meters)
+     *   bytes 12..13  sportCalorie  (uint16 LE, kcal)
+     * </pre>
+     * Each interval typically represents an active period detected by the
+     * onboard accelerometer (the firmware bundles continuous step-active
+     * windows into single records rather than per-minute samples).
+     */
+    public static final class SportRecord {
+        public final long startTimeMs;
+        public final long endTimeMs;
+        public final int  steps;
+        public final int  distanceMeters;
+        public final int  calorieKcal;
+        public SportRecord(long start, long end, int steps, int dist, int kcal) {
+            this.startTimeMs = start; this.endTimeMs = end;
+            this.steps = steps; this.distanceMeters = dist; this.calorieKcal = kcal;
+        }
+        public int durationSec() { return (int) Math.max(0L, (endTimeMs - startTimeMs) / 1000L); }
+    }
+
+    public static List<SportRecord> parseSportRecords(byte[] payload) {
+        List<SportRecord> out = new ArrayList<>();
+        if (payload == null) return out;
+        for (int i = 0; i + 14 <= payload.length; i += 14) {
+            long start = ts2k_to_unix_ms(payload, i);
+            long end   = ts2k_to_unix_ms(payload, i + 4);
+            int steps  = (payload[i + 8]  & 0xFF) | ((payload[i + 9]  & 0xFF) << 8);
+            int dist   = (payload[i + 10] & 0xFF) | ((payload[i + 11] & 0xFF) << 8);
+            int kcal   = (payload[i + 12] & 0xFF) | ((payload[i + 13] & 0xFF) << 8);
+            out.add(new SportRecord(start, end, steps, dist, kcal));
+        }
+        return out;
+    }
 }

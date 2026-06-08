@@ -294,7 +294,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 sendHistoryDelete(R20Constants.HEALTH_DELETE_ALL);
                 break;
             case R20Constants.HEALTH_STREAM_SPORT:
-                LOG.info("R20 Sport history block: {} bytes (parser TBD)", p.length);
+                handleSportHistory(p);
                 sendHistoryDelete(R20Constants.HEALTH_DELETE_SPORT);
                 break;
             case R20Constants.REAL_UPLOAD_SNAPSHOT:
@@ -316,6 +316,26 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // Empty-payload ACK from the ring acknowledging our history-fetch request.
                 // Real data arrives separately via the HEALTH_STREAM_* opcodes; nothing to do here.
                 LOG.debug("R20 history ACK dtype=0x{} (no data)", Integer.toHexString(dtype));
+                break;
+            case R20Constants.HEALTH_DELETE_SPORT:
+            case R20Constants.HEALTH_DELETE_SLEEP:
+            case R20Constants.HEALTH_DELETE_HEART:
+            case R20Constants.HEALTH_DELETE_BLOOD:
+            case R20Constants.HEALTH_DELETE_ALL:
+            case R20Constants.HEALTH_HISTORY_ACK:
+                // Echo / confirmation of our own delete + history-ack sends. These are
+                // expected — silence at DEBUG to keep the log readable when the user
+                // is actually trying to diagnose a real issue.
+                LOG.debug("R20 history control echo dtype=0x{}", Integer.toHexString(dtype));
+                break;
+            case R20Constants.SETTING_TIME:        // 0x0100
+            case 0x0103:                           // setting echo (unit/language)
+            case R20Constants.ENABLE_HEALTH_SENSORS: // 0x0104
+            case 0x0109:                           // setting echo (user info)
+            case 0x010C:                           // sensor mode echo (primeSensors / spo2 cadence)
+            case 0x0112:                           // setting echo (sedentary etc.)
+            case 0x0126:                           // setting echo (background-monitor cadence)
+                LOG.debug("R20 setting ACK dtype=0x{}", Integer.toHexString(dtype));
                 break;
             default:
                 LOG.debug("R20 unhandled frame dtype=0x{} payload={}",
@@ -441,6 +461,21 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         });
         sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
+    }
+
+    /** Parse + log sport-history records (active periods with steps / distance / calories).
+     *  Persisted via the existing per-record HR/Spo2 stream — sport activity counters
+     *  are aggregated daily by Gadgetbridge from the ring's "now-step" reading; the
+     *  per-interval records logged here give us the granular session breakdown for
+     *  future activity-summary support. */
+    private void handleSportHistory(byte[] payload) {
+        final List<R20Packet.SportRecord> records = R20Packet.parseSportRecords(payload);
+        LOG.info("R20 Sport history block: {} records ({} bytes)", records.size(), payload.length);
+        for (R20Packet.SportRecord r : records) {
+            LOG.info("  Sport @{}..{}: steps={} distance={}m kcal={} duration={}s",
+                    r.startTimeMs, r.endTimeMs, r.steps, r.distanceMeters, r.calorieKcal, r.durationSec());
+        }
+        sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
     }
 
     private void handleSleepHistory(byte[] payload) {
