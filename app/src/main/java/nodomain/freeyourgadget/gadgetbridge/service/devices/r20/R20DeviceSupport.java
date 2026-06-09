@@ -110,6 +110,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     static final String HWM_BP     = PREF_HWM_PREFIX + "bp";
     static final String HWM_SLEEP  = PREF_HWM_PREFIX + "sleep";
     static final String HWM_SPORT  = PREF_HWM_PREFIX + "sport";
+    static final String HWM_SPORT_MODE = PREF_HWM_PREFIX + "sport_mode";
     static final String HWM_ALL    = PREF_HWM_PREFIX + "all";
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
@@ -320,6 +321,17 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             case R20Constants.HEALTH_STREAM_SPORT:
                 handleSportHistory(p);
+                break;
+            case R20Constants.HEALTH_HISTORY_SPORT_MODE:
+                // Empty-payload ACKs for our HEALTH_HISTORY_SPORT_MODE request
+                // are handled by the no-op block below; non-empty frames carry
+                // 25-byte session records.
+                if (p.length >= 25) {
+                    handleSportModeHistory(p);
+                } else {
+                    LOG.debug("R20 sport-mode history ACK dtype=0x{} (no data)",
+                            Integer.toHexString(dtype));
+                }
                 break;
             case R20Constants.REAL_UPLOAD_SNAPSHOT:
                 // Real-time multi-metric snapshot push (0x0600). Last byte is HR;
@@ -624,6 +636,39 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return newest;
     }
 
+    /**
+     * Parse + log manual-workout / sport-mode session records (25 bytes each)
+     * from the {@code HEALTH_HISTORY_SPORT_MODE} response stream.
+     *
+     * <p>Sessions are HWM-filtered (read-only-ring + idempotent-resync pattern,
+     * matching the other history paths). Persistence as {@code BaseActivitySummary}
+     * rows for the dashboard "Workouts" UI is deferred until the layout is
+     * validated against a real captured workout — without one we cannot be 100%
+     * certain the firmware streams responses on this opcode rather than a
+     * sibling code. The parser itself is validated by
+     * {@code R20PacketSportModeRecordTest} against the SDK byte arithmetic.
+     */
+    private long handleSportModeHistory(byte[] payload) {
+        final List<R20Packet.SportModeRecord> all = R20Packet.parseSportModeRecords(payload);
+        final long hwm = getHwm(HWM_SPORT_MODE);
+        final List<R20Packet.SportModeRecord> records = new ArrayList<>(all.size());
+        for (R20Packet.SportModeRecord r : all) if (isNewRecord(r.endTimeMs, hwm)) records.add(r);
+        logHistoryBlock("SportMode", all.size(), records.size(), hwm, payload.length);
+        long newest = 0L;
+        for (R20Packet.SportModeRecord r : records) {
+            LOG.info("  Workout {} ({}): @{}..{} steps={} dist={}m kcal={} HR avg/min/max={}/{}/{} active={}s",
+                    R20Packet.sportModeName(r.sportMode),
+                    r.isManualStart() ? "manual" : "auto",
+                    r.startTimeMs, r.endTimeMs,
+                    r.sportSteps, r.distanceMeters, r.calorieKcal,
+                    r.avgHr, r.minHr, r.maxHr, r.activeDurationSec);
+            if (r.endTimeMs > newest) newest = r.endTimeMs;
+        }
+        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_HISTORY_SPORT_MODE, payload.length);
+        advanceHwm(HWM_SPORT_MODE, newest);
+        return newest;
+    }
+
     private long handleSleepHistory(byte[] payload) {
         final List<R20Packet.SleepSession> allSessions = R20Packet.parseSleepSessions(payload);
         final long hwm = getHwm(HWM_SLEEP);
@@ -852,6 +897,12 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // callers set the activity bit).  TODO: split if upstream adds a TYPE_BP.
                 writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_BLOOD));
                 writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT));
+                any = true;
+            }
+            if ((dataTypes & RecordedDataTypes.TYPE_WORKOUTS) != 0) {
+                // Manual workout sessions started from the ring's UI
+                // (Group_Health=5, KEY_Health.HistorySportMode=45 → 0x052D).
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT_MODE));
                 any = true;
             }
             if ((dataTypes & RecordedDataTypes.TYPE_SLEEP) != 0) {

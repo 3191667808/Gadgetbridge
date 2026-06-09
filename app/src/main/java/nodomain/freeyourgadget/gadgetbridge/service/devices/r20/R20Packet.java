@@ -484,4 +484,117 @@ public final class R20Packet {
         }
         return out;
     }
+
+    /**
+     * Manual workout session record (25 bytes per session). Layout decoded from
+     * the YCBT SDK {@code DataUnpack.unpackHealthData} case 45
+     * ({@code Health_HistorySportMode}):
+     * <pre>
+     *   bytes  0..3   startTime          (uint32 LE, + EPOCH_2000_UNIX_SECONDS)
+     *   bytes  4..7   endTime            (uint32 LE, + EPOCH_2000_UNIX_SECONDS)
+     *   bytes  8..11  sportSteps         (uint32 LE)
+     *   bytes 12..13  sportDistance      (uint16 LE, meters)
+     *   bytes 14..15  sportCalories      (uint16 LE, kcal)
+     *   byte  16      sportMode          (1=walking, 2=running, 3=cycling, 4=climbing,
+     *                                     5=hiking, 6=swimming, 7=indoor-run, 8=spinning,
+     *                                     9=yoga, 10=rowing, 11=elliptical, ...
+     *                                     full table firmware-version dependent)
+     *   byte  17      startMethod        (0 = manual user-start from ring,
+     *                                     1 = auto-detect by firmware accelerometer)
+     *   byte  18      sportHeartRate     (average HR, bpm)
+     *   bytes 19..22  sportTime          (uint32 LE, total active duration in seconds —
+     *                                     differs from end-start when the session was
+     *                                     paused mid-workout)
+     *   byte  23      minHeartRate       (bpm)
+     *   byte  24      maxHeartRate       (bpm)
+     * </pre>
+     *
+     * <p><b>Note:</b> the byte layout is pinned to the SDK reference; the per-session
+     * fields have not yet been observed live on the user's R20 fw 2.32 hardware (no
+     * captured workout in the project's ble_dumps/ as of 2026-06-09). The parser is
+     * defensive against malformed payloads and will round-trip the
+     * {@link R20PacketSportModeRecordTest} golden bytes.
+     */
+    public static final class SportModeRecord {
+        public final long startTimeMs;
+        public final long endTimeMs;
+        public final long sportSteps;
+        public final int  distanceMeters;
+        public final int  calorieKcal;
+        public final int  sportMode;
+        public final int  startMethod;
+        public final int  avgHr;
+        public final long activeDurationSec;
+        public final int  minHr;
+        public final int  maxHr;
+
+        public SportModeRecord(long startMs, long endMs, long steps, int dist, int kcal,
+                               int mode, int startMethod, int avgHr, long activeSec,
+                               int minHr, int maxHr) {
+            this.startTimeMs = startMs;
+            this.endTimeMs = endMs;
+            this.sportSteps = steps;
+            this.distanceMeters = dist;
+            this.calorieKcal = kcal;
+            this.sportMode = mode;
+            this.startMethod = startMethod;
+            this.avgHr = avgHr;
+            this.activeDurationSec = activeSec;
+            this.minHr = minHr;
+            this.maxHr = maxHr;
+        }
+
+        public boolean isManualStart() { return startMethod == 0; }
+        public boolean isAutoDetected() { return startMethod == 1; }
+    }
+
+    public static List<SportModeRecord> parseSportModeRecords(byte[] payload) {
+        List<SportModeRecord> out = new ArrayList<>();
+        if (payload == null) return out;
+        for (int i = 0; i + 25 <= payload.length; i += 25) {
+            long start    = ts2k_to_unix_ms(payload, i);
+            long end      = ts2k_to_unix_ms(payload, i + 4);
+            long steps    = ((long)(payload[i + 8]  & 0xFF))
+                          | ((long)(payload[i + 9]  & 0xFF) << 8)
+                          | ((long)(payload[i + 10] & 0xFF) << 16)
+                          | ((long)(payload[i + 11] & 0xFF) << 24);
+            int dist      = (payload[i + 12] & 0xFF) | ((payload[i + 13] & 0xFF) << 8);
+            int kcal      = (payload[i + 14] & 0xFF) | ((payload[i + 15] & 0xFF) << 8);
+            int mode      = payload[i + 16] & 0xFF;
+            int startMeth = payload[i + 17] & 0xFF;
+            int avgHr     = payload[i + 18] & 0xFF;
+            long active   = ((long)(payload[i + 19] & 0xFF))
+                          | ((long)(payload[i + 20] & 0xFF) << 8)
+                          | ((long)(payload[i + 21] & 0xFF) << 16)
+                          | ((long)(payload[i + 22] & 0xFF) << 24);
+            int minHr     = payload[i + 23] & 0xFF;
+            int maxHr     = payload[i + 24] & 0xFF;
+            out.add(new SportModeRecord(start, end, steps, dist, kcal, mode,
+                                         startMeth, avgHr, active, minHr, maxHr));
+        }
+        return out;
+    }
+
+    /**
+     * Map a Yucheng {@code sportMode} byte to a human-readable label. Names are
+     * stable across the SDK family but the numeric IDs may differ on newer
+     * firmware revisions — caller should fall back to "Sport #N" for unknowns.
+     */
+    public static String sportModeName(int mode) {
+        switch (mode) {
+            case 1:  return "Walking";
+            case 2:  return "Running";
+            case 3:  return "Cycling";
+            case 4:  return "Climbing";
+            case 5:  return "Hiking";
+            case 6:  return "Swimming";
+            case 7:  return "Treadmill";
+            case 8:  return "Spinning";
+            case 9:  return "Yoga";
+            case 10: return "Rowing";
+            case 11: return "Elliptical";
+            case 12: return "Strength";
+            default: return "Sport #" + mode;
+        }
+    }
 }

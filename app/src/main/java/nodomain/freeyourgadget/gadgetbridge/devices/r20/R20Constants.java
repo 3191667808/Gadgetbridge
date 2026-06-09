@@ -75,6 +75,12 @@ public final class R20Constants {
     public static final int HEALTH_HISTORY_HEART      = 0x0506;
     public static final int HEALTH_HISTORY_BLOOD      = 0x0508;
     public static final int HEALTH_HISTORY_ALL        = 0x0509;
+    /** Manual-workout session history (Group_Health=5 / KEY_Health.HistorySportMode=45).
+     *  Triggers the firmware to stream {@code HEALTH_STREAM_SPORT_MODE} records carrying
+     *  per-session sport type, start method (manual vs auto-detect), avg/min/max HR,
+     *  duration, steps, distance and calories. Layout decoded by the parser in
+     *  {@link nodomain.freeyourgadget.gadgetbridge.service.devices.r20.R20Packet#parseSportModeRecords}. */
+    public static final int HEALTH_HISTORY_SPORT_MODE = 0x052D;
     // History data-stream opcodes (returned after request)
     public static final int HEALTH_STREAM_SPORT       = 0x0511;
     public static final int HEALTH_STREAM_SLEEP       = 0x0513;
