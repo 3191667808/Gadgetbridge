@@ -53,6 +53,8 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCharacteristic;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -508,7 +510,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             final java.util.List<GenericHeartRateSample> hrBatch = new ArrayList<>(records.size());
             final java.util.List<GenericBloodPressureSample> bpBatch = new ArrayList<>(records.size());
             for (R20Packet.BpRecord r : records) {
-                LOG.info("  BP @{}: {}/{} mmHg @ {} bpm",
+                LOG.debug("  BP @{}: {}/{} mmHg @ {} bpm",
                         r.timestampMs, r.systolic, r.diastolic, r.hr);
                 bpBatch.add(new GenericBloodPressureSample(
                         r.timestampMs, deviceId, userId,
@@ -671,16 +673,33 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
 
             // Cardiorespiratory fitness — VO2max from HRmax/HRrest ratio (Uth 2004).
-            // Logged for now; persistence will arrive once a generic VO2max
-            // provider exists in upstream Gadgetbridge.
             try {
-                int age = GBApplication.getPrefs().getInt("activity_user_age", 30);
+                int age = new ActivityUser().getAge();
                 int hrMax = R20DerivedMetrics.tanakaHrMax(age);
+                // Compute true min/max of the session block: the firmware can stream
+                // sessions out of order, so trusting List index 0/last would yield
+                // an inverted (from > to) window and an empty HR query.
+                long minStartMs = Long.MAX_VALUE;
+                long maxEndMs   = Long.MIN_VALUE;
+                for (R20Packet.SleepSession s : sessions) {
+                    if (s.startTimeMs < minStartMs) minStartMs = s.startTimeMs;
+                    if (s.endTimeMs   > maxEndMs)   maxEndMs   = s.endTimeMs;
+                }
+                // Cap the HR window at 24 h preceding maxEndMs.  Anything longer
+                // pulls thousands of rows into RAM on the BLE thread for no
+                // benefit — the Uth resting-HR estimator only uses the lowest
+                // overnight readings anyway.
+                long windowMs = 24L * 3600_000L;
+                if (maxEndMs - minStartMs > windowMs) {
+                    minStartMs = maxEndMs - windowMs;
+                }
                 List<R20Packet.HrRecord> hrSamples = new ArrayList<>();
-                for (GenericHeartRateSample gs : new GenericHeartRateSampleProvider(getDevice(), session)
-                        .getAllSamples((int) (sessions.get(0).startTimeMs / 1000),
-                                       (int) (sessions.get(sessions.size() - 1).endTimeMs / 1000))) {
-                    hrSamples.add(new R20Packet.HrRecord(gs.getTimestamp(), gs.getHeartRate()));
+                if (maxEndMs > minStartMs) {
+                    for (GenericHeartRateSample gs : new GenericHeartRateSampleProvider(getDevice(), session)
+                            .getAllSamples((int) (minStartMs / 1000),
+                                           (int) (maxEndMs   / 1000))) {
+                        hrSamples.add(new R20Packet.HrRecord(gs.getTimestamp(), gs.getHeartRate()));
+                    }
                 }
                 int rhr = R20DerivedMetrics.restingHrFromSleep(hrSamples, sessions);
                 double vo2 = R20DerivedMetrics.vo2MaxUth(hrMax, rhr);
@@ -688,11 +707,15 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 if (vo2 > 0) {
                     LOG.info("R20 derived VO2max: {} ml/kg/min (HRmax={} RHR={}); cv-age delta: {} years",
                             String.format("%.1f", vo2), hrMax, rhr, String.format("%+.1f", ageDelta));
-                    long ts = sessions.get(sessions.size() - 1).endTimeMs;
+                    // Persist VO2max only; the cv-age delta is logged not stored —
+                    // GenericMetricSample's extra slot is "duration seconds" for
+                    // other metrics in this file, mis-using it would corrupt any
+                    // future generic consumer.
+                    long ts = maxEndMs;
                     GenericMetricSample gms = new GenericMetricSample(
                             ts, deviceId, userId,
                             MetricSample.Metric.GENERIC_MAXIMUM_OXYGEN_UPTAKE.getDbId(),
-                            vo2, Math.round(ageDelta * 100));
+                            vo2, /*extra=*/ null);
                     metricProvider.addSample(gms);
                 }
             } catch (Exception e) {
@@ -819,14 +842,58 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     public void onFetchRecordedData(int dataTypes) {
         try {
             TransactionBuilder b = createTransactionBuilder("R20 history sync");
-            writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_HEART));
-            writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_BLOOD));
-            writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SLEEP));
-            writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT));
-            b.queue();
+            boolean any = false;
+            if ((dataTypes & RecordedDataTypes.TYPE_HEART_RATE) != 0) {
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_HEART));
+                any = true;
+            }
+            if ((dataTypes & RecordedDataTypes.TYPE_ACTIVITY) != 0) {
+                // BP isn't its own bit; piggy-back on TYPE_ACTIVITY (most "sync everything"
+                // callers set the activity bit).  TODO: split if upstream adds a TYPE_BP.
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_BLOOD));
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT));
+                any = true;
+            }
+            if ((dataTypes & RecordedDataTypes.TYPE_SLEEP) != 0) {
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SLEEP));
+                any = true;
+            }
+            if (any) {
+                b.queue();
+            } else {
+                LOG.debug("R20 onFetchRecordedData: bitmask 0x{} matched no R20 categories",
+                        Integer.toHexString(dataTypes));
+            }
         } catch (Exception e) {
             LOG.warn("R20 onFetchRecordedData failed", e);
         }
+    }
+
+    /**
+     * Flush any pending real-time HR samples before the BLE session is torn
+     * down.  Without this the {@link #HR_BUFFER_FLUSH_THRESHOLD}-sample
+     * batching window silently discards up to N-1 samples whenever the ring
+     * disconnects, which on a wearable BLE link is a routine event.
+     */
+    @Override
+    public void dispose() {
+        try {
+            List<GenericHeartRateSample> tail;
+            synchronized (hrBufferLock) {
+                if (hrBuffer.isEmpty()) {
+                    super.dispose();
+                    return;
+                }
+                tail = new ArrayList<>(hrBuffer);
+                hrBuffer.clear();
+                hrBufferLastFlushMs = System.currentTimeMillis();
+            }
+            LOG.debug("R20 dispose: flushing {} buffered HR samples", tail.size());
+            flushHrBuffer(tail);
+        } catch (Exception e) {
+            LOG.warn("R20 dispose: HR buffer flush failed", e);
+        }
+        super.dispose();
     }
 
     /**
