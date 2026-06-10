@@ -83,6 +83,11 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
+    public boolean getSendWriteRequestResponse() {
+        return false;
+    }
+
+    @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         LOG.info("Initializing Fitbit BLE connection scaffold, onboardingMode={}",
                 FitbitConstants.EXPERIMENTAL_ONBOARDING_MODE);
