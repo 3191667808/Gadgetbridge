@@ -43,6 +43,7 @@ import androidx.annotation.RequiresApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingDeque;
@@ -76,6 +77,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
     private BluetoothGatt mBluetoothGatt;
     private BluetoothGattServer mBluetoothGattServer;
     private final Set<? extends BluetoothGattService> mSupportedServerServices;
+    private final List<BluetoothGattService> mPendingServerServices = new ArrayList<>();
 
     private final BlockingDeque<AbstractTransaction> mTransactions;
     private final AtomicBoolean mDisposed;
@@ -344,9 +346,9 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
                 LOG.error("Error opening Gatt Server");
                 return false;
             }
-            for(BluetoothGattService service : mSupportedServerServices) {
-                mBluetoothGattServer.addService(service);
-            }
+            mPendingServerServices.clear();
+            mPendingServerServices.addAll(mSupportedServerServices);
+            addNextServerService();
         }
 
 
@@ -361,6 +363,19 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         }
 
         return mBluetoothGatt != null;
+    }
+
+    private void addNextServerService() {
+        final BluetoothGattServer gattServer = mBluetoothGattServer;
+        if (gattServer == null || mPendingServerServices.isEmpty()) {
+            return;
+        }
+
+        final BluetoothGattService service = mPendingServerServices.remove(0);
+        if (!gattServer.addService(service)) {
+            LOG.error("failed to add server service {}", service.getUuid());
+            addNextServerService();
+        }
     }
 
     private void setDeviceConnectionState(final State newState) {
@@ -1124,6 +1139,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         @Override
         public void onServiceAdded(int status, BluetoothGattService service) {
             LOG.debug("server.onServiceAdded {} {}", service.getUuid(), service.getInstanceId());
+            addNextServerService();
         }
 
         @Override
