@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,7 +67,7 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
     private BtLEQueue mQueue;
     private Map<UUID, BluetoothGattCharacteristic> mAvailableCharacteristics;
     private final Set<UUID> mSupportedServices = new HashSet<>(4);
-    private final Set<BluetoothGattService> mSupportedServerServices = new HashSet<>(4);
+    private final Set<BluetoothGattService> mSupportedServerServices = new LinkedHashSet<>(4);
     private final Logger logger;
 
     private final List<AbstractBleProfile<?>> mSupportedProfiles = new ArrayList<>();

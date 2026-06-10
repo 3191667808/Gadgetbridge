@@ -57,6 +57,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunAirPro4Coordina
 import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunAirSCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.evenrealities.G1DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.femometer.FemometerVinca2DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.fitbit.FitbitCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.colacao.ColaCao21Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.colacao.ColaCao23Coordinator;
@@ -663,6 +664,7 @@ public enum DeviceType {
     VIVITAR_HR_BP_MONITOR_ACTIVITY_TRACKER(VivitarHrBpMonitorActivityTrackerCoordinator.class),
     BOHEMIC_SMART_BRACELET(BohemicSmartBraceletDeviceCoordinator.class),
     SMAQ2OSS(SMAQ2OSSCoordinator.class),
+    FITBIT(FitbitCoordinator.class),
     FITPRO(FitProDeviceCoordinator.class),
     COLACAO21(ColaCao21Coordinator.class),
     COLACAO23(ColaCao23Coordinator.class),
