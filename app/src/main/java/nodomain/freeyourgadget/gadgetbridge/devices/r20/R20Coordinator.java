@@ -19,10 +19,12 @@ package nodomain.freeyourgadget.gadgetbridge.devices.r20;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import android.content.Context;
 import android.bluetooth.le.ScanFilter;
 import android.os.ParcelUuid;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -44,8 +46,10 @@ import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.generic_hr.GenericHeartRateActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSampleDao;
@@ -56,6 +60,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSampleDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProvider;
@@ -139,7 +144,8 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
     @NonNull
     @Override
     public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
-        Map<AbstractDao<?, ?>, Property> map = new HashMap<>(6);
+        Map<AbstractDao<?, ?>, Property> map = new HashMap<>(8);
+        map.put(session.getBaseActivitySummaryDao(),       BaseActivitySummaryDao.Properties.DeviceId);
         map.put(session.getGenericHeartRateSampleDao(),      GenericHeartRateSampleDao.Properties.DeviceId);
         map.put(session.getGenericSpo2SampleDao(),           GenericSpo2SampleDao.Properties.DeviceId);
         map.put(session.getGenericBloodPressureSampleDao(),  GenericBloodPressureSampleDao.Properties.DeviceId);
@@ -157,7 +163,19 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
         // dashboard's main "today" chart, the HR-overlay line, and the latest-HR widgets all
         // see real data instead of an empty view. Pattern lifted from
         // {@link nodomain.freeyourgadget.gadgetbridge.devices.generic_hr.GenericHeartRateActivitySampleProvider}.
+        // TODO(#6239): per @ThomasKuehne, UI should read from HR provider directly; tracked separately.
         return new GenericHeartRateActivitySampleProvider(device, session);
+    }
+
+    @Nullable
+    @Override
+    public ActivitySummaryParser getActivitySummaryParser(final GBDevice device, final Context context) {
+        return new ActivitySummaryParser() {
+            @Override
+            public BaseActivitySummary parseBinaryData(BaseActivitySummary summary, boolean forDetails) {
+                return summary;
+            }
+        };
     }
 
     @Override
@@ -212,16 +230,17 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
 
     // -------- Capabilities --------
 
-    @Override public boolean supportsStepCounter(@NonNull GBDevice device)      { return true; }
+    @Override public boolean supportsStepCounter(@NonNull GBDevice device)      { return false; }
     @Override public boolean supportsDataFetching(@NonNull GBDevice device)     { return true; }
     @Override public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) { return true; }
     @Override public boolean supportsManualHeartRateMeasurement(@NonNull GBDevice device) { return true; }
     @Override public boolean supportsSpo2(@NonNull GBDevice device)             { return true; }
     @Override public boolean supportsBloodPressureMeasurement(@NonNull GBDevice device) { return true; }
     @Override public boolean supportsSleepMeasurement(@NonNull GBDevice device) { return true; }
+    @Override public boolean supportsRecordedActivities(@NonNull GBDevice device) { return true; }
     /** R20 doesn't measure HRV in hardware — supplied as a software-derived proxy. */
     @Override public boolean supportsHrvMeasurement(@NonNull GBDevice device) { return true; }
-    @Override public boolean supportsStressMeasurement(@NonNull GBDevice device) { return true; }
+    @Override public boolean supportsStressMeasurement(@NonNull GBDevice device) { return false; }
     @Override public boolean supportsTemperatureMeasurement(@NonNull GBDevice device) { return true; }
 
     @Override public boolean isExperimental() { return true; }

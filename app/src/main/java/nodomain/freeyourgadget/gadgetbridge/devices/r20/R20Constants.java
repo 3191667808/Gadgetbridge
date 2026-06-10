@@ -64,6 +64,7 @@ public final class R20Constants {
     public static final int GET_POWER_STATISTICS      = 0x0225;
 
     public static final int APP_CONTROL_REAL          = 0x0309;
+    public static final int APP_PRIME_SENSORS         = 0x030C;
     public static final int APP_START_MEASUREMENT     = 0x032F;
 
     public static final int MEASUREMENT_COMPLETE      = 0x040E;

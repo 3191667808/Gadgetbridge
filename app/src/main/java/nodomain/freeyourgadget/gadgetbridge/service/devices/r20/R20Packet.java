@@ -162,7 +162,7 @@ public final class R20Packet {
      *  measurements are more reliable when this precedes the start command.
      */
     public static R20Packet primeSensors() {
-        return new R20Packet(0x030C, new byte[]{0x01, 0x01});
+        return new R20Packet(R20Constants.APP_PRIME_SENSORS, new byte[]{0x01, 0x01});
     }
 
     /** Empty-payload history fetch (e.g. {@code HEALTH_HISTORY_HEART}). */
@@ -337,8 +337,9 @@ public final class R20Packet {
 
             if (sentinel == 0xFFFF) {
                 session.deepSleepCount  = (payload[i + 14] & 0xFF) | ((payload[i + 15] & 0xFF) << 8);
-                session.deepSleepSec    = (payload[i + 16] & 0xFF) | ((payload[i + 17] & 0xFF) << 8);
-                session.lightSleepSec   = (payload[i + 18] & 0xFF) | ((payload[i + 19] & 0xFF) << 8);
+                session.lightSleepCount = 0;
+                session.deepSleepSec    = ((payload[i + 16] & 0xFF) | ((payload[i + 17] & 0xFF) << 8)) * 60;
+                session.lightSleepSec   = ((payload[i + 18] & 0xFF) | ((payload[i + 19] & 0xFF) << 8)) * 60;
             } else {
                 session.deepSleepCount  = sentinel;
                 session.lightSleepCount = (payload[i + 14] & 0xFF) | ((payload[i + 15] & 0xFF) << 8);

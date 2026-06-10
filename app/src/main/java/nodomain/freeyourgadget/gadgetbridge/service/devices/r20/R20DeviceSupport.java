@@ -18,14 +18,15 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.r20;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Handler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.BiConsumer;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
@@ -42,6 +43,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.r20.R20Constants;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
@@ -49,12 +52,15 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericMetricSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
-import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
+import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCharacteristic;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -116,10 +122,20 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
     private long hrBufferLastFlushMs = 0L;
+    private final Handler handler = new Handler();
 
     /** Tracks whether we've already attempted a stale-bond recovery this session
      *  to avoid spinning if the firmware persistently refuses our commands. */
     private final java.util.concurrent.atomic.AtomicBoolean recoveryAttempted = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final Runnable stopManualHeartRateRunnable = () -> {
+        try {
+            TransactionBuilder b = createTransactionBuilder("R20 manual HR stop");
+            writePacket(b, R20Packet.startMeasurement(R20Constants.MEASURE_HEART_RATE, false));
+            b.queue();
+        } catch (Exception e) {
+            LOG.warn("R20 manual HR stop failed", e);
+        }
+    };
 
     public R20DeviceSupport() {
         super(LOG);
@@ -139,6 +155,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
+        recoveryAttempted.set(false);
         builder.setDeviceState(GBDevice.State.INITIALIZING);
 
         // Enable indications on the vendor write+indicate characteristic (BE94/0001)
@@ -172,6 +189,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_BLOOD));
         writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SLEEP));
         writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT));
+        writePacket(builder, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_ALL));
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
@@ -407,7 +425,13 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleStandardHeartRate(byte[] data) {
+        if (data == null || data.length < 2) {
+            return;
+        }
         int flags = data[0] & 0xFF;
+        if ((flags & 1) != 0 && data.length < 3) {
+            return;
+        }
         int bpm = (flags & 1) == 0
                 ? data[1] & 0xFF
                 : (data[1] & 0xFF) | ((data[2] & 0xFF) << 8);
@@ -503,8 +527,12 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
+            final List<GenericHeartRateSample> hrBatch = new ArrayList<>(records.size());
             for (R20Packet.HrRecord r : records) {
-                hrProvider.addSample(new GenericHeartRateSample(r.timestampMs, deviceId, userId, r.bpm));
+                hrBatch.add(new GenericHeartRateSample(r.timestampMs, deviceId, userId, r.bpm));
+            }
+            if (!hrBatch.isEmpty()) {
+                hrProvider.addSamples(hrBatch);
             }
             // HRV proxy (RMSSD-style) per block
             double hrvProxy = R20DerivedMetrics.hrvProxyRmssd(records);
@@ -594,7 +622,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             final java.util.List<GenericSpo2Sample> spo2Batch = new ArrayList<>(records.size());
             final java.util.List<GenericBloodPressureSample> bpBatch = new ArrayList<>(records.size());
             final java.util.List<GenericHrvValueSample> hrvBatch = new ArrayList<>(records.size());
-            final java.util.List<nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample> tempBatch = new ArrayList<>(records.size());
+            final java.util.List<GenericTemperatureSample> tempBatch = new ArrayList<>(records.size());
             for (R20Packet.AllRecord r : records) {
                 if (r.hr > 0 && r.hr < 240) {
                     hrBatch.add(new GenericHeartRateSample(r.timestampMs, deviceId, userId, r.hr));
@@ -612,10 +640,10 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     hrvBatch.add(new GenericHrvValueSample(r.timestampMs, deviceId, userId, r.hrv));
                 }
                 if (r.temperature >= 30.0 && r.temperature <= 45.0) {
-                    tempBatch.add(new nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample(
+                    tempBatch.add(new GenericTemperatureSample(
                             r.timestampMs, deviceId, userId, (float) r.temperature,
-                            nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample.TYPE_UNKNOWN,
-                            nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample.LOCATION_FINGER));
+                            TemperatureSample.TYPE_UNKNOWN,
+                            TemperatureSample.LOCATION_FINGER));
                 }
                 // Body fat, blood sugar, respiration logged but not persisted:
                 // no Gadgetbridge generic providers exist for these yet.
@@ -653,8 +681,49 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     r.startTimeMs, r.endTimeMs, r.steps, r.distanceMeters, r.calorieKcal, r.durationSec());
             if (r.endTimeMs > newest) newest = r.endTimeMs;
         }
-        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
-        advanceHwm(HWM_SPORT, newest);
+        final java.util.concurrent.atomic.AtomicBoolean sportPersisted =
+                new java.util.concurrent.atomic.AtomicBoolean(records.isEmpty());
+        withDb((session, deviceId, userId) -> {
+            BaseActivitySummaryDao summaryDao = session.getBaseActivitySummaryDao();
+            for (R20Packet.SportRecord r : records) {
+                Date startTime = new Date(r.startTimeMs);
+                Date endTime = new Date(r.endTimeMs);
+                long existing = summaryDao.queryBuilder()
+                        .where(BaseActivitySummaryDao.Properties.DeviceId.eq(deviceId),
+                                BaseActivitySummaryDao.Properties.UserId.eq(userId),
+                                BaseActivitySummaryDao.Properties.StartTime.eq(startTime),
+                                BaseActivitySummaryDao.Properties.EndTime.eq(endTime))
+                        .count();
+                if (existing > 0) {
+                    LOG.debug("R20 sport summary already persisted: {}..{}", r.startTimeMs, r.endTimeMs);
+                    continue;
+                }
+
+                BaseActivitySummary summary = new BaseActivitySummary();
+                summary.setDeviceId(deviceId);
+                summary.setUserId(userId);
+                summary.setName(R20Packet.sportModeName(1));
+                summary.setActivityKind(ActivityKind.WALKING.getCode());
+                summary.setStartTime(startTime);
+                summary.setEndTime(endTime);
+
+                ActivitySummaryData summaryData = new ActivitySummaryData();
+                summaryData.add(ActivitySummaryEntries.ACTIVE_SECONDS, r.durationSec(), ActivitySummaryEntries.UNIT_SECONDS);
+                summaryData.add(ActivitySummaryEntries.STEPS, r.steps, ActivitySummaryEntries.UNIT_STEPS);
+                summaryData.add(ActivitySummaryEntries.DISTANCE_METERS, r.distanceMeters, ActivitySummaryEntries.UNIT_METERS);
+                summaryData.add(ActivitySummaryEntries.CALORIES_BURNT, r.calorieKcal, ActivitySummaryEntries.UNIT_KCAL);
+                summary.setSummaryData(summaryData.toString());
+
+                summaryDao.insert(summary);
+            }
+            sportPersisted.set(true);
+        });
+        if (!records.isEmpty() && sportPersisted.get()) {
+            sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
+            advanceHwm(HWM_SPORT, newest);
+        } else if (!records.isEmpty()) {
+            LOG.warn("R20 sport history not persisted; leaving HWM unchanged for retry");
+        }
         return newest;
     }
 
@@ -663,12 +732,8 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
      * from the {@code HEALTH_HISTORY_SPORT_MODE} response stream.
      *
      * <p>Sessions are HWM-filtered (read-only-ring + idempotent-resync pattern,
-     * matching the other history paths). Persistence as {@code BaseActivitySummary}
-     * rows for the dashboard "Workouts" UI is deferred until the layout is
-     * validated against a real captured workout — without one we cannot be 100%
-     * certain the firmware streams responses on this opcode rather than a
-     * sibling code. The parser itself is validated by
-     * {@code R20PacketSportModeRecordTest} against the SDK byte arithmetic.
+     * matching the other history paths) and persisted as {@code BaseActivitySummary}
+     * rows so the "Workouts" UI can list the captured sessions.
      */
     private long handleSportModeHistory(byte[] payload) {
         final List<R20Packet.SportModeRecord> all = R20Packet.parseSportModeRecords(payload);
@@ -686,9 +751,64 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     r.avgHr, r.minHr, r.maxHr, r.activeDurationSec);
             if (r.endTimeMs > newest) newest = r.endTimeMs;
         }
+        withDb((session, deviceId, userId) -> {
+            BaseActivitySummaryDao summaryDao = session.getBaseActivitySummaryDao();
+            for (R20Packet.SportModeRecord r : records) {
+                Date startTime = new Date(r.startTimeMs);
+                Date endTime = new Date(r.endTimeMs);
+                long existing = summaryDao.queryBuilder()
+                        .where(BaseActivitySummaryDao.Properties.DeviceId.eq(deviceId),
+                                BaseActivitySummaryDao.Properties.UserId.eq(userId),
+                                BaseActivitySummaryDao.Properties.StartTime.eq(startTime),
+                                BaseActivitySummaryDao.Properties.EndTime.eq(endTime))
+                        .count();
+                if (existing > 0) {
+                    LOG.debug("R20 workout summary already persisted: {}..{}", r.startTimeMs, r.endTimeMs);
+                    continue;
+                }
+
+                BaseActivitySummary summary = new BaseActivitySummary();
+                summary.setDeviceId(deviceId);
+                summary.setUserId(userId);
+                summary.setName(R20Packet.sportModeName(r.sportMode));
+                summary.setActivityKind(mapSportModeActivityKind(r.sportMode));
+                summary.setStartTime(startTime);
+                summary.setEndTime(endTime);
+
+                ActivitySummaryData summaryData = new ActivitySummaryData();
+                summaryData.add(ActivitySummaryEntries.ACTIVE_SECONDS, r.activeDurationSec, ActivitySummaryEntries.UNIT_SECONDS);
+                summaryData.add(ActivitySummaryEntries.STEPS, r.sportSteps, ActivitySummaryEntries.UNIT_STEPS);
+                summaryData.add(ActivitySummaryEntries.DISTANCE_METERS, r.distanceMeters, ActivitySummaryEntries.UNIT_METERS);
+                summaryData.add(ActivitySummaryEntries.CALORIES_BURNT, r.calorieKcal, ActivitySummaryEntries.UNIT_KCAL);
+                summaryData.add(ActivitySummaryEntries.HR_AVG, r.avgHr, ActivitySummaryEntries.UNIT_BPM);
+                summaryData.add(ActivitySummaryEntries.HR_MIN, r.minHr, ActivitySummaryEntries.UNIT_BPM);
+                summaryData.add(ActivitySummaryEntries.HR_MAX, r.maxHr, ActivitySummaryEntries.UNIT_BPM);
+                summary.setSummaryData(summaryData.toString());
+
+                summaryDao.insert(summary);
+            }
+        });
         if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_HISTORY_SPORT_MODE, payload.length);
         advanceHwm(HWM_SPORT_MODE, newest);
         return newest;
+    }
+
+    static int mapSportModeActivityKind(int sportMode) {
+        switch (sportMode) {
+            case 1:  return ActivityKind.WALKING.getCode();
+            case 2:  return ActivityKind.RUNNING.getCode();
+            case 3:  return ActivityKind.CYCLING.getCode();
+            case 4:  return ActivityKind.CLIMBING.getCode();
+            case 5:  return ActivityKind.HIKING.getCode();
+            case 6:  return ActivityKind.SWIMMING.getCode();
+            case 7:  return ActivityKind.TREADMILL.getCode();
+            case 8:  return ActivityKind.INDOOR_CYCLING.getCode();
+            case 9:  return ActivityKind.YOGA.getCode();
+            case 10: return ActivityKind.ROWING_MACHINE.getCode();
+            case 11: return ActivityKind.ELLIPTICAL_TRAINER.getCode();
+            case 12: return ActivityKind.FITNESS_EXERCISES.getCode();
+            default: return ActivityKind.EXERCISE.getCode();
+        }
     }
 
     private long handleSleepHistory(byte[] payload) {
@@ -700,6 +820,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         withDb((session, deviceId, userId) -> {
             GenericSleepStageSampleProvider provider =
                     new GenericSleepStageSampleProvider(getDevice(), session);
+            final List<GenericSleepStageSample> sleepStageBatch = new ArrayList<>();
             for (R20Packet.SleepSession s : sessions) {
                 int score = R20DerivedMetrics.sleepScore(s);
                 LOG.info("  Sleep {} -> {}: deep={}s light={}s rem={}s wake={}s ({} stages) score={}",
@@ -708,8 +829,11 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 for (R20Packet.SleepStage st : s.stages) {
                     GenericSleepStageSample sample = new GenericSleepStageSample(
                             st.startTimeMs, deviceId, userId, st.durationSec, mapSleepStage(st.type));
-                    provider.addSample(sample);
+                    sleepStageBatch.add(sample);
                 }
+            }
+            if (!sleepStageBatch.isEmpty()) {
+                provider.addSamples(sleepStageBatch);
             }
             double debtH = R20DerivedMetrics.sleepDebtHours(sessions, 8.0);
             LOG.info("R20 sleep debt over last {} sessions: {} hours",
@@ -718,6 +842,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             // Persist sleep score per session + Sleep Regularity Index for the block
             GenericMetricSampleProvider metricProvider =
                     new GenericMetricSampleProvider(getDevice(), session);
+            final List<GenericMetricSample> metricBatch = new ArrayList<>();
             for (R20Packet.SleepSession s : sessions) {
                 int score = R20DerivedMetrics.sleepScore(s);
                 if (score >= 0) {
@@ -726,7 +851,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             s.endTimeMs, deviceId, userId,
                             MetricSample.Metric.GENERIC_SLEEP_SCORE.getDbId(),
                             (double) score, durSec);
-                    metricProvider.addSample(gms);
+                    metricBatch.add(gms);
                 }
             }
             int sri = R20DerivedMetrics.sleepRegularityIndex(sessions);
@@ -736,35 +861,18 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                         ts, deviceId, userId,
                         MetricSample.Metric.GENERIC_SLEEP_REGULARITY.getDbId(),
                         (double) sri, (long) sessions.size());
-                metricProvider.addSample(gms);
+                metricBatch.add(gms);
             }
 
             // Cardiorespiratory fitness — VO2max from HRmax/HRrest ratio (Uth 2004).
             try {
                 int age = new ActivityUser().getAge();
                 int hrMax = R20DerivedMetrics.tanakaHrMax(age);
-                // Compute true min/max of the session block: the firmware can stream
-                // sessions out of order, so trusting List index 0/last would yield
-                // an inverted (from > to) window and an empty HR query.
-                long minStartMs = Long.MAX_VALUE;
-                long maxEndMs   = Long.MIN_VALUE;
-                for (R20Packet.SleepSession s : sessions) {
-                    if (s.startTimeMs < minStartMs) minStartMs = s.startTimeMs;
-                    if (s.endTimeMs   > maxEndMs)   maxEndMs   = s.endTimeMs;
-                }
-                // Cap the HR window at 24 h preceding maxEndMs.  Anything longer
-                // pulls thousands of rows into RAM on the BLE thread for no
-                // benefit — the Uth resting-HR estimator only uses the lowest
-                // overnight readings anyway.
-                long windowMs = 24L * 3600_000L;
-                if (maxEndMs - minStartMs > windowMs) {
-                    minStartMs = maxEndMs - windowMs;
-                }
+                long[] hrWindow = sleepHrWindowMs(sessions);
                 List<R20Packet.HrRecord> hrSamples = new ArrayList<>();
-                if (maxEndMs > minStartMs) {
+                if (hrWindow != null) {
                     for (GenericHeartRateSample gs : new GenericHeartRateSampleProvider(getDevice(), session)
-                            .getAllSamples((int) (minStartMs / 1000),
-                                           (int) (maxEndMs   / 1000))) {
+                            .getAllSamples(hrWindow[0], hrWindow[1])) {
                         hrSamples.add(new R20Packet.HrRecord(gs.getTimestamp(), gs.getHeartRate()));
                     }
                 }
@@ -778,15 +886,18 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     // GenericMetricSample's extra slot is "duration seconds" for
                     // other metrics in this file, mis-using it would corrupt any
                     // future generic consumer.
-                    long ts = maxEndMs;
+                    long ts = hrWindow[1];
                     GenericMetricSample gms = new GenericMetricSample(
                             ts, deviceId, userId,
                             MetricSample.Metric.GENERIC_MAXIMUM_OXYGEN_UPTAKE.getDbId(),
                             vo2, /*extra=*/ null);
-                    metricProvider.addSample(gms);
+                    metricBatch.add(gms);
                 }
             } catch (Exception e) {
                 LOG.debug("R20 VO2max compute skipped: {}", e.getMessage());
+            }
+            if (!metricBatch.isEmpty()) {
+                metricProvider.addSamples(metricBatch);
             }
         });
         if (!sessions.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
@@ -794,6 +905,31 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         for (R20Packet.SleepSession s : sessions) if (s.endTimeMs > newest) newest = s.endTimeMs;
         advanceHwm(HWM_SLEEP, newest);
         return newest;
+    }
+
+    static long[] sleepHrWindowMs(List<R20Packet.SleepSession> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            return null;
+        }
+        // Compute true min/max of the session block: the firmware can stream
+        // sessions out of order, so trusting List index 0/last would yield
+        // an inverted (from > to) window and an empty HR query.
+        long minStartMs = Long.MAX_VALUE;
+        long maxEndMs   = Long.MIN_VALUE;
+        for (R20Packet.SleepSession s : sessions) {
+            if (s.startTimeMs < minStartMs) minStartMs = s.startTimeMs;
+            if (s.endTimeMs   > maxEndMs)   maxEndMs   = s.endTimeMs;
+        }
+        if (maxEndMs <= minStartMs) {
+            return null;
+        }
+        // Cap the HR window at 24 h preceding maxEndMs.  Anything longer
+        // pulls thousands of rows into RAM on the BLE thread for no benefit.
+        long windowMs = 24L * 3600_000L;
+        if (maxEndMs - minStartMs > windowMs) {
+            minStartMs = maxEndMs - windowMs;
+        }
+        return new long[] {minStartMs, maxEndMs};
     }
 
     /** Map Yucheng sleep-stage type code to Gadgetbridge {@link ActivityKind}. */
@@ -898,8 +1034,10 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     public void onHeartRateTest() {
         try {
             TransactionBuilder b = createTransactionBuilder("R20 manual HR");
+            handler.removeCallbacks(stopManualHeartRateRunnable);
             writePacket(b, R20Packet.startMeasurement(R20Constants.MEASURE_HEART_RATE, true));
             b.queue();
+            handler.postDelayed(stopManualHeartRateRunnable, 30_000L);
         } catch (Exception e) {
             LOG.warn("R20 onHeartRateTest failed", e);
         }
@@ -915,15 +1053,22 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 any = true;
             }
             if ((dataTypes & RecordedDataTypes.TYPE_ACTIVITY) != 0) {
-                // BP isn't its own bit; piggy-back on TYPE_ACTIVITY (most "sync everything"
-                // callers set the activity bit).  TODO: split if upstream adds a TYPE_BP.
+                // BP and manual-workout sessions don't have their own bits in
+                // RecordedDataTypes.TYPE_SYNC, so piggy-back on TYPE_ACTIVITY
+                // (every "sync everything" caller sets the activity bit).
+                // TODO: split if upstream ever adds TYPE_BP / promotes TYPE_WORKOUTS
+                // into TYPE_SYNC.
                 writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_BLOOD));
                 writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT));
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_ALL));
+                // Manual workout sessions started from the ring's UI
+                // (Group_Health=5, KEY_Health.HistorySportMode=45 → 0x052D).
+                writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT_MODE));
                 any = true;
             }
             if ((dataTypes & RecordedDataTypes.TYPE_WORKOUTS) != 0) {
-                // Manual workout sessions started from the ring's UI
-                // (Group_Health=5, KEY_Health.HistorySportMode=45 → 0x052D).
+                // Explicit workouts-only sync (rare; activity-bit path above
+                // already covers the common "sync everything" case).
                 writePacket(b, R20Packet.healthHistory(R20Constants.HEALTH_HISTORY_SPORT_MODE));
                 any = true;
             }
@@ -950,23 +1095,30 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
      */
     @Override
     public void dispose() {
-        try {
-            List<GenericHeartRateSample> tail;
-            synchronized (hrBufferLock) {
-                if (hrBuffer.isEmpty()) {
-                    super.dispose();
-                    return;
+        synchronized (ConnectionMonitor) {
+            List<GenericHeartRateSample> tail = null;
+            try {
+                synchronized (hrBufferLock) {
+                    if (!hrBuffer.isEmpty()) {
+                        tail = new ArrayList<>(hrBuffer);
+                        hrBuffer.clear();
+                        hrBufferLastFlushMs = System.currentTimeMillis();
+                    }
                 }
-                tail = new ArrayList<>(hrBuffer);
-                hrBuffer.clear();
-                hrBufferLastFlushMs = System.currentTimeMillis();
+            } catch (Exception e) {
+                LOG.warn("R20 dispose: HR buffer snapshot failed", e);
             }
-            LOG.debug("R20 dispose: flushing {} buffered HR samples", tail.size());
-            flushHrBuffer(tail);
-        } catch (Exception e) {
-            LOG.warn("R20 dispose: HR buffer flush failed", e);
+            handler.removeCallbacksAndMessages(null);
+            super.dispose();
+            if (tail != null) {
+                try {
+                    LOG.debug("R20 dispose: flushing {} buffered HR samples", tail.size());
+                    flushHrBuffer(tail);
+                } catch (Exception e) {
+                    LOG.warn("R20 dispose: HR buffer flush failed", e);
+                }
+            }
         }
-        super.dispose();
     }
 
     /**

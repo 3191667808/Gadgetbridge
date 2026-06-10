@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.r20;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.r20.R20Packet.HrRecord;
@@ -126,7 +127,7 @@ public final class R20WomensHealth {
         }
         if (hrvTodayMs > 0 && hrvBaselineMs > 0) {
             double rel = (hrvTodayMs - hrvBaselineMs) / hrvBaselineMs;
-            if (phase == PHASE_LUTEAL && rel < -0.05)   { corroboration += 30; ev.append("; HRV ").append(String.format("%.0f%%", rel * 100)).append(" vs baseline (Shenoy 2020: −15–25% RMSSD luteal)"); }
+            if (phase == PHASE_LUTEAL && rel < -0.05)   { corroboration += 30; ev.append("; HRV ").append(String.format(Locale.ROOT, "%.0f%%", rel * 100)).append(" vs baseline (Shenoy 2020: −15–25% RMSSD luteal)"); }
             if (phase == PHASE_FOLLICULAR && rel > 0)   { corroboration += 20; ev.append("; HRV above baseline (consistent with follicular)"); }
         }
         if (phase == PHASE_OVULATION) corroboration += 20; // can't biometrically confirm

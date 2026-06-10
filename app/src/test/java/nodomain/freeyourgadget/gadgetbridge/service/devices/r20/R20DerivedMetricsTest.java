@@ -124,6 +124,29 @@ public class R20DerivedMetricsTest {
     }
 
     @Test
+    public void vo2max_sleep_hr_window_uses_milliseconds() {
+        long t0 = 1_700_000_000_000L;
+        SleepSession sleep = new SleepSession();
+        sleep.startTimeMs = t0;
+        sleep.endTimeMs = t0 + 8 * 3600_000L;
+        long[] window = R20DeviceSupport.sleepHrWindowMs(Arrays.asList(sleep));
+
+        assertEquals(t0, window[0]);
+        assertEquals(t0 + 8 * 3600_000L, window[1]);
+        assertTrue("window lower bound must stay in ms, not seconds", window[0] > Integer.MAX_VALUE);
+
+        List<HrRecord> hr = Arrays.asList(
+                new HrRecord(t0 + 0 * 60_000L, 58),
+                new HrRecord(t0 + 1 * 60_000L, 55),
+                new HrRecord(t0 + 2 * 60_000L, 52),
+                new HrRecord(t0 + 3 * 60_000L, 54),
+                new HrRecord(t0 + 4 * 60_000L, 57));
+        int rhr = R20DerivedMetrics.restingHrFromSleep(hr, Arrays.asList(sleep));
+        double vo2 = R20DerivedMetrics.vo2MaxUth(R20DerivedMetrics.tanakaHrMax(40), rhr);
+        assertTrue("vo2=" + vo2, vo2 > 0);
+    }
+
+    @Test
     public void cardiovascular_age_delta_fit_individual() {
         // VO2max 50 ml/kg/min, chronological age 40
         // predicted age = (60 - 50) / 0.55 = 18.2; delta = 18.2 - 40 = -21.8

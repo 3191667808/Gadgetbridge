@@ -128,6 +128,26 @@ public class R20PacketAllRecordTest {
         }
     }
 
+    @Test
+    public void parsesHealthStreamAllExtendedMetrics() {
+        byte[] payload = hex(
+                "a7 49 9c 2f 39 30 48 78 50 61 10 2d 06 24 37 15 25 52 00 00");
+
+        R20Packet.AllRecord r = R20Packet.parseAllRecords(payload).get(0);
+
+        assertEquals(12345, r.steps);
+        assertEquals(72, r.hr);
+        assertEquals(120, r.systolic);
+        assertEquals(80, r.diastolic);
+        assertEquals(97, r.spo2);
+        assertEquals(16, r.respiratoryRate);
+        assertEquals(45, r.hrv);
+        assertEquals(6, r.cvrr);
+        assertEquals(36.55, r.temperature, 0.001);
+        assertEquals(21.37, r.bodyFatPct, 0.001);
+        assertEquals(82, r.bloodSugar);
+    }
+
     /** Empty payload must round-trip to an empty list, not crash. */
     @Test
     public void emptyPayload() {
