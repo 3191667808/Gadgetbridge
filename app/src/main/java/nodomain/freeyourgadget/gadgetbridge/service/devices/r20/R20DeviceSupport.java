@@ -112,6 +112,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
     static final String HWM_SPORT  = PREF_HWM_PREFIX + "sport";
     static final String HWM_SPORT_MODE = PREF_HWM_PREFIX + "sport_mode";
     static final String HWM_ALL    = PREF_HWM_PREFIX + "all";
+    private static final String PREF_BG_SAMPLER_SEEDED = "r20_bg_sampler_seeded";
     private final List<GenericHeartRateSample> hrBuffer = new ArrayList<>();
     private final Object hrBufferLock = new Object();
     private long hrBufferLastFlushMs = 0L;
@@ -176,8 +177,16 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         return builder;
     }
 
-    private static void writePacket(TransactionBuilder builder, R20Packet pkt) {
-        builder.write(R20Constants.UUID_CHAR_WRITE, pkt.encode());
+    private void writePacket(TransactionBuilder builder, R20Packet pkt) {
+        BluetoothGattCharacteristic writeChar = getCharacteristic(R20Constants.UUID_CHAR_WRITE);
+        if (writeChar != null) {
+            // The OEM app uses ATT Write Command (no response) on BE94/0001; keep
+            // the same transport semantics because this firmware is sensitive to it.
+            writeChar.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+            builder.write(writeChar, pkt.encode());
+        } else {
+            builder.write(R20Constants.UUID_CHAR_WRITE, pkt.encode());
+        }
     }
 
     /**
@@ -198,8 +207,21 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
      * (Yucheng SDK uses a single byte).
      */
     private void applySpo2MonitoringPreferences(TransactionBuilder builder) {
+        // Default ON: the R20 doesn't record any continuous health data unless
+        // the firmware-side autonomous sampler is enabled. Leaving this off
+        // means every dashboard graph stays empty until the user manually flips
+        // the prefs toggle, which is the #1 source of "ring not working" reports.
+        // The on-device sampler runs autonomously between BLE sessions and only
+        // streams results during the next sync, so this has zero ongoing radio
+        // cost on the phone side.
+        if (!getDevicePrefs().getBoolean(PREF_BG_SAMPLER_SEEDED, false)) {
+            getDevicePrefs().getPreferences().edit()
+                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, true)
+                    .putBoolean(PREF_BG_SAMPLER_SEEDED, true)
+                    .apply();
+        }
         boolean enabled = getDevicePrefs().getBoolean(
-                DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false);
+                DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, true);
         int intervalSec;
         try {
             intervalSec = Integer.parseInt(getDevicePrefs().getString(
