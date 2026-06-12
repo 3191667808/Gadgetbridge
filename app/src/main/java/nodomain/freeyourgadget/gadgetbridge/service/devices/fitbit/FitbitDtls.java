@@ -17,18 +17,11 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.fitbit;
 
 import org.bouncycastle.shaded.crypto.InvalidCipherTextException;
-import org.bouncycastle.shaded.crypto.engines.AESEngine;
-import org.bouncycastle.shaded.crypto.modes.CCMBlockCipher;
-import org.bouncycastle.shaded.crypto.params.AEADParameters;
-import org.bouncycastle.shaded.crypto.params.KeyParameter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,18 +29,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-
 final class FitbitDtls {
     private static final Logger LOG = LoggerFactory.getLogger(FitbitDtls.class);
 
-    private static final int IPV4_MIN_HEADER_LENGTH = 20;
-    private static final int UDP_HEADER_LENGTH = 8;
-    private static final int UDP_PROTOCOL = 17;
     private static final int DTLS_RECORD_HEADER_LENGTH = 13;
     private static final int DTLS_HANDSHAKE_HEADER_LENGTH = 12;
-    private static final int COAPS_PORT = 5684;
 
     private static final int DTLS_CONTENT_TYPE_CHANGE_CIPHER_SPEC = 0x14;
     private static final int DTLS_CONTENT_TYPE_ALERT = 0x15;
@@ -64,20 +50,10 @@ final class FitbitDtls {
 
     private static final int FITBIT_DTLS_CIPHER_SUITE = 0xc0a4;
     private static final int AES_128_CCM_TAG_LENGTH_BYTES = 16;
-    private static final int AES_128_CCM_TAG_LENGTH_BITS = AES_128_CCM_TAG_LENGTH_BYTES * 8;
     private static final int AES_128_CCM_KEY_LENGTH = 16;
     private static final int AES_128_CCM_FIXED_IV_LENGTH = 4;
     private static final int TLS_MASTER_SECRET_LENGTH = 48;
     private static final int TLS_FINISHED_VERIFY_DATA_LENGTH = 12;
-    private static final int COAP_TYPE_CONFIRMABLE = 0;
-    private static final int COAP_TYPE_NON_CONFIRMABLE = 1;
-    private static final int COAP_TYPE_ACKNOWLEDGEMENT = 2;
-    private static final int COAP_CODE_GET = 0x01;
-    private static final int COAP_CODE_POST = 0x02;
-    private static final int COAP_CODE_CHANGED = 0x44;
-    private static final int COAP_OPTION_URI_PATH = 11;
-    private static final int COAP_PAYLOAD_MARKER = 0xff;
-
     private static final String MOBILE_DATA_IDENTITY_PREFIX = "MD-";
     private static final byte[] CHANGE_CIPHER_SPEC_BODY = new byte[]{0x01};
     private static final byte[] SERVER_HELLO_EXTENSIONS = new byte[]{
@@ -118,7 +94,7 @@ final class FitbitDtls {
     }
 
     byte[] buildCoapGetRequest(final String path) {
-        return buildCoapRequest(path, COAP_CODE_GET, new byte[0]);
+        return buildCoapRequest(path, FitbitCoap.CODE_GET, new byte[0]);
     }
 
     byte[] maybeBuildResponse(final byte[] ipv4Packet) {
@@ -222,13 +198,13 @@ final class FitbitDtls {
                     handshakeState.serverHelloDone,
                     clientFlight.clientKeyExchangeMessage
             );
-            final byte[] masterSecret = tlsPrf(
-                    buildPskPreMasterSecret(psk),
+            final byte[] masterSecret = FitbitDtlsCrypto.tlsPrf(
+                    FitbitDtlsCrypto.buildPskPreMasterSecret(psk),
                     "extended master secret",
-                    sha256(handshakeTranscript),
+                    FitbitDtlsCrypto.sha256(handshakeTranscript),
                     TLS_MASTER_SECRET_LENGTH
             );
-            final byte[] keyBlock = tlsPrf(
+            final byte[] keyBlock = FitbitDtlsCrypto.tlsPrf(
                     masterSecret,
                     "key expansion",
                     concat(handshakeState.serverRandom, handshakeState.clientHello.clientRandom),
@@ -236,7 +212,7 @@ final class FitbitDtls {
             );
             final DtlsKeys keys = new DtlsKeys(keyBlock);
 
-            final byte[] decryptedClientFinished = decryptAes128CcmRecord(
+            final byte[] decryptedClientFinished = FitbitDtlsCrypto.decryptAes128CcmRecord(
                     keys.clientWriteKey,
                     keys.clientWriteIv,
                     DTLS_CONTENT_TYPE_HANDSHAKE,
@@ -246,10 +222,10 @@ final class FitbitDtls {
                     clientFlight.encryptedFinishedBody,
                     DTLS_HANDSHAKE_HEADER_LENGTH + TLS_FINISHED_VERIFY_DATA_LENGTH
             );
-            final byte[] expectedClientVerifyData = tlsPrf(
+            final byte[] expectedClientVerifyData = FitbitDtlsCrypto.tlsPrf(
                     masterSecret,
                     "client finished",
-                    sha256(handshakeTranscript),
+                    FitbitDtlsCrypto.sha256(handshakeTranscript),
                     TLS_FINISHED_VERIFY_DATA_LENGTH
             );
 
@@ -265,10 +241,10 @@ final class FitbitDtls {
                 return null;
             }
 
-            final byte[] serverFinishedVerifyData = tlsPrf(
+            final byte[] serverFinishedVerifyData = FitbitDtlsCrypto.tlsPrf(
                     masterSecret,
                     "server finished",
-                    sha256(concat(handshakeTranscript, decryptedClientFinished)),
+                    FitbitDtlsCrypto.sha256(concat(handshakeTranscript, decryptedClientFinished)),
                     TLS_FINISHED_VERIFY_DATA_LENGTH
             );
             final byte[] serverFinished = buildHandshakeMessage(
@@ -276,7 +252,7 @@ final class FitbitDtls {
                     2,
                     serverFinishedVerifyData
             );
-            final byte[] encryptedServerFinished = encryptAes128CcmRecord(
+            final byte[] encryptedServerFinished = FitbitDtlsCrypto.encryptAes128CcmRecord(
                     keys.serverWriteKey,
                     keys.serverWriteIv,
                     DTLS_CONTENT_TYPE_HANDSHAKE,
@@ -345,7 +321,7 @@ final class FitbitDtls {
             return null;
         }
 
-        final UdpPacket udpPacket = parseUdpPacket(packet);
+        final FitbitIpv4Udp.Packet udpPacket = FitbitIpv4Udp.parse(packet);
         if (udpPacket == null) {
             return null;
         }
@@ -414,7 +390,7 @@ final class FitbitDtls {
 
         final byte[] plaintext;
         try {
-            plaintext = decryptAes128CcmRecord(
+            plaintext = FitbitDtlsCrypto.decryptAes128CcmRecord(
                     dtlsSession.keys.clientWriteKey,
                     dtlsSession.keys.clientWriteIv,
                     DTLS_CONTENT_TYPE_APPLICATION_DATA,
@@ -436,7 +412,7 @@ final class FitbitDtls {
             dtlsSession.nextClientApplicationSequenceNumber = sequenceNumber + 1;
         }
 
-        final CoapMessage request = parseCoapMessage(plaintext);
+        final FitbitCoap.Message request = FitbitCoap.parseMessage(plaintext);
         if (request == null) {
             LOG.warn("Unable to parse Fitbit CoAP request: sequence={}, len={}",
                     sequenceNumber,
@@ -446,31 +422,31 @@ final class FitbitDtls {
 
         LOG.info("Fitbit CoAP request: sequence={}, type={}, code={}, mid={}, token={}, path={}, payloadLen={}",
                 sequenceNumber,
-                formatCoapType(request.type),
-                formatCoapCode(request.code),
+                FitbitCoap.formatType(request.type),
+                FitbitCoap.formatCode(request.code),
                 request.messageId,
                 toHex(request.token),
                 request.path,
                 request.payloadLength);
 
-        if (isCoapResponse(request)) {
+        if (FitbitCoap.isResponse(request)) {
             handleCoapResponse(request);
             return null;
         }
 
-        final Integer responseCode = resolveCoapResponseCode(request);
+        final Integer responseCode = FitbitCoap.resolveResponseCode(request);
         if (responseCode == null) {
             LOG.info("Fitbit CoAP request not handled yet: path={}, code={}, mid={}",
                     request.path,
-                    formatCoapCode(request.code),
+                    FitbitCoap.formatCode(request.code),
                     request.messageId);
             return null;
         }
 
-        final byte[] coapResponse = buildCoapAckResponse(request, responseCode);
+        final byte[] coapResponse = FitbitCoap.buildAckResponse(request, responseCode);
         final long responseSequenceNumber = dtlsSession.nextServerApplicationSequenceNumber++;
         try {
-            final byte[] encryptedResponse = encryptAes128CcmRecord(
+            final byte[] encryptedResponse = FitbitDtlsCrypto.encryptAes128CcmRecord(
                     dtlsSession.keys.serverWriteKey,
                     dtlsSession.keys.serverWriteIv,
                     DTLS_CONTENT_TYPE_APPLICATION_DATA,
@@ -482,7 +458,7 @@ final class FitbitDtls {
 
             LOG.info("Fitbit CoAP response: sequence={}, code={}, mid={}, token={}, path={}",
                     responseSequenceNumber,
-                    formatCoapCode(responseCode),
+                    FitbitCoap.formatCode(responseCode),
                     request.messageId,
                     toHex(request.token),
                     request.path);
@@ -503,7 +479,7 @@ final class FitbitDtls {
     }
 
     private ClientHello parseClientHello(final byte[] packet) {
-        final UdpPacket udpPacket = parseUdpPacket(packet);
+        final FitbitIpv4Udp.Packet udpPacket = FitbitIpv4Udp.parse(packet);
         if (udpPacket == null) {
             return null;
         }
@@ -542,7 +518,7 @@ final class FitbitDtls {
                                                final int bodyOffset,
                                                final int bodyEnd,
                                                final int recordVersion,
-                                               final Endpoint endpoint) {
+                                               final FitbitIpv4Udp.Endpoint endpoint) {
         int handshakeOffset = bodyOffset;
         while (handshakeOffset + DTLS_HANDSHAKE_HEADER_LENGTH <= bodyEnd) {
             final int handshakeType = packet[handshakeOffset] & 0xff;
@@ -579,7 +555,7 @@ final class FitbitDtls {
                                              final int bodyOffset,
                                              final int bodyEnd,
                                              final int recordVersion,
-                                             final Endpoint endpoint) {
+                                             final FitbitIpv4Udp.Endpoint endpoint) {
         int pos = bodyOffset;
         if (pos + 34 > bodyEnd) {
             return null;
@@ -627,7 +603,7 @@ final class FitbitDtls {
     }
 
     private ClientKeyExchangeFlight parseClientKeyExchangeFlight(final byte[] packet) {
-        final UdpPacket udpPacket = parseUdpPacket(packet);
+        final FitbitIpv4Udp.Packet udpPacket = FitbitIpv4Udp.parse(packet);
         if (udpPacket == null) {
             return null;
         }
@@ -704,42 +680,6 @@ final class FitbitDtls {
         return new String(packet, offset + 2, identityLength, StandardCharsets.UTF_8);
     }
 
-    private UdpPacket parseUdpPacket(final byte[] packet) {
-        if (packet.length < IPV4_MIN_HEADER_LENGTH || (packet[0] & 0xf0) != 0x40) {
-            return null;
-        }
-
-        final int headerLength = (packet[0] & 0x0f) * 4;
-        final int totalLength = readU16(packet, 2);
-        if (headerLength < IPV4_MIN_HEADER_LENGTH
-                || totalLength < headerLength + UDP_HEADER_LENGTH
-                || totalLength > packet.length
-                || (packet[9] & 0xff) != UDP_PROTOCOL) {
-            return null;
-        }
-
-        final int udpOffset = headerLength;
-        final int sourcePort = readU16(packet, udpOffset);
-        final int destinationPort = readU16(packet, udpOffset + 2);
-        final int udpLength = readU16(packet, udpOffset + 4);
-        if (udpLength < UDP_HEADER_LENGTH
-                || udpOffset + udpLength > totalLength
-                || (sourcePort != COAPS_PORT && destinationPort != COAPS_PORT)) {
-            return null;
-        }
-
-        return new UdpPacket(
-                new Endpoint(
-                        Arrays.copyOfRange(packet, 12, 16),
-                        Arrays.copyOfRange(packet, 16, 20),
-                        sourcePort,
-                        destinationPort
-                ),
-                udpOffset + UDP_HEADER_LENGTH,
-                udpOffset + udpLength
-        );
-    }
-
     private byte[] buildServerHelloBody(final ClientHello clientHello) {
         final byte[] serverRandomSuffix = new byte[28];
         final byte[] sessionId = new byte[32];
@@ -771,79 +711,6 @@ final class FitbitDtls {
         return body;
     }
 
-    private byte[] encryptAes128CcmRecord(final byte[] key,
-                                          final byte[] fixedIv,
-                                          final int contentType,
-                                          final int version,
-                                          final int epoch,
-                                          final long sequenceNumber,
-                                          final byte[] plaintext) throws InvalidCipherTextException {
-        final byte[] explicitNonce = buildExplicitNonce(epoch, sequenceNumber);
-        final byte[] nonce = concat(fixedIv, explicitNonce);
-        final byte[] aad = buildAeadAdditionalData(contentType, version, epoch, sequenceNumber, plaintext.length);
-        final byte[] encrypted = ccmCrypt(true, key, nonce, aad, plaintext);
-        return concat(explicitNonce, encrypted);
-    }
-
-    private byte[] decryptAes128CcmRecord(final byte[] key,
-                                          final byte[] fixedIv,
-                                          final int contentType,
-                                          final int version,
-                                          final int epoch,
-                                          final long sequenceNumber,
-                                          final byte[] encryptedBody,
-                                          final int plaintextLength) throws InvalidCipherTextException {
-        if (encryptedBody.length < 8 + AES_128_CCM_TAG_LENGTH_BYTES) {
-            throw new InvalidCipherTextException("encrypted DTLS body is too short");
-        }
-
-        final byte[] explicitNonce = Arrays.copyOfRange(encryptedBody, 0, 8);
-        final byte[] encrypted = Arrays.copyOfRange(encryptedBody, 8, encryptedBody.length);
-        final byte[] nonce = concat(fixedIv, explicitNonce);
-        final byte[] aad = buildAeadAdditionalData(contentType, version, epoch, sequenceNumber, plaintextLength);
-        return ccmCrypt(false, key, nonce, aad, encrypted);
-    }
-
-    private byte[] ccmCrypt(final boolean encrypt,
-                            final byte[] key,
-                            final byte[] nonce,
-                            final byte[] aad,
-                            final byte[] input) throws InvalidCipherTextException {
-        final CCMBlockCipher cipher = new CCMBlockCipher(AESEngine.newInstance());
-        cipher.init(encrypt, new AEADParameters(
-                new KeyParameter(key),
-                AES_128_CCM_TAG_LENGTH_BITS,
-                nonce,
-                aad
-        ));
-
-        final byte[] output = new byte[cipher.getOutputSize(input.length)];
-        int outputLength = cipher.processBytes(input, 0, input.length, output, 0);
-        outputLength += cipher.doFinal(output, outputLength);
-        return Arrays.copyOf(output, outputLength);
-    }
-
-    private byte[] buildExplicitNonce(final int epoch, final long sequenceNumber) {
-        final byte[] nonce = new byte[8];
-        writeU16(nonce, 0, epoch);
-        writeU48(nonce, 2, sequenceNumber);
-        return nonce;
-    }
-
-    private byte[] buildAeadAdditionalData(final int contentType,
-                                           final int version,
-                                           final int epoch,
-                                           final long sequenceNumber,
-                                           final int plaintextLength) {
-        final byte[] aad = new byte[13];
-        writeU16(aad, 0, epoch);
-        writeU48(aad, 2, sequenceNumber);
-        aad[8] = (byte) contentType;
-        writeU16(aad, 9, version);
-        writeU16(aad, 11, plaintextLength);
-        return aad;
-    }
-
     private byte[] buildHandshakeMessage(final int handshakeType,
                                          final int messageSequence,
                                          final byte[] body) {
@@ -872,258 +739,8 @@ final class FitbitDtls {
         return record;
     }
 
-    private byte[] buildIpv4UdpResponse(final Endpoint endpoint, final byte[] udpPayload) {
-        final int udpLength = UDP_HEADER_LENGTH + udpPayload.length;
-        final int totalLength = IPV4_MIN_HEADER_LENGTH + udpLength;
-        final byte[] packet = new byte[totalLength];
-
-        packet[0] = 0x45;
-        writeU16(packet, 2, totalLength);
-        writeU16(packet, 4, ipIdentification++ & 0xffff);
-        packet[8] = (byte) 0xff;
-        packet[9] = UDP_PROTOCOL;
-        System.arraycopy(endpoint.destinationAddress, 0, packet, 12, 4);
-        System.arraycopy(endpoint.sourceAddress, 0, packet, 16, 4);
-        writeU16(packet, 10, checksum(packet, 0, IPV4_MIN_HEADER_LENGTH));
-
-        final int udpOffset = IPV4_MIN_HEADER_LENGTH;
-        writeU16(packet, udpOffset, endpoint.destinationPort);
-        writeU16(packet, udpOffset + 2, endpoint.sourcePort);
-        writeU16(packet, udpOffset + 4, udpLength);
-        System.arraycopy(udpPayload, 0, packet, udpOffset + UDP_HEADER_LENGTH, udpPayload.length);
-        writeU16(packet, udpOffset + 6, udpChecksum(packet, udpOffset, udpLength));
-
-        return packet;
-    }
-
-    private CoapMessage parseCoapMessage(final byte[] packet) {
-        if (packet.length < 4) {
-            return null;
-        }
-
-        final int version = (packet[0] >> 6) & 0x03;
-        final int type = (packet[0] >> 4) & 0x03;
-        final int tokenLength = packet[0] & 0x0f;
-        if (version != 1 || tokenLength > 8 || 4 + tokenLength > packet.length) {
-            return null;
-        }
-
-        final int code = packet[1] & 0xff;
-        final int messageId = readU16(packet, 2);
-        final byte[] token = Arrays.copyOfRange(packet, 4, 4 + tokenLength);
-        final List<String> uriPathSegments = new ArrayList<>();
-        int optionNumber = 0;
-        int pos = 4 + tokenLength;
-        byte[] payload = new byte[0];
-
-        while (pos < packet.length) {
-            if ((packet[pos] & 0xff) == COAP_PAYLOAD_MARKER) {
-                pos++;
-                payload = Arrays.copyOfRange(packet, pos, packet.length);
-                break;
-            }
-
-            final int optionHeader = packet[pos++] & 0xff;
-            final int optionDeltaNibble = (optionHeader >> 4) & 0x0f;
-            final int optionLengthNibble = optionHeader & 0x0f;
-            final CoapOptionField optionDelta = readCoapOptionField(packet, pos, optionDeltaNibble);
-            if (optionDelta == null) {
-                return null;
-            }
-            pos = optionDelta.nextOffset;
-
-            final CoapOptionField optionLength = readCoapOptionField(packet, pos, optionLengthNibble);
-            if (optionLength == null || optionLength.nextOffset + optionLength.value > packet.length) {
-                return null;
-            }
-            pos = optionLength.nextOffset;
-
-            optionNumber += optionDelta.value;
-            if (optionNumber == COAP_OPTION_URI_PATH) {
-                uriPathSegments.add(new String(packet, pos, optionLength.value, StandardCharsets.UTF_8));
-            }
-            pos += optionLength.value;
-        }
-
-        return new CoapMessage(type, code, messageId, token, uriPathSegments, payload);
-    }
-
-    private Integer resolveCoapResponseCode(final CoapMessage request) {
-        if (request.type != COAP_TYPE_CONFIRMABLE || request.code != COAP_CODE_POST) {
-            return null;
-        }
-
-        if ("/events".equals(request.path) || "/sync/request".equals(request.path)) {
-            return COAP_CODE_CHANGED;
-        }
-
-        if ("/md/3d02".equals(request.path)) {
-            return COAP_CODE_CHANGED;
-        }
-
-        return null;
-    }
-
-    private static boolean isCoapResponse(final CoapMessage message) {
-        return ((message.code >> 5) & 0x07) != 0;
-    }
-
-    private byte[] buildCoapAckResponse(final CoapMessage request, final int responseCode) {
-        final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        output.write((1 << 6) | (COAP_TYPE_ACKNOWLEDGEMENT << 4) | request.token.length);
-        output.write(responseCode);
-        output.write((request.messageId >> 8) & 0xff);
-        output.write(request.messageId & 0xff);
-        output.write(request.token, 0, request.token.length);
-
-        int previousOptionNumber = 0;
-        for (final String segment : request.uriPathSegments) {
-            final byte[] value = segment.getBytes(StandardCharsets.UTF_8);
-            writeCoapOption(output, COAP_OPTION_URI_PATH - previousOptionNumber, value);
-            previousOptionNumber = COAP_OPTION_URI_PATH;
-        }
-
-        return output.toByteArray();
-    }
-
-    private static CoapOptionField readCoapOptionField(final byte[] packet,
-                                                       final int offset,
-                                                       final int nibble) {
-        if (nibble < 13) {
-            return new CoapOptionField(nibble, offset);
-        }
-
-        if (nibble == 13) {
-            if (offset >= packet.length) {
-                return null;
-            }
-            return new CoapOptionField(13 + (packet[offset] & 0xff), offset + 1);
-        }
-
-        if (nibble == 14) {
-            if (offset + 2 > packet.length) {
-                return null;
-            }
-            return new CoapOptionField(269 + readU16(packet, offset), offset + 2);
-        }
-
-        return null;
-    }
-
-    private static void writeCoapOption(final ByteArrayOutputStream output,
-                                        final int delta,
-                                        final byte[] value) {
-        final int deltaNibble = coapOptionNibble(delta);
-        final int lengthNibble = coapOptionNibble(value.length);
-        output.write((deltaNibble << 4) | lengthNibble);
-        writeCoapOptionExtendedValue(output, delta, deltaNibble);
-        writeCoapOptionExtendedValue(output, value.length, lengthNibble);
-        output.write(value, 0, value.length);
-    }
-
-    private static int coapOptionNibble(final int value) {
-        if (value < 13) {
-            return value;
-        }
-
-        if (value < 269 + 0x10000) {
-            return value < 269 ? 13 : 14;
-        }
-
-        throw new IllegalArgumentException("CoAP option value too large: " + value);
-    }
-
-    private static void writeCoapOptionExtendedValue(final ByteArrayOutputStream output,
-                                                     final int value,
-                                                     final int nibble) {
-        if (nibble == 13) {
-            output.write(value - 13);
-        } else if (nibble == 14) {
-            output.write(((value - 269) >> 8) & 0xff);
-            output.write((value - 269) & 0xff);
-        }
-    }
-
-    private static byte[] buildPskPreMasterSecret(final byte[] psk) {
-        final byte[] secret = new byte[2 + psk.length + 2 + psk.length];
-        int offset = 0;
-        writeU16(secret, offset, psk.length);
-        offset += 2 + psk.length;
-        writeU16(secret, offset, psk.length);
-        offset += 2;
-        System.arraycopy(psk, 0, secret, offset, psk.length);
-        return secret;
-    }
-
-    private static byte[] tlsPrf(final byte[] secret,
-                                 final String label,
-                                 final byte[] seed,
-                                 final int outputLength) throws NoSuchAlgorithmException, InvalidKeyException {
-        final byte[] labelAndSeed = concat(label.getBytes(StandardCharsets.US_ASCII), seed);
-        byte[] a = labelAndSeed;
-        final byte[] output = new byte[outputLength];
-        int outputOffset = 0;
-
-        while (outputOffset < outputLength) {
-            a = hmacSha256(secret, a);
-            final byte[] round = hmacSha256(secret, concat(a, labelAndSeed));
-            final int copyLength = Math.min(round.length, outputLength - outputOffset);
-            System.arraycopy(round, 0, output, outputOffset, copyLength);
-            outputOffset += copyLength;
-        }
-
-        return output;
-    }
-
-    private static byte[] hmacSha256(final byte[] key, final byte[] data)
-            throws NoSuchAlgorithmException, InvalidKeyException {
-        final Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(key, "HmacSHA256"));
-        return mac.doFinal(data);
-    }
-
-    private static byte[] sha256(final byte[] data) throws NoSuchAlgorithmException {
-        return MessageDigest.getInstance("SHA-256").digest(data);
-    }
-
-    private static int checksum(final byte[] packet, final int offset, final int length) {
-        long sum = 0;
-        for (int i = 0; i < length; i += 2) {
-            final int hi = packet[offset + i] & 0xff;
-            final int lo = i + 1 < length ? packet[offset + i + 1] & 0xff : 0;
-            sum += (hi << 8) | lo;
-        }
-        return finishChecksum(sum);
-    }
-
-    private static int udpChecksum(final byte[] packet, final int udpOffset, final int udpLength) {
-        long sum = 0;
-        sum = addAddress(sum, packet, 12);
-        sum = addAddress(sum, packet, 16);
-        sum += UDP_PROTOCOL;
-        sum += udpLength;
-
-        for (int i = 0; i < udpLength; i += 2) {
-            final int hi = packet[udpOffset + i] & 0xff;
-            final int lo = i + 1 < udpLength ? packet[udpOffset + i + 1] & 0xff : 0;
-            sum += (hi << 8) | lo;
-        }
-
-        final int checksum = finishChecksum(sum);
-        return checksum != 0 ? checksum : 0xffff;
-    }
-
-    private static long addAddress(long sum, final byte[] packet, final int offset) {
-        sum += ((packet[offset] & 0xff) << 8) | (packet[offset + 1] & 0xff);
-        sum += ((packet[offset + 2] & 0xff) << 8) | (packet[offset + 3] & 0xff);
-        return sum;
-    }
-
-    private static int finishChecksum(long sum) {
-        while ((sum >> 16) != 0) {
-            sum = (sum & 0xffff) + (sum >> 16);
-        }
-        return (int) (~sum) & 0xffff;
+    private byte[] buildIpv4UdpResponse(final FitbitIpv4Udp.Endpoint endpoint, final byte[] udpPayload) {
+        return FitbitIpv4Udp.buildResponse(endpoint, udpPayload, ipIdentification++ & 0xffff);
     }
 
     private static byte[] concat(final byte[] first, final byte[] second) {
@@ -1237,42 +854,10 @@ final class FitbitDtls {
         return String.format("0x%04x", value & 0xffff);
     }
 
-    private static String formatCoapType(final int type) {
-        if (type == COAP_TYPE_CONFIRMABLE) {
-            return "CON";
-        }
-
-        if (type == COAP_TYPE_NON_CONFIRMABLE) {
-            return "NON";
-        }
-
-        if (type == COAP_TYPE_ACKNOWLEDGEMENT) {
-            return "ACK";
-        }
-
-        return Integer.toString(type);
-    }
-
-    private static String formatCoapCode(final int code) {
-        return String.format("%d.%02d", (code >> 5) & 0x07, code & 0x1f);
-    }
-
     private static String toHex(final byte[] value) {
         final StringBuilder builder = new StringBuilder(value.length * 2);
         for (final byte b : value) {
             builder.append(String.format("%02x", b & 0xff));
-        }
-        return builder.toString();
-    }
-
-    private static String buildCoapPath(final List<String> uriPathSegments) {
-        if (uriPathSegments.isEmpty()) {
-            return "/";
-        }
-
-        final StringBuilder builder = new StringBuilder();
-        for (final String segment : uriPathSegments) {
-            builder.append('/').append(segment);
         }
         return builder.toString();
     }
@@ -1304,46 +889,17 @@ final class FitbitDtls {
         return identity != null && identity.startsWith(MOBILE_DATA_IDENTITY_PREFIX);
     }
 
-    private static final class UdpPacket {
-        private final Endpoint endpoint;
-        private final int dtlsOffset;
-        private final int dtlsEnd;
-
-        private UdpPacket(final Endpoint endpoint, final int dtlsOffset, final int dtlsEnd) {
-            this.endpoint = endpoint;
-            this.dtlsOffset = dtlsOffset;
-            this.dtlsEnd = dtlsEnd;
-        }
-    }
-
-    private static final class Endpoint {
-        private final byte[] sourceAddress;
-        private final byte[] destinationAddress;
-        private final int sourcePort;
-        private final int destinationPort;
-
-        private Endpoint(final byte[] sourceAddress,
-                         final byte[] destinationAddress,
-                         final int sourcePort,
-                         final int destinationPort) {
-            this.sourceAddress = sourceAddress;
-            this.destinationAddress = destinationAddress;
-            this.sourcePort = sourcePort;
-            this.destinationPort = destinationPort;
-        }
-    }
-
     private static final class ClientHello {
         private final int recordVersion;
         private final int clientVersion;
-        private final Endpoint endpoint;
+        private final FitbitIpv4Udp.Endpoint endpoint;
         private final byte[] clientRandom;
         private final int[] cipherSuites;
         private final byte[] handshakeMessage;
 
         private ClientHello(final int recordVersion,
                             final int clientVersion,
-                            final Endpoint endpoint,
+                            final FitbitIpv4Udp.Endpoint endpoint,
                             final byte[] clientRandom,
                             final int[] cipherSuites,
                             final byte[] handshakeMessage) {
@@ -1366,13 +922,13 @@ final class FitbitDtls {
     }
 
     private static final class ClientKeyExchangeFlight {
-        private final Endpoint endpoint;
+        private final FitbitIpv4Udp.Endpoint endpoint;
         private final int recordVersion;
         private final byte[] clientKeyExchangeMessage;
         private final String identity;
         private final byte[] encryptedFinishedBody;
 
-        private ClientKeyExchangeFlight(final Endpoint endpoint,
+        private ClientKeyExchangeFlight(final FitbitIpv4Udp.Endpoint endpoint,
                                         final int recordVersion,
                                         final byte[] clientKeyExchangeMessage,
                                         final String identity,
@@ -1421,46 +977,19 @@ final class FitbitDtls {
     }
 
     private static final class DtlsSession {
-        private final Endpoint endpoint;
+        private final FitbitIpv4Udp.Endpoint endpoint;
         private final int recordVersion;
         private final DtlsKeys keys;
         private long nextClientApplicationSequenceNumber = 1;
         private long nextServerApplicationSequenceNumber = 1;
 
-        private DtlsSession(final Endpoint endpoint,
+        private DtlsSession(final FitbitIpv4Udp.Endpoint endpoint,
                             final int recordVersion,
                             final DtlsKeys keys) {
             this.endpoint = endpoint;
             this.recordVersion = recordVersion;
             this.keys = keys;
         }
-    }
-
-    private static String[] coapPathSegments(final String path) {
-        final String normalized = normalizeOutgoingCoapPath(path);
-        if (normalized.isEmpty()) {
-            return new String[0];
-        }
-        return normalized.split("/");
-    }
-
-    private static String normalizeOutgoingCoapPath(final String path) {
-        if (path == null) {
-            return "";
-        }
-
-        String normalized = path.trim();
-        while (normalized.startsWith("/")) {
-            normalized = normalized.substring(1);
-        }
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
-    }
-
-    private static String coapRequestKey(final int messageId, final byte[] token) {
-        return messageId + ":" + toHex(token);
     }
 
     private byte[] buildCoapRequest(final String path, final int code, final byte[] payload) {
@@ -1471,8 +1000,8 @@ final class FitbitDtls {
 
         final int messageId = nextCoapMessageId++ & 0xffff;
         final byte[] token = nextCoapToken();
-        final byte[] coapRequest = buildCoapRequestMessage(
-                COAP_TYPE_CONFIRMABLE,
+        final byte[] coapRequest = FitbitCoap.buildRequestMessage(
+                FitbitCoap.TYPE_CONFIRMABLE,
                 code,
                 messageId,
                 token,
@@ -1481,7 +1010,7 @@ final class FitbitDtls {
         );
         final long sequenceNumber = dtlsSession.nextServerApplicationSequenceNumber++;
         try {
-            final byte[] encryptedRequest = encryptAes128CcmRecord(
+            final byte[] encryptedRequest = FitbitDtlsCrypto.encryptAes128CcmRecord(
                     dtlsSession.keys.serverWriteKey,
                     dtlsSession.keys.serverWriteIv,
                     DTLS_CONTENT_TYPE_APPLICATION_DATA,
@@ -1490,7 +1019,7 @@ final class FitbitDtls {
                     sequenceNumber,
                     coapRequest
             );
-            pendingCoapRequests.put(coapRequestKey(messageId, token), normalizeOutgoingCoapPath(path));
+            pendingCoapRequests.put(FitbitCoap.requestKey(messageId, token), FitbitCoap.normalizePath(path));
 
             final byte[] dtlsRecord = buildDtlsRecord(
                     DTLS_CONTENT_TYPE_APPLICATION_DATA,
@@ -1502,7 +1031,7 @@ final class FitbitDtls {
             final byte[] ipv4Packet = buildIpv4UdpResponse(dtlsSession.endpoint, dtlsRecord);
             LOG.info("Fitbit CoAP outbound request: sequence={}, code={}, mid={}, token={}, path={}, payloadLen={}",
                     sequenceNumber,
-                    formatCoapCode(code),
+                    FitbitCoap.formatCode(code),
                     messageId,
                     toHex(token),
                     path,
@@ -1524,38 +1053,10 @@ final class FitbitDtls {
         };
     }
 
-    private byte[] buildCoapRequestMessage(final int type,
-                                           final int code,
-                                           final int messageId,
-                                           final byte[] token,
-                                           final String path,
-                                           final byte[] payload) {
-        final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        output.write((1 << 6) | (type << 4) | token.length);
-        output.write(code);
-        output.write((messageId >> 8) & 0xff);
-        output.write(messageId & 0xff);
-        output.write(token, 0, token.length);
-
-        int previousOptionNumber = 0;
-        for (final String segment : coapPathSegments(path)) {
-            final byte[] value = segment.getBytes(StandardCharsets.UTF_8);
-            writeCoapOption(output, COAP_OPTION_URI_PATH - previousOptionNumber, value);
-            previousOptionNumber = COAP_OPTION_URI_PATH;
-        }
-
-        if (payload.length > 0) {
-            output.write(COAP_PAYLOAD_MARKER);
-            output.write(payload, 0, payload.length);
-        }
-
-        return output.toByteArray();
-    }
-
-    private void handleCoapResponse(final CoapMessage response) {
-        final String requestPath = pendingCoapRequests.remove(coapRequestKey(response.messageId, response.token));
+    private void handleCoapResponse(final FitbitCoap.Message response) {
+        final String requestPath = pendingCoapRequests.remove(FitbitCoap.requestKey(response.messageId, response.token));
         LOG.info("Fitbit CoAP inbound response: code={}, mid={}, token={}, requestPath={}, responsePath={}, payloadLen={}",
-                formatCoapCode(response.code),
+                FitbitCoap.formatCode(response.code),
                 response.messageId,
                 toHex(response.token),
                 requestPath,
@@ -1564,43 +1065,6 @@ final class FitbitDtls {
 
         if (requestPath != null && coapResponseHandler != null) {
             coapResponseHandler.handleCoapResponse(requestPath, response.code, response.payload);
-        }
-    }
-
-    private static final class CoapMessage {
-        private final int type;
-        private final int code;
-        private final int messageId;
-        private final byte[] token;
-        private final List<String> uriPathSegments;
-        private final String path;
-        private final byte[] payload;
-        private final int payloadLength;
-
-        private CoapMessage(final int type,
-                            final int code,
-                            final int messageId,
-                            final byte[] token,
-                            final List<String> uriPathSegments,
-                            final byte[] payload) {
-            this.type = type;
-            this.code = code;
-            this.messageId = messageId;
-            this.token = token;
-            this.uriPathSegments = uriPathSegments;
-            this.path = buildCoapPath(uriPathSegments);
-            this.payload = payload;
-            this.payloadLength = payload.length;
-        }
-    }
-
-    private static final class CoapOptionField {
-        private final int value;
-        private final int nextOffset;
-
-        private CoapOptionField(final int value, final int nextOffset) {
-            this.value = value;
-            this.nextOffset = nextOffset;
         }
     }
 
