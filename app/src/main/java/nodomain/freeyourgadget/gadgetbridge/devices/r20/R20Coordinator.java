@@ -232,6 +232,7 @@ public class R20Coordinator extends AbstractBLEDeviceCoordinator {
 
     @Override public boolean supportsStepCounter(@NonNull GBDevice device)      { return false; }
     @Override public boolean supportsDataFetching(@NonNull GBDevice device)     { return true; }
+    @Override public boolean supportsRealtimeData(@NonNull GBDevice device)     { return true; }
     @Override public boolean supportsHeartRateMeasurement(@NonNull GBDevice device) { return true; }
     @Override public boolean supportsManualHeartRateMeasurement(@NonNull GBDevice device) { return true; }
     @Override public boolean supportsSpo2(@NonNull GBDevice device)             { return true; }

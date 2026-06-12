@@ -18,7 +18,10 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.r20;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.Intent;
 import android.os.Handler;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +49,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSamplePr
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSample;
@@ -59,6 +63,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -524,7 +529,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final List<R20Packet.HrRecord> records = new ArrayList<>(all.size());
         for (R20Packet.HrRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
         logHistoryBlock("HR", all.size(), records.size(), hwm, payload.length);
-        withDb((session, deviceId, userId) -> {
+        final boolean persisted = records.isEmpty() || withDb((session, deviceId, userId) -> {
             GenericHeartRateSampleProvider hrProvider =
                     new GenericHeartRateSampleProvider(getDevice(), session);
             final List<GenericHeartRateSample> hrBatch = new ArrayList<>(records.size());
@@ -550,12 +555,16 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         // block in our read-only-ring mode (no HEALTH_DELETE_* afterwards) puts
         // us in an infinite loop because the read cursor never advances.
         // Skipping the ACK lets the firmware time out and stop the stream.
-        if (!records.isEmpty()) {
+        if (!records.isEmpty() && persisted) {
             sendHistoryAck(R20Constants.HEALTH_STREAM_HEART, payload.length);
         }
         long newest = 0L;
         for (R20Packet.HrRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
-        advanceHwm(HWM_HR, newest);
+        if (persisted) {
+            advanceHwm(HWM_HR, newest);
+        } else {
+            LOG.warn("R20 HR history not persisted; leaving HWM unchanged for retry");
+        }
         return newest;
     }
 
@@ -565,7 +574,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final List<R20Packet.BpRecord> records = new ArrayList<>(all.size());
         for (R20Packet.BpRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
         logHistoryBlock("BP", all.size(), records.size(), hwm, payload.length);
-        withDb((session, deviceId, userId) -> {
+        final boolean persisted = records.isEmpty() || withDb((session, deviceId, userId) -> {
             // Batch-build, then a single addSamples() per provider — addSample()
             // in a loop opens a fresh transaction per row which is wasteful
             // (see review comment on PR #6239).
@@ -584,15 +593,21 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                             r.timestampMs, deviceId, userId, r.hr));
                 }
             }
-            new GenericBloodPressureSampleProvider(getDevice(), session).addSamples(bpBatch);
+            if (!bpBatch.isEmpty()) {
+                new GenericBloodPressureSampleProvider(getDevice(), session).addSamples(bpBatch);
+            }
             if (!hrBatch.isEmpty()) {
                 new GenericHeartRateSampleProvider(getDevice(), session).addSamples(hrBatch);
             }
         });
-        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
+        if (!records.isEmpty() && persisted) sendHistoryAck(R20Constants.HEALTH_STREAM_BLOOD, payload.length);
         long newest = 0L;
         for (R20Packet.BpRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
-        advanceHwm(HWM_BP, newest);
+        if (persisted) {
+            advanceHwm(HWM_BP, newest);
+        } else {
+            LOG.warn("R20 BP history not persisted; leaving HWM unchanged for retry");
+        }
         return newest;
     }
 
@@ -617,7 +632,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final List<R20Packet.AllRecord> records = new ArrayList<>(all.size());
         for (R20Packet.AllRecord r : all) if (isNewRecord(r.timestampMs, hwm)) records.add(r);
         logHistoryBlock("All-metrics", all.size(), records.size(), hwm, payload.length);
-        withDb((session, deviceId, userId) -> {
+        final boolean persisted = records.isEmpty() || withDb((session, deviceId, userId) -> {
             final java.util.List<GenericHeartRateSample> hrBatch = new ArrayList<>(records.size());
             final java.util.List<GenericSpo2Sample> spo2Batch = new ArrayList<>(records.size());
             final java.util.List<GenericBloodPressureSample> bpBatch = new ArrayList<>(records.size());
@@ -660,10 +675,14 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             if (!hrvBatch.isEmpty())  new GenericHrvValueSampleProvider(getDevice(), session).addSamples(hrvBatch);
             if (!tempBatch.isEmpty()) new GenericTemperatureSampleProvider(getDevice(), session).addSamples(tempBatch);
         });
-        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
+        if (!records.isEmpty() && persisted) sendHistoryAck(R20Constants.HEALTH_STREAM_ALL, payload.length);
         long newest = 0L;
         for (R20Packet.AllRecord r : records) if (r.timestampMs > newest) newest = r.timestampMs;
-        advanceHwm(HWM_ALL, newest);
+        if (persisted) {
+            advanceHwm(HWM_ALL, newest);
+        } else {
+            LOG.warn("R20 all-metrics history not persisted; leaving HWM unchanged for retry");
+        }
         return newest;
     }
 
@@ -683,7 +702,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         final java.util.concurrent.atomic.AtomicBoolean sportPersisted =
                 new java.util.concurrent.atomic.AtomicBoolean(records.isEmpty());
-        withDb((session, deviceId, userId) -> {
+        final boolean persisted = records.isEmpty() || withDb((session, deviceId, userId) -> {
             BaseActivitySummaryDao summaryDao = session.getBaseActivitySummaryDao();
             for (R20Packet.SportRecord r : records) {
                 Date startTime = new Date(r.startTimeMs);
@@ -716,8 +735,8 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
                 summaryDao.insert(summary);
             }
-            sportPersisted.set(true);
         });
+        sportPersisted.set(persisted);
         if (!records.isEmpty() && sportPersisted.get()) {
             sendHistoryAck(R20Constants.HEALTH_STREAM_SPORT, payload.length);
             advanceHwm(HWM_SPORT, newest);
@@ -751,7 +770,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                     r.avgHr, r.minHr, r.maxHr, r.activeDurationSec);
             if (r.endTimeMs > newest) newest = r.endTimeMs;
         }
-        withDb((session, deviceId, userId) -> {
+        final boolean persisted = records.isEmpty() || withDb((session, deviceId, userId) -> {
             BaseActivitySummaryDao summaryDao = session.getBaseActivitySummaryDao();
             for (R20Packet.SportModeRecord r : records) {
                 Date startTime = new Date(r.startTimeMs);
@@ -788,8 +807,12 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 summaryDao.insert(summary);
             }
         });
-        if (!records.isEmpty()) sendHistoryAck(R20Constants.HEALTH_HISTORY_SPORT_MODE, payload.length);
-        advanceHwm(HWM_SPORT_MODE, newest);
+        if (!records.isEmpty() && persisted) {
+            sendHistoryAck(R20Constants.HEALTH_HISTORY_SPORT_MODE, payload.length);
+            advanceHwm(HWM_SPORT_MODE, newest);
+        } else if (!records.isEmpty()) {
+            LOG.warn("R20 sport-mode history not persisted; leaving HWM unchanged for retry");
+        }
         return newest;
     }
 
@@ -817,7 +840,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
         final List<R20Packet.SleepSession> sessions = new ArrayList<>(allSessions.size());
         for (R20Packet.SleepSession s : allSessions) if (isNewRecord(s.endTimeMs, hwm)) sessions.add(s);
         logHistoryBlock("Sleep", allSessions.size(), sessions.size(), hwm, payload.length);
-        withDb((session, deviceId, userId) -> {
+        final boolean persisted = sessions.isEmpty() || withDb((session, deviceId, userId) -> {
             GenericSleepStageSampleProvider provider =
                     new GenericSleepStageSampleProvider(getDevice(), session);
             final List<GenericSleepStageSample> sleepStageBatch = new ArrayList<>();
@@ -900,10 +923,14 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 metricProvider.addSamples(metricBatch);
             }
         });
-        if (!sessions.isEmpty()) sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
+        if (!sessions.isEmpty() && persisted) sendHistoryAck(R20Constants.HEALTH_STREAM_SLEEP, payload.length);
         long newest = 0L;
         for (R20Packet.SleepSession s : sessions) if (s.endTimeMs > newest) newest = s.endTimeMs;
-        advanceHwm(HWM_SLEEP, newest);
+        if (persisted) {
+            advanceHwm(HWM_SLEEP, newest);
+        } else {
+            LOG.warn("R20 sleep history not persisted; leaving HWM unchanged for retry");
+        }
         return newest;
     }
 
@@ -957,14 +984,16 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Single point of access for sample writes. The block runs inside a
      *  try-with-resources DBHandler with user+device IDs already resolved. */
-    private void withDb(DbAction action) {
+    private boolean withDb(DbAction action) {
         try (DBHandler db = GBApplication.acquireDB()) {
             DaoSession session = db.getDaoSession();
             Long userId        = DBHelper.getUser(session).getId();
             Long deviceId      = DBHelper.getDevice(getDevice(), session).getId();
             action.run(session, deviceId, userId);
+            return true;
         } catch (Exception e) {
             LOG.error("R20 DB action failed", e);
+            return false;
         }
     }
 
@@ -982,6 +1011,7 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             LOG.debug("R20 persistHr: rejected out-of-range bpm={}", bpm);
             return;
         }
+        emitRealtimeHr(timestampMs, bpm);
         List<GenericHeartRateSample> toFlush = null;
         synchronized (hrBufferLock) {
             // We don't yet know deviceId/userId, but the sample constructor
@@ -999,6 +1029,25 @@ public class R20DeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
         if (toFlush != null) flushHrBuffer(toFlush);
+    }
+
+    private void emitRealtimeHr(long timestampMs, int bpm) {
+        try {
+            GenericActivitySample sample = new R20RealtimeHrSample();
+            sample.setTimestamp((int) (timestampMs / 1000L));
+            sample.setHeartRate(bpm);
+            Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES)
+                    .putExtra(GBDevice.EXTRA_DEVICE, getDevice())
+                    .putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, (java.io.Serializable) sample)
+                    .putExtra(DeviceService.EXTRA_TIMESTAMP, sample.getTimestamp());
+            LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+        } catch (Exception e) {
+            LOG.debug("R20 realtime HR broadcast failed", e);
+        }
+    }
+
+    private static class R20RealtimeHrSample extends GenericActivitySample implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
     }
 
     private void flushHrBuffer(final List<GenericHeartRateSample> buf) {
