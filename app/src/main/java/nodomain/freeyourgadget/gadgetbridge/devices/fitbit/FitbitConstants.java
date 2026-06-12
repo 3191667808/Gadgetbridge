@@ -20,6 +20,10 @@ import java.util.UUID;
 
 public final class FitbitConstants {
     public static final boolean EXPERIMENTAL_ONBOARDING_MODE = true;
+    public static final String CONFIG_PAIRING_CODE_PREFIX = "fitbit_pairing_code:";
+    public static final String ACTION_PAIRING_CODE_ACCEPTED = "nodomain.freeyourgadget.gadgetbridge.devices.fitbit.ACTION_PAIRING_CODE_ACCEPTED";
+    public static final String SYNC_RESPONSE_FIXTURE_DIRECTORY = "fitbit-sync-response-fixtures";
+    public static final String PAIRING_CODE_FILE = "pairing-code.txt";
 
     public static final UUID FITBIT_GATTLINK_ADVERTISING_SERVICE = UUID.fromString("0000fd62-0000-1000-8000-00805f9b34fb");
 

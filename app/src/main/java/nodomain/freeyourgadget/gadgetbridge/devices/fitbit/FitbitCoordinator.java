@@ -16,10 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.fitbit;
 
+import android.app.Activity;
 import android.bluetooth.le.ScanFilter;
 import android.os.ParcelUuid;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,6 +70,12 @@ public class FitbitCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getBondingStyle() {
         return BONDING_STYLE_NONE;
+    }
+
+    @Nullable
+    @Override
+    public Class<? extends Activity> getPairingActivity() {
+        return FitbitPairingActivity.class;
     }
 
     @Override

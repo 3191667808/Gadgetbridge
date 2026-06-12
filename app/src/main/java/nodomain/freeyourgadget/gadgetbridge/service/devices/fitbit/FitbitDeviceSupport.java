@@ -22,14 +22,18 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.fitbit.FitbitConstants;
@@ -50,9 +54,17 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final byte[] ZERO_RESPONSE = new byte[]{0x00};
     private static final byte[] PHONE_GATTLINK_STATUS_1_RESPONSE = new byte[18];
     private static final byte[] CCCD_DISABLED_RESPONSE = new byte[]{0x00, 0x00};
+    private static final String BOOTSTRAP_PSK_IDENTITY = "BOOTSTRAP";
+    private static final byte[] BOOTSTRAP_PSK = new byte[]{
+            (byte) 0x81, 0x06, 0x54, (byte) 0xe3,
+            0x36, (byte) 0xad, (byte) 0xca, (byte) 0xb0,
+            (byte) 0xa0, 0x3c, 0x60, (byte) 0xf7,
+            0x4a, (byte) 0xa0, (byte) 0xb6, (byte) 0xfb,
+    };
 
     private final Handler serverStatusHandler = new Handler(Looper.getMainLooper());
-    private final FitbitGattlink.IpReassembler gattlinkReassembler = new FitbitGattlink.IpReassembler();
+    private final FitbitGattlink.Session gattlinkSession = new FitbitGattlink.Session();
+    private final FitbitDtls fitbitDtls = new FitbitDtls(this::resolvePsk);
 
     private BluetoothDevice serverDevice;
     private BluetoothGattCharacteristic phoneGattlinkStatus2Characteristic;
@@ -88,9 +100,39 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
+    public void onSendConfiguration(final String config) {
+        if (config != null && config.startsWith(FitbitConstants.CONFIG_PAIRING_CODE_PREFIX)) {
+            final String pairingCode = config.substring(FitbitConstants.CONFIG_PAIRING_CODE_PREFIX.length()).trim();
+            LOG.warn("Fitbit onboarding script: received live pairing code from GB UI");
+            if (fitbitDtls.setPairingCode(pairingCode)) {
+                drainFitbitDtlsOutboundPackets();
+                LocalBroadcastManager.getInstance(getContext()).sendBroadcast(
+                        new Intent(FitbitConstants.ACTION_PAIRING_CODE_ACCEPTED)
+                );
+            }
+            return;
+        }
+
+        super.onSendConfiguration(config);
+    }
+
+    private byte[] resolvePsk(final String identity) {
+        if (BOOTSTRAP_PSK_IDENTITY.equals(identity)) {
+            return Arrays.copyOf(BOOTSTRAP_PSK, BOOTSTRAP_PSK.length);
+        }
+
+        // MD-* identities require Fitbit mobile-data AES keys. Those are cloud/app-private
+        // credentials and are not derivable from the DTLS identity itself.
+        return null;
+    }
+
+    @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         LOG.info("Initializing Fitbit BLE connection scaffold, onboardingMode={}",
                 FitbitConstants.EXPERIMENTAL_ONBOARDING_MODE);
+
+        gattlinkSession.reset();
+        fitbitDtls.reset();
 
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.requestMtu(REQUESTED_MTU);
@@ -104,6 +146,8 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stopPhoneGattlinkStatusNotifications();
+        gattlinkSession.reset();
+        fitbitDtls.reset();
         super.dispose();
     }
 
@@ -150,6 +194,9 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         final BluetoothGattCharacteristic characteristic = descriptor.getCharacteristic();
         if (characteristic != null && FitbitConstants.GATTLINK_NOTIFY_CHARACTERISTIC.equals(characteristic.getUuid())) {
             LOG.info("Fitbit Gattlink notification descriptor write completed with status {}", status);
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                startGattlinkSession();
+            }
             return true;
         }
 
@@ -164,25 +211,35 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
             return super.onCharacteristicChanged(gatt, characteristic, value);
         }
 
-        if (Arrays.equals(value, FitbitConstants.GATTLINK_CONTROL_OPEN)) {
-            LOG.info("Fitbit Gattlink control open received");
-            writeGattlinkControl("Fitbit Gattlink control open", FitbitConstants.GATTLINK_CONTROL_OPEN, false);
+        final FitbitGattlink.IncomingResult result = gattlinkSession.handleIncoming(value);
+        handleGattlinkStateChange(result);
+        writeGattlinkResponses("Fitbit Gattlink response", result.getResponses(), result.isSessionReady());
+
+        if (result.isDataOnClosedSession()) {
+            LOG.warn("Fitbit Gattlink data received while session is not ready: {}",
+                    GB.hexdump(result.getRawDataOnClosedSession()));
             return true;
         }
 
-        if (Arrays.equals(value, FitbitConstants.GATTLINK_CONTROL_WINDOW)) {
-            LOG.info("Fitbit Gattlink control window received");
-            writeGattlinkControl("Fitbit Gattlink control window", FitbitConstants.GATTLINK_CONTROL_WINDOW, true);
+        if (result.getUnexpectedPsn() >= 0) {
+            LOG.warn("Fitbit Gattlink unexpected PSN {}, expected {}",
+                    result.getUnexpectedPsn(),
+                    result.getExpectedPsn());
             return true;
         }
 
-        final byte[] ipv4Packet = gattlinkReassembler.addFrame(value);
+        final byte[] ipv4Packet = result.getIpv4Packet();
         if (ipv4Packet != null) {
             LOG.info("Fitbit Gattlink IPv4 packet: {}", FitbitGattlink.describeIpv4Packet(ipv4Packet));
+            final byte[] dtlsResponse = fitbitDtls.maybeBuildResponse(ipv4Packet);
+            if (dtlsResponse != null) {
+                writeGattlinkIpPacket("Fitbit DTLS response", dtlsResponse);
+            }
+            drainFitbitDtlsOutboundPackets();
             return true;
         }
 
-        if (gattlinkReassembler.hasPartialPacket()) {
+        if (gattlinkSession.hasPartialIpv4Packet()) {
             LOG.debug("Fitbit Gattlink IPv4 fragment: {}", GB.hexdump(value));
             return true;
         }
@@ -204,11 +261,15 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 device != null ? device.getAddress() : "(null)", status, newState);
 
         if (newState == BluetoothProfile.STATE_CONNECTED) {
+            gattlinkSession.reset();
+            fitbitDtls.reset();
             serverDevice = device;
             phoneGattlinkStatus2Subscribed = true;
             startPhoneGattlinkStatusNotifications();
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             stopPhoneGattlinkStatusNotifications();
+            gattlinkSession.reset();
+            fitbitDtls.reset();
             if (device != null && device.equals(serverDevice)) {
                 serverDevice = null;
             }
@@ -351,7 +412,33 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return null;
     }
 
-    private void writeGattlinkControl(final String taskName, final byte[] value, final boolean markInitialized) {
+    private void startGattlinkSession() {
+        final FitbitGattlink.IncomingResult result = gattlinkSession.start();
+        writeGattlinkResponses("Fitbit Gattlink reset request", result.getResponses(), false);
+    }
+
+    private void handleGattlinkStateChange(final FitbitGattlink.IncomingResult result) {
+        if (result.isSessionReset()) {
+            LOG.info("Fitbit Gattlink session reset");
+            fitbitDtls.reset();
+        }
+
+        if (result.isSessionReady()) {
+            LOG.info("Fitbit Gattlink session ready");
+            fitbitDtls.reset();
+        }
+    }
+
+    private void writeGattlinkResponses(final String taskName,
+                                        final List<byte[]> values,
+                                        final boolean markInitialized) {
+        if (values.isEmpty()) {
+            if (markInitialized) {
+                markDeviceInitialized(taskName);
+            }
+            return;
+        }
+
         final BluetoothGattCharacteristic characteristic = getCharacteristic(FitbitConstants.GATTLINK_WRITE_CHARACTERISTIC);
         if (characteristic == null) {
             LOG.warn("Unable to write Fitbit Gattlink control, characteristic is missing");
@@ -362,13 +449,16 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         try {
             final TransactionBuilder builder = createTransactionBuilder(taskName);
-            builder.write(characteristic, value);
+            for (final byte[] value : values) {
+                LOG.debug("{}: {}", taskName, GB.hexdump(value));
+                builder.write(characteristic, value);
+            }
             if (markInitialized) {
                 builder.setDeviceState(GBDevice.State.INITIALIZED);
             }
             builder.queueConnected();
         } catch (final IOException e) {
-            LOG.warn("Unable to write Fitbit Gattlink control", e);
+            LOG.warn("Unable to write Fitbit Gattlink response", e);
         }
     }
 
@@ -384,12 +474,31 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         try {
             final TransactionBuilder builder = createTransactionBuilder(taskName);
             final int maxFrameLength = builder.getMaxWriteChunk();
-            for (byte[] frame : FitbitGattlink.encodeIpv4Packet(ipv4Packet, maxFrameLength)) {
+            for (byte[] frame : gattlinkSession.encodeIpv4Packet(ipv4Packet, maxFrameLength)) {
+                LOG.debug("{}: {}", taskName, GB.hexdump(frame));
                 builder.write(characteristic, frame);
             }
             builder.queueConnected();
         } catch (final IOException e) {
             LOG.warn("Unable to write Fitbit Gattlink packet", e);
+        }
+    }
+
+    private void drainFitbitDtlsOutboundPackets() {
+        byte[] outboundPacket = fitbitDtls.pollOutboundPacket();
+        while (outboundPacket != null) {
+            writeGattlinkIpPacket("Fitbit DTLS outbound", outboundPacket);
+            outboundPacket = fitbitDtls.pollOutboundPacket();
+        }
+    }
+
+    private void markDeviceInitialized(final String taskName) {
+        try {
+            final TransactionBuilder builder = createTransactionBuilder(taskName);
+            builder.setDeviceState(GBDevice.State.INITIALIZED);
+            builder.queueConnected();
+        } catch (final IOException e) {
+            LOG.warn("Unable to mark Fitbit initialized", e);
         }
     }
 
