@@ -32,7 +32,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -68,7 +70,9 @@ final class FitbitDtls {
     private static final int TLS_MASTER_SECRET_LENGTH = 48;
     private static final int TLS_FINISHED_VERIFY_DATA_LENGTH = 12;
     private static final int COAP_TYPE_CONFIRMABLE = 0;
+    private static final int COAP_TYPE_NON_CONFIRMABLE = 1;
     private static final int COAP_TYPE_ACKNOWLEDGEMENT = 2;
+    private static final int COAP_CODE_GET = 0x01;
     private static final int COAP_CODE_POST = 0x02;
     private static final int COAP_CODE_CHANGED = 0x44;
     private static final int COAP_OPTION_URI_PATH = 11;
@@ -83,18 +87,38 @@ final class FitbitDtls {
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final PskResolver pskResolver;
+    private final CoapResponseHandler coapResponseHandler;
+    private final Map<String, String> pendingCoapRequests = new HashMap<>();
     private int ipIdentification = 1;
+    private int nextCoapMessageId = secureRandom.nextInt(0x10000);
+    private int nextCoapToken = secureRandom.nextInt();
     private HandshakeState handshakeState;
     private DtlsSession dtlsSession;
 
     FitbitDtls(final PskResolver pskResolver) {
+        this(pskResolver, null);
+    }
+
+    FitbitDtls(final PskResolver pskResolver, final CoapResponseHandler coapResponseHandler) {
         this.pskResolver = pskResolver;
+        this.coapResponseHandler = coapResponseHandler;
     }
 
     void reset() {
         ipIdentification = 1;
+        nextCoapMessageId = secureRandom.nextInt(0x10000);
+        nextCoapToken = secureRandom.nextInt();
+        pendingCoapRequests.clear();
         handshakeState = null;
         dtlsSession = null;
+    }
+
+    boolean isSessionEstablished() {
+        return dtlsSession != null;
+    }
+
+    byte[] buildCoapGetRequest(final String path) {
+        return buildCoapRequest(path, COAP_CODE_GET, new byte[0]);
     }
 
     byte[] maybeBuildResponse(final byte[] ipv4Packet) {
@@ -428,6 +452,11 @@ final class FitbitDtls {
                 toHex(request.token),
                 request.path,
                 request.payloadLength);
+
+        if (isCoapResponse(request)) {
+            handleCoapResponse(request);
+            return null;
+        }
 
         final Integer responseCode = resolveCoapResponseCode(request);
         if (responseCode == null) {
@@ -935,6 +964,10 @@ final class FitbitDtls {
         return null;
     }
 
+    private static boolean isCoapResponse(final CoapMessage message) {
+        return ((message.code >> 5) & 0x07) != 0;
+    }
+
     private byte[] buildCoapAckResponse(final CoapMessage request, final int responseCode) {
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write((1 << 6) | (COAP_TYPE_ACKNOWLEDGEMENT << 4) | request.token.length);
@@ -1209,6 +1242,10 @@ final class FitbitDtls {
             return "CON";
         }
 
+        if (type == COAP_TYPE_NON_CONFIRMABLE) {
+            return "NON";
+        }
+
         if (type == COAP_TYPE_ACKNOWLEDGEMENT) {
             return "ACK";
         }
@@ -1399,6 +1436,137 @@ final class FitbitDtls {
         }
     }
 
+    private static String[] coapPathSegments(final String path) {
+        final String normalized = normalizeOutgoingCoapPath(path);
+        if (normalized.isEmpty()) {
+            return new String[0];
+        }
+        return normalized.split("/");
+    }
+
+    private static String normalizeOutgoingCoapPath(final String path) {
+        if (path == null) {
+            return "";
+        }
+
+        String normalized = path.trim();
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private static String coapRequestKey(final int messageId, final byte[] token) {
+        return messageId + ":" + toHex(token);
+    }
+
+    private byte[] buildCoapRequest(final String path, final int code, final byte[] payload) {
+        if (dtlsSession == null) {
+            LOG.debug("Unable to build Fitbit CoAP request for {}, DTLS session is not established", path);
+            return null;
+        }
+
+        final int messageId = nextCoapMessageId++ & 0xffff;
+        final byte[] token = nextCoapToken();
+        final byte[] coapRequest = buildCoapRequestMessage(
+                COAP_TYPE_CONFIRMABLE,
+                code,
+                messageId,
+                token,
+                path,
+                payload
+        );
+        final long sequenceNumber = dtlsSession.nextServerApplicationSequenceNumber++;
+        try {
+            final byte[] encryptedRequest = encryptAes128CcmRecord(
+                    dtlsSession.keys.serverWriteKey,
+                    dtlsSession.keys.serverWriteIv,
+                    DTLS_CONTENT_TYPE_APPLICATION_DATA,
+                    dtlsSession.recordVersion,
+                    DTLS_EPOCH_APPLICATION,
+                    sequenceNumber,
+                    coapRequest
+            );
+            pendingCoapRequests.put(coapRequestKey(messageId, token), normalizeOutgoingCoapPath(path));
+
+            final byte[] dtlsRecord = buildDtlsRecord(
+                    DTLS_CONTENT_TYPE_APPLICATION_DATA,
+                    dtlsSession.recordVersion,
+                    DTLS_EPOCH_APPLICATION,
+                    sequenceNumber,
+                    encryptedRequest
+            );
+            final byte[] ipv4Packet = buildIpv4UdpResponse(dtlsSession.endpoint, dtlsRecord);
+            LOG.info("Fitbit CoAP outbound request: sequence={}, code={}, mid={}, token={}, path={}, payloadLen={}",
+                    sequenceNumber,
+                    formatCoapCode(code),
+                    messageId,
+                    toHex(token),
+                    path,
+                    payload.length);
+            return ipv4Packet;
+        } catch (final InvalidCipherTextException e) {
+            LOG.warn("Unable to encrypt Fitbit CoAP request: path={}, mid={}", path, messageId, e);
+            return null;
+        }
+    }
+
+    private byte[] nextCoapToken() {
+        final int token = nextCoapToken++;
+        return new byte[]{
+                (byte) ((token >> 24) & 0xff),
+                (byte) ((token >> 16) & 0xff),
+                (byte) ((token >> 8) & 0xff),
+                (byte) (token & 0xff),
+        };
+    }
+
+    private byte[] buildCoapRequestMessage(final int type,
+                                           final int code,
+                                           final int messageId,
+                                           final byte[] token,
+                                           final String path,
+                                           final byte[] payload) {
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        output.write((1 << 6) | (type << 4) | token.length);
+        output.write(code);
+        output.write((messageId >> 8) & 0xff);
+        output.write(messageId & 0xff);
+        output.write(token, 0, token.length);
+
+        int previousOptionNumber = 0;
+        for (final String segment : coapPathSegments(path)) {
+            final byte[] value = segment.getBytes(StandardCharsets.UTF_8);
+            writeCoapOption(output, COAP_OPTION_URI_PATH - previousOptionNumber, value);
+            previousOptionNumber = COAP_OPTION_URI_PATH;
+        }
+
+        if (payload.length > 0) {
+            output.write(COAP_PAYLOAD_MARKER);
+            output.write(payload, 0, payload.length);
+        }
+
+        return output.toByteArray();
+    }
+
+    private void handleCoapResponse(final CoapMessage response) {
+        final String requestPath = pendingCoapRequests.remove(coapRequestKey(response.messageId, response.token));
+        LOG.info("Fitbit CoAP inbound response: code={}, mid={}, token={}, requestPath={}, responsePath={}, payloadLen={}",
+                formatCoapCode(response.code),
+                response.messageId,
+                toHex(response.token),
+                requestPath,
+                response.path,
+                response.payloadLength);
+
+        if (requestPath != null && coapResponseHandler != null) {
+            coapResponseHandler.handleCoapResponse(requestPath, response.code, response.payload);
+        }
+    }
+
     private static final class CoapMessage {
         private final int type;
         private final int code;
@@ -1438,5 +1606,9 @@ final class FitbitDtls {
 
     interface PskResolver {
         byte[] resolvePsk(String identity);
+    }
+
+    interface CoapResponseHandler {
+        void handleCoapResponse(String requestPath, int code, byte[] payload);
     }
 }
