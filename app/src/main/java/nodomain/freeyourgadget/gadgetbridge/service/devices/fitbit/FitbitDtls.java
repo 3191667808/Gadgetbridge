@@ -16,9 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.fitbit;
 
-import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
-import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
-
 import org.bouncycastle.shaded.crypto.InvalidCipherTextException;
 import org.bouncycastle.shaded.crypto.engines.AESEngine;
 import org.bouncycastle.shaded.crypto.modes.CCMBlockCipher;
@@ -28,9 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -38,20 +32,13 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import nodomain.freeyourgadget.gadgetbridge.devices.fitbit.FitbitConstants;
-
 final class FitbitDtls {
     private static final Logger LOG = LoggerFactory.getLogger(FitbitDtls.class);
-    // Development-only plaintext diagnostics. Remove before making Fitbit support non-experimental.
-    private static final boolean LOG_DEVELOPMENT_PLAINTEXT = true;
 
     private static final int IPV4_MIN_HEADER_LENGTH = 20;
     private static final int UDP_HEADER_LENGTH = 8;
@@ -82,36 +69,12 @@ final class FitbitDtls {
     private static final int TLS_FINISHED_VERIFY_DATA_LENGTH = 12;
     private static final int COAP_TYPE_CONFIRMABLE = 0;
     private static final int COAP_TYPE_ACKNOWLEDGEMENT = 2;
-    private static final int COAP_CODE_GET = 0x01;
     private static final int COAP_CODE_POST = 0x02;
-    private static final int COAP_CODE_PUT = 0x03;
     private static final int COAP_CODE_CHANGED = 0x44;
-    private static final int COAP_CODE_CONTENT = 0x45;
-    private static final int COAP_CODE_CONTINUE = 0x5f;
-    private static final int COAP_CODE_UNAUTHORIZED = 0x81;
     private static final int COAP_OPTION_URI_PATH = 11;
-    private static final int COAP_OPTION_URI_QUERY = 15;
-    private static final int COAP_OPTION_BLOCK2 = 23;
-    private static final int COAP_OPTION_BLOCK1 = 27;
     private static final int COAP_PAYLOAD_MARKER = 0xff;
-    private static final int FITBIT_COAP_BLOCK_SIZE_1024 = 0x06;
-    private static final int FITBIT_COAP_BLOCK_SIZE_1024_BYTES = 1024;
-    private static final int FITBIT_ONBOARDING_TOKEN_BASE = 0x456723c6;
-    private static final int FITBIT_ONBOARDING_MAX_SYNC_DUMP_BLOCKS = 64;
-    private static final int FITBIT_PAIR_SYNC_ENVELOPE_LENGTH = 21;
-    private static final int FITBIT_SYNC_RESPONSE_FIXTURE_MAX_LENGTH = 256 * 1024;
-    private static final int FITBIT_PAIRING_CODE_FILE_MAX_LENGTH = 32;
-    private static final int FITBIT_DEVELOPMENT_LOG_HEX_CHUNK_BYTES = 1024;
-    private static final int PROTOBUF_WIRE_TYPE_VARINT = 0;
-    private static final int PROTOBUF_WIRE_TYPE_64_BIT = 1;
-    private static final int PROTOBUF_WIRE_TYPE_LENGTH_DELIMITED = 2;
-    private static final int PROTOBUF_WIRE_TYPE_32_BIT = 5;
 
-    private static final String BOOTSTRAP_IDENTITY = "BOOTSTRAP";
     private static final String MOBILE_DATA_IDENTITY_PREFIX = "MD-";
-    private static final String FITBIT_SYNC_RESPONSE_FIXTURE_DIRECTORY = FitbitConstants.SYNC_RESPONSE_FIXTURE_DIRECTORY;
-    private static final String FITBIT_PAIRING_CODE_FILE = FitbitConstants.PAIRING_CODE_FILE;
-    private static final String FITBIT_ONBOARDING_DEBUG_REVISION = "official-sequence-response-envelope-extended-error-20260612";
     private static final byte[] CHANGE_CIPHER_SPEC_BODY = new byte[]{0x01};
     private static final byte[] SERVER_HELLO_EXTENSIONS = new byte[]{
             (byte) 0xff, 0x01, 0x00, 0x01, 0x00,
@@ -123,7 +86,6 @@ final class FitbitDtls {
     private int ipIdentification = 1;
     private HandshakeState handshakeState;
     private DtlsSession dtlsSession;
-    private String pendingPairingCode;
 
     FitbitDtls(final PskResolver pskResolver) {
         this.pskResolver = pskResolver;
@@ -133,37 +95,6 @@ final class FitbitDtls {
         ipIdentification = 1;
         handshakeState = null;
         dtlsSession = null;
-        pendingPairingCode = null;
-    }
-
-    boolean setPairingCode(final String pairingCode) {
-        if (pairingCode == null || !pairingCode.matches("\\d{4}")) {
-            LOG.warn("Fitbit onboarding script: ignoring invalid live pairing code '{}'", pairingCode);
-            return false;
-        }
-
-        pendingPairingCode = pairingCode;
-        LOG.warn("Fitbit onboarding script: DEBUG RAW live Fitbit pairing code={}", pairingCode);
-        LOG.warn("Fitbit onboarding script: live Fitbit pairing code accepted, codeSha256={}",
-                sha256Hex(pairingCode.getBytes(StandardCharsets.US_ASCII)));
-
-        if (dtlsSession == null) {
-            LOG.info("Fitbit onboarding script: stored live pairing code before DTLS session exists");
-            return true;
-        }
-
-        dtlsSession.pairingCode = pairingCode;
-        queueSyncDumpPairIfReady();
-        if (dtlsSession.syncDumpComplete && !dtlsSession.syncResponseQueued) {
-            LOG.info("Fitbit onboarding script: live pairing code received after sync/dump; checking sync/response queue state now");
-            queueSyncResponseAfterDumpComplete();
-        } else {
-            LOG.info("Fitbit onboarding script: live pairing code stored; waiting for syncDumpComplete={} pendingSyncRequestInfoPresent={} syncResponseQueued={}",
-                    dtlsSession.syncDumpComplete,
-                    dtlsSession.pendingSyncRequestInfo != null,
-                    dtlsSession.syncResponseQueued);
-        }
-        return true;
     }
 
     byte[] maybeBuildResponse(final byte[] ipv4Packet) {
@@ -178,19 +109,6 @@ final class FitbitDtls {
         }
 
         return buildApplicationDataResponse(ipv4Packet);
-    }
-
-    byte[] pollOutboundPacket() {
-        if (dtlsSession == null || dtlsSession.pendingApplicationRecords.isEmpty()) {
-            return null;
-        }
-
-        final byte[] dtlsPayload = drainPendingApplicationRecords();
-        final byte[] response = buildIpv4UdpResponse(dtlsSession.endpoint, dtlsPayload);
-        LOG.info("Fitbit DTLS outbound application packet: dtlsLen={}, ipLen={}",
-                dtlsPayload.length,
-                response.length);
-        return response;
     }
 
     private byte[] buildServerHelloResponse(final ClientHello clientHello) {
@@ -362,8 +280,7 @@ final class FitbitDtls {
             final byte[] response = buildIpv4UdpResponse(clientFlight.endpoint, dtlsPayload);
             handshakeState = null;
             dtlsSession = new DtlsSession(clientFlight.endpoint, clientFlight.recordVersion, keys);
-            dtlsSession.pairingCode = pendingPairingCode;
-            startBootstrapOnboardingScript();
+            LOG.info("Fitbit DTLS mobile-data session established for identity {}", clientFlight.identity);
             LOG.info("Fitbit DTLS Server Finished flight: identity={}, dtlsLen={}, ipLen={}",
                     clientFlight.identity,
                     dtlsPayload.length,
@@ -444,7 +361,6 @@ final class FitbitDtls {
             recordOffset = recordEnd;
         }
 
-        appendPendingApplicationRecords(responseRecords);
         if (responseRecords.isEmpty()) {
             return null;
         }
@@ -512,29 +428,6 @@ final class FitbitDtls {
                 toHex(request.token),
                 request.path,
                 request.payloadLength);
-        if (LOG_DEVELOPMENT_PLAINTEXT) {
-            LOG.info("Fitbit CoAP request plaintext: sequence={}, coap={}, payload={}",
-                    sequenceNumber,
-                    toHex(plaintext),
-                    toHex(request.payload));
-        }
-        if (isCoapErrorResponse(request.code)) {
-            final GoldenGateExtendedError extendedError = decodeGoldenGateExtendedError(request.payload);
-            if (extendedError != null) {
-                LOG.warn("Fitbit CoAP ExtendedError response: sequence={}, code={}, mid={}, token={}, path={}, namespace={}, code={}, rawCode={}, message={}, payload={}",
-                        sequenceNumber,
-                        formatCoapCode(request.code),
-                        request.messageId,
-                        toHex(request.token),
-                        request.path,
-                        extendedError.namespace,
-                        extendedError.code,
-                        extendedError.rawCode,
-                        extendedError.message,
-                        toHex(request.payload));
-            }
-        }
-        handleBootstrapOnboardingMessage(request);
 
         final Integer responseCode = resolveCoapResponseCode(request);
         if (responseCode == null) {
@@ -546,14 +439,6 @@ final class FitbitDtls {
         }
 
         final byte[] coapResponse = buildCoapAckResponse(request, responseCode);
-        if (LOG_DEVELOPMENT_PLAINTEXT) {
-            LOG.info("Fitbit CoAP response plaintext: sequence={}, code={}, mid={}, path={}, coap={}",
-                    dtlsSession.nextServerApplicationSequenceNumber,
-                    formatCoapCode(responseCode),
-                    request.messageId,
-                    request.path,
-                    toHex(coapResponse));
-        }
         final long responseSequenceNumber = dtlsSession.nextServerApplicationSequenceNumber++;
         try {
             final byte[] encryptedResponse = encryptAes128CcmRecord(
@@ -586,820 +471,6 @@ final class FitbitDtls {
                     e);
             return null;
         }
-    }
-
-    private void startBootstrapOnboardingScript() {
-        if (dtlsSession == null) {
-            return;
-        }
-
-        LOG.info("Fitbit onboarding script: queue pair/display on");
-        LOG.warn("Fitbit onboarding script: DEBUG REVISION {}", FITBIT_ONBOARDING_DEBUG_REVISION);
-        queuePairDisplayRequest(true);
-    }
-
-    private void handleBootstrapOnboardingMessage(final CoapMessage message) {
-        if (dtlsSession == null) {
-            return;
-        }
-
-        if (message.type == COAP_TYPE_CONFIRMABLE && message.code == COAP_CODE_POST) {
-            handleWatchPostForOnboarding(message);
-            return;
-        }
-
-        if (message.type != COAP_TYPE_ACKNOWLEDGEMENT) {
-            return;
-        }
-
-        if (message.messageId == dtlsSession.pairDisplayOnMessageId
-                && !dtlsSession.pairDisplayOnAcknowledged) {
-            dtlsSession.pairDisplayOnAcknowledged = true;
-            LOG.info("Fitbit onboarding script: pair/display on acknowledged with code {}, path={}",
-                    formatCoapCode(message.code),
-                    message.path);
-            queueSyncConfigRequest();
-            return;
-        }
-
-        if (message.messageId == dtlsSession.pairDisplayOffMessageId
-                && !dtlsSession.pairDisplayOffAcknowledged) {
-            dtlsSession.pairDisplayOffAcknowledged = true;
-            LOG.info("Fitbit onboarding script: pair/display off acknowledged with code {}, path={}",
-                    formatCoapCode(message.code),
-                    message.path);
-            return;
-        }
-
-        if (message.messageId == dtlsSession.syncConfigMessageId
-                && !dtlsSession.syncConfigAcknowledged) {
-            dtlsSession.syncConfigAcknowledged = true;
-            LOG.info("Fitbit onboarding script: sync/config completed with code {}, path={}",
-                    formatCoapCode(message.code),
-                    message.path);
-            queueSyncDumpPairIfReady();
-            return;
-        }
-
-        if (message.code == COAP_CODE_CONTENT
-                && message.messageId == dtlsSession.syncDumpPairMessageId
-                && !dtlsSession.syncDumpPairAcknowledged) {
-            dtlsSession.syncDumpPairAcknowledged = true;
-            LOG.info("Fitbit onboarding script: sync/dump?t=pair returned {} bytes, path={}",
-                    message.payloadLength,
-                    message.path);
-            LOG.info("Fitbit onboarding script: sync/dump?t=pair payload prefix={}",
-                    toHexPrefix(message.payload, 32));
-            logDevelopmentHexChunks("sync/dump?t=pair payload", message.payload);
-            LOG.warn("Fitbit onboarding script: keeping pair/display visible until sync/response completes");
-            queueNextSyncDumpBlockRequest(0);
-            return;
-        }
-
-        if (message.code == COAP_CODE_CONTENT
-                && dtlsSession.syncDumpMessageIds.remove(message.messageId)) {
-            LOG.info("Fitbit onboarding script: sync/dump response mid={} returned {} bytes, path={}, block2={}/{} more={}",
-                    message.messageId,
-                    message.payloadLength,
-                    message.path,
-                    message.block2Number,
-                    message.block2SizeExponent,
-                    message.block2More);
-            dtlsSession.syncDumpPayload.write(message.payload, 0, message.payload.length);
-            dtlsSession.syncDumpPayloadLength = dtlsSession.syncDumpPayload.size();
-            logDevelopmentHexChunks("sync/dump block " + message.block2Number + " payload", message.payload);
-            if (message.hasBlock2 && message.block2More) {
-                queueNextSyncDumpBlockRequest(message.block2Number + 1);
-            } else {
-                dtlsSession.syncDumpComplete = true;
-                logCompletedSyncDumpPayload();
-                queueSyncResponseAfterDumpComplete();
-            }
-            return;
-        }
-
-        if (dtlsSession.syncResponseMessageIds.remove(message.messageId)) {
-            LOG.info("Fitbit onboarding script: sync/response block reply code={}, mid={}, path={}, block1={}/{} more={}, payloadLen={}",
-                    formatCoapCode(message.code),
-                    message.messageId,
-                    message.path,
-                    message.block1Number,
-                    message.block1SizeExponent,
-                    message.block1More,
-                    message.payloadLength);
-            if (message.code == COAP_CODE_CONTINUE) {
-                queueNextSyncResponseBlock();
-            } else if (message.code == COAP_CODE_CHANGED) {
-                dtlsSession.syncResponseComplete = true;
-                dtlsSession.syncResponseFailed = false;
-                LOG.info("Fitbit onboarding script: sync/response transfer complete, payloadLen={}, sha256={}",
-                        dtlsSession.syncResponsePayload == null ? 0 : dtlsSession.syncResponsePayload.length,
-                        dtlsSession.syncResponsePayload == null ? "" : sha256Hex(dtlsSession.syncResponsePayload));
-                queuePairDisplayRequest(false);
-            } else {
-                dtlsSession.syncResponseFailed = true;
-                final GoldenGateExtendedError extendedError = decodeGoldenGateExtendedError(message.payload);
-                if (extendedError != null) {
-                    LOG.warn("Fitbit onboarding script: sync/response block returned unexpected code {}, mid={}, extendedErrorNamespace={}, extendedErrorCode={}, extendedErrorRawCode={}, extendedErrorMessage={}, payload={}",
-                            formatCoapCode(message.code),
-                            message.messageId,
-                            extendedError.namespace,
-                            extendedError.code,
-                            extendedError.rawCode,
-                            extendedError.message,
-                            toHex(message.payload));
-                } else {
-                    LOG.warn("Fitbit onboarding script: sync/response block returned unexpected code {}, mid={}, payload={}",
-                            formatCoapCode(message.code),
-                            message.messageId,
-                            toHex(message.payload));
-                }
-            }
-        }
-    }
-
-    private void handleWatchPostForOnboarding(final CoapMessage message) {
-        if ("/md/3d02".equals(message.path) && dtlsSession.handledMetadataMessageIds.add(message.messageId)) {
-            final AppLifecycleInfo appLifecycleInfo = parseAppLifecycleInfo(message.payload);
-            LOG.info("Fitbit onboarding script: app lifecycle request {}/4 mid={} appUuid={} appBuildId={} eventType={}/{} errorType={}/{} payload={}",
-                    dtlsSession.handledMetadataMessageIds.size(),
-                    message.messageId,
-                    appLifecycleInfo.appUuidText,
-                    appLifecycleInfo.appBuildId,
-                    appLifecycleInfo.eventType,
-                    appLifecycleEventName(appLifecycleInfo.eventType),
-                    appLifecycleInfo.errorType,
-                    appLifecycleErrorName(appLifecycleInfo.errorType),
-                    toHex(message.payload));
-            queueSyncDumpPairIfReady();
-            return;
-        }
-
-        if ("/sync/request".equals(message.path) && dtlsSession.handledSyncRequestMessageIds.add(message.messageId)) {
-            final SyncRequestInfo syncRequestInfo = parseSyncRequestInfo(message.payload);
-            dtlsSession.pendingSyncRequestInfo = syncRequestInfo;
-            LOG.info("Fitbit onboarding script: sync/request mid={} eventType={} requestUuid={} retryCount={} payload={}",
-                    message.messageId,
-                    syncRequestInfo.eventType,
-                    syncRequestInfo.requestUuidText,
-                    syncRequestInfo.retryCount,
-                    toHex(message.payload));
-            queueSyncResponse(syncRequestInfo);
-        }
-    }
-
-    private void queueSyncResponseAfterDumpComplete() {
-        if (dtlsSession == null || !dtlsSession.syncDumpComplete) {
-            return;
-        }
-
-        if (dtlsSession.pendingSyncRequestInfo != null) {
-            queueSyncResponse(dtlsSession.pendingSyncRequestInfo);
-            return;
-        }
-
-        if (!BuildConfig.DEBUG) {
-            LOG.info("Fitbit onboarding script: no /sync/request observed before sync/dump completed; waiting for /sync/request before sending sync/response");
-            return;
-        }
-
-        final SyncRequestInfo syntheticSyncRequestInfo = new SyncRequestInfo("", new byte[0], 0);
-        dtlsSession.pendingSyncRequestInfo = syntheticSyncRequestInfo;
-        LOG.warn("Fitbit onboarding script: no /sync/request observed before sync/dump completed; DEBUG synthesizing empty sync/request metadata so /sync/response envelope and Block1 mechanics can be tested");
-        queueSyncResponse(syntheticSyncRequestInfo);
-    }
-
-    private void logCompletedSyncDumpPayload() {
-        final byte[] syncDumpPayload = dtlsSession.syncDumpPayload.toByteArray();
-        LOG.info("Fitbit onboarding script: sync/dump block transfer complete, totalPayloadLen={}, dumpSha256={}, prefix={}",
-                syncDumpPayload.length,
-                sha256Hex(syncDumpPayload),
-                toHexPrefix(syncDumpPayload, 64));
-        logDevelopmentHexChunks("sync/dump complete payload", syncDumpPayload);
-    }
-
-    private void queueSyncDumpPairIfReady() {
-        if (dtlsSession == null || dtlsSession.syncDumpPairQueued) {
-            return;
-        }
-
-        if (!dtlsSession.syncConfigAcknowledged || dtlsSession.handledMetadataMessageIds.size() < 4) {
-            return;
-        }
-
-        if (dtlsSession.pairingCode == null) {
-            LOG.info("Fitbit onboarding script: waiting for 4-digit pairing code before sync/dump?t=pair; syncConfigAcknowledged={}, metadataRequests={}",
-                    dtlsSession.syncConfigAcknowledged,
-                    dtlsSession.handledMetadataMessageIds.size());
-            return;
-        }
-
-        dtlsSession.syncDumpPairQueued = true;
-        dtlsSession.syncDumpPairMessageId = queueCoapRequest(
-                "sync/dump?t=pair",
-                COAP_CODE_GET,
-                new String[]{"sync", "dump"},
-                new String[]{"t=pair"},
-                null,
-                null,
-                new byte[0]
-        );
-    }
-
-    private void queuePairDisplayRequest(final boolean enabled) {
-        final int messageId = queueCoapRequest(
-                enabled ? "pair/display on" : "pair/display off",
-                COAP_CODE_PUT,
-                new String[]{"pair", "display"},
-                new String[0],
-                null,
-                FITBIT_COAP_BLOCK_SIZE_1024,
-                new byte[]{0x08, (byte) (enabled ? 0x01 : 0x00)}
-        );
-        if (enabled) {
-            dtlsSession.pairDisplayOnMessageId = messageId;
-        } else {
-            dtlsSession.pairDisplayOffMessageId = messageId;
-        }
-    }
-
-    private void queueSyncConfigRequest() {
-        if (dtlsSession.syncConfigQueued) {
-            return;
-        }
-
-        dtlsSession.syncConfigQueued = true;
-        dtlsSession.syncConfigMessageId = queueCoapRequest(
-                "sync/config",
-                COAP_CODE_GET,
-                new String[]{"sync", "config"},
-                new String[0],
-                null,
-                null,
-                new byte[0]
-        );
-    }
-
-    private void queueNextSyncDumpBlockRequest(final int blockNumber) {
-        if (dtlsSession.syncDumpComplete) {
-            return;
-        }
-
-        if (blockNumber >= FITBIT_ONBOARDING_MAX_SYNC_DUMP_BLOCKS) {
-            LOG.info("Fitbit onboarding script: reached sync/dump block limit {}",
-                    FITBIT_ONBOARDING_MAX_SYNC_DUMP_BLOCKS);
-            return;
-        }
-
-        final Integer block2 = blockNumber == 0
-                ? null
-                : encodeCoapBlockOption(blockNumber, false, FITBIT_COAP_BLOCK_SIZE_1024);
-        final int messageId = queueCoapRequest(
-                "sync/dump block " + blockNumber,
-                COAP_CODE_GET,
-                new String[]{"sync", "dump"},
-                new String[0],
-                block2,
-                null,
-                new byte[0]
-        );
-        dtlsSession.syncDumpMessageIds.add(messageId);
-        dtlsSession.nextSyncDumpBlockNumber = blockNumber + 1;
-    }
-
-    private void queueSyncResponse(final SyncRequestInfo syncRequestInfo) {
-        if (dtlsSession == null) {
-            return;
-        }
-
-        if (dtlsSession.syncResponseQueued) {
-            if (!dtlsSession.syncResponseFailed) {
-                LOG.info("Fitbit onboarding script: sync/response already queued; ignoring duplicate sync/request eventType={} requestUuid={}",
-                        syncRequestInfo.eventType,
-                        syncRequestInfo.requestUuidText);
-                return;
-            }
-
-            LOG.info("Fitbit onboarding script: retrying sync/response after previous failure, eventType={} requestUuid={}",
-                    syncRequestInfo.eventType,
-                    syncRequestInfo.requestUuidText);
-            dtlsSession.syncResponseMessageIds.clear();
-            dtlsSession.syncResponsePayload = null;
-            dtlsSession.syncResponseRequestInfo = null;
-            dtlsSession.syncResponseQueued = false;
-            dtlsSession.syncResponseComplete = false;
-            dtlsSession.nextSyncResponseBlockNumber = 0;
-            dtlsSession.syncResponseFailed = false;
-        }
-
-        if (!dtlsSession.syncDumpComplete) {
-            LOG.info("Fitbit onboarding script: deferring sync/response until sync/dump is complete");
-            return;
-        }
-
-        try {
-            dtlsSession.syncResponsePayload = buildSyncResponsePayload(syncRequestInfo);
-            if (dtlsSession.syncResponsePayload == null) {
-                LOG.warn("Fitbit onboarding script: sync/response payload not queued; waiting for required debug inputs before answering eventType={} requestUuid={}",
-                        syncRequestInfo.eventType,
-                        syncRequestInfo.requestUuidText);
-                return;
-            }
-
-            dtlsSession.syncResponseRequestInfo = syncRequestInfo;
-            dtlsSession.syncResponseQueued = true;
-            dtlsSession.nextSyncResponseBlockNumber = 0;
-            LOG.info("Fitbit onboarding script: generated sync/response payload len={}, sha256={}, prefix={}, eventType={}, requestUuid={}, dumpSha256={}",
-                    dtlsSession.syncResponsePayload.length,
-                    sha256Hex(dtlsSession.syncResponsePayload),
-                    toHexPrefix(dtlsSession.syncResponsePayload, 64),
-                    syncRequestInfo.eventType,
-                    syncRequestInfo.requestUuidText,
-                    sha256Hex(dtlsSession.syncDumpPayload.toByteArray()));
-            logDevelopmentHexChunks("sync/response complete payload queued", dtlsSession.syncResponsePayload);
-            LOG.info("Fitbit onboarding script: Fitbit app JADX maps /sync/response to the decoded backend pair response; debug fixtures are analysis specimens until a local generator is implemented");
-            queueNextSyncResponseBlock();
-        } catch (final NoSuchAlgorithmException e) {
-            LOG.warn("Unable to generate Fitbit sync/response body", e);
-        }
-    }
-
-    private byte[] buildSyncResponsePayload(final SyncRequestInfo syncRequestInfo)
-            throws NoSuchAlgorithmException {
-        final byte[] dumpPayload = dtlsSession.syncDumpPayload.toByteArray();
-        final byte[] dumpHash = sha256(dumpPayload);
-        final String dumpHashHex = toHex(dumpHash);
-        final String pairingCode = dtlsSession.pairingCode != null
-                ? dtlsSession.pairingCode
-                : loadDebugPairingCode();
-        if (pairingCode == null) {
-            LOG.warn("Fitbit onboarding script: Fitbit pairing code is required before /sync/response; enter the 4-digit watch code in the Fitbit pairing screen or create {}/{} in Gadgetbridge external files for debug replay",
-                    FITBIT_SYNC_RESPONSE_FIXTURE_DIRECTORY,
-                    FITBIT_PAIRING_CODE_FILE);
-            return null;
-        }
-
-        final byte[] fixtureResponse = loadDebugSyncResponseFixture(dumpHashHex, pairingCode);
-        if (fixtureResponse != null) {
-            return buildSyncResponseEnvelopeFromCandidate(dumpPayload, fixtureResponse, "debug fixture");
-        }
-
-        final byte[] generatedPayload = buildOfflineSyncResponsePayloadAfterEnvelope(
-                dumpPayload,
-                dumpHashHex,
-                pairingCode,
-                syncRequestInfo);
-        if (generatedPayload != null) {
-            return buildSyncResponseEnvelope(dumpPayload, generatedPayload, "offline generator");
-        }
-
-        LOG.warn("Fitbit onboarding script: no sync/response payload available for dumpSha256={} pairingCode={} eventType={} requestUuid={}; not sending fabricated response",
-                dumpHashHex,
-                pairingCode,
-                syncRequestInfo.eventType,
-                syncRequestInfo.requestUuidText);
-        return null;
-    }
-
-    private byte[] buildOfflineSyncResponsePayloadAfterEnvelope(final byte[] dumpPayload,
-                                                               final String dumpHashHex,
-                                                               final String pairingCode,
-                                                               final SyncRequestInfo syncRequestInfo) {
-        LOG.warn("Fitbit onboarding script: offline /sync/response payload generator is not implemented yet; need to reverse payload after byte {} from official /pair responses. dumpLen={}, dumpSha256={}, pairingCode={}, eventType={}, requestUuid={}",
-                FITBIT_PAIR_SYNC_ENVELOPE_LENGTH,
-                dumpPayload.length,
-                dumpHashHex,
-                pairingCode,
-                syncRequestInfo.eventType,
-                syncRequestInfo.requestUuidText);
-        return null;
-    }
-
-    private byte[] buildSyncResponseEnvelopeFromCandidate(final byte[] dumpPayload,
-                                                          final byte[] responseCandidate,
-                                                          final String source) {
-        if (isFitbitPairSyncEnvelope(responseCandidate)) {
-            final byte[] responsePayload = Arrays.copyOfRange(
-                    responseCandidate,
-                    FITBIT_PAIR_SYNC_ENVELOPE_LENGTH,
-                    responseCandidate.length);
-            final byte[] normalized = buildSyncResponseEnvelope(dumpPayload, responsePayload, source);
-            if (normalized == null) {
-                return null;
-            }
-            LOG.info("Fitbit onboarding script: normalized {} response envelope, candidateCounter={}, normalizedCounter={}, candidateSha256={}, normalizedSha256={}",
-                    source,
-                    responseCandidate[5] & 0xff,
-                    normalized[5] & 0xff,
-                    sha256Hex(responseCandidate),
-                    sha256Hex(normalized));
-            return normalized;
-        }
-
-        LOG.warn("Fitbit onboarding script: treating {} as payload-after-envelope because it does not have Fitbit pair-sync envelope prefix; candidateLen={}, candidateSha256={}",
-                source,
-                responseCandidate.length,
-                sha256Hex(responseCandidate));
-        return buildSyncResponseEnvelope(dumpPayload, responseCandidate, source);
-    }
-
-    private byte[] buildSyncResponseEnvelope(final byte[] dumpPayload,
-                                             final byte[] payloadAfterEnvelope,
-                                             final String payloadSource) {
-        if (!isFitbitPairSyncEnvelope(dumpPayload)) {
-            LOG.warn("Fitbit onboarding script: cannot build sync/response envelope from malformed pair dump; dumpLen={}, prefix={}",
-                    dumpPayload.length,
-                    toHexPrefix(dumpPayload, FITBIT_PAIR_SYNC_ENVELOPE_LENGTH));
-            return null;
-        }
-
-        final byte[] response = new byte[FITBIT_PAIR_SYNC_ENVELOPE_LENGTH + payloadAfterEnvelope.length];
-        System.arraycopy(dumpPayload, 0, response, 0, FITBIT_PAIR_SYNC_ENVELOPE_LENGTH);
-        response[5] = (byte) ((dumpPayload[5] + 1) & 0xff);
-        System.arraycopy(payloadAfterEnvelope, 0, response, FITBIT_PAIR_SYNC_ENVELOPE_LENGTH, payloadAfterEnvelope.length);
-        LOG.info("Fitbit onboarding script: built sync/response envelope from {}, pairCounter={}, responseCounter={}, dwid={}, payloadLen={}, responseLen={}, responseSha256={}",
-                payloadSource,
-                dumpPayload[5] & 0xff,
-                response[5] & 0xff,
-                toHex(Arrays.copyOfRange(response, 9, 15)),
-                payloadAfterEnvelope.length,
-                response.length,
-                sha256Hex(response));
-        return response;
-    }
-
-    private boolean isFitbitPairSyncEnvelope(final byte[] payload) {
-        return payload != null
-                && payload.length > FITBIT_PAIR_SYNC_ENVELOPE_LENGTH
-                && payload[0] == 0x03
-                && payload[1] == 0x04
-                && payload[2] == 0x00
-                && payload[3] == 0x00
-                && payload[4] == 0x02;
-    }
-
-    private String loadDebugPairingCode() {
-        if (!BuildConfig.DEBUG) {
-            return null;
-        }
-
-        try {
-            final File fixtureDirectory = new File(FileUtils.getExternalFilesDir(), FITBIT_SYNC_RESPONSE_FIXTURE_DIRECTORY);
-            if (!fixtureDirectory.exists() && !fixtureDirectory.mkdirs()) {
-                LOG.warn("Fitbit onboarding script: unable to create sync/response fixture directory {}",
-                        fixtureDirectory.getAbsolutePath());
-                return null;
-            }
-
-            final File codeFile = new File(fixtureDirectory, FITBIT_PAIRING_CODE_FILE);
-            if (!codeFile.isFile()) {
-                LOG.info("Fitbit onboarding script: no debug Fitbit pairing code file {}, code-specific sync/response fixtures disabled",
-                        codeFile.getAbsolutePath());
-                return null;
-            }
-
-            if (dtlsSession != null && codeFile.lastModified() < dtlsSession.startedAtMillis) {
-                LOG.warn("Fitbit onboarding script: ignoring stale debug Fitbit pairing code file {} lastModified={} sessionStarted={}",
-                        codeFile.getAbsolutePath(),
-                        codeFile.lastModified(),
-                        dtlsSession.startedAtMillis);
-                return null;
-            }
-
-            if (codeFile.length() <= 0 || codeFile.length() > FITBIT_PAIRING_CODE_FILE_MAX_LENGTH) {
-                LOG.warn("Fitbit onboarding script: ignoring debug Fitbit pairing code file {} because len={} is invalid",
-                        codeFile.getAbsolutePath(),
-                        codeFile.length());
-                return null;
-            }
-
-            final String pairingCode = new String(readFileFully(codeFile), StandardCharsets.US_ASCII).trim();
-            if (!pairingCode.matches("\\d{4}")) {
-                LOG.warn("Fitbit onboarding script: ignoring debug Fitbit pairing code file {} because it must contain exactly 4 digits",
-                        codeFile.getAbsolutePath());
-                return null;
-            }
-
-            LOG.warn("Fitbit onboarding script: using debug Fitbit pairing code from {}, codeSha256={}",
-                    codeFile.getAbsolutePath(),
-                    sha256Hex(pairingCode.getBytes(StandardCharsets.US_ASCII)));
-            LOG.warn("Fitbit onboarding script: DEBUG RAW Fitbit pairing code={}", pairingCode);
-            return pairingCode;
-        } catch (final IOException e) {
-            LOG.warn("Fitbit onboarding script: unable to load debug Fitbit pairing code", e);
-            return null;
-        }
-    }
-
-    private byte[] loadDebugSyncResponseFixture(final String dumpSha256, final String pairingCode) {
-        if (!BuildConfig.DEBUG) {
-            return null;
-        }
-
-        try {
-            final File fixtureDirectory = new File(FileUtils.getExternalFilesDir(), FITBIT_SYNC_RESPONSE_FIXTURE_DIRECTORY);
-            if (!fixtureDirectory.exists() && !fixtureDirectory.mkdirs()) {
-                LOG.warn("Fitbit onboarding script: unable to create sync/response fixture directory {}",
-                        fixtureDirectory.getAbsolutePath());
-                return null;
-            }
-
-            final File fixtureFile = findDebugSyncResponseFixture(fixtureDirectory, dumpSha256, pairingCode);
-            if (fixtureFile == null) {
-                LOG.info("Fitbit onboarding script: no debug sync/response fixture for dumpSha256={}, pairingCodePresent={}, fixtureDir={}",
-                        dumpSha256,
-                        pairingCode != null,
-                        fixtureDirectory.getAbsolutePath());
-                return null;
-            }
-
-            if (fixtureFile.length() <= 0) {
-                LOG.warn("Fitbit onboarding script: ignoring empty sync/response fixture {}",
-                        fixtureFile.getAbsolutePath());
-                return null;
-            }
-
-            if (fixtureFile.length() > FITBIT_SYNC_RESPONSE_FIXTURE_MAX_LENGTH) {
-                LOG.warn("Fitbit onboarding script: ignoring sync/response fixture {} because len={} exceeds max={}",
-                        fixtureFile.getAbsolutePath(),
-                        fixtureFile.length(),
-                        FITBIT_SYNC_RESPONSE_FIXTURE_MAX_LENGTH);
-                return null;
-            }
-
-            final byte[] fixturePayload = readFileFully(fixtureFile);
-            LOG.warn("Fitbit onboarding script: using debug sync/response fixture dumpSha256={}, pairingCodePresent={}, responseLen={}, responseSha256={}, path={}",
-                    dumpSha256,
-                    pairingCode != null,
-                    fixturePayload.length,
-                    sha256Hex(fixturePayload),
-                    fixtureFile.getAbsolutePath());
-            logDevelopmentHexChunks("sync/response fixture payload", fixturePayload);
-            return fixturePayload;
-        } catch (final IOException e) {
-            LOG.warn("Fitbit onboarding script: unable to load debug sync/response fixture for dumpSha256={}",
-                    dumpSha256,
-                    e);
-            return null;
-        }
-    }
-
-    private static File findDebugSyncResponseFixture(final File fixtureDirectory,
-                                                    final String dumpSha256,
-                                                    final String pairingCode) {
-        if (pairingCode != null) {
-            final File codeSpecificFixture = new File(new File(new File(fixtureDirectory, dumpSha256), pairingCode), "response.bin");
-            logDebugFixtureCandidate(codeSpecificFixture);
-            if (codeSpecificFixture.isFile()) {
-                return codeSpecificFixture;
-            }
-
-            final File codeFlatFixture = new File(new File(fixtureDirectory, dumpSha256), pairingCode + ".response.bin");
-            logDebugFixtureCandidate(codeFlatFixture);
-            if (codeFlatFixture.isFile()) {
-                return codeFlatFixture;
-            }
-
-            final File codeOnlyFixture = new File(new File(fixtureDirectory, pairingCode), "response.bin");
-            logDebugFixtureCandidate(codeOnlyFixture);
-            if (codeOnlyFixture.isFile()) {
-                LOG.warn("Fitbit onboarding script: using DEBUG code-only sync/response fixture for pairingCode={} without dumpSha256 match; this is unsafe and only for live perturbation tests",
-                        pairingCode);
-                return codeOnlyFixture;
-            }
-
-            final File codeOnlyFlatFixture = new File(fixtureDirectory, pairingCode + ".response.bin");
-            logDebugFixtureCandidate(codeOnlyFlatFixture);
-            if (codeOnlyFlatFixture.isFile()) {
-                LOG.warn("Fitbit onboarding script: using DEBUG code-only flat sync/response fixture for pairingCode={} without dumpSha256 match; this is unsafe and only for live perturbation tests",
-                        pairingCode);
-                return codeOnlyFlatFixture;
-            }
-
-            LOG.warn("Fitbit onboarding script: no code-specific or code-only fixture found for dumpSha256={} pairingCode={}; refusing dump-only fallback fixtures",
-                    dumpSha256,
-                    pairingCode);
-            return null;
-        }
-
-        final File mappedFixture = new File(new File(fixtureDirectory, dumpSha256), "response.bin");
-        logDebugFixtureCandidate(mappedFixture);
-        if (mappedFixture.isFile()) {
-            return mappedFixture;
-        }
-
-        final File flatFixture = new File(fixtureDirectory, dumpSha256 + ".bin");
-        logDebugFixtureCandidate(flatFixture);
-        if (flatFixture.isFile()) {
-            return flatFixture;
-        }
-
-        final File namedFixture = new File(fixtureDirectory, dumpSha256 + ".response.bin");
-        logDebugFixtureCandidate(namedFixture);
-        if (namedFixture.isFile()) {
-            return namedFixture;
-        }
-
-        final File fallbackFixture = new File(fixtureDirectory, "response.bin");
-        logDebugFixtureCandidate(fallbackFixture);
-        if (fallbackFixture.isFile()) {
-            return fallbackFixture;
-        }
-
-        return null;
-    }
-
-    private static byte[] readFileFully(final File file) throws IOException {
-        final ByteArrayOutputStream output = new ByteArrayOutputStream((int) file.length());
-        final byte[] buffer = new byte[4096];
-        try (FileInputStream input = new FileInputStream(file)) {
-            int read;
-            while ((read = input.read(buffer)) >= 0) {
-                output.write(buffer, 0, read);
-            }
-        }
-        return output.toByteArray();
-    }
-
-    private static void logDebugFixtureCandidate(final File fixtureFile) {
-        if (!BuildConfig.DEBUG) {
-            return;
-        }
-
-        LOG.info("Fitbit onboarding script: checking debug sync/response fixture candidate path={}, exists={}, isFile={}, len={}",
-                fixtureFile.getAbsolutePath(),
-                fixtureFile.exists(),
-                fixtureFile.isFile(),
-                fixtureFile.exists() ? fixtureFile.length() : -1);
-    }
-
-    private static void logDevelopmentHexChunks(final String label, final byte[] value) {
-        if (!LOG_DEVELOPMENT_PLAINTEXT || value == null) {
-            return;
-        }
-
-        if (value.length == 0) {
-            LOG.warn("Fitbit DEBUG HEX {}: len=0 sha256={} chunks=0", label, sha256Hex(value));
-            return;
-        }
-
-        final int totalChunks = (value.length + FITBIT_DEVELOPMENT_LOG_HEX_CHUNK_BYTES - 1)
-                / FITBIT_DEVELOPMENT_LOG_HEX_CHUNK_BYTES;
-        LOG.warn("Fitbit DEBUG HEX {}: len={} sha256={} chunks={}",
-                label,
-                value.length,
-                sha256Hex(value),
-                totalChunks);
-        for (int offset = 0, chunk = 0; offset < value.length; offset += FITBIT_DEVELOPMENT_LOG_HEX_CHUNK_BYTES, chunk++) {
-            final int length = Math.min(FITBIT_DEVELOPMENT_LOG_HEX_CHUNK_BYTES, value.length - offset);
-            LOG.warn("Fitbit DEBUG HEX {} chunk={}/{} offset={} len={} data={}",
-                    label,
-                    chunk + 1,
-                    totalChunks,
-                    offset,
-                    length,
-                    toHex(Arrays.copyOfRange(value, offset, offset + length)));
-        }
-    }
-
-    private void queueNextSyncResponseBlock() {
-        if (dtlsSession == null || dtlsSession.syncResponsePayload == null) {
-            return;
-        }
-
-        final int blockNumber = dtlsSession.nextSyncResponseBlockNumber;
-        final int offset = blockNumber * FITBIT_COAP_BLOCK_SIZE_1024_BYTES;
-        if (offset >= dtlsSession.syncResponsePayload.length) {
-            LOG.warn("Fitbit onboarding script: sync/response requested next block past payload end, blockNumber={}, payloadLen={}",
-                    blockNumber,
-                    dtlsSession.syncResponsePayload.length);
-            return;
-        }
-
-        final int length = Math.min(FITBIT_COAP_BLOCK_SIZE_1024_BYTES,
-                dtlsSession.syncResponsePayload.length - offset);
-        final boolean more = offset + length < dtlsSession.syncResponsePayload.length;
-        final byte[] blockPayload = Arrays.copyOfRange(dtlsSession.syncResponsePayload, offset, offset + length);
-        final int messageId = queueCoapRequest(
-                "sync/response block " + blockNumber,
-                COAP_CODE_PUT,
-                new String[]{"sync", "response"},
-                buildSyncResponseQuerySegments(dtlsSession.syncResponseRequestInfo),
-                null,
-                encodeCoapBlockOption(blockNumber, more, FITBIT_COAP_BLOCK_SIZE_1024),
-                blockPayload
-        );
-        dtlsSession.syncResponseMessageIds.add(messageId);
-        dtlsSession.nextSyncResponseBlockNumber = blockNumber + 1;
-        LOG.info("Fitbit onboarding script: queued sync/response Block1 block={} more={} payloadLen={} mid={} prefix={}",
-                blockNumber,
-                more,
-                blockPayload.length,
-                messageId,
-                toHexPrefix(blockPayload, 32));
-        logDevelopmentHexChunks("sync/response Block1 block " + blockNumber + " payload", blockPayload);
-    }
-
-    private static String[] buildSyncResponseQuerySegments(final SyncRequestInfo syncRequestInfo) {
-        if (syncRequestInfo == null
-                || syncRequestInfo.eventType.isEmpty()
-                || syncRequestInfo.requestUuidText.isEmpty()) {
-            return new String[0];
-        }
-
-        return new String[]{
-                "event=" + syncRequestInfo.eventType,
-                "req=" + syncRequestInfo.requestUuidText,
-        };
-    }
-
-    private int queueCoapRequest(final String label,
-                                 final int code,
-                                 final String[] pathSegments,
-                                 final String[] querySegments,
-                                 final Integer block2,
-                                 final Integer block1,
-                                 final byte[] payload) {
-        if (dtlsSession == null) {
-            return -1;
-        }
-
-        final int messageId = dtlsSession.nextCoapMessageId++ & 0xffff;
-        final byte[] token = buildCoapToken(dtlsSession.nextCoapTokenValue++);
-        final byte[] coapRequest = buildCoapRequest(
-                code,
-                messageId,
-                token,
-                pathSegments,
-                querySegments,
-                block2,
-                block1,
-                payload
-        );
-        queueEncryptedApplicationRecord("request " + label, coapRequest, messageId, token, buildCoapPath(Arrays.asList(pathSegments)));
-        return messageId;
-    }
-
-    private void queueEncryptedApplicationRecord(final String label,
-                                                 final byte[] coapMessage,
-                                                 final int messageId,
-                                                 final byte[] token,
-                                                 final String path) {
-        final long sequenceNumber = dtlsSession.nextServerApplicationSequenceNumber++;
-        try {
-            final byte[] encryptedResponse = encryptAes128CcmRecord(
-                    dtlsSession.keys.serverWriteKey,
-                    dtlsSession.keys.serverWriteIv,
-                    DTLS_CONTENT_TYPE_APPLICATION_DATA,
-                    dtlsSession.recordVersion,
-                    DTLS_EPOCH_APPLICATION,
-                    sequenceNumber,
-                    coapMessage
-            );
-            dtlsSession.pendingApplicationRecords.add(buildDtlsRecord(
-                    DTLS_CONTENT_TYPE_APPLICATION_DATA,
-                    dtlsSession.recordVersion,
-                    DTLS_EPOCH_APPLICATION,
-                    sequenceNumber,
-                    encryptedResponse
-            ));
-
-            LOG.info("Fitbit CoAP outbound {}: sequence={}, code={}, mid={}, token={}, path={}, payloadLen={}",
-                    label,
-                    sequenceNumber,
-                    formatCoapCode(coapMessage[1] & 0xff),
-                    messageId,
-                    toHex(token),
-                    path,
-                    getCoapPayloadLength(coapMessage));
-            if (LOG_DEVELOPMENT_PLAINTEXT) {
-                LOG.info("Fitbit CoAP outbound plaintext: sequence={}, label={}, coap={}",
-                        sequenceNumber,
-                        label,
-                        toHex(coapMessage));
-            }
-        } catch (final InvalidCipherTextException e) {
-            LOG.warn("Unable to encrypt Fitbit CoAP outbound {}: mid={}, path={}",
-                    label,
-                    messageId,
-                    path,
-                    e);
-        }
-    }
-
-    private void appendPendingApplicationRecords(final List<byte[]> records) {
-        if (dtlsSession == null || dtlsSession.pendingApplicationRecords.isEmpty()) {
-            return;
-        }
-
-        records.addAll(dtlsSession.pendingApplicationRecords);
-        dtlsSession.pendingApplicationRecords.clear();
-    }
-
-    private byte[] drainPendingApplicationRecords() {
-        final byte[] dtlsPayload = concat(dtlsSession.pendingApplicationRecords);
-        dtlsSession.pendingApplicationRecords.clear();
-        return dtlsPayload;
     }
 
     private ClientHello parseClientHello(final byte[] packet) {
@@ -1812,16 +883,9 @@ final class FitbitDtls {
         final int messageId = readU16(packet, 2);
         final byte[] token = Arrays.copyOfRange(packet, 4, 4 + tokenLength);
         final List<String> uriPathSegments = new ArrayList<>();
-        final List<String> uriQuerySegments = new ArrayList<>();
         int optionNumber = 0;
         int pos = 4 + tokenLength;
         byte[] payload = new byte[0];
-        int block2Number = -1;
-        boolean block2More = false;
-        int block2SizeExponent = -1;
-        int block1Number = -1;
-        boolean block1More = false;
-        int block1SizeExponent = -1;
 
         while (pos < packet.length) {
             if ((packet[pos] & 0xff) == COAP_PAYLOAD_MARKER) {
@@ -1848,287 +912,11 @@ final class FitbitDtls {
             optionNumber += optionDelta.value;
             if (optionNumber == COAP_OPTION_URI_PATH) {
                 uriPathSegments.add(new String(packet, pos, optionLength.value, StandardCharsets.UTF_8));
-            } else if (optionNumber == COAP_OPTION_URI_QUERY) {
-                uriQuerySegments.add(new String(packet, pos, optionLength.value, StandardCharsets.UTF_8));
-            } else if (optionNumber == COAP_OPTION_BLOCK2) {
-                final int block2 = readCoapOptionValue(packet, pos, optionLength.value);
-                block2Number = block2 >> 4;
-                block2More = (block2 & 0x08) != 0;
-                block2SizeExponent = block2 & 0x07;
-            } else if (optionNumber == COAP_OPTION_BLOCK1) {
-                final int block1 = readCoapOptionValue(packet, pos, optionLength.value);
-                block1Number = block1 >> 4;
-                block1More = (block1 & 0x08) != 0;
-                block1SizeExponent = block1 & 0x07;
             }
             pos += optionLength.value;
         }
 
-        return new CoapMessage(type, code, messageId, token, uriPathSegments, uriQuerySegments,
-                block2Number, block2More, block2SizeExponent,
-                block1Number, block1More, block1SizeExponent,
-                payload);
-    }
-
-    private static SyncRequestInfo parseSyncRequestInfo(final byte[] payload) {
-        String eventType = "";
-        byte[] requestUuid = new byte[0];
-        int retryCount = 0;
-        int pos = 0;
-
-        while (pos < payload.length) {
-            final ProtoVarint tag = readProtoVarint(payload, pos);
-            if (tag == null) {
-                break;
-            }
-            pos = tag.nextOffset;
-            final int fieldNumber = (int) (tag.value >> 3);
-            final int wireType = (int) (tag.value & 0x07);
-
-            if (wireType == 2) {
-                final ProtoVarint lengthVarint = readProtoVarint(payload, pos);
-                if (lengthVarint == null || lengthVarint.value > Integer.MAX_VALUE) {
-                    break;
-                }
-                pos = lengthVarint.nextOffset;
-                final int length = (int) lengthVarint.value;
-                if (length < 0 || pos + length > payload.length) {
-                    break;
-                }
-                if (fieldNumber == 1) {
-                    eventType = new String(payload, pos, length, StandardCharsets.UTF_8);
-                } else if (fieldNumber == 2) {
-                    requestUuid = Arrays.copyOfRange(payload, pos, pos + length);
-                }
-                pos += length;
-            } else if (wireType == 0) {
-                final ProtoVarint value = readProtoVarint(payload, pos);
-                if (value == null) {
-                    break;
-                }
-                pos = value.nextOffset;
-                if (fieldNumber == 3) {
-                    retryCount = (int) value.value;
-                }
-            } else if (wireType == 5) {
-                if (pos + 4 > payload.length) {
-                    break;
-                }
-                pos += 4;
-            } else if (wireType == 1) {
-                if (pos + 8 > payload.length) {
-                    break;
-                }
-                pos += 8;
-            } else {
-                break;
-            }
-        }
-
-        return new SyncRequestInfo(eventType, requestUuid, retryCount);
-    }
-
-    private static AppLifecycleInfo parseAppLifecycleInfo(final byte[] payload) {
-        byte[] appUuid = new byte[0];
-        long appBuildId = 0;
-        int eventType = 0;
-        int errorType = 0;
-        int pos = 0;
-
-        while (pos < payload.length) {
-            final ProtoVarint tag = readProtoVarint(payload, pos);
-            if (tag == null) {
-                break;
-            }
-            pos = tag.nextOffset;
-            final int fieldNumber = (int) (tag.value >> 3);
-            final int wireType = (int) (tag.value & 0x07);
-
-            if (wireType == 2) {
-                final ProtoVarint lengthVarint = readProtoVarint(payload, pos);
-                if (lengthVarint == null || lengthVarint.value > Integer.MAX_VALUE) {
-                    break;
-                }
-                pos = lengthVarint.nextOffset;
-                final int length = (int) lengthVarint.value;
-                if (length < 0 || pos + length > payload.length) {
-                    break;
-                }
-                if (fieldNumber == 1) {
-                    appUuid = Arrays.copyOfRange(payload, pos, pos + length);
-                }
-                pos += length;
-            } else if (wireType == 0) {
-                final ProtoVarint value = readProtoVarint(payload, pos);
-                if (value == null) {
-                    break;
-                }
-                pos = value.nextOffset;
-                if (fieldNumber == 2) {
-                    appBuildId = value.value;
-                } else if (fieldNumber == 3) {
-                    eventType = (int) value.value;
-                } else if (fieldNumber == 4) {
-                    errorType = (int) value.value;
-                }
-            } else if (wireType == 5) {
-                if (pos + 4 > payload.length) {
-                    break;
-                }
-                pos += 4;
-            } else if (wireType == 1) {
-                if (pos + 8 > payload.length) {
-                    break;
-                }
-                pos += 8;
-            } else {
-                break;
-            }
-        }
-
-        return new AppLifecycleInfo(appUuid, appBuildId, eventType, errorType);
-    }
-
-    private static GoldenGateExtendedError decodeGoldenGateExtendedError(final byte[] payload) {
-        if (payload == null || payload.length == 0) {
-            return null;
-        }
-
-        String namespace = null;
-        String message = null;
-        long rawCode = 0;
-        int code = 0;
-        boolean sawKnownField = false;
-        int pos = 0;
-
-        while (pos < payload.length) {
-            final ProtoVarint tag = readProtoVarint(payload, pos);
-            if (tag == null || tag.nextOffset <= pos) {
-                return null;
-            }
-
-            pos = tag.nextOffset;
-            final int fieldNumber = (int) (tag.value >> 3);
-            final int wireType = (int) (tag.value & 0x07);
-
-            if ((fieldNumber == 1 || fieldNumber == 3) && wireType == PROTOBUF_WIRE_TYPE_LENGTH_DELIMITED) {
-                final ProtoVarint lengthVarint = readProtoVarint(payload, pos);
-                if (lengthVarint == null || lengthVarint.value > Integer.MAX_VALUE) {
-                    return null;
-                }
-
-                pos = lengthVarint.nextOffset;
-                final int length = (int) lengthVarint.value;
-                if (length < 0 || pos + length > payload.length) {
-                    return null;
-                }
-
-                final String value = new String(payload, pos, length, StandardCharsets.UTF_8);
-                if (fieldNumber == 1) {
-                    namespace = value;
-                } else {
-                    message = value;
-                }
-                sawKnownField = true;
-                pos += length;
-            } else if (fieldNumber == 2 && wireType == PROTOBUF_WIRE_TYPE_VARINT) {
-                final ProtoVarint value = readProtoVarint(payload, pos);
-                if (value == null) {
-                    return null;
-                }
-
-                pos = value.nextOffset;
-                rawCode = value.value;
-                code = decodeProtoZigZag32(rawCode);
-                sawKnownField = true;
-            } else {
-                final int nextOffset = skipProtoValue(payload, pos, wireType);
-                if (nextOffset < 0 || nextOffset < pos) {
-                    return null;
-                }
-                pos = nextOffset;
-            }
-        }
-
-        if (!sawKnownField) {
-            return null;
-        }
-
-        return new GoldenGateExtendedError(namespace, code, rawCode, message);
-    }
-
-    private static int skipProtoValue(final byte[] payload, final int offset, final int wireType) {
-        switch (wireType) {
-            case PROTOBUF_WIRE_TYPE_VARINT:
-                final ProtoVarint value = readProtoVarint(payload, offset);
-                return value == null ? -1 : value.nextOffset;
-            case PROTOBUF_WIRE_TYPE_64_BIT:
-                return offset + 8 <= payload.length ? offset + 8 : -1;
-            case PROTOBUF_WIRE_TYPE_LENGTH_DELIMITED:
-                final ProtoVarint lengthVarint = readProtoVarint(payload, offset);
-                if (lengthVarint == null || lengthVarint.value > Integer.MAX_VALUE) {
-                    return -1;
-                }
-                final int length = (int) lengthVarint.value;
-                final int valueOffset = lengthVarint.nextOffset;
-                return length >= 0 && valueOffset + length <= payload.length ? valueOffset + length : -1;
-            case PROTOBUF_WIRE_TYPE_32_BIT:
-                return offset + 4 <= payload.length ? offset + 4 : -1;
-            default:
-                return -1;
-        }
-    }
-
-    private static int decodeProtoZigZag32(final long value) {
-        return (int) ((value >>> 1) ^ -(value & 1L));
-    }
-
-    private static String appLifecycleEventName(final int eventType) {
-        switch (eventType) {
-            case 1:
-                return "LAUNCH";
-            case 2:
-                return "TERMINATE";
-            case 3:
-                return "SESSION_OPEN";
-            case 4:
-                return "SESSION_OPEN_RESPONSE";
-            case 5:
-                return "SESSION_CLOSE";
-            default:
-                return "UNKNOWN";
-        }
-    }
-
-    private static String appLifecycleErrorName(final int errorType) {
-        switch (errorType) {
-            case 0:
-                return "OK";
-            case 1:
-                return "COMPANION_ERROR";
-            default:
-                return "UNKNOWN";
-        }
-    }
-
-    private static ProtoVarint readProtoVarint(final byte[] payload, final int offset) {
-        long value = 0;
-        int shift = 0;
-        int pos = offset;
-        while (pos < payload.length && shift <= 63) {
-            final int b = payload[pos++] & 0xff;
-            value |= (long) (b & 0x7f) << shift;
-            if ((b & 0x80) == 0) {
-                return new ProtoVarint(value, pos);
-            }
-            shift += 7;
-        }
-        return null;
-    }
-
-    private static boolean isCoapErrorResponse(final int code) {
-        final int codeClass = (code >> 5) & 0x07;
-        return codeClass == 4 || codeClass == 5;
+        return new CoapMessage(type, code, messageId, token, uriPathSegments, payload);
     }
 
     private Integer resolveCoapResponseCode(final CoapMessage request) {
@@ -2163,99 +951,6 @@ final class FitbitDtls {
         }
 
         return output.toByteArray();
-    }
-
-    private byte[] buildCoapRequest(final int code,
-                                    final int messageId,
-                                    final byte[] token,
-                                    final String[] pathSegments,
-                                    final String[] querySegments,
-                                    final Integer block2,
-                                    final Integer block1,
-                                    final byte[] payload) {
-        final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        output.write((1 << 6) | (COAP_TYPE_CONFIRMABLE << 4) | token.length);
-        output.write(code);
-        output.write((messageId >> 8) & 0xff);
-        output.write(messageId & 0xff);
-        output.write(token, 0, token.length);
-
-        int previousOptionNumber = 0;
-        for (final String segment : pathSegments) {
-            final byte[] value = segment.getBytes(StandardCharsets.UTF_8);
-            writeCoapOption(output, COAP_OPTION_URI_PATH - previousOptionNumber, value);
-            previousOptionNumber = COAP_OPTION_URI_PATH;
-        }
-
-        for (final String query : querySegments) {
-            final byte[] value = query.getBytes(StandardCharsets.UTF_8);
-            writeCoapOption(output, COAP_OPTION_URI_QUERY - previousOptionNumber, value);
-            previousOptionNumber = COAP_OPTION_URI_QUERY;
-        }
-
-        if (block2 != null) {
-            writeCoapOption(output, COAP_OPTION_BLOCK2 - previousOptionNumber, encodeCoapOptionValue(block2));
-            previousOptionNumber = COAP_OPTION_BLOCK2;
-        }
-
-        if (block1 != null) {
-            writeCoapOption(output, COAP_OPTION_BLOCK1 - previousOptionNumber, encodeCoapOptionValue(block1));
-        }
-
-        if (payload.length > 0) {
-            output.write(COAP_PAYLOAD_MARKER);
-            output.write(payload, 0, payload.length);
-        }
-
-        return output.toByteArray();
-    }
-
-    private static byte[] buildCoapToken(final int tokenValue) {
-        final byte[] token = new byte[4];
-        writeU32(token, 0, tokenValue & 0xffffffffL);
-        return token;
-    }
-
-    private static int getCoapPayloadLength(final byte[] coapMessage) {
-        for (int i = 4 + (coapMessage[0] & 0x0f); i < coapMessage.length; i++) {
-            if ((coapMessage[i] & 0xff) == COAP_PAYLOAD_MARKER) {
-                return coapMessage.length - i - 1;
-            }
-        }
-        return 0;
-    }
-
-    private static int encodeCoapBlockOption(final int blockNumber,
-                                             final boolean more,
-                                             final int sizeExponent) {
-        return (blockNumber << 4) | (more ? 0x08 : 0x00) | (sizeExponent & 0x07);
-    }
-
-    private static int readCoapOptionValue(final byte[] packet,
-                                           final int offset,
-                                           final int length) {
-        int value = 0;
-        for (int i = 0; i < length; i++) {
-            value = (value << 8) | (packet[offset + i] & 0xff);
-        }
-        return value;
-    }
-
-    private static byte[] encodeCoapOptionValue(final int value) {
-        if (value == 0) {
-            return new byte[0];
-        }
-
-        int length = 4;
-        while (length > 1 && ((value >> ((length - 1) * 8)) & 0xff) == 0) {
-            length--;
-        }
-
-        final byte[] encoded = new byte[length];
-        for (int i = 0; i < length; i++) {
-            encoded[i] = (byte) ((value >> ((length - i - 1) * 8)) & 0xff);
-        }
-        return encoded;
     }
 
     private static CoapOptionField readCoapOptionField(final byte[] packet,
@@ -2533,24 +1228,6 @@ final class FitbitDtls {
         return builder.toString();
     }
 
-    private static String sha256Hex(final byte[] value) {
-        try {
-            return toHex(sha256(value));
-        } catch (final NoSuchAlgorithmException e) {
-            return "unavailable";
-        }
-    }
-
-    private static String toHexPrefix(final byte[] value, final int maxBytes) {
-        final int length = Math.min(value.length, maxBytes);
-        final String prefix = toHex(Arrays.copyOf(value, length));
-        if (value.length <= maxBytes) {
-            return prefix;
-        }
-
-        return prefix + "...";
-    }
-
     private static String buildCoapPath(final List<String> uriPathSegments) {
         if (uriPathSegments.isEmpty()) {
             return "/";
@@ -2563,26 +1240,7 @@ final class FitbitDtls {
         return builder.toString();
     }
 
-    private static String buildCoapQuery(final List<String> uriQuerySegments) {
-        if (uriQuerySegments.isEmpty()) {
-            return "";
-        }
-
-        final StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < uriQuerySegments.size(); i++) {
-            if (i > 0) {
-                builder.append('&');
-            }
-            builder.append(uriQuerySegments.get(i));
-        }
-        return builder.toString();
-    }
-
     private static String describeIdentity(final String identity) {
-        if (BOOTSTRAP_IDENTITY.equals(identity)) {
-            return "(bootstrap)";
-        }
-
         if (!isMobileDataIdentity(identity)) {
             return "(unknown)";
         }
@@ -2607,22 +1265,6 @@ final class FitbitDtls {
 
     private static boolean isMobileDataIdentity(final String identity) {
         return identity != null && identity.startsWith(MOBILE_DATA_IDENTITY_PREFIX);
-    }
-
-    private static String uuidText(final byte[] value) {
-        if (value.length != 16) {
-            return toHex(value);
-        }
-
-        long mostSignificantBits = 0;
-        long leastSignificantBits = 0;
-        for (int i = 0; i < 8; i++) {
-            mostSignificantBits = (mostSignificantBits << 8) | (value[i] & 0xffL);
-        }
-        for (int i = 8; i < 16; i++) {
-            leastSignificantBits = (leastSignificantBits << 8) | (value[i] & 0xffL);
-        }
-        return new UUID(mostSignificantBits, leastSignificantBits).toString();
     }
 
     private static final class UdpPacket {
@@ -2745,38 +1387,8 @@ final class FitbitDtls {
         private final Endpoint endpoint;
         private final int recordVersion;
         private final DtlsKeys keys;
-        private final List<byte[]> pendingApplicationRecords = new ArrayList<>();
-        private final Set<Integer> handledMetadataMessageIds = new HashSet<>();
-        private final Set<Integer> handledSyncRequestMessageIds = new HashSet<>();
-        private final Set<Integer> syncDumpMessageIds = new HashSet<>();
-        private final Set<Integer> syncResponseMessageIds = new HashSet<>();
-        private final ByteArrayOutputStream syncDumpPayload = new ByteArrayOutputStream();
-        private final long startedAtMillis;
         private long nextClientApplicationSequenceNumber = 1;
         private long nextServerApplicationSequenceNumber = 1;
-        private int nextCoapMessageId = 0;
-        private int nextCoapTokenValue = FITBIT_ONBOARDING_TOKEN_BASE;
-        private String pairingCode;
-        private int pairDisplayOnMessageId = -1;
-        private int pairDisplayOffMessageId = -1;
-        private int syncConfigMessageId = -1;
-        private int syncDumpPairMessageId = -1;
-        private int nextSyncDumpBlockNumber = 0;
-        private int syncDumpPayloadLength = 0;
-        private byte[] syncResponsePayload;
-        private SyncRequestInfo pendingSyncRequestInfo;
-        private SyncRequestInfo syncResponseRequestInfo;
-        private int nextSyncResponseBlockNumber = 0;
-        private boolean pairDisplayOnAcknowledged;
-        private boolean pairDisplayOffAcknowledged;
-        private boolean syncConfigQueued;
-        private boolean syncConfigAcknowledged;
-        private boolean syncDumpPairQueued;
-        private boolean syncDumpPairAcknowledged;
-        private boolean syncDumpComplete;
-        private boolean syncResponseQueued;
-        private boolean syncResponseComplete;
-        private boolean syncResponseFailed;
 
         private DtlsSession(final Endpoint endpoint,
                             final int recordVersion,
@@ -2784,7 +1396,6 @@ final class FitbitDtls {
             this.endpoint = endpoint;
             this.recordVersion = recordVersion;
             this.keys = keys;
-            this.startedAtMillis = System.currentTimeMillis();
         }
     }
 
@@ -2794,17 +1405,7 @@ final class FitbitDtls {
         private final int messageId;
         private final byte[] token;
         private final List<String> uriPathSegments;
-        private final List<String> uriQuerySegments;
         private final String path;
-        private final String query;
-        private final boolean hasBlock2;
-        private final int block2Number;
-        private final boolean block2More;
-        private final int block2SizeExponent;
-        private final boolean hasBlock1;
-        private final int block1Number;
-        private final boolean block1More;
-        private final int block1SizeExponent;
         private final byte[] payload;
         private final int payloadLength;
 
@@ -2813,94 +1414,15 @@ final class FitbitDtls {
                             final int messageId,
                             final byte[] token,
                             final List<String> uriPathSegments,
-                            final List<String> uriQuerySegments,
-                            final int block2Number,
-                            final boolean block2More,
-                            final int block2SizeExponent,
-                            final int block1Number,
-                            final boolean block1More,
-                            final int block1SizeExponent,
                             final byte[] payload) {
             this.type = type;
             this.code = code;
             this.messageId = messageId;
             this.token = token;
             this.uriPathSegments = uriPathSegments;
-            this.uriQuerySegments = uriQuerySegments;
             this.path = buildCoapPath(uriPathSegments);
-            this.query = buildCoapQuery(uriQuerySegments);
-            this.hasBlock2 = block2Number >= 0;
-            this.block2Number = block2Number;
-            this.block2More = block2More;
-            this.block2SizeExponent = block2SizeExponent;
-            this.hasBlock1 = block1Number >= 0;
-            this.block1Number = block1Number;
-            this.block1More = block1More;
-            this.block1SizeExponent = block1SizeExponent;
             this.payload = payload;
             this.payloadLength = payload.length;
-        }
-    }
-
-    private static final class SyncRequestInfo {
-        private final String eventType;
-        private final byte[] requestUuid;
-        private final String requestUuidText;
-        private final int retryCount;
-
-        private SyncRequestInfo(final String eventType,
-                                final byte[] requestUuid,
-                                final int retryCount) {
-            this.eventType = eventType == null ? "" : eventType;
-            this.requestUuid = requestUuid == null ? new byte[0] : requestUuid;
-            this.requestUuidText = uuidText(this.requestUuid);
-            this.retryCount = retryCount;
-        }
-    }
-
-    private static final class AppLifecycleInfo {
-        private final byte[] appUuid;
-        private final String appUuidText;
-        private final long appBuildId;
-        private final int eventType;
-        private final int errorType;
-
-        private AppLifecycleInfo(final byte[] appUuid,
-                                 final long appBuildId,
-                                 final int eventType,
-                                 final int errorType) {
-            this.appUuid = appUuid == null ? new byte[0] : appUuid;
-            this.appUuidText = uuidText(this.appUuid);
-            this.appBuildId = appBuildId;
-            this.eventType = eventType;
-            this.errorType = errorType;
-        }
-    }
-
-    private static final class GoldenGateExtendedError {
-        private final String namespace;
-        private final int code;
-        private final long rawCode;
-        private final String message;
-
-        private GoldenGateExtendedError(final String namespace,
-                                        final int code,
-                                        final long rawCode,
-                                        final String message) {
-            this.namespace = namespace;
-            this.code = code;
-            this.rawCode = rawCode;
-            this.message = message;
-        }
-    }
-
-    private static final class ProtoVarint {
-        private final long value;
-        private final int nextOffset;
-
-        private ProtoVarint(final long value, final int nextOffset) {
-            this.value = value;
-            this.nextOffset = nextOffset;
         }
     }
 

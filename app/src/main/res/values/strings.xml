@@ -2125,15 +2125,15 @@
     <string name="devicetype_waspos" translatable="false">Wasp-OS</string>
     <string name="devicetype_smaq2oss" translatable="false">SMA-Q2 OSS</string>
     <string name="devicetype_fitbit" translatable="false">Fitbit</string>
-    <string name="fitbit_pairing_title">Fitbit onboarding</string>
-    <string name="fitbit_pairing_info">Connecting to %1$s (%2$s). Enter the 4-digit code shown on the watch before Gadgetbridge sends the onboarding response.</string>
-    <string name="fitbit_pairing_connecting">Connecting. Wait for the watch to show its code.</string>
-    <string name="fitbit_pairing_waiting">Waiting for the watch code. Enter it as soon as it appears.</string>
-    <string name="fitbit_pairing_code_hint">Watch code</string>
-    <string name="fitbit_pairing_send_code">Send code</string>
-    <string name="fitbit_pairing_code_invalid">Enter the 4-digit watch code.</string>
-    <string name="fitbit_pairing_code_submitted">Code sent. Waiting for Gadgetbridge to continue onboarding.</string>
-    <string name="fitbit_pairing_code_sent">Code accepted. Returning to Gadgetbridge.</string>
+    <string name="fitbit_pairing_title">Fitbit connection key</string>
+    <string name="fitbit_pairing_info">Set up %1$s (%2$s) in the official Fitbit app first, then enter the mobile-data key to connect with Gadgetbridge.</string>
+    <string name="fitbit_pairing_connecting">Connecting with the stored mobile-data key.</string>
+    <string name="fitbit_pairing_enter_mobile_data_key">Enter the key extracted after Fitbit app setup.</string>
+    <string name="fitbit_pairing_mobile_data_key_info">Paste one or more extracted key lines. Use the format MD-xxxxxxxx-00000000:00112233445566778899aabbccddeeff. The last 8 digits may be 00000000.</string>
+    <string name="fitbit_pairing_mobile_data_key_hint">MD key lines</string>
+    <string name="fitbit_pairing_save_key_and_connect">Save key and connect</string>
+    <string name="fitbit_pairing_mobile_data_key_invalid">Enter at least one MD key id followed by a 16-byte hex key.</string>
+    <string name="fitbit_pairing_mobile_data_key_saved">Key saved. Connecting to the Fitbit.</string>
     <string name="devicetype_fitpro" translatable="false">FitPro</string>
     <string name="devicetype_colacao21" translatable="false">ColaCao 2021</string>
     <string name="devicetype_colacao23" translatable="false">ColaCao 2023</string>

@@ -22,27 +22,45 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
-import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
-
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HeartRrIntervalSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitbit.FitbitConstants;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HeartRrIntervalSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEQueue;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattDescriptor;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.ServerTransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfoProfile;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfo;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.heartrate.HeartRate;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.heartrate.HeartRateProfile;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
@@ -54,21 +72,22 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final byte[] ZERO_RESPONSE = new byte[]{0x00};
     private static final byte[] PHONE_GATTLINK_STATUS_1_RESPONSE = new byte[18];
     private static final byte[] CCCD_DISABLED_RESPONSE = new byte[]{0x00, 0x00};
-    private static final String BOOTSTRAP_PSK_IDENTITY = "BOOTSTRAP";
-    private static final byte[] BOOTSTRAP_PSK = new byte[]{
-            (byte) 0x81, 0x06, 0x54, (byte) 0xe3,
-            0x36, (byte) 0xad, (byte) 0xca, (byte) 0xb0,
-            (byte) 0xa0, 0x3c, 0x60, (byte) 0xf7,
-            0x4a, (byte) 0xa0, (byte) 0xb6, (byte) 0xfb,
-    };
+    private static final String MOBILE_DATA_PSK_IDENTITY_PREFIX = "MD-";
+    private static final int MOBILE_DATA_PSK_IDENTITY_LENGTH = 20;
+    private static final int MOBILE_DATA_PSK_LENGTH = 16;
 
     private final Handler serverStatusHandler = new Handler(Looper.getMainLooper());
     private final FitbitGattlink.Session gattlinkSession = new FitbitGattlink.Session();
     private final FitbitDtls fitbitDtls = new FitbitDtls(this::resolvePsk);
+    private final DeviceInfoProfile<FitbitDeviceSupport> deviceInfoProfile;
+    private final BatteryInfoProfile<FitbitDeviceSupport> batteryInfoProfile;
+    private final HeartRateProfile<FitbitDeviceSupport> heartRateProfile;
+    private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
 
     private BluetoothDevice serverDevice;
     private BluetoothGattCharacteristic phoneGattlinkStatus2Characteristic;
     private boolean phoneGattlinkStatus2Subscribed;
+    private boolean newHeartRateSamples;
 
     private final Runnable serverStatusRunnable = new Runnable() {
         @Override
@@ -83,10 +102,53 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     public FitbitDeviceSupport() {
         super(LOG);
 
-        addSupportedService(FitbitConstants.BOOTSTRAP_SERVICE);
         addSupportedService(FitbitConstants.GATTLINK_SERVICE);
+        addSupportedService(DeviceInfoProfile.SERVICE_UUID);
+        addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
+        addSupportedService(GattService.UUID_SERVICE_HEART_RATE);
         addSupportedServerService(createPhoneLocationService());
         addSupportedServerService(createPhoneGattlinkService());
+
+        final IntentListener listener = intent -> {
+            if (intent == null || intent.getAction() == null) {
+                return;
+            }
+
+            if (DeviceInfoProfile.ACTION_DEVICE_INFO.equals(intent.getAction())) {
+                final DeviceInfo deviceInfo = intent.getParcelableExtra(DeviceInfoProfile.EXTRA_DEVICE_INFO);
+                if (deviceInfo != null) {
+                    handleDeviceInfo(deviceInfo);
+                }
+                return;
+            }
+
+            if (BatteryInfoProfile.ACTION_BATTERY_INFO.equals(intent.getAction())) {
+                final BatteryInfo batteryInfo = intent.getParcelableExtra(BatteryInfoProfile.EXTRA_BATTERY_INFO);
+                if (batteryInfo != null) {
+                    handleBatteryInfo(batteryInfo);
+                }
+                return;
+            }
+
+            if (HeartRateProfile.ACTION_HEART_RATE.equals(intent.getAction())) {
+                final HeartRate heartRate = intent.getParcelableExtra(HeartRateProfile.EXTRA_HEART_RATE);
+                if (heartRate != null) {
+                    handleHeartRate(heartRate);
+                }
+            }
+        };
+
+        deviceInfoProfile = new DeviceInfoProfile<>(this);
+        deviceInfoProfile.addListener(listener);
+        addSupportedProfile(deviceInfoProfile);
+
+        batteryInfoProfile = new BatteryInfoProfile<>(this);
+        batteryInfoProfile.addListener(listener);
+        addSupportedProfile(batteryInfoProfile);
+
+        heartRateProfile = new HeartRateProfile<>(this);
+        heartRateProfile.addListener(listener);
+        addSupportedProfile(heartRateProfile);
     }
 
     @Override
@@ -99,52 +161,220 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return false;
     }
 
-    @Override
-    public void onSendConfiguration(final String config) {
-        if (config != null && config.startsWith(FitbitConstants.CONFIG_PAIRING_CODE_PREFIX)) {
-            final String pairingCode = config.substring(FitbitConstants.CONFIG_PAIRING_CODE_PREFIX.length()).trim();
-            LOG.warn("Fitbit onboarding script: received live pairing code from GB UI");
-            if (fitbitDtls.setPairingCode(pairingCode)) {
-                drainFitbitDtlsOutboundPackets();
-                LocalBroadcastManager.getInstance(getContext()).sendBroadcast(
-                        new Intent(FitbitConstants.ACTION_PAIRING_CODE_ACCEPTED)
-                );
+    private byte[] resolvePsk(final String identity) {
+        if (isMobileDataPskIdentity(identity)) {
+            final byte[] mobileDataPsk = loadMobileDataPsk(identity);
+            if (mobileDataPsk != null) {
+                LOG.info("Resolved Fitbit mobile-data PSK for identity {}", identity);
+                return mobileDataPsk;
             }
-            return;
+
+            LOG.warn("Missing Fitbit mobile-data PSK for identity {}. Enter the mobile-data key in the Fitbit pairing screen. Matching uses the first MD key-id field.",
+                    identity);
         }
 
-        super.onSendConfiguration(config);
+        return null;
     }
 
-    private byte[] resolvePsk(final String identity) {
-        if (BOOTSTRAP_PSK_IDENTITY.equals(identity)) {
-            return Arrays.copyOf(BOOTSTRAP_PSK, BOOTSTRAP_PSK.length);
+    private byte[] loadMobileDataPsk(final String identity) {
+        final String normalizedIdentity = normalizeMobileDataPskIdentity(identity);
+        if (normalizedIdentity == null) {
+            return null;
         }
 
-        // MD-* identities require Fitbit mobile-data AES keys. Those are cloud/app-private
-        // credentials and are not derivable from the DTLS identity itself.
+        return loadMobileDataPskFromPreferences(normalizedIdentity);
+    }
+
+    private byte[] loadMobileDataPskFromPreferences(final String normalizedIdentity) {
+        final String requestedKeyId = mobileDataPskIdentityKeyId(normalizedIdentity);
+        final SharedPreferences preferences = getDevicePrefs().getPreferences();
+        final String storedKeys = preferences.getString(FitbitConstants.PREF_MOBILE_DATA_KEYS, "");
+        for (final String line : storedKeys.split("\\R")) {
+            final String normalizedEntry = normalizeMobileDataKeyEntry(line);
+            if (normalizedEntry == null) {
+                continue;
+            }
+
+            if (requestedKeyId.equals(mobileDataKeyEntryKeyId(normalizedEntry))) {
+                return parseMobileDataKey(normalizedEntry);
+            }
+        }
+
         return null;
+    }
+
+    private static String normalizeMobileDataKeyEntry(final String rawEntry) {
+        if (rawEntry == null) {
+            return null;
+        }
+
+        String entry = rawEntry.trim();
+        if (entry.isEmpty() || entry.startsWith("#")) {
+            return null;
+        }
+
+        final int delimiterIndex = findMobileDataKeyDelimiter(entry);
+        if (delimiterIndex <= 0 || delimiterIndex >= entry.length() - 1) {
+            return null;
+        }
+
+        final String identity = normalizeMobileDataKeyReference(entry.substring(0, delimiterIndex).trim());
+        if (identity == null) {
+            return null;
+        }
+
+        final String keyHex = cleanHexString(entry.substring(delimiterIndex + 1));
+        if (keyHex.length() != MOBILE_DATA_PSK_LENGTH * 2 || !isHexString(keyHex)) {
+            return null;
+        }
+
+        return identity + ":" + keyHex.toLowerCase(Locale.ROOT);
+    }
+
+    private static int findMobileDataKeyDelimiter(final String entry) {
+        final int colonIndex = entry.indexOf(':');
+        final int equalsIndex = entry.indexOf('=');
+        final int spaceIndex = firstWhitespaceIndex(entry);
+
+        int delimiterIndex = -1;
+        if (colonIndex >= 0) {
+            delimiterIndex = colonIndex;
+        }
+        if (equalsIndex >= 0 && (delimiterIndex < 0 || equalsIndex < delimiterIndex)) {
+            delimiterIndex = equalsIndex;
+        }
+        if (spaceIndex >= 0 && (delimiterIndex < 0 || spaceIndex < delimiterIndex)) {
+            delimiterIndex = spaceIndex;
+        }
+        return delimiterIndex;
+    }
+
+    private static int firstWhitespaceIndex(final String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isWhitespace(value.charAt(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String normalizeMobileDataPskIdentity(final String identity) {
+        if (identity == null) {
+            return null;
+        }
+
+        final String normalized = identity.trim().toUpperCase(Locale.ROOT);
+        if (!isMobileDataPskIdentity(normalized)) {
+            return null;
+        }
+
+        final String keyId = normalized.substring(3, 11);
+        final String expiration = normalized.substring(12, 20);
+        if (!isHexString(keyId) || !isHexString(expiration)) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    private static String normalizeMobileDataKeyReference(final String reference) {
+        if (reference == null) {
+            return null;
+        }
+
+        final String normalizedIdentity = normalizeMobileDataPskIdentity(reference);
+        if (normalizedIdentity != null) {
+            return normalizedIdentity;
+        }
+
+        final String keyId = cleanHexString(reference).toUpperCase(Locale.ROOT);
+        if (keyId.length() == 8 && isHexString(keyId)) {
+            return MOBILE_DATA_PSK_IDENTITY_PREFIX + keyId + "-00000000";
+        }
+
+        return null;
+    }
+
+    private static boolean isMobileDataPskIdentity(final String identity) {
+        return identity != null
+                && identity.length() == MOBILE_DATA_PSK_IDENTITY_LENGTH
+                && identity.startsWith(MOBILE_DATA_PSK_IDENTITY_PREFIX)
+                && identity.charAt(11) == '-';
+    }
+
+    private static String mobileDataKeyEntryIdentity(final String normalizedEntry) {
+        return normalizedEntry.substring(0, normalizedEntry.indexOf(':'));
+    }
+
+    private static String mobileDataKeyEntryKeyId(final String normalizedEntry) {
+        return mobileDataPskIdentityKeyId(mobileDataKeyEntryIdentity(normalizedEntry));
+    }
+
+    private static String mobileDataPskIdentityKeyId(final String normalizedIdentity) {
+        return normalizedIdentity.substring(3, 11);
+    }
+
+    private static byte[] parseMobileDataKey(final String normalizedEntry) {
+        final String keyHex = normalizedEntry.substring(normalizedEntry.indexOf(':') + 1);
+        final byte[] key = new byte[keyHex.length() / 2];
+        for (int i = 0; i < key.length; i++) {
+            key[i] = (byte) Integer.parseInt(keyHex.substring(i * 2, i * 2 + 2), 16);
+        }
+        return key;
+    }
+
+    private static String cleanHexString(final String value) {
+        return value
+                .replace("0x", "")
+                .replace("0X", "")
+                .replace(":", "")
+                .replace("-", "")
+                .replace(" ", "")
+                .replace("\t", "")
+                .trim();
+    }
+
+    private static boolean isHexString(final String value) {
+        for (int i = 0; i < value.length(); i++) {
+            final char c = value.charAt(i);
+            if (!((c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F'))) {
+                return false;
+            }
+        }
+        return !value.isEmpty();
     }
 
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
-        LOG.info("Initializing Fitbit BLE connection scaffold, onboardingMode={}",
-                FitbitConstants.EXPERIMENTAL_ONBOARDING_MODE);
+        LOG.info("Initializing Fitbit BLE connection");
 
         gattlinkSession.reset();
         fitbitDtls.reset();
 
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.requestMtu(REQUESTED_MTU);
-        builder.read(FitbitConstants.BOOTSTRAP_READ_CHARACTERISTIC);
-        builder.write(FitbitConstants.BOOTSTRAP_WRITE_CHARACTERISTIC, FitbitConstants.BOOTSTRAP_WRITE_OPEN);
+        getDevice().setFirmwareVersion("N/A");
+        getDevice().setFirmwareVersion2("Gattlink");
+        deviceInfoProfile.requestDeviceInfo(builder);
+        batteryInfoProfile.requestBatteryInfo(builder);
+        batteryInfoProfile.enableNotify(builder, true);
+        heartRateProfile.enableNotify(builder, true);
         builder.notify(FitbitConstants.GATTLINK_NOTIFY_CHARACTERISTIC, true);
 
         return builder;
     }
 
     @Override
+    public void disconnect() {
+        signalHeartRateDataFinishIfNeeded();
+        super.disconnect();
+    }
+
+    @Override
     public void dispose() {
+        signalHeartRateDataFinishIfNeeded();
         stopPhoneGattlinkStatusNotifications();
         gattlinkSession.reset();
         fitbitDtls.reset();
@@ -152,34 +382,11 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public boolean onCharacteristicRead(final BluetoothGatt gatt,
-                                        final BluetoothGattCharacteristic characteristic,
-                                        final byte[] value,
-                                        final int status) {
-        final UUID uuid = characteristic.getUuid();
-        if (FitbitConstants.BOOTSTRAP_READ_CHARACTERISTIC.equals(uuid)) {
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                LOG.warn("Fitbit bootstrap read failed with status {}", status);
-                return true;
-            }
-
-            LOG.info("Fitbit bootstrap read: {}", GB.hexdump(value));
-            if (!Arrays.equals(value, FitbitConstants.BOOTSTRAP_READ_EXPECTED_VALUE)) {
-                LOG.warn("Fitbit bootstrap read did not match expected write characteristic UUID bytes");
-            }
-            return true;
-        }
-
-        return super.onCharacteristicRead(gatt, characteristic, value, status);
-    }
-
-    @Override
     public boolean onCharacteristicWrite(final BluetoothGatt gatt,
                                          final BluetoothGattCharacteristic characteristic,
                                          final int status) {
         final UUID uuid = characteristic.getUuid();
-        if (FitbitConstants.BOOTSTRAP_WRITE_CHARACTERISTIC.equals(uuid)
-                || FitbitConstants.GATTLINK_WRITE_CHARACTERISTIC.equals(uuid)) {
+        if (FitbitConstants.GATTLINK_WRITE_CHARACTERISTIC.equals(uuid)) {
             LOG.debug("Fitbit write {} completed with status {}", uuid, status);
             return true;
         }
@@ -235,7 +442,6 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
             if (dtlsResponse != null) {
                 writeGattlinkIpPacket("Fitbit DTLS response", dtlsResponse);
             }
-            drainFitbitDtlsOutboundPackets();
             return true;
         }
 
@@ -484,14 +690,6 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    private void drainFitbitDtlsOutboundPackets() {
-        byte[] outboundPacket = fitbitDtls.pollOutboundPacket();
-        while (outboundPacket != null) {
-            writeGattlinkIpPacket("Fitbit DTLS outbound", outboundPacket);
-            outboundPacket = fitbitDtls.pollOutboundPacket();
-        }
-    }
-
     private void markDeviceInitialized(final String taskName) {
         try {
             final TransactionBuilder builder = createTransactionBuilder(taskName);
@@ -529,10 +727,6 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private byte[] getPhoneGattlinkStatus2Value() {
-        if (FitbitConstants.EXPERIMENTAL_ONBOARDING_MODE) {
-            return new byte[]{0x01};
-        }
-
         return ZERO_RESPONSE;
     }
 
@@ -557,5 +751,70 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return FitbitConstants.PHONE_GATTLINK_STATUS_1_CHARACTERISTIC.equals(characteristicUuid)
                 || FitbitConstants.PHONE_GATTLINK_STATUS_2_CHARACTERISTIC.equals(characteristicUuid)
                 || FitbitConstants.PHONE_GATTLINK_STATUS_3_CHARACTERISTIC.equals(characteristicUuid);
+    }
+
+    private void handleDeviceInfo(final DeviceInfo deviceInfo) {
+        LOG.info("Fitbit BLE device info: {}", deviceInfo);
+        for (final GBDeviceEvent event : DeviceInfoProfile.toDeviceEvents(deviceInfo)) {
+            handleGBDeviceEvent(event);
+        }
+    }
+
+    private void handleBatteryInfo(final BatteryInfo batteryInfo) {
+        LOG.info("Fitbit BLE battery: {}%", batteryInfo.getPercentCharged());
+        batteryCmd.state = BatteryState.BATTERY_NORMAL;
+        batteryCmd.level = batteryInfo.getPercentCharged();
+        handleGBDeviceEvent(batteryCmd);
+    }
+
+    private void handleHeartRate(final HeartRate heartRate) {
+        LOG.info("Fitbit BLE Heart Rate: {}", heartRate);
+
+        if (!heartRate.isValid()) {
+            return;
+        }
+
+        try (DBHandler db = GBApplication.acquireDB()) {
+            final long userId = DBHelper.getUser(db.getDaoSession()).getId();
+            final long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
+            final GenericHeartRateSampleProvider sampleProvider = new GenericHeartRateSampleProvider(getDevice(), db.getDaoSession());
+            sampleProvider.addSample(new GenericHeartRateSample(
+                    heartRate.getTimestamp(),
+                    deviceId,
+                    userId,
+                    heartRate.getHeartRate()
+            ));
+
+            final ArrayList<Integer> rrIntervals = heartRate.getRrIntervals();
+            if (!rrIntervals.isEmpty()) {
+                final List<HeartRrIntervalSample> rrIntervalSamples = new ArrayList<>();
+                for (int i = 0; i < rrIntervals.size(); i++) {
+                    final HeartRrIntervalSample rrSample = new HeartRrIntervalSample();
+                    rrSample.setTimestamp(heartRate.getTimestamp());
+                    rrSample.setDeviceId(deviceId);
+                    rrSample.setUserId(userId);
+                    rrSample.setSeq(i);
+                    rrSample.setRrMillis(rrIntervals.get(i));
+                    rrIntervalSamples.add(rrSample);
+                }
+
+                final HeartRrIntervalSampleProvider rrIntervalSampleProvider =
+                        new HeartRrIntervalSampleProvider(getDevice(), db.getDaoSession());
+                rrIntervalSampleProvider.persistSamples(rrIntervalSamples, getContext());
+            }
+
+            newHeartRateSamples = true;
+        } catch (final Exception e) {
+            LOG.warn("Unable to persist Fitbit BLE heart-rate sample", e);
+        }
+    }
+
+    private void signalHeartRateDataFinishIfNeeded() {
+        if (!newHeartRateSamples) {
+            return;
+        }
+
+        GB.signalActivityDataFinish(getDevice());
+        newHeartRateSamples = false;
     }
 }

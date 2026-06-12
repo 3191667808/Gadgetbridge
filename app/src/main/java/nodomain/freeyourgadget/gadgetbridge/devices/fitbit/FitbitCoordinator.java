@@ -18,12 +18,11 @@ package nodomain.freeyourgadget.gadgetbridge.devices.fitbit;
 
 import android.app.Activity;
 import android.bluetooth.le.ScanFilter;
-import android.os.ParcelUuid;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -57,14 +56,7 @@ public class FitbitCoordinator extends AbstractBLEDeviceCoordinator {
     @NonNull
     @Override
     public Collection<? extends ScanFilter> createBLEScanFilters() {
-        return Arrays.asList(
-                new ScanFilter.Builder()
-                        .setServiceUuid(new ParcelUuid(FitbitConstants.FITBIT_GATTLINK_ADVERTISING_SERVICE))
-                        .build(),
-                new ScanFilter.Builder()
-                        .setServiceUuid(new ParcelUuid(FitbitConstants.GATTLINK_SERVICE))
-                        .build()
-        );
+        return Collections.emptyList();
     }
 
     @Override

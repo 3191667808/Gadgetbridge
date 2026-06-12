@@ -17,13 +17,11 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.fitbit;
 
 import android.Manifest;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.text.InputFilter;
 import android.text.InputType;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -35,17 +33,12 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.ActionBar;
 import androidx.core.app.ActivityCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
-import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity;
@@ -53,34 +46,20 @@ import nodomain.freeyourgadget.gadgetbridge.activities.ControlCenterv2;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
+import nodomain.freeyourgadget.gadgetbridge.util.BondingInterface;
+import nodomain.freeyourgadget.gadgetbridge.util.BondingUtil;
 import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
-import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
-public class FitbitPairingActivity extends AbstractGBActivity {
+public class FitbitPairingActivity extends AbstractGBActivity implements BondingInterface {
     private static final Logger LOG = LoggerFactory.getLogger(FitbitPairingActivity.class);
+    private static final String EXTRACTED_MOBILE_DATA_KEY_PREFIX = "fitbit_mobile_data_key:";
 
     private GBDeviceCandidate deviceCandidate;
     private GBDevice gbDevice;
-    private EditText codeEditText;
+    private EditText mobileDataKeyEditText;
     private TextView statusTextView;
-    private Button sendCodeButton;
-    private boolean pairingCodeSent;
-    private boolean pairingCodeAccepted;
-
-    private final BroadcastReceiver pairingCodeAcceptedReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(final Context context, final Intent intent) {
-            if (!FitbitConstants.ACTION_PAIRING_CODE_ACCEPTED.equals(intent.getAction()) || pairingCodeAccepted) {
-                return;
-            }
-
-            pairingCodeAccepted = true;
-            statusTextView.setText(R.string.fitbit_pairing_code_sent);
-            FitbitPairingActivity.this.setResult(RESULT_OK);
-            returnToMainScreen();
-        }
-    };
+    private Button saveMobileDataKeyButton;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -99,24 +78,6 @@ public class FitbitPairingActivity extends AbstractGBActivity {
         if (actionBar != null) {
             actionBar.setTitle(deviceCandidate.getName());
         }
-
-        clearDebugPairingCodeFile();
-        connectToFitbit();
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-                pairingCodeAcceptedReceiver,
-                new IntentFilter(FitbitConstants.ACTION_PAIRING_CODE_ACCEPTED)
-        );
-    }
-
-    @Override
-    protected void onStop() {
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(pairingCodeAcceptedReceiver);
-        super.onStop();
     }
 
     private ScrollView createContentView() {
@@ -139,27 +100,32 @@ public class FitbitPairingActivity extends AbstractGBActivity {
         root.addView(infoTextView, matchWrapParams());
 
         statusTextView = new TextView(this);
-        statusTextView.setText(R.string.fitbit_pairing_waiting);
+        statusTextView.setText(R.string.fitbit_pairing_enter_mobile_data_key);
         final LinearLayout.LayoutParams statusParams = matchWrapParams();
         statusParams.topMargin = gap;
         root.addView(statusTextView, statusParams);
 
-        codeEditText = new EditText(this);
-        codeEditText.setHint(R.string.fitbit_pairing_code_hint);
-        codeEditText.setInputType(InputType.TYPE_CLASS_NUMBER);
-        codeEditText.setSingleLine(true);
-        codeEditText.setSelectAllOnFocus(true);
-        codeEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
-        final LinearLayout.LayoutParams editParams = matchWrapParams();
-        editParams.topMargin = gap;
-        root.addView(codeEditText, editParams);
+        final TextView mobileDataKeyInfoTextView = new TextView(this);
+        mobileDataKeyInfoTextView.setText(R.string.fitbit_pairing_mobile_data_key_info);
+        final LinearLayout.LayoutParams keyInfoParams = matchWrapParams();
+        keyInfoParams.topMargin = gap;
+        root.addView(mobileDataKeyInfoTextView, keyInfoParams);
 
-        sendCodeButton = new Button(this);
-        sendCodeButton.setText(R.string.fitbit_pairing_send_code);
-        sendCodeButton.setOnClickListener(v -> sendPairingCode());
-        final LinearLayout.LayoutParams buttonParams = matchWrapParams();
-        buttonParams.topMargin = gap;
-        root.addView(sendCodeButton, buttonParams);
+        mobileDataKeyEditText = new EditText(this);
+        mobileDataKeyEditText.setHint(R.string.fitbit_pairing_mobile_data_key_hint);
+        mobileDataKeyEditText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        mobileDataKeyEditText.setSingleLine(false);
+        mobileDataKeyEditText.setSelectAllOnFocus(true);
+        final LinearLayout.LayoutParams keyEditParams = matchWrapParams();
+        keyEditParams.topMargin = gap;
+        root.addView(mobileDataKeyEditText, keyEditParams);
+
+        saveMobileDataKeyButton = new Button(this);
+        saveMobileDataKeyButton.setText(R.string.fitbit_pairing_save_key_and_connect);
+        saveMobileDataKeyButton.setOnClickListener(v -> saveMobileDataKeyAndConnect());
+        final LinearLayout.LayoutParams saveKeyButtonParams = matchWrapParams();
+        saveKeyButtonParams.topMargin = gap;
+        root.addView(saveMobileDataKeyButton, saveKeyButtonParams);
 
         return scrollView;
     }
@@ -177,94 +143,198 @@ public class FitbitPairingActivity extends AbstractGBActivity {
             return;
         }
 
-        gbDevice = DeviceHelper.getInstance().toSupportedDevice(deviceCandidate.getDevice());
-        LOG.warn("Fitbit onboarding script: starting GB Fitbit pairing connection for {} {}",
+        ensureGbDevice();
+        LOG.info("Starting Fitbit mobile-data key connection for {} {}",
                 deviceCandidate.getName(),
                 deviceCandidate.getMacAddress());
         statusTextView.setText(R.string.fitbit_pairing_connecting);
-        GBApplication.deviceService().disconnect();
-        GBApplication.deviceService(gbDevice).connect(true);
+        BondingUtil.connectThenComplete(this, gbDevice);
     }
 
-    private void sendPairingCode() {
-        if (pairingCodeSent) {
-            return;
-        }
-
+    private void ensureGbDevice() {
         if (gbDevice == null) {
-            GB.toast(this, "Fitbit connection is not ready", Toast.LENGTH_LONG, GB.ERROR);
-            return;
-        }
-
-        final String pairingCode = codeEditText.getText() == null ? "" : codeEditText.getText().toString().trim();
-        if (!pairingCode.matches("\\d{4}")) {
-            codeEditText.setError(getString(R.string.fitbit_pairing_code_invalid));
-            return;
-        }
-
-        codeEditText.setError(null);
-        pairingCodeSent = true;
-        codeEditText.setEnabled(false);
-        sendCodeButton.setEnabled(false);
-        persistDebugPairingCode(pairingCode);
-        LOG.warn("Fitbit onboarding script: DEBUG RAW pairing code submitted from Fitbit pairing UI={}", pairingCode);
-        GBApplication.deviceService(gbDevice).onSendConfiguration(FitbitConstants.CONFIG_PAIRING_CODE_PREFIX + pairingCode);
-        statusTextView.setText(R.string.fitbit_pairing_code_submitted);
-    }
-
-    private void returnToMainScreen() {
-        final Intent intent = new Intent(this, ControlCenterv2.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivity(intent);
-        finish();
-    }
-
-    private void clearDebugPairingCodeFile() {
-        if (!BuildConfig.DEBUG) {
-            return;
-        }
-
-        try {
-            final File codeFile = getDebugPairingCodeFile();
-            if (codeFile.isFile() && !codeFile.delete()) {
-                LOG.warn("Fitbit onboarding script: unable to delete stale Fitbit pairing code file {}",
-                        codeFile.getAbsolutePath());
-            }
-        } catch (final IOException e) {
-            LOG.warn("Fitbit onboarding script: unable to clear stale Fitbit pairing code file", e);
+            gbDevice = DeviceHelper.getInstance().toSupportedDevice(deviceCandidate.getDevice());
         }
     }
 
-    private void persistDebugPairingCode(final String pairingCode) {
-        if (!BuildConfig.DEBUG) {
-            return;
-        }
+    private void saveMobileDataKeyAndConnect() {
+        ensureGbDevice();
 
-        try {
-            final File codeFile = getDebugPairingCodeFile();
-            final File parent = codeFile.getParentFile();
-            if (parent == null || (!parent.exists() && !parent.mkdirs())) {
-                LOG.warn("Fitbit onboarding script: unable to create Fitbit fixture directory for pairing code");
-                return;
+        final String rawKey = mobileDataKeyEditText.getText() == null ? "" : mobileDataKeyEditText.getText().toString();
+        final StringBuilder normalizedEntries = new StringBuilder();
+        for (final String line : rawKey.split("\\R")) {
+            final String normalizedEntry = normalizeMobileDataKeyEntry(line);
+            if (normalizedEntry == null) {
+                continue;
             }
 
-            try (FileOutputStream output = new FileOutputStream(codeFile)) {
-                output.write(pairingCode.getBytes(StandardCharsets.US_ASCII));
-            }
-            LOG.warn("Fitbit onboarding script: wrote live pairing code mirror to {}",
-                    codeFile.getAbsolutePath());
-        } catch (final IOException e) {
-            LOG.warn("Fitbit onboarding script: unable to write debug Fitbit pairing code file", e);
+            appendMobileDataKeyEntry(normalizedEntries, normalizedEntry);
         }
+
+        if (normalizedEntries.length() == 0) {
+            mobileDataKeyEditText.setError(getString(R.string.fitbit_pairing_mobile_data_key_invalid));
+            return;
+        }
+
+        mobileDataKeyEditText.setError(null);
+        for (final String normalizedEntry : normalizedEntries.toString().split("\\R")) {
+            storeMobileDataKey(normalizedEntry);
+        }
+        statusTextView.setText(R.string.fitbit_pairing_mobile_data_key_saved);
+        saveMobileDataKeyButton.setEnabled(false);
+        connectToFitbit();
     }
 
-    private File getDebugPairingCodeFile() throws IOException {
-        return new File(
-                new File(FileUtils.getExternalFilesDir(), FitbitConstants.SYNC_RESPONSE_FIXTURE_DIRECTORY),
-                FitbitConstants.PAIRING_CODE_FILE);
+    private void storeMobileDataKey(final String normalizedEntry) {
+        final String keyId = mobileDataKeyEntryKeyId(normalizedEntry);
+        final SharedPreferences preferences = GBApplication.getDevicePrefs(gbDevice).getPreferences();
+        final String existing = preferences.getString(FitbitConstants.PREF_MOBILE_DATA_KEYS, "");
+        final StringBuilder updated = new StringBuilder();
+        boolean replaced = false;
+
+        for (final String line : existing.split("\\R")) {
+            final String normalizedExisting = normalizeMobileDataKeyEntry(line);
+            if (normalizedExisting == null) {
+                continue;
+            }
+
+            if (keyId.equals(mobileDataKeyEntryKeyId(normalizedExisting))) {
+                if (!replaced) {
+                    appendMobileDataKeyEntry(updated, normalizedEntry);
+                    replaced = true;
+                }
+                continue;
+            }
+
+            appendMobileDataKeyEntry(updated, normalizedExisting);
+        }
+
+        if (!replaced) {
+            appendMobileDataKeyEntry(updated, normalizedEntry);
+        }
+
+        preferences.edit()
+                .putString(FitbitConstants.PREF_MOBILE_DATA_KEYS, updated.toString())
+                .apply();
+
+        LOG.info("Stored Fitbit mobile-data key from pairing UI for keyId {}", keyId);
+    }
+
+    private static void appendMobileDataKeyEntry(final StringBuilder builder, final String entry) {
+        if (builder.length() > 0) {
+            builder.append('\n');
+        }
+        builder.append(entry);
+    }
+
+    private static String normalizeMobileDataKeyEntry(final String rawEntry) {
+        if (rawEntry == null) {
+            return null;
+        }
+
+        String entry = rawEntry.trim();
+        if (entry.isEmpty() || entry.startsWith("#")) {
+            return null;
+        }
+
+        if (entry.startsWith(EXTRACTED_MOBILE_DATA_KEY_PREFIX)) {
+            entry = entry.substring(EXTRACTED_MOBILE_DATA_KEY_PREFIX.length()).trim();
+        }
+
+        entry = entry.replace("=", ":");
+        final int delimiterIndex = entry.indexOf(':');
+        if (delimiterIndex <= 0 || delimiterIndex >= entry.length() - 1) {
+            return null;
+        }
+
+        final String identity = normalizeMobileDataIdentity(entry.substring(0, delimiterIndex));
+        if (identity == null) {
+            return null;
+        }
+
+        final String keyHex = cleanHexString(entry.substring(delimiterIndex + 1));
+        if (keyHex.length() != 32 || !isHexString(keyHex)) {
+            return null;
+        }
+
+        return identity + ":" + keyHex.toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeMobileDataIdentity(final String identity) {
+        final String normalizedIdentity = identity.trim().toUpperCase(Locale.ROOT);
+        if (normalizedIdentity.matches("MD-[0-9A-F]{8}-[0-9A-F]{8}")) {
+            return normalizedIdentity;
+        }
+
+        final String keyId = cleanHexString(normalizedIdentity).toUpperCase(Locale.ROOT);
+        if (keyId.matches("[0-9A-F]{8}")) {
+            return "MD-" + keyId + "-00000000";
+        }
+
+        return null;
+    }
+
+    private static String mobileDataKeyEntryIdentity(final String normalizedEntry) {
+        return normalizedEntry.substring(0, normalizedEntry.indexOf(':'));
+    }
+
+    private static String mobileDataKeyEntryKeyId(final String normalizedEntry) {
+        return mobileDataKeyEntryIdentity(normalizedEntry).substring(3, 11);
+    }
+
+    private static String cleanHexString(final String value) {
+        return value
+                .replace("0x", "")
+                .replace("0X", "")
+                .replace(":", "")
+                .replace("-", "")
+                .replace(" ", "")
+                .replace("\t", "")
+                .trim();
+    }
+
+    private static boolean isHexString(final String value) {
+        for (int i = 0; i < value.length(); i++) {
+            final char c = value.charAt(i);
+            if (!((c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F'))) {
+                return false;
+            }
+        }
+        return !value.isEmpty();
     }
 
     private int dp(final int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    @Override
+    public void onBondingComplete(final boolean success) {
+        startActivity(new Intent(this, ControlCenterv2.class).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
+        finish();
+    }
+
+    @Override
+    public GBDeviceCandidate getCurrentTarget() {
+        return deviceCandidate;
+    }
+
+    @Override
+    public void unregisterBroadcastReceivers() {
+    }
+
+    @Override
+    public boolean getAttemptToConnect() {
+        return true;
+    }
+
+    @Override
+    public void registerBroadcastReceivers() {
+    }
+
+    @Override
+    public Context getContext() {
+        return this;
     }
 }
