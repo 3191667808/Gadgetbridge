@@ -266,6 +266,7 @@ public class ActivityPoint {
         if (!(o instanceof ActivityPoint that)) return false;
         return heartRate == that.heartRate &&
                 Float.compare(speed, that.speed) == 0 &&
+                stepLength == that.stepLength &&
                 cadence == that.cadence &&
                 Float.compare(power, that.power) == 0 &&
                 Float.compare(respiratoryRate, that.respiratoryRate) == 0 &&
@@ -277,12 +278,20 @@ public class ActivityPoint {
                 Double.compare(distance, that.distance) == 0 &&
                 Double.compare(altitude, that.altitude) == 0 &&
                 Float.compare(bodyEnergy, that.bodyEnergy) == 0 &&
-                Float.compare(stamina, that.stamina) == 0;
+                Float.compare(stamina, that.stamina) == 0 &&
+                Float.compare(cnsToxicity, that.cnsToxicity) == 0 &&
+                Float.compare(n2Load, that.n2Load) == 0 &&
+                Float.compare(verticalOscillation, that.verticalOscillation) == 0 &&
+                Float.compare(stanceTimePercent, that.stanceTimePercent) == 0 &&
+                Float.compare(stanceTime, that.stanceTime) == 0 &&
+                Float.compare(verticalRatio, that.verticalRatio) == 0 &&
+                Float.compare(stanceTimeBalance, that.stanceTimeBalance) == 0 &&
+                performanceCondition == that.performanceCondition;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(time, location, heartRate, speed, cadence, power, respiratoryRate, depth, temperature, description, distance, altitude, bodyEnergy, stamina);
+        return Objects.hash(time, location, heartRate, speed, stepLength, cadence, power, respiratoryRate, depth, temperature, description, distance, altitude, bodyEnergy, stamina, cnsToxicity, n2Load, verticalOscillation, stanceTimePercent, stanceTime, verticalRatio, stanceTimeBalance, performanceCondition);
     }
 
     public static class Builder {

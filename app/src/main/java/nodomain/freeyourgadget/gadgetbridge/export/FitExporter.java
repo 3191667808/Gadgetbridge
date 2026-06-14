@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,6 +120,43 @@ public class FitExporter {
 
     public FitExporter(final int manufacturerId) {
         this.manufacturerId = manufacturerId;
+    }
+
+    /**
+     * If the summary points to an original FIT file (e.g. Garmin / iGPSPORT, where
+     * {@code FitImporter} stored the device's own .fit at {@code rawDetailsPath}),
+     * returns that File so callers can export it verbatim — preserving full fidelity —
+     * instead of regenerating one. Returns null when there is no usable raw FIT, in
+     * which case the caller should fall back to {@link #performExport}.
+     */
+    @Nullable
+    public static File resolveRawFitFile(@Nullable final BaseActivitySummary summary) {
+        if (summary == null) {
+            return null;
+        }
+        final String rawPath = summary.getRawDetailsPath();
+        if (rawPath == null || rawPath.isEmpty()) {
+            return null;
+        }
+        final File file = new File(rawPath);
+        if (!file.isFile() || !file.canRead()) {
+            return null;
+        }
+        return isFitFile(file) ? file : null;
+    }
+
+    /** True when the file carries the ".FIT" magic at header bytes 8-11 (FIT spec). */
+    private static boolean isFitFile(@NonNull final File file) {
+        try (FileInputStream in = new FileInputStream(file)) {
+            final byte[] header = new byte[12];
+            if (in.read(header) < header.length) {
+                return false;
+            }
+            return header[8] == '.' && header[9] == 'F' && header[10] == 'I' && header[11] == 'T';
+        } catch (final IOException e) {
+            LOG.warn("Could not read FIT header of {}", file, e);
+            return false;
+        }
     }
 
     private static int mapIntensity(final ActivityTrack.SegmentIntensity intensity) {

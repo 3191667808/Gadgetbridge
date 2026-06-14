@@ -940,15 +940,6 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         lifecycleScope.launch {
             try {
                 val targetFile = withContext(Dispatchers.IO) {
-                    val activityTrackProvider = gbDevice.deviceCoordinator
-                        .getActivityTrackProvider(gbDevice, requireContext())
-                    val track = try {
-                        activityTrackProvider?.getActivityTrack(workout.summary)
-                    } catch (e: Exception) {
-                        LOG.warn("Failed to load activity track for FIT export", e)
-                        null
-                    }
-
                     val kindLabel = ActivityKind.fromCode(workout.summary.activityKind)
                         .getLabel(requireContext()).lowercase()
                     val fileName = FileUtils.makeValidFileName(
@@ -958,7 +949,22 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                     cacheSubDir.mkdirs()
                     val outFile = File(cacheSubDir, fileName)
 
-                    FitExporter().performExport(track, workout.summary, workout.data, outFile)
+                    // FIT-native devices (Garmin, iGPSPORT) keep the original .fit at
+                    // rawDetailsPath — export it verbatim instead of regenerating.
+                    val rawFit = FitExporter.resolveRawFitFile(workout.summary)
+                    if (rawFit != null) {
+                        rawFit.copyTo(outFile, overwrite = true)
+                    } else {
+                        val activityTrackProvider = gbDevice.deviceCoordinator
+                            .getActivityTrackProvider(gbDevice, requireContext())
+                        val track = try {
+                            activityTrackProvider?.getActivityTrack(workout.summary)
+                        } catch (e: Exception) {
+                            LOG.warn("Failed to load activity track for FIT export", e)
+                            null
+                        }
+                        FitExporter().performExport(track, workout.summary, workout.data, outFile)
+                    }
                     outFile
                 }
                 AndroidUtils.shareFile(requireContext(), targetFile, "application/octet-stream")

@@ -979,13 +979,13 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
             summaryData.add(HR_USER_MAX, userMetrics.getMaxHr(), UNIT_BPM);
         }
 
-        if (!deviceInfos.isEmpty()) {
-            final ActivitySummaryTableBuilder tableBuilder = new ActivitySummaryTableBuilder(GROUP_GEAR_INFO, "gear_info_header", Arrays.asList(
-                    "device",
-                    "battery_status",
-                    "battery_level"
-            ));
+        final ActivitySummaryTableBuilder gearTableBuilder = new ActivitySummaryTableBuilder(GROUP_GEAR_INFO, "gear_info_header", Arrays.asList(
+                "device",
+                "battery_status",
+                "battery_level"
+        ));
 
+        if (!deviceInfos.isEmpty()) {
             for (final Map.Entry<Integer, FitDeviceInfo> entry : deviceInfos.entrySet()) {
                 final Integer deviceIndex = entry.getKey();
                 final FitDeviceInfo deviceInfo = entry.getValue();
@@ -1006,7 +1006,7 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
                     level_uom = UNIT_VOLT;
                 }
 
-                tableBuilder.addRow(
+                gearTableBuilder.addRow(
                         "device_info_" + deviceIndex,
                         Arrays.asList(
                                 new ActivitySummaryValue(device, UNIT_RAW_STRING),
@@ -1015,10 +1015,6 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
                         )
                 );
             }
-
-            if (tableBuilder.hasRows()) {
-                tableBuilder.addToSummaryData(summaryData);
-            }
         } else if (fileId != null) {
             // Manufacturer=255 (development) fallback. Devices that only populate file_id
             // (Watch5/Watch6, third-party FIT recorders) get a synthetic gear row built
@@ -1026,16 +1022,11 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
             // *something* rather than no device at all.
             final String productName = fileId.getProductName();
             if (productName != null && !productName.isEmpty()) {
-                final ActivitySummaryTableBuilder tableBuilder = new ActivitySummaryTableBuilder(GROUP_GEAR_INFO, "gear_info_header", Arrays.asList(
-                        "device",
-                        "battery_status",
-                        "battery_level"
-                ));
                 final StringBuilder label = new StringBuilder(productName);
                 if (fileCreator != null && fileCreator.getSoftwareVersion() != null) {
                     label.append(" (sw ").append(fileCreator.getSoftwareVersion()).append(')');
                 }
-                tableBuilder.addRow(
+                gearTableBuilder.addRow(
                         "device_info_file_id",
                         Arrays.asList(
                                 new ActivitySummaryValue(label.toString(), UNIT_RAW_STRING),
@@ -1043,8 +1034,11 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
                                 new ActivitySummaryValue((Number) null, UNIT_PERCENTAGE)
                         )
                 );
-                tableBuilder.addToSummaryData(summaryData);
             }
+        }
+
+        if (gearTableBuilder.hasRows()) {
+            gearTableBuilder.addToSummaryData(summaryData);
         }
 
         if (deviceStatusStart != null) {

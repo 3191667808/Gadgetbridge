@@ -124,8 +124,18 @@ public class AutoFitExporter {
                 return;
             }
 
-            tmpFile = File.createTempFile("auto-fit-export-", ".fit", context.getCacheDir());
-            new FitExporter().performExport(activityTrack, summary, summaryData, tmpFile);
+            // FIT-native devices (Garmin, iGPSPORT) keep the original .fit at
+            // rawDetailsPath — export it verbatim instead of regenerating.
+            final File rawFit = FitExporter.resolveRawFitFile(summary);
+            final File sourceFile;
+            if (rawFit != null) {
+                sourceFile = rawFit;
+                LOG.debug("Auto-export: using original FIT {}", rawFit);
+            } else {
+                tmpFile = File.createTempFile("auto-fit-export-", ".fit", context.getCacheDir());
+                new FitExporter().performExport(activityTrack, summary, summaryData, tmpFile);
+                sourceFile = tmpFile;
+            }
 
             final DocumentFile targetFile = documentDir.createFile("application/octet-stream", fileName);
             if (targetFile == null) {
@@ -133,7 +143,7 @@ public class AutoFitExporter {
                 return;
             }
 
-            try (FileInputStream in = new FileInputStream(tmpFile);
+            try (FileInputStream in = new FileInputStream(sourceFile);
                  OutputStream out = context.getContentResolver().openOutputStream(targetFile.getUri())) {
                 if (out == null) {
                     LOG.error("Failed to open output stream for {}", targetFile.getUri());

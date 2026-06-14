@@ -36,12 +36,12 @@
 
         <MultiSelectListPreference
             android:dependency="fit_auto_export_all_devices"
-            android:dialogTitle="@string/pref_auto_export_fit_selected_devices"
+            android:dialogTitle="@string/pref_auto_export_gpx_selected_devices"
             android:entries="@array/empty_array"
             android:entryValues="@array/empty_array"
             android:key="fit_auto_export_selected_devices"
             android:summary="@string/pref_auto_export_fit_selected_devices_summary"
-            android:title="@string/pref_auto_export_fit_selected_devices"
+            android:title="@string/pref_auto_export_gpx_selected_devices"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>

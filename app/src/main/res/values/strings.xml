@@ -668,7 +668,6 @@
     <string name="pref_header_auto_export_fit">Auto export FIT tracks</string>
     <string name="pref_auto_export_fit_summary">Automatically export FIT files when syncing activity tracks</string>
     <string name="pref_auto_export_fit_all_devices_summary">Export FIT tracks from all devices</string>
-    <string name="pref_auto_export_fit_selected_devices">Selected devices</string>
     <string name="pref_auto_export_fit_selected_devices_summary">Choose which devices to export FIT tracks from</string>
     <!-- Auto fetch activity preferences -->
     <string name="pref_header_auto_fetch">Auto fetch</string>

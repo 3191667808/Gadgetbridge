@@ -66,9 +66,14 @@ public class RecordData {
                 // the dev field's first record. If absent (out-of-order spec, malformed
                 // file), fall back to opaque bytes so the codec can walk past the field
                 // using its declared size.
-                final BaseType devBaseType = fieldDef.getBaseType() != null
-                        ? fieldDef.getBaseType()
-                        : BaseType.BASE_TYPE_BYTE;
+                final BaseType devBaseType;
+                if (fieldDef.getBaseType() != null) {
+                    devBaseType = fieldDef.getBaseType();
+                } else {
+                    LOG.warn("Dev field '{}' (#{}) has no base type — no matching field_description was parsed before its first record; falling back to opaque bytes",
+                            fieldDef.getName(), fieldDef.getFieldDefinitionNumber());
+                    devBaseType = BaseType.BASE_TYPE_BYTE;
+                }
                 FieldDefinition temp = new FieldDefinition(fieldDef.getFieldDefinitionNumber(), fieldDef.getSize(), devBaseType, fieldDef.getName());
                 fieldDataList.add(new FieldData(temp, totalSize));
                 totalSize += fieldDef.getSize();
