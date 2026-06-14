@@ -25,6 +25,7 @@ import androidx.annotation.Nullable;
 import java.util.Collections;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
@@ -37,6 +38,13 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.fitbit.FitbitDeviceSupport;
 
 public class FitbitCoordinator extends AbstractBLEDeviceCoordinator {
+    private static final Pattern SUPPORTED_DEVICE_NAME = Pattern.compile("(?i)^(.*fitbit.*|charge\\s+.*|versa\\s+.*|sense\\s+.*|inspire\\s+.*|luxe\\s+.*|ace\\s+.*)$");
+
+    @Override
+    protected Pattern getSupportedDeviceName() {
+        return SUPPORTED_DEVICE_NAME;
+    }
+
     @Override
     public boolean supports(@NonNull final GBDeviceCandidate candidate) {
         if (candidate.getServiceUuids().length > 0) {

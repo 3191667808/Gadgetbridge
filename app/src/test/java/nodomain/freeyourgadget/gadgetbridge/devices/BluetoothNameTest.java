@@ -197,6 +197,13 @@ public class BluetoothNameTest extends TestBase {
             put("Sunset 6", DeviceType.FITPRO);
             put("Watch7", DeviceType.FITPRO);
             put("Fit1900", DeviceType.FITPRO);
+            put("Fitbit Charge 6", DeviceType.FITBIT);
+            put("Charge 6", DeviceType.FITBIT);
+            put("Versa 4", DeviceType.FITBIT);
+            put("Sense 2", DeviceType.FITBIT);
+            put("Inspire 3", DeviceType.FITBIT);
+            put("Luxe 2", DeviceType.FITBIT);
+            put("Ace 3", DeviceType.FITBIT);
             put("M6-4711", DeviceType.FITPRO);
             put("M4-4711", DeviceType.FITPRO);
             put("YBW-05", DeviceType.FITPRO); // #6069
