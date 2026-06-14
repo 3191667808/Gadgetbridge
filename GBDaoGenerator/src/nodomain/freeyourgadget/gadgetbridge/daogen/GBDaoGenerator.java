@@ -76,7 +76,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(131, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(132, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 
@@ -197,6 +197,7 @@ public class GBDaoGenerator {
         addKeephealthActivitySample(schema, user, device);
         addKeephealthBloodPressureSample(schema, user, device);
         addKeephealthTemperatureSample(schema, user, device);
+        addFitbitActivitySample(schema, user, device);
 
         addHuaweiActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addHuaweiStressSample(schema, user, device));
@@ -1343,6 +1344,24 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractTemperatureSample", sample, user, device);
         sample.addFloatProperty(SAMPLE_TEMPERATURE).notNull().codeBeforeGetter(OVERRIDE);
         return sample;
+    }
+
+    private static Entity addFitbitActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "FitbitActivitySample");
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.implementsSerializable();
+        activitySample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        activitySample.addIntProperty("heartRateConfidence");
+        activitySample.addIntProperty("distanceCm").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("activeCalories").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("elevation");
+        activitySample.addIntProperty("vaMinutes");
+        activitySample.addIntProperty("dailyZoneMinutes");
+        activitySample.addIntProperty("weeklyZoneMinutes");
+        return activitySample;
     }
 
     private static void addCommonActivitySampleProperties(String superClass, Entity activitySample, Entity user, Entity device) {

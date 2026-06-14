@@ -17,92 +17,79 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.fitbit;
 
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.proto.fitbit.FitbitMobileDataProto;
 
 final class FitbitLiveActivity {
-    int timestamp = ActivitySample.NOT_MEASURED;
-    int steps = ActivitySample.NOT_MEASURED;
-    int distance = ActivitySample.NOT_MEASURED;
-    int calories = ActivitySample.NOT_MEASURED;
-    int elevation = ActivitySample.NOT_MEASURED;
-    int vaMinutes = ActivitySample.NOT_MEASURED;
-    int heartRate = ActivitySample.NOT_MEASURED;
-    int heartRateConfidence = ActivitySample.NOT_MEASURED;
-    int dailyZoneMinutes = ActivitySample.NOT_MEASURED;
-    int weeklyZoneMinutes = ActivitySample.NOT_MEASURED;
+    private static final int MILLIMETERS_PER_CENTIMETER = 10;
 
     private FitbitLiveActivity() {
     }
 
-    static FitbitLiveActivity parse(final byte[] payload) {
-        final FitbitLiveActivity activity = new FitbitLiveActivity();
-        int pos = 0;
-        while (pos < payload.length) {
-            final FitbitProtobufReader.Varint tag = FitbitProtobufReader.readVarint(payload, pos);
-            pos = tag.nextOffset;
-
-            final int fieldNumber = (int) (tag.value >> 3);
-            final int wireType = (int) (tag.value & 0x07);
-            if (wireType == 0) {
-                final FitbitProtobufReader.Varint value = FitbitProtobufReader.readVarint(payload, pos);
-                pos = value.nextOffset;
-                activity.setVarintField(fieldNumber, value.value);
-                continue;
-            }
-
-            pos = FitbitProtobufReader.skipField(payload, pos, wireType);
-        }
-        return activity;
+    static int timestampSeconds(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasTimestamp() ? liveActivity.getTimestamp() : ActivitySample.NOT_MEASURED;
     }
 
-    private void setVarintField(final int fieldNumber, final long value) {
-        final int intValue = (int) value;
-        switch (fieldNumber) {
-            case 1:
-                timestamp = intValue;
-                break;
-            case 2:
-                steps = intValue;
-                break;
-            case 3:
-                distance = intValue;
-                break;
-            case 4:
-                calories = intValue;
-                break;
-            case 5:
-                elevation = intValue;
-                break;
-            case 6:
-                vaMinutes = intValue;
-                break;
-            case 7:
-                heartRate = intValue;
-                break;
-            case 8:
-                heartRateConfidence = intValue;
-                break;
-            case 9:
-                dailyZoneMinutes = intValue;
-                break;
-            case 10:
-                weeklyZoneMinutes = intValue;
-                break;
-            default:
-                break;
-        }
+    static int steps(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasSteps() ? liveActivity.getSteps() : ActivitySample.NOT_MEASURED;
     }
 
-    @Override
-    public String toString() {
-        return "timestamp=" + timestamp
-                + ", steps=" + steps
-                + ", distance=" + distance
-                + ", calories=" + calories
-                + ", elevation=" + elevation
-                + ", vaMinutes=" + vaMinutes
-                + ", heartRate=" + heartRate
-                + ", heartRateConfidence=" + heartRateConfidence
-                + ", dailyZoneMinutes=" + dailyZoneMinutes
-                + ", weeklyZoneMinutes=" + weeklyZoneMinutes;
+    static int distanceCentimeters(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        if (!liveActivity.hasDistance()) {
+            return ActivitySample.NOT_MEASURED;
+        }
+
+        return liveActivity.getDistance() / MILLIMETERS_PER_CENTIMETER;
+    }
+
+    static int calories(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasCalories() ? liveActivity.getCalories() : ActivitySample.NOT_MEASURED;
+    }
+
+    static int heartRate(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasHeartRate() ? liveActivity.getHeartRate() : ActivitySample.NOT_MEASURED;
+    }
+
+    static int heartRateConfidence(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasHeartRateConfidence()
+                ? liveActivity.getHeartRateConfidence()
+                : ActivitySample.NOT_MEASURED;
+    }
+
+    static int elevation(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasElevation() ? liveActivity.getElevation() : ActivitySample.NOT_MEASURED;
+    }
+
+    static int vaMinutes(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasVaMinutes() ? liveActivity.getVaMinutes() : ActivitySample.NOT_MEASURED;
+    }
+
+    static int dailyZoneMinutes(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasDailyZoneMinutes()
+                ? liveActivity.getDailyZoneMinutes()
+                : ActivitySample.NOT_MEASURED;
+    }
+
+    static int weeklyZoneMinutes(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return liveActivity.hasWeeklyZoneMinutes()
+                ? liveActivity.getWeeklyZoneMinutes()
+                : ActivitySample.NOT_MEASURED;
+    }
+
+    static String describe(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        return "timestamp=" + fieldValue(liveActivity.hasTimestamp(), liveActivity.getTimestamp())
+                + ", steps=" + fieldValue(liveActivity.hasSteps(), liveActivity.getSteps())
+                + ", distanceMm=" + fieldValue(liveActivity.hasDistance(), liveActivity.getDistance())
+                + ", distanceCm=" + fieldValue(liveActivity.hasDistance(), distanceCentimeters(liveActivity))
+                + ", calories=" + fieldValue(liveActivity.hasCalories(), liveActivity.getCalories())
+                + ", elevation=" + fieldValue(liveActivity.hasElevation(), liveActivity.getElevation())
+                + ", vaMinutes=" + fieldValue(liveActivity.hasVaMinutes(), liveActivity.getVaMinutes())
+                + ", heartRate=" + fieldValue(liveActivity.hasHeartRate(), liveActivity.getHeartRate())
+                + ", heartRateConfidence=" + fieldValue(liveActivity.hasHeartRateConfidence(), liveActivity.getHeartRateConfidence())
+                + ", dailyZoneMinutes=" + fieldValue(liveActivity.hasDailyZoneMinutes(), liveActivity.getDailyZoneMinutes())
+                + ", weeklyZoneMinutes=" + fieldValue(liveActivity.hasWeeklyZoneMinutes(), liveActivity.getWeeklyZoneMinutes());
+    }
+
+    private static String fieldValue(final boolean hasValue, final int value) {
+        return hasValue ? Integer.toString(value) : "(missing)";
     }
 }

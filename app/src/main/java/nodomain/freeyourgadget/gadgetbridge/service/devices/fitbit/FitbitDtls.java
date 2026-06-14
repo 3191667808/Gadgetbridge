@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +65,7 @@ final class FitbitDtls {
     private final SecureRandom secureRandom = new SecureRandom();
     private final PskResolver pskResolver;
     private final CoapResponseHandler coapResponseHandler;
-    private final Map<String, String> pendingCoapRequests = new HashMap<>();
+    private final Map<String, PendingCoapRequest> pendingCoapRequests = new HashMap<>();
     private int ipIdentification = 1;
     private int nextCoapMessageId = secureRandom.nextInt(0x10000);
     private int nextCoapToken = secureRandom.nextInt();
@@ -94,7 +95,19 @@ final class FitbitDtls {
     }
 
     byte[] buildCoapGetRequest(final String path) {
-        return buildCoapRequest(path, FitbitCoap.CODE_GET, new byte[0]);
+        return buildCoapGetRequest(path, Collections.<FitbitCoap.Option>emptyList());
+    }
+
+    byte[] buildCoapGetRequest(final String path, final List<FitbitCoap.Option> options) {
+        return buildCoapRequest(path, FitbitCoap.CODE_GET, options, new byte[0]);
+    }
+
+    byte[] buildCoapPostRequest(final String path, final byte[] payload) {
+        return buildCoapRequest(path, FitbitCoap.CODE_POST, Collections.<FitbitCoap.Option>emptyList(), payload);
+    }
+
+    byte[] buildCoapPutRequest(final String path, final byte[] payload) {
+        return buildCoapRequest(path, FitbitCoap.CODE_PUT, Collections.<FitbitCoap.Option>emptyList(), payload);
     }
 
     byte[] maybeBuildResponse(final byte[] ipv4Packet) {
@@ -992,7 +1005,10 @@ final class FitbitDtls {
         }
     }
 
-    private byte[] buildCoapRequest(final String path, final int code, final byte[] payload) {
+    private byte[] buildCoapRequest(final String path,
+                                    final int code,
+                                    final List<FitbitCoap.Option> options,
+                                    final byte[] payload) {
         if (dtlsSession == null) {
             LOG.debug("Unable to build Fitbit CoAP request for {}, DTLS session is not established", path);
             return null;
@@ -1006,6 +1022,7 @@ final class FitbitDtls {
                 messageId,
                 token,
                 path,
+                options,
                 payload
         );
         final long sequenceNumber = dtlsSession.nextServerApplicationSequenceNumber++;
@@ -1019,7 +1036,10 @@ final class FitbitDtls {
                     sequenceNumber,
                     coapRequest
             );
-            pendingCoapRequests.put(FitbitCoap.requestKey(messageId, token), FitbitCoap.normalizePath(path));
+            pendingCoapRequests.put(
+                    FitbitCoap.requestKey(messageId, token),
+                    new PendingCoapRequest(FitbitCoap.normalizePath(path), code)
+            );
 
             final byte[] dtlsRecord = buildDtlsRecord(
                     DTLS_CONTENT_TYPE_APPLICATION_DATA,
@@ -1054,7 +1074,8 @@ final class FitbitDtls {
     }
 
     private void handleCoapResponse(final FitbitCoap.Message response) {
-        final String requestPath = pendingCoapRequests.remove(FitbitCoap.requestKey(response.messageId, response.token));
+        final PendingCoapRequest request = pendingCoapRequests.remove(FitbitCoap.requestKey(response.messageId, response.token));
+        final String requestPath = request != null ? request.path : null;
         LOG.info("Fitbit CoAP inbound response: code={}, mid={}, token={}, requestPath={}, responsePath={}, payloadLen={}",
                 FitbitCoap.formatCode(response.code),
                 response.messageId,
@@ -1063,8 +1084,18 @@ final class FitbitDtls {
                 response.path,
                 response.payloadLength);
 
-        if (requestPath != null && coapResponseHandler != null) {
-            coapResponseHandler.handleCoapResponse(requestPath, response.code, response.payload);
+        if (request != null && coapResponseHandler != null) {
+            coapResponseHandler.handleCoapResponse(request.path, request.code, response.code, response.payload);
+        }
+    }
+
+    private static final class PendingCoapRequest {
+        private final String path;
+        private final int code;
+
+        private PendingCoapRequest(final String path, final int code) {
+            this.path = path;
+            this.code = code;
         }
     }
 
@@ -1073,6 +1104,6 @@ final class FitbitDtls {
     }
 
     interface CoapResponseHandler {
-        void handleCoapResponse(String requestPath, int code, byte[] payload);
+        void handleCoapResponse(String requestPath, int requestCode, int responseCode, byte[] payload);
     }
 }

@@ -29,7 +29,6 @@ import java.util.Locale;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.generic_hr.GenericHeartRateActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
@@ -76,11 +75,16 @@ public class FitbitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsDataFetching(@NonNull final GBDevice device) {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsActivityTracking(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsRecordedActivities(@NonNull final GBDevice device) {
         return false;
     }
 
@@ -96,7 +100,7 @@ public class FitbitCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(final GBDevice device, final DaoSession session) {
-        return new GenericHeartRateActivitySampleProvider(device, session);
+        return new FitbitActivitySampleProvider(device, session);
     }
 
     @Override

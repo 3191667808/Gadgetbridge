@@ -1,0 +1,103 @@
+syntax = "proto2";
+
+package fitbit.mobiledata;
+
+option java_package = "nodomain.freeyourgadget.gadgetbridge.proto.fitbit";
+option java_outer_classname = "FitbitMobileDataProto";
+
+message DeviceInfo {
+    optional uint32 bl_ver_major = 1;
+    optional uint32 bl_ver_minor = 2;
+    optional uint32 sys_ver_major = 3;
+    optional uint32 sys_ver_minor = 4;
+    optional uint32 sys_debug_num = 5;
+    optional uint32 fw_lang = 6;
+    optional uint32 hw_revision = 7;
+    optional uint32 color = 8;
+    optional uint32 edition = 9;
+    optional uint32 on_charger = 10;
+    optional bytes bt_address = 11;
+    optional uint32 voltage = 12;
+    optional uint32 battery_level = 13;
+    optional uint32 device_time = 14;
+    optional string git_describe = 15;
+    repeated PeripheralDevice peripheral = 16;
+    optional uint32 product_id = 17;
+    optional uint32 fw_build_type = 18;
+}
+
+message PeripheralDevice {
+    optional uint32 major = 2;
+    optional uint32 minor = 3;
+    optional uint32 patch = 4;
+    optional uint32 vendor_id = 5;
+    optional uint32 device_type = 6;
+}
+
+message LiveActivity {
+    optional uint32 timestamp = 1;
+    optional uint32 steps = 2;
+    optional uint32 distance = 3;
+    optional uint32 calories = 4;
+    optional uint32 elevation = 5;
+    optional uint32 va_minutes = 6;
+    optional uint32 heart_rate = 7;
+    optional uint32 heart_rate_confidence = 8;
+    optional uint32 daily_zone_minutes = 9;
+    optional uint32 weekly_zone_minutes = 10;
+}
+
+message SyncStatus {
+    optional BackgroundSyncStatus background = 1;
+}
+
+message SyncRequest {
+    optional string event_type = 1;
+    optional bytes request_uuid = 2;
+    optional uint32 retry_count = 3;
+}
+
+message BackgroundSyncStatus {
+    optional IndividualSyncStatus full = 1;
+    optional IndividualSyncStatus trickle = 2;
+}
+
+message IndividualSyncStatus {
+    optional bool outstanding = 1;
+}
+
+message AppLifecycleEvent {
+    optional bytes app_uuid = 1;
+    optional uint64 app_build_id = 2;
+    optional uint32 event_type = 3;
+    optional uint32 error_type = 4;
+}
+
+message InteractiveLargeData {
+    optional bytes app_uuid = 1;
+    optional uint64 app_build_id = 2;
+    optional bytes data = 3;
+}
+
+message AppOutboxStatus {
+    repeated AppOutboxFile file = 1;
+}
+
+message AppOutboxFile {
+    optional bytes app_uuid = 1;
+    optional uint64 app_build_id = 2;
+    optional uint32 file_id = 3;
+    optional string filename = 4;
+    optional uint32 size = 5;
+    optional uint32 checksum = 6;
+}
+
+message PbufFileHeader {
+    optional bytes app_uuid = 1;
+    optional uint64 app_build_id = 2;
+    optional uint32 kind = 3;
+    optional string filename = 4;
+    optional uint32 size = 5;
+    optional uint32 checksum = 6;
+    optional uint32 flags = 7;
+}

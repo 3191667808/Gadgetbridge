@@ -20,6 +20,8 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 final class FitbitCoap {
@@ -28,6 +30,7 @@ final class FitbitCoap {
     static final int TYPE_ACKNOWLEDGEMENT = 2;
     static final int CODE_GET = 0x01;
     static final int CODE_POST = 0x02;
+    static final int CODE_PUT = 0x03;
     static final int CODE_CHANGED = 0x44;
 
     private static final int OPTION_URI_PATH = 11;
@@ -131,6 +134,7 @@ final class FitbitCoap {
                                       final int messageId,
                                       final byte[] token,
                                       final String path,
+                                      final List<Option> extraOptions,
                                       final byte[] payload) {
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write((1 << 6) | (type << 4) | token.length);
@@ -139,11 +143,22 @@ final class FitbitCoap {
         output.write(messageId & 0xff);
         output.write(token, 0, token.length);
 
-        int previousOptionNumber = 0;
+        final List<Option> options = new ArrayList<>();
         for (final String segment : pathSegments(path)) {
-            final byte[] value = segment.getBytes(StandardCharsets.UTF_8);
-            writeOption(output, OPTION_URI_PATH - previousOptionNumber, value);
-            previousOptionNumber = OPTION_URI_PATH;
+            options.add(new Option(OPTION_URI_PATH, segment.getBytes(StandardCharsets.UTF_8)));
+        }
+        options.addAll(extraOptions);
+        Collections.sort(options, new Comparator<Option>() {
+            @Override
+            public int compare(final Option first, final Option second) {
+                return Integer.compare(first.number, second.number);
+            }
+        });
+
+        int previousOptionNumber = 0;
+        for (final Option option : options) {
+            writeOption(output, option.number - previousOptionNumber, option.value);
+            previousOptionNumber = option.number;
         }
 
         if (payload.length > 0) {
@@ -307,6 +322,16 @@ final class FitbitCoap {
             this.path = buildPath(uriPathSegments);
             this.payload = payload;
             this.payloadLength = payload.length;
+        }
+    }
+
+    static final class Option {
+        private final int number;
+        private final byte[] value;
+
+        private Option(final int number, final byte[] value) {
+            this.number = number;
+            this.value = value;
         }
     }
 

@@ -27,6 +27,8 @@ import android.os.Looper;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -44,7 +47,9 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.HeartRrIntervalSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.fitbit.FitbitActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitbit.FitbitConstants;
+import nodomain.freeyourgadget.gadgetbridge.entities.FitbitActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HeartRrIntervalSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -52,6 +57,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
+import nodomain.freeyourgadget.gadgetbridge.proto.fitbit.FitbitMobileDataProto;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEQueue;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -73,13 +80,13 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final long SERVER_STATUS_NOTIFY_INTERVAL_MS = 5000;
     private static final byte[] EMPTY_RESPONSE = new byte[0];
     private static final long LIVE_DATA_POLL_INTERVAL_MS = 1000;
+    private static final long RECORDED_DATA_FETCH_TIMEOUT_MS = 10000;
     private static final int HEART_RATE_TEST_REQUESTS = 10;
-    private static final String COAP_PATH_DEVICE_INFO = "md/606";
-    private static final String COAP_PATH_LIVE_ACTIVITY = "liveactivity";
 
     private final Handler serverStatusHandler = new Handler(Looper.getMainLooper());
     private final FitbitGattlink.Session gattlinkSession = new FitbitGattlink.Session();
     private final FitbitDtls fitbitDtls = new FitbitDtls(this::resolvePsk, this::handleFitbitCoapResponse);
+    private final FitbitResourceClient fitbitResources;
     private final FitbitPhoneLocalGatt phoneLocalGatt = new FitbitPhoneLocalGatt();
     private final DeviceInfoProfile<FitbitDeviceSupport> deviceInfoProfile;
     private final BatteryInfoProfile<FitbitDeviceSupport> batteryInfoProfile;
@@ -92,6 +99,10 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private boolean realtimeStepsEnabled;
     private boolean realtimeHeartRateEnabled;
     private boolean initialFitbitDeviceInfoRequested;
+    private boolean recordedDataFetchInProgress;
+    private boolean recordedDataFetchMarkedBusy;
+    private boolean pendingRecordedDataSyncStatus;
+    private int pendingLiveActivitySnapshotRequests;
     private int pendingHeartRateTestRequests;
     private int lastLiveActivitySteps = ActivitySample.NOT_MEASURED;
 
@@ -122,15 +133,37 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     };
 
-    private final Runnable initialDeviceInfoRunnable = new Runnable() {
+    private final Runnable recordedDataFetchTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!recordedDataFetchInProgress) {
+                return;
+            }
+
+            LOG.warn("Fitbit recorded data fetch timed out: pendingLiveActivitySnapshots={}, pendingSyncStatus={}",
+                    pendingLiveActivitySnapshotRequests,
+                    pendingRecordedDataSyncStatus);
+            pendingLiveActivitySnapshotRequests = 0;
+            pendingRecordedDataSyncStatus = false;
+            finishRecordedDataFetchIfIdle();
+        }
+    };
+
+    private final Runnable initialResourceDiscoveryRunnable = new Runnable() {
         @Override
         public void run() {
             requestFitbitDeviceInfo();
+            requestFitbitLiveActivitySnapshot();
+            requestFitbitSyncStatus();
+            requestFitbitSyncConfig();
+            requestFitbitInboxStatus();
         }
     };
 
     public FitbitDeviceSupport() {
         super(LOG);
+
+        fitbitResources = new FitbitResourceClient(fitbitDtls, this::writeGattlinkIpPacket);
 
         addSupportedService(FitbitConstants.GATTLINK_SERVICE);
         addSupportedService(DeviceInfoProfile.SERVICE_UUID);
@@ -216,7 +249,12 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         gattlinkSession.reset();
         fitbitDtls.reset();
         initialFitbitDeviceInfoRequested = false;
+        recordedDataFetchInProgress = false;
+        recordedDataFetchMarkedBusy = false;
+        pendingRecordedDataSyncStatus = false;
+        pendingLiveActivitySnapshotRequests = 0;
         pendingHeartRateTestRequests = 0;
+        lastLiveActivitySteps = ActivitySample.NOT_MEASURED;
 
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.requestMtu(REQUESTED_MTU);
@@ -260,6 +298,9 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onEnableRealtimeSteps(final boolean enable) {
+        if (realtimeStepsEnabled != enable) {
+            lastLiveActivitySteps = ActivitySample.NOT_MEASURED;
+        }
         realtimeStepsEnabled = enable;
         updateFitbitLiveDataPolling();
     }
@@ -268,6 +309,31 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     public void onEnableRealtimeHeartRateMeasurement(final boolean enable) {
         realtimeHeartRateEnabled = enable;
         updateFitbitLiveDataPolling();
+    }
+
+    @Override
+    public void onFetchRecordedData(final int dataTypes) {
+        if (!fitbitDtls.isSessionEstablished()) {
+            LOG.info("Fitbit recorded data fetch requested before DTLS session is established: dataTypes={}", dataTypes);
+            GB.signalActivityDataFinish(getDevice());
+            getDevice().sendDeviceUpdateIntent(getContext());
+            return;
+        }
+
+        LOG.info("Fitbit recorded data fetch requested: dataTypes={}", dataTypes);
+        startRecordedDataFetchBusyState();
+        recordedDataFetchInProgress = true;
+        pendingRecordedDataSyncStatus = true;
+        serverStatusHandler.removeCallbacks(recordedDataFetchTimeoutRunnable);
+        serverStatusHandler.postDelayed(recordedDataFetchTimeoutRunnable, RECORDED_DATA_FETCH_TIMEOUT_MS);
+        requestFitbitLiveActivitySnapshot();
+        requestFitbitSyncStatus();
+        if ((dataTypes & RecordedDataTypes.TYPE_DEBUGLOGS) != 0) {
+            requestFitbitSyncConfig();
+            requestFitbitInboxStatus();
+            requestFitbitWifiOperationStatus();
+            requestFitbitAppDownloadStatus();
+        }
     }
 
     @Override
@@ -368,6 +434,11 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
             gattlinkSession.reset();
             fitbitDtls.reset();
             initialFitbitDeviceInfoRequested = false;
+            recordedDataFetchInProgress = false;
+            pendingLiveActivitySnapshotRequests = 0;
+            pendingRecordedDataSyncStatus = false;
+            serverStatusHandler.removeCallbacks(recordedDataFetchTimeoutRunnable);
+            clearRecordedDataFetchBusyState();
             if (device != null && device.equals(serverDevice)) {
                 serverDevice = null;
             }
@@ -415,7 +486,7 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
                                            final int offset,
                                            final BluetoothGattDescriptor descriptor) {
         LOG.info("Fitbit local GATT descriptor read {}", descriptor.getUuid());
-            queueServerResponse("Fitbit local GATT descriptor read", device, requestId, BluetoothGatt.GATT_SUCCESS, offset, FitbitPhoneLocalGatt.CCCD_DISABLED_RESPONSE);
+        queueServerResponse("Fitbit local GATT descriptor read", device, requestId, BluetoothGatt.GATT_SUCCESS, offset, FitbitPhoneLocalGatt.CCCD_DISABLED_RESPONSE);
         return true;
     }
 
@@ -535,8 +606,11 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private void stopFitbitLiveDataPolling() {
         serverStatusHandler.removeCallbacks(liveDataRunnable);
         serverStatusHandler.removeCallbacks(heartRateTestRunnable);
-        serverStatusHandler.removeCallbacks(initialDeviceInfoRunnable);
+        serverStatusHandler.removeCallbacks(initialResourceDiscoveryRunnable);
+        serverStatusHandler.removeCallbacks(recordedDataFetchTimeoutRunnable);
+        pendingLiveActivitySnapshotRequests = 0;
         pendingHeartRateTestRequests = 0;
+        lastLiveActivitySteps = ActivitySample.NOT_MEASURED;
     }
 
     private void requestInitialFitbitDeviceInfoIfNeeded() {
@@ -545,55 +619,88 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
 
         initialFitbitDeviceInfoRequested = true;
-        serverStatusHandler.postDelayed(initialDeviceInfoRunnable, 1000);
+        serverStatusHandler.postDelayed(initialResourceDiscoveryRunnable, 1000);
     }
 
     private void requestFitbitDeviceInfo() {
-        final byte[] ipv4Packet = fitbitDtls.buildCoapGetRequest(COAP_PATH_DEVICE_INFO);
-        if (ipv4Packet == null) {
-            return;
-        }
-
-        writeGattlinkIpPacket("Fitbit device-info request", ipv4Packet);
+        fitbitResources.requestDeviceInfo();
     }
 
     private void requestFitbitLiveActivity() {
-        final byte[] ipv4Packet = fitbitDtls.buildCoapGetRequest(COAP_PATH_LIVE_ACTIVITY);
-        if (ipv4Packet == null) {
-            return;
-        }
-
-        writeGattlinkIpPacket("Fitbit liveactivity request", ipv4Packet);
+        fitbitResources.requestLiveActivity();
     }
 
-    private void handleFitbitCoapResponse(final String requestPath, final int code, final byte[] payload) {
-        if ((code >> 5) != 2) {
+    private void requestFitbitLiveActivitySnapshot() {
+        pendingLiveActivitySnapshotRequests++;
+        requestFitbitLiveActivity();
+    }
+
+    private void requestFitbitSyncStatus() {
+        fitbitResources.requestSyncStatus();
+    }
+
+    private void requestFitbitSyncConfig() {
+        fitbitResources.requestSyncConfig();
+    }
+
+    private void requestFitbitInboxStatus() {
+        fitbitResources.requestInboxStatus();
+    }
+
+    private void requestFitbitWifiOperationStatus() {
+        fitbitResources.requestWifiOperationStatus();
+    }
+
+    private void requestFitbitAppDownloadStatus() {
+        fitbitResources.requestAppDownloadStatus();
+    }
+
+    private void handleFitbitCoapResponse(final String requestPath,
+                                          final int requestCode,
+                                          final int responseCode,
+                                          final byte[] payload) {
+        if ((responseCode >> 5) != 2) {
             LOG.warn("Fitbit CoAP response for {} was not successful: code={}.{}, payloadLen={}",
                     requestPath,
-                    (code >> 5) & 0x07,
-                    code & 0x1f,
+                    (responseCode >> 5) & 0x07,
+                    responseCode & 0x1f,
                     payload.length);
+            if (FitbitResourceClient.PATH_SYNC_STATUS.equals(requestPath)) {
+                pendingRecordedDataSyncStatus = false;
+                finishRecordedDataFetchIfIdle();
+            } else if (FitbitResourceClient.PATH_LIVE_ACTIVITY.equals(requestPath)) {
+                finishFitbitLiveActivitySnapshotRequest();
+                finishRecordedDataFetchIfIdle();
+            }
             return;
         }
 
-        if (COAP_PATH_LIVE_ACTIVITY.equals(requestPath)) {
+        if (FitbitResourceClient.PATH_LIVE_ACTIVITY.equals(requestPath)) {
             handleFitbitLiveActivity(payload);
-        } else if (COAP_PATH_DEVICE_INFO.equals(requestPath)) {
+        } else if (FitbitResourceClient.PATH_DEVICE_INFO.equals(requestPath)) {
             handleFitbitDeviceInfo(payload);
+        } else if (FitbitResourceClient.PATH_SYNC_STATUS.equals(requestPath)) {
+            handleFitbitSyncStatus(payload);
+        } else if (FitbitResourceClient.PATH_SYNC_CONFIG.equals(requestPath)
+                || FitbitResourceClient.PATH_INBOX_STATUS.equals(requestPath)
+                || FitbitResourceClient.PATH_WIFI_OPERATION_STATUS.equals(requestPath)
+                || FitbitResourceClient.PATH_APP_DOWNLOAD_STATUS.equals(requestPath)) {
+            handleFitbitRawResource(requestPath, payload);
         }
     }
 
     private void handleFitbitDeviceInfo(final byte[] payload) {
-        final FitbitDeviceInfo deviceInfo;
+        final FitbitMobileDataProto.DeviceInfo deviceInfo;
         try {
-            deviceInfo = FitbitDeviceInfo.parse(payload);
-        } catch (final IllegalArgumentException e) {
+            deviceInfo = FitbitMobileDataProto.DeviceInfo.parseFrom(payload);
+        } catch (final InvalidProtocolBufferException e) {
             LOG.warn("Unable to parse Fitbit device-info payload: {}", GB.hexdump(payload), e);
             return;
         }
 
-        LOG.info("Fitbit device-info: {}", deviceInfo);
-        if (!deviceInfo.hasBatteryLevel) {
+        LOG.info("Fitbit device-info: {}", describeFitbitDeviceInfo(deviceInfo));
+        updateFitbitDeviceMetadata(deviceInfo);
+        if (!deviceInfo.hasBatteryLevel()) {
             LOG.warn("Fitbit device-info did not contain a battery level: {}", GB.hexdump(payload));
             return;
         }
@@ -601,45 +708,250 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         publishFitbitBatteryInfo(deviceInfo);
     }
 
-    private void publishFitbitBatteryInfo(final FitbitDeviceInfo deviceInfo) {
-        if (deviceInfo.batteryLevel < 0 || deviceInfo.batteryLevel > 100) {
-            LOG.warn("Ignoring Fitbit battery level outside 0-100 range: {}", deviceInfo.batteryLevel);
+    private void publishFitbitBatteryInfo(final FitbitMobileDataProto.DeviceInfo deviceInfo) {
+        final int batteryLevel = deviceInfo.getBatteryLevel();
+        if (batteryLevel < 0 || batteryLevel > 100) {
+            LOG.warn("Ignoring Fitbit battery level outside 0-100 range: {}", batteryLevel);
             return;
         }
 
         batteryCmd.batteryIndex = 0;
-        batteryCmd.level = deviceInfo.batteryLevel;
-        batteryCmd.voltage = deviceInfo.hasVoltage && deviceInfo.voltage > 0 ? deviceInfo.voltage / 1000f : -1f;
+        batteryCmd.level = batteryLevel;
+        batteryCmd.voltage = deviceInfo.hasVoltage() && deviceInfo.getVoltage() > 0 ? deviceInfo.getVoltage() / 1000f : -1f;
         batteryCmd.state = BatteryState.BATTERY_NORMAL;
-        if (deviceInfo.hasOnCharger && deviceInfo.onCharger != 0) {
-            batteryCmd.state = deviceInfo.batteryLevel >= 100
+        if (deviceInfo.hasOnCharger() && deviceInfo.getOnCharger() != 0) {
+            batteryCmd.state = batteryLevel >= 100
                     ? BatteryState.BATTERY_CHARGING_FULL
                     : BatteryState.BATTERY_CHARGING;
         }
         handleGBDeviceEvent(batteryCmd);
     }
 
+    private void updateFitbitDeviceMetadata(final FitbitMobileDataProto.DeviceInfo deviceInfo) {
+        final String firmwareVersion = firmwareVersion(deviceInfo);
+        if (!firmwareVersion.isEmpty()) {
+            getDevice().setFirmwareVersion(firmwareVersion);
+        }
+
+        final String bootloaderVersion = bootloaderVersion(deviceInfo);
+        if (!bootloaderVersion.isEmpty()) {
+            getDevice().setFirmwareVersion2("BL " + bootloaderVersion);
+        }
+
+        if (deviceInfo.hasProductId()) {
+            getDevice().setModel("Fitbit product " + deviceInfo.getProductId());
+        }
+    }
+
     private void handleFitbitLiveActivity(final byte[] payload) {
-        final FitbitLiveActivity liveActivity;
+        final FitbitMobileDataProto.LiveActivity liveActivity;
         try {
-            liveActivity = FitbitLiveActivity.parse(payload);
-        } catch (final IllegalArgumentException e) {
+            liveActivity = FitbitMobileDataProto.LiveActivity.parseFrom(payload);
+        } catch (final InvalidProtocolBufferException e) {
+            finishFitbitLiveActivitySnapshotRequest();
+            finishRecordedDataFetchIfIdle();
             LOG.warn("Unable to parse Fitbit liveactivity payload: {}", GB.hexdump(payload), e);
             return;
         }
 
-        LOG.info("Fitbit liveactivity: {}", liveActivity);
+        LOG.info("Fitbit liveactivity: {}", FitbitLiveActivity.describe(liveActivity));
         publishFitbitLiveActivity(liveActivity);
+        persistFitbitLiveActivity(liveActivity);
         persistFitbitLiveHeartRate(liveActivity);
         updateFitbitHeartRateTestPolling(liveActivity);
+        finishFitbitLiveActivitySnapshotRequest();
+        finishRecordedDataFetchIfIdle();
     }
 
-    private void updateFitbitHeartRateTestPolling(final FitbitLiveActivity liveActivity) {
+    private void handleFitbitSyncStatus(final byte[] payload) {
+        final FitbitMobileDataProto.SyncStatus syncStatus;
+        try {
+            syncStatus = FitbitMobileDataProto.SyncStatus.parseFrom(payload);
+        } catch (final InvalidProtocolBufferException e) {
+            pendingRecordedDataSyncStatus = false;
+            finishRecordedDataFetchIfIdle();
+            LOG.warn("Unable to parse Fitbit sync-status payload: {}", GB.hexdump(payload), e);
+            return;
+        }
+
+        LOG.info("Fitbit sync-status: {}, outstanding={}", describeFitbitSyncStatus(syncStatus), hasOutstandingSync(syncStatus));
+        pendingRecordedDataSyncStatus = false;
+        finishRecordedDataFetchIfIdle();
+    }
+
+    private void handleFitbitRawResource(final String requestPath, final byte[] payload) {
+        final int previewLength = Math.min(payload.length, 64);
+        LOG.info("Fitbit raw resource {}: payloadLen={}", requestPath, payload.length);
+        if (previewLength > 0) {
+            LOG.info("Fitbit raw resource {} first {} bytes: {}",
+                    requestPath,
+                    previewLength,
+                    GB.hexdump(payload, 0, previewLength));
+        }
+    }
+
+    private void finishRecordedDataFetchIfIdle() {
+        if (!recordedDataFetchInProgress) {
+            return;
+        }
+
+        if (pendingLiveActivitySnapshotRequests > 0 || pendingRecordedDataSyncStatus) {
+            return;
+        }
+
+        recordedDataFetchInProgress = false;
+        serverStatusHandler.removeCallbacks(recordedDataFetchTimeoutRunnable);
+        clearRecordedDataFetchBusyState();
+        GB.signalActivityDataFinish(getDevice());
+    }
+
+    private void startRecordedDataFetchBusyState() {
+        if (getDevice().isBusy()) {
+            recordedDataFetchMarkedBusy = false;
+            return;
+        }
+
+        getDevice().setBusyTask(R.string.busy_task_fetch_activity_data, getContext());
+        recordedDataFetchMarkedBusy = true;
+        getDevice().sendDeviceUpdateIntent(getContext());
+    }
+
+    private void clearRecordedDataFetchBusyState() {
+        if (!recordedDataFetchMarkedBusy) {
+            return;
+        }
+
+        if (getDevice().isBusy()) {
+            getDevice().unsetBusyTask();
+        }
+        recordedDataFetchMarkedBusy = false;
+        getDevice().sendDeviceUpdateIntent(getContext());
+    }
+
+    private static String describeFitbitDeviceInfo(final FitbitMobileDataProto.DeviceInfo deviceInfo) {
+        return "blVer=" + bootloaderVersion(deviceInfo)
+                + ", sysVer=" + firmwareVersion(deviceInfo)
+                + ", sysDebugNum=" + fieldValue(deviceInfo.hasSysDebugNum(), deviceInfo.getSysDebugNum())
+                + ", fwLang=" + fieldValue(deviceInfo.hasFwLang(), deviceInfo.getFwLang())
+                + ", hwRevision=" + fieldValue(deviceInfo.hasHwRevision(), deviceInfo.getHwRevision())
+                + ", color=" + fieldValue(deviceInfo.hasColor(), deviceInfo.getColor())
+                + ", edition=" + fieldValue(deviceInfo.hasEdition(), deviceInfo.getEdition())
+                + ", onCharger=" + fieldValue(deviceInfo.hasOnCharger(), deviceInfo.getOnCharger())
+                + ", btAddress=" + fieldValue(deviceInfo.hasBtAddress(), FitbitCoap.toHex(deviceInfo.getBtAddress().toByteArray()))
+                + ", voltage=" + fieldValue(deviceInfo.hasVoltage(), deviceInfo.getVoltage())
+                + ", batteryLevel=" + fieldValue(deviceInfo.hasBatteryLevel(), deviceInfo.getBatteryLevel())
+                + ", deviceTime=" + fieldValue(deviceInfo.hasDeviceTime(), deviceInfo.getDeviceTime())
+                + ", productId=" + fieldValue(deviceInfo.hasProductId(), deviceInfo.getProductId())
+                + ", fwBuildType=" + fieldValue(deviceInfo.hasFwBuildType(), buildTypeName(deviceInfo.getFwBuildType()))
+                + ", gitDescribe=" + (deviceInfo.hasGitDescribe() ? deviceInfo.getGitDescribe() : "")
+                + ", peripherals=" + describeFitbitPeripherals(deviceInfo);
+    }
+
+    private static String describeFitbitPeripherals(final FitbitMobileDataProto.DeviceInfo deviceInfo) {
+        final StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < deviceInfo.getPeripheralCount(); i++) {
+            if (i > 0) {
+                builder.append(", ");
+            }
+            final FitbitMobileDataProto.PeripheralDevice peripheral = deviceInfo.getPeripheral(i);
+            builder.append("type=").append(fieldValue(peripheral.hasDeviceType(), peripheral.getDeviceType()))
+                    .append(", vendorId=").append(fieldValue(peripheral.hasVendorId(), peripheral.getVendorId()))
+                    .append(", version=").append(fieldValue(peripheral.hasMajor(), peripheral.getMajor()))
+                    .append(".").append(fieldValue(peripheral.hasMinor(), peripheral.getMinor()))
+                    .append(".").append(fieldValue(peripheral.hasPatch(), peripheral.getPatch()));
+        }
+        return builder.append("]").toString();
+    }
+
+    private static String firmwareVersion(final FitbitMobileDataProto.DeviceInfo deviceInfo) {
+        if (deviceInfo.hasGitDescribe() && !deviceInfo.getGitDescribe().isEmpty()) {
+            return deviceInfo.getGitDescribe();
+        }
+
+        if (deviceInfo.hasSysVerMajor() && deviceInfo.hasSysVerMinor() && deviceInfo.hasSysDebugNum()) {
+            return deviceInfo.getSysVerMajor() + "." + deviceInfo.getSysVerMinor() + "." + deviceInfo.getSysDebugNum();
+        }
+
+        if (deviceInfo.hasSysVerMajor() && deviceInfo.hasSysVerMinor()) {
+            return deviceInfo.getSysVerMajor() + "." + deviceInfo.getSysVerMinor();
+        }
+
+        return "";
+    }
+
+    private static String bootloaderVersion(final FitbitMobileDataProto.DeviceInfo deviceInfo) {
+        if (deviceInfo.hasBlVerMajor() && deviceInfo.hasBlVerMinor()) {
+            return deviceInfo.getBlVerMajor() + "." + deviceInfo.getBlVerMinor();
+        }
+
+        return "";
+    }
+
+    private static String buildTypeName(final int fwBuildType) {
+        switch (fwBuildType) {
+            case 1:
+                return "MFG";
+            case 2:
+                return "DEMO";
+            case 3:
+                return "OOB";
+            case 4:
+                return "FSI";
+            case 5:
+                return "CU";
+            case 0:
+                return "UNKNOWN";
+            default:
+                return Integer.toString(fwBuildType);
+        }
+    }
+
+    private static String describeFitbitSyncStatus(final FitbitMobileDataProto.SyncStatus syncStatus) {
+        final boolean hasFull = syncStatus.hasBackground() && syncStatus.getBackground().hasFull();
+        final boolean hasTrickle = syncStatus.hasBackground() && syncStatus.getBackground().hasTrickle();
+        final boolean fullOutstanding = hasFull
+                && syncStatus.getBackground().getFull().hasOutstanding()
+                && syncStatus.getBackground().getFull().getOutstanding();
+        final boolean trickleOutstanding = hasTrickle
+                && syncStatus.getBackground().getTrickle().hasOutstanding()
+                && syncStatus.getBackground().getTrickle().getOutstanding();
+        return "background=" + syncStatus.hasBackground()
+                + ", full=" + fieldValue(hasFull, fullOutstanding)
+                + ", trickle=" + fieldValue(hasTrickle, trickleOutstanding);
+    }
+
+    private static boolean hasOutstandingSync(final FitbitMobileDataProto.SyncStatus syncStatus) {
+        if (!syncStatus.hasBackground()) {
+            return false;
+        }
+
+        final FitbitMobileDataProto.BackgroundSyncStatus background = syncStatus.getBackground();
+        return background.hasFull()
+                && background.getFull().hasOutstanding()
+                && background.getFull().getOutstanding()
+                || background.hasTrickle()
+                && background.getTrickle().hasOutstanding()
+                && background.getTrickle().getOutstanding();
+    }
+
+    private static String fieldValue(final boolean hasValue, final int value) {
+        return hasValue ? Integer.toString(value) : "(missing)";
+    }
+
+    private static String fieldValue(final boolean hasValue, final boolean value) {
+        return hasValue ? Boolean.toString(value) : "(missing)";
+    }
+
+    private static String fieldValue(final boolean hasValue, final String value) {
+        return hasValue ? value : "(missing)";
+    }
+
+    private void updateFitbitHeartRateTestPolling(final FitbitMobileDataProto.LiveActivity liveActivity) {
         if (pendingHeartRateTestRequests <= 0) {
             return;
         }
 
-        if (isValidHeartRate(liveActivity.heartRate)) {
+        if (isValidHeartRate(FitbitLiveActivity.heartRate(liveActivity))) {
             pendingHeartRateTestRequests = 0;
             return;
         }
@@ -650,28 +962,46 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    private void publishFitbitLiveActivity(final FitbitLiveActivity liveActivity) {
+    private void finishFitbitLiveActivitySnapshotRequest() {
+        if (pendingLiveActivitySnapshotRequests > 0) {
+            pendingLiveActivitySnapshotRequests--;
+        }
+    }
+
+    private void publishFitbitLiveActivity(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        if (!isFitbitLiveDataPollingEnabled()
+                && pendingHeartRateTestRequests <= 0
+                && pendingLiveActivitySnapshotRequests <= 0) {
+            return;
+        }
+
         final FitbitLiveActivitySample sample = new FitbitLiveActivitySample();
-        sample.setTimestamp(liveActivity.timestamp > 0 ? liveActivity.timestamp : (int) (System.currentTimeMillis() / 1000));
+        final int timestamp = FitbitLiveActivity.timestampSeconds(liveActivity);
+        final int steps = FitbitLiveActivity.steps(liveActivity);
+        final int heartRate = FitbitLiveActivity.heartRate(liveActivity);
+
+        sample.setTimestamp(timestamp > 0 ? timestamp : (int) (System.currentTimeMillis() / 1000));
         sample.setRawKind(ActivityKind.UNKNOWN.getCode());
         sample.setRawIntensity(ActivitySample.NOT_MEASURED);
-        sample.setActiveCalories(liveActivity.calories);
-        sample.setDistanceCm(liveActivity.distance);
+        sample.setActiveCalories(FitbitLiveActivity.calories(liveActivity));
+        sample.setDistanceCm(FitbitLiveActivity.distanceCentimeters(liveActivity));
 
-        final boolean shouldPublishHeartRate = realtimeHeartRateEnabled || pendingHeartRateTestRequests > 0;
-        if (shouldPublishHeartRate && isValidHeartRate(liveActivity.heartRate)) {
-            sample.setHeartRate(liveActivity.heartRate);
+        final boolean shouldPublishHeartRate = realtimeHeartRateEnabled
+                || pendingHeartRateTestRequests > 0
+                || pendingLiveActivitySnapshotRequests > 0;
+        if (shouldPublishHeartRate && isValidHeartRate(heartRate)) {
+            sample.setHeartRate(heartRate);
         } else {
             sample.setHeartRate(ActivitySample.NOT_MEASURED);
         }
 
-        if (realtimeStepsEnabled && liveActivity.steps >= 0) {
-            if (lastLiveActivitySteps == ActivitySample.NOT_MEASURED || liveActivity.steps < lastLiveActivitySteps) {
+        if (realtimeStepsEnabled && steps >= 0) {
+            if (lastLiveActivitySteps == ActivitySample.NOT_MEASURED || steps < lastLiveActivitySteps) {
                 sample.setSteps(0);
             } else {
-                sample.setSteps(liveActivity.steps - lastLiveActivitySteps);
+                sample.setSteps(steps - lastLiveActivitySteps);
             }
-            lastLiveActivitySteps = liveActivity.steps;
+            lastLiveActivitySteps = steps;
         } else {
             sample.setSteps(ActivitySample.NOT_MEASURED);
         }
@@ -682,13 +1012,21 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
-    private void persistFitbitLiveHeartRate(final FitbitLiveActivity liveActivity) {
-        if (!isValidHeartRate(liveActivity.heartRate)) {
+    private void persistFitbitLiveHeartRate(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        if (!realtimeHeartRateEnabled
+                && pendingHeartRateTestRequests <= 0
+                && pendingLiveActivitySnapshotRequests <= 0) {
             return;
         }
 
-        final long timestamp = liveActivity.timestamp > 0
-                ? liveActivity.timestamp * 1000L
+        final int heartRate = FitbitLiveActivity.heartRate(liveActivity);
+        if (!isValidHeartRate(heartRate)) {
+            return;
+        }
+
+        final int liveActivityTimestamp = FitbitLiveActivity.timestampSeconds(liveActivity);
+        final long timestamp = liveActivityTimestamp > 0
+                ? liveActivityTimestamp * 1000L
                 : System.currentTimeMillis();
         try (DBHandler db = GBApplication.acquireDB()) {
             final long userId = DBHelper.getUser(db.getDaoSession()).getId();
@@ -698,12 +1036,75 @@ public class FitbitDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     timestamp,
                     deviceId,
                     userId,
-                    liveActivity.heartRate
+                    heartRate
             ));
             newHeartRateSamples = true;
         } catch (final Exception e) {
             LOG.warn("Unable to persist Fitbit liveactivity heart-rate sample", e);
         }
+    }
+
+    private void persistFitbitLiveActivity(final FitbitMobileDataProto.LiveActivity liveActivity) {
+        final int timestamp = FitbitLiveActivity.timestampSeconds(liveActivity);
+        final int steps = FitbitLiveActivity.steps(liveActivity);
+        final int distanceCm = FitbitLiveActivity.distanceCentimeters(liveActivity);
+        final int calories = FitbitLiveActivity.calories(liveActivity);
+        final int heartRate = FitbitLiveActivity.heartRate(liveActivity);
+        final int elevation = FitbitLiveActivity.elevation(liveActivity);
+        final int vaMinutes = FitbitLiveActivity.vaMinutes(liveActivity);
+        final int dailyZoneMinutes = FitbitLiveActivity.dailyZoneMinutes(liveActivity);
+        final int weeklyZoneMinutes = FitbitLiveActivity.weeklyZoneMinutes(liveActivity);
+
+        if (!hasMeasuredValue(steps)
+                && !hasMeasuredValue(distanceCm)
+                && !hasMeasuredValue(calories)
+                && !isValidHeartRate(heartRate)
+                && !hasMeasuredValue(elevation)
+                && !hasMeasuredValue(vaMinutes)
+                && !hasMeasuredValue(dailyZoneMinutes)
+                && !hasMeasuredValue(weeklyZoneMinutes)) {
+            return;
+        }
+
+        final int sampleTimestamp = timestamp > 0
+                ? (timestamp / 60) * 60
+                : (int) ((System.currentTimeMillis() / 1000L / 60L) * 60L);
+
+        try (DBHandler db = GBApplication.acquireDB()) {
+            final long userId = DBHelper.getUser(db.getDaoSession()).getId();
+            final long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
+            final FitbitActivitySampleProvider sampleProvider =
+                    new FitbitActivitySampleProvider(getDevice(), db.getDaoSession());
+
+            final FitbitActivitySample sample = sampleProvider.createActivitySample();
+            sample.setTimestamp(sampleTimestamp);
+            sample.setDeviceId(deviceId);
+            sample.setUserId(userId);
+            sample.setRawKind(ActivityKind.ACTIVITY.getCode());
+            sample.setRawIntensity(ActivitySample.NOT_MEASURED);
+            sample.setSteps(steps);
+            sample.setDistanceCm(distanceCm);
+            sample.setActiveCalories(calories);
+            sample.setHeartRate(isValidHeartRate(heartRate) ? heartRate : ActivitySample.NOT_MEASURED);
+            sample.setHeartRateConfidence(measuredOrNull(FitbitLiveActivity.heartRateConfidence(liveActivity)));
+            sample.setElevation(measuredOrNull(elevation));
+            sample.setVaMinutes(measuredOrNull(vaMinutes));
+            sample.setDailyZoneMinutes(measuredOrNull(dailyZoneMinutes));
+            sample.setWeeklyZoneMinutes(measuredOrNull(weeklyZoneMinutes));
+
+            sampleProvider.addGBActivitySample(sample);
+            newHeartRateSamples = true;
+        } catch (final Exception e) {
+            LOG.warn("Unable to persist Fitbit liveactivity sample", e);
+        }
+    }
+
+    private static boolean hasMeasuredValue(final int value) {
+        return value != ActivitySample.NOT_MEASURED;
+    }
+
+    private static Integer measuredOrNull(final int value) {
+        return hasMeasuredValue(value) ? value : null;
     }
 
     private static boolean isValidHeartRate(final int heartRate) {
