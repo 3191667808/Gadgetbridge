@@ -280,7 +280,7 @@ public abstract class AbstractBTBRDeviceSupport extends AbstractDeviceSupport im
     @Override
     public void onConnectionEstablished() {
         try {
-            initializeDevice(createTransactionBuilder("Initializing device")).queue();
+            initializeDevice(createTransactionBuilder("initializeDevice")).queue();
         } catch (final Exception ex) {
             final GBDevice device = getDevice();
 
