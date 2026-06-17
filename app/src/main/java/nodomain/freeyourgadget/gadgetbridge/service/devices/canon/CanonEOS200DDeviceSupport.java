@@ -1,25 +1,37 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.canon;
 
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_GPS_UPDATE;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DEVICE_GPS_UPDATE_INTERVAL;
 import static nodomain.freeyourgadget.gadgetbridge.service.btle.actions.WriteAction.writeCharacteristic;
 import static nodomain.freeyourgadget.gadgetbridge.util.GB.hexStringToByteArray;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.location.Location;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationProviderType;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
+import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.webview.CurrentPosition;
 
 public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(CanonEOS200DDeviceSupport.class);
@@ -34,7 +46,7 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final UUID UUID_SERVICE_DEVICE_INFORMATION = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb");
     private static final UUID UUID_CHARACTERISTIC_0 = UUID.fromString("00010006-0000-1000-0000-d8492fffa821");
     private static final UUID UUID_CHARACTERISTIC_1 = UUID.fromString("0001000b-0000-1000-0000-d8492fffa821");
-    private static final UUID UUID_CHARACTERISTIC_2 = UUID.fromString("00010005-0000-1000-0000-d8492fffa821");
+    private static final UUID UUID_CHARACTERISTIC_CAMERA_SLEEP_MODE = UUID.fromString("00010005-0000-1000-0000-d8492fffa821"); // Characteristic for current mode ("sleep" or "active")
     private static final UUID UUID_CHARACTERISTIC_3 = UUID.fromString("00020001-0000-1000-0000-d8492fffa821");
     private static final UUID UUID_CHARACTERISTIC_4 = UUID.fromString("00020003-0000-1000-0000-d8492fffa821");
     private static final UUID UUID_CHARACTERISTIC_5 = UUID.fromString("00020002-0000-1000-0000-d8492fffa821");
@@ -48,6 +60,7 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final UUID UUID_CHARACTERISTIC_GPS_RESPONSE = UUID.fromString("00040002-0000-1000-0000-d8492fffa821");
 
     // Constants for hex values used in write operations
+    // Note: The purpose of these hex values is not fully documented. They are required for successful connection and initialization.
     private static final String HEX_VALUE_INITIALIZE = "0336ebb49c6ff118996540308ddaacbaa4";
     private static final String HEX_VALUE_DEVICE_NAME = "04476164676574627269646765";
     private static final String HEX_VALUE_CONFIRMATION = "0502";
@@ -90,7 +103,7 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public boolean useAutoConnect() {
-        return false; // When true the first connection is not possible
+        return false; // When true, the first connection is not possible
     }
 
     // Helper method for write operations
@@ -137,23 +150,26 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
         deviceInfoProfile.requestDeviceInfo(builder);
 
         // Initialization sequence using helper methods
-        sendWriteRequest(builder, UUID_CHARACTERISTIC_0, SMARTPHONE_NAME_VALUE); // Starts the connection process and sends a name (in this case "Gadgetbridge"), but this is for the connection.
+        sendWriteRequest(builder, UUID_CHARACTERISTIC_0, SMARTPHONE_NAME_VALUE); // Starts the connection process and sends a name (in this case "Gadgetbridge"), but this is only for starting the connection.
+        builder.wait(1000);
         sendNotifyRequest(builder, UUID_CHARACTERISTIC_0, true);
+        LOG.info("Wait for user confirmation");
+        builder.wait(2000); // Gives the user 2 seconds to press "OK" on the camera
         sendReadRequest(builder, UUID_CHARACTERISTIC_1);
-        sendReadRequest(builder, UUID_CHARACTERISTIC_2);
-        sendNotifyRequest(builder, UUID_CHARACTERISTIC_2, true);
+        sendReadRequest(builder, UUID_CHARACTERISTIC_CAMERA_SLEEP_MODE); // Purpose unknown, but likely related to the camera's sleep mode
+        sendNotifyRequest(builder, UUID_CHARACTERISTIC_CAMERA_SLEEP_MODE, true); // Purpose unknown, but likely related to the camera's sleep mode
         sendReadRequest(builder, UUID_CHARACTERISTIC_3);
         sendNotifyRequest(builder, UUID_CHARACTERISTIC_4, true);
         sendNotifyRequest(builder, UUID_CHARACTERISTIC_5, true);
         sendReadRequest(builder, UUID_CHARACTERISTIC_6);
-        sendReadRequest(builder, UUID_CHARACTERISTIC_GPS_REQUEST); // Meaning unknown but, has probably to do with gps
-        sendNotifyRequest(builder, UUID_CHARACTERISTIC_GPS_REQUEST, true); // Meaning unknown but, has probably to do with gps
-        sendWriteRequest(builder, UUID_CHARACTERISTIC_8, hexStringToByteArray(HEX_VALUE_INITIALIZE)); // Required for successful connection, meaning unknown
+        sendReadRequest(builder, UUID_CHARACTERISTIC_GPS_REQUEST); // Purpose unknown, but likely related to GPS
+        sendNotifyRequest(builder, UUID_CHARACTERISTIC_GPS_REQUEST, true); // When set to false, the camera does not request GPS (see onCharacteristicChanged)
+        sendWriteRequest(builder, UUID_CHARACTERISTIC_8, hexStringToByteArray(HEX_VALUE_INITIALIZE)); // Required for successful connection, exact purpose unknown
         sendWriteRequest(builder, UUID_CHARACTERISTIC_8, hexStringToByteArray(HEX_VALUE_DEVICE_NAME)); // Sends the name again (Gadgetbridge), which is stored on the camera
-        sendWriteRequest(builder, UUID_CHARACTERISTIC_8, hexStringToByteArray(HEX_VALUE_CONFIRMATION)); // Required for successful connection, meaning unknown
+        sendWriteRequest(builder, UUID_CHARACTERISTIC_8, hexStringToByteArray(HEX_VALUE_CONFIRMATION)); // Required for successful connection, exact purpose unknown
         sendWriteRequest(builder, UUID_CHARACTERISTIC_9, hexStringToByteArray(HEX_VALUE_ENABLE_READS)); // Required for the next three reads to return meaningful values instead of zeros
         sendReadRequest(builder, UUID_CHARACTERISTIC_10);
-        sendReadRequest(builder, UUID_CHARACTERISTIC_11); // Returns "EOS200D-851_Canon0A.", meaning model EOS200D and 851_Canon0A, meaning unknown
+        sendReadRequest(builder, UUID_CHARACTERISTIC_11); // Returns "EOS200D-851_Canon0A.", meaning model EOS200D and 851_Canon0A, exact meaning unknown
         sendReadRequest(builder, UUID_CHARACTERISTIC_12);
         sendWriteRequest(builder, UUID_CHARACTERISTIC_8, hexStringToByteArray(HEX_VALUE_FINAL_CONFIRMATION)); // Likely a confirmation that everything is okay
 
@@ -162,41 +178,73 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private boolean isGpsAvailable() {
-        // Implement logic to check if GPS data is available
-        // Query GPS provider and check a setting
-        return true; // Placeholder
+        // Checks if GPS data is available based on user preferences.
+        // TODO: Add actual GPS availability check (e.g., via LocationManager or GBLocationService)
+        return GBApplication.getPrefs().getBoolean("use_updated_location_if_available", false);
     }
 
-    private byte[] getGpsData() {
-        // Example values for latitude, longitude, altitude, and timestamp
-        // These values should be replaced with actual GPS data
-        float latitude = 15; // Example: 15.000000°
-        float longitude = 10; // Example: 10.000000°
-        float altitude = 100; // Example: 100 meters (positive)
-        int timestamp = (int) (System.currentTimeMillis() / 1000L); // Current Unix timestamp
+    @Override
+    public void onSetGpsLocation(final Location location) {
+        final TransactionBuilder builder = createTransactionBuilder("set gps location");
+        sendGpsCoords(builder, location);
+        builder.queue();
+    }
 
-        // Buffer for the GPS data
+    private void sendGpsCoords(final TransactionBuilder builder, final Location location) {
+        // Check if the location is valid
+        if (location == null) {
+            LOG.warn("Invalid GPS data, not sending location.");
+            return;
+        }
+
+        // Extract required values
+        float latitude = (float) location.getLatitude();
+        float longitude = (float) location.getLongitude();
+        float altitude = (float) location.getAltitude();
+        long timestamp = location.getTime();
+        if (timestamp == 0) {
+            LOG.warn("Invalid timestamp in location data, not sending GPS coordinates.");
+            return;
+        }
+        int unixTimestamp = (int) (timestamp / 1000L); // Unix timestamp in seconds
+
+        // Create byte array in camera format (23 bytes, Little Endian)
         ByteBuffer buffer = ByteBuffer.allocate(23).order(ByteOrder.LITTLE_ENDIAN);
 
         // Start byte
         buffer.put((byte) 0x04);
 
-        // Latitude (W)
+        // Latitude (W = West, 0x4E)
         buffer.put((byte) 0x4E);
         buffer.putFloat(latitude);
 
-        // Longitude (E)
+        // Longitude (E = East, 0x45)
         buffer.put((byte) 0x45);
         buffer.putFloat(longitude);
 
-        // Altitude (positive)
-        buffer.put((byte) 0x2B); //2D for negative
-        buffer.putFloat(altitude);
+        // Altitude (0x2B for positive, 0x2D for negative)
+        buffer.put((byte) (altitude >= 0 ? 0x2B : 0x2D));
+        buffer.putFloat(Math.abs(altitude));
 
         // Unix timestamp
-        buffer.putInt(timestamp);
+        buffer.putInt(unixTimestamp);
 
-        return buffer.array();
+        // Log GPS data for debugging
+        Instant instant = Instant.ofEpochSecond(unixTimestamp);
+        ZonedDateTime zonedDateTime = instant.atZone(ZoneId.of("UTC"));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String formattedDateTime = zonedDateTime.format(formatter);
+        LOG.info("GPS Data: Lat: {} Long: {} Alt: {}m UTC: {}", latitude, longitude, altitude, formattedDateTime);
+
+        // Send data to the camera
+        LOG.info("Sending GPS data to camera");
+        BluetoothGattCharacteristic responseChar = getCharacteristic(UUID_CHARACTERISTIC_GPS_RESPONSE);
+        if (responseChar != null) {
+            builder.writeChunkedData(responseChar, buffer.array(), 23);
+            LOG.info("Finished sending GPS data");
+        } else {
+            LOG.error("GPS response characteristic not found");
+        }
     }
 
     @Override
@@ -206,17 +254,42 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (characteristic.getUuid().equals(UUID_CHARACTERISTIC_GPS_REQUEST)) {
             if (value != null && value.length > 0) {
                 BluetoothGattCharacteristic responseChar = getCharacteristic(UUID_CHARACTERISTIC_GPS_RESPONSE);
+                Prefs devicePrefs = new Prefs(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()));
+                int intervalLength = devicePrefs.getInt(PREF_DEVICE_GPS_UPDATE_INTERVAL, 1000); // Default interval: 1000ms
 
-                if (value[0] == 0x03) {
-                    if (isGpsAvailable()) {
+                if (value[0] == 0x03) { // Camera asks if GPS is possible
+                    if (isGpsAvailable() && devicePrefs.getBoolean(PREF_DEVICE_GPS_UPDATE, false)) {
+                        LOG.info("Setup location listener with an update interval of {} ms", intervalLength);
+                        GBLocationService.start(getContext(), getDevice(), GBLocationProviderType.GPS, intervalLength);
                         writeCharacteristic(gatt, responseChar, new byte[]{0x01});
                     } else {
                         writeCharacteristic(gatt, responseChar, new byte[]{0x02});
                     }
                     return true;
-                } else if (value[0] == 0x02) {
-                    byte[] gpsData = getGpsData();
-                    writeCharacteristic(gatt, responseChar, gpsData);
+                } else if (value[0] == 0x02) { // Request current GPS data
+                    LOG.info("GPS data request received");
+                    // TODO: Fix issue where GPS only works when camera wakes up from sleep mode
+                    GBLocationService.start(getContext(), getDevice(), GBLocationProviderType.GPS, intervalLength);
+                    final TransactionBuilder gpsBuilder = createTransactionBuilder("set gps location");
+                    final Location location = new CurrentPosition().getLastKnownLocation();
+                    sendGpsCoords(gpsBuilder, location);
+                    gpsBuilder.queue();
+                    return true;
+                } else if (value[0] == 0x01) { // GPS receiver on camera disabled
+                    LOG.info("Stopping GBLocationService");
+                    GBLocationService.stop(getContext(), getDevice());
+                    return true;
+                }
+            }
+        }
+
+        if (characteristic.getUuid().equals(UUID_CHARACTERISTIC_CAMERA_SLEEP_MODE)) {
+            if (value != null && value.length > 0) {
+                if (value[0] == 0x00) { // Enter sleep mode
+                    LOG.info("Camera entered sleep mode");
+                    return true;
+                } else if (value[0] == 0x01) { // Exit sleep mode
+                    LOG.info("Camera exited sleep mode");
                     return true;
                 }
             }
@@ -225,4 +298,3 @@ public class CanonEOS200DDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return handled;
     }
 }
-

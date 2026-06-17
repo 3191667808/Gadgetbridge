@@ -57,4 +57,9 @@ public class CanonEOS200DDeviceCoordinator extends AbstractDeviceCoordinator
         return 0;
     } //not possible to read
 
+    @Override
+    public int[] getSupportedDeviceSpecificSettings(GBDevice device) {
+        return new int[]{R.xml.devicesettings_canon_location};
+    }
+
 }
