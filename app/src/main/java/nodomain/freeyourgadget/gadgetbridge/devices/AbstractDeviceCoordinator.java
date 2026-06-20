@@ -1028,6 +1028,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         return new int[0];
     }
 
+    @Nullable
+    @Override
+    public String getAuthHelperBrand() {
+        return null;
+    }
+
     @Override
     public int[] getSupportedDeviceSpecificExperimentalSettings(final GBDevice device) {
         return new int[0];

@@ -527,6 +527,11 @@ public class TestDeviceCoordinator extends AbstractDeviceCoordinator {
     }
 
     @Override
+    public String getAuthHelperBrand() {
+        return "test";
+    }
+
+    @Override
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(final GBDevice device) {
         return new TestDeviceSpecificSettingsCustomizer();
     }

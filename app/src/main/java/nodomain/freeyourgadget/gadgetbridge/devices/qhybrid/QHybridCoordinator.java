@@ -330,6 +330,11 @@ public class QHybridCoordinator extends AbstractBLEDeviceCoordinator {
         }
     }
 
+    @Override
+    public String getAuthHelperBrand() {
+        return "fossil";
+    }
+
     @Nullable
     @Override
     public String getAuthHelp() {

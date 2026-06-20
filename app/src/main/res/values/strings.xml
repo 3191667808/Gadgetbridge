@@ -5045,4 +5045,7 @@
     <string name="pref_category_wanderer" translatable="false">Wanderer</string>
     <string name="activity_detail_upload_to_wanderer">Upload GPX to Wanderer</string>
     <string name="select_at_least_option">Please select at least %1$d option</string>
+    <string name="auth_helper_title">Auth Helper</string>
+    <string name="auth_helper_summary">Click here to fetch the key from Auth Helper</string>
+    <string name="auth_helper_failed">Auth Helper failed</string>
 </resources>

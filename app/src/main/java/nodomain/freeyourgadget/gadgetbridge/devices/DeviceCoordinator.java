@@ -876,6 +876,12 @@ public interface DeviceCoordinator {
     int[] getSupportedDeviceSpecificAuthenticationSettings();
 
     /**
+     * Returns the key to use when attempting to fetch an auth key from the Auth Helper. Null if not supported.
+     */
+    @Nullable
+    String getAuthHelperBrand();
+
+    /**
      * Returns device specific debug settings. This section is only shown in debug builds, and all behavior-altering
      * preferences should be gate-kept by the BuildConfig.DEBUG flag.
      */

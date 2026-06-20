@@ -39,18 +39,24 @@ import static nodomain.freeyourgadget.gadgetbridge.devices.moyoung.MoyoungConsta
 import static nodomain.freeyourgadget.gadgetbridge.devices.moyoung.MoyoungConstants.PREF_MOYOUNG_WATCH_FACE;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.EditTextPreference;
@@ -97,6 +103,7 @@ import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.GBSimpleSummaryProvider;
@@ -111,6 +118,7 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
     private DeviceSpecificSettingsCustomizer deviceSpecificSettingsCustomizer;
 
     private GBDevice device;
+    private ActivityResultLauncher<Intent> authHelperLauncher;
 
     private void setSettingsFileSuffix(String settingsFileSuffix) {
         Bundle args = new Bundle();
@@ -163,6 +171,11 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         final IntentFilter commandFilter = new IntentFilter();
         commandFilter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mDeviceUpdateReceiver, commandFilter);
+
+        authHelperLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                this::handleAuthHelperResult
+        );
 
         return view;
     }
@@ -1442,10 +1455,10 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         setNumericInputTypeWithRangeFor(PREF_OUTPUT_POWER_GRID, 0, 2400, false);
         setNumericInputTypeWithRangeFor(PREF_BATTERY_MINIMUM_CHARGE, 0, 100, false);
         setNumericInputTypeWithRangeFor(PREF_BATTERY_MAXIMUM_CHARGE, 0, 100, false);
-        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL1_PEAK_W, 0,1000,false);
-        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL2_PEAK_W, 0,1000,false);
-        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL3_PEAK_W, 0,1000,false);
-        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL4_PEAK_W, 0,1000,false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL1_PEAK_W, 0, 1000, false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL2_PEAK_W, 0, 1000, false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL3_PEAK_W, 0, 1000, false);
+        setNumericInputTypeWithRangeFor(PREF_SOLAR_PANEL4_PEAK_W, 0, 1000, false);
 
         new PasswordCapabilityImpl().registerPreferences(getContext(), coordinator.getPasswordCapability(), this);
         new HeartRateCapability().registerPreferences(getContext(), coordinator.getHeartRateMeasurementIntervals(), this);
@@ -1567,6 +1580,14 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
             });
         }
 
+        final Preference authHelper = findPreference("auth_helper");
+        if (authHelper != null) {
+            authHelper.setOnPreferenceClickListener(preference -> {
+                launchAuthHelper();
+                return true;
+            });
+        }
+
         final Preference firewallPref = findPreference("pref_key_internet_firewall");
         if (firewallPref != null) {
             firewallPref.setOnPreferenceClickListener(preference -> {
@@ -1622,6 +1643,9 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
             for (final int s : coordinator.getSupportedDeviceSpecificAuthenticationSettings()) {
                 deviceSpecificSettings.addRootScreen(s);
             }
+            if (coordinator.getAuthHelperBrand() != null) {
+                deviceSpecificSettings.addRootScreen(R.xml.devicesettings_pairingkey_auth_helper);
+            }
         } else { //device/application settings
             if (coordinator.getSupportedLanguageSettings(device) != null) {
                 deviceSpecificSettings.addRootScreen(R.xml.devicesettings_language_generic);
@@ -1632,10 +1656,14 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
             }
             final int[] supportedAuthSettings = coordinator.getSupportedDeviceSpecificAuthenticationSettings();
             if (supportedAuthSettings != null && supportedAuthSettings.length > 0) {
-                deviceSpecificSettings.addRootScreen(
+                final List<Integer> auth = deviceSpecificSettings.addRootScreen(
                         DeviceSpecificSettingsScreen.AUTHENTICATION,
                         supportedAuthSettings
                 );
+
+                if (coordinator.getAuthHelperBrand() != null) {
+                    auth.add(R.xml.devicesettings_pairingkey_auth_helper);
+                }
             }
 
             deviceSpecificSettings.addRootScreen(
@@ -1784,5 +1812,74 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         if (deviceSpecificSettingsCustomizer != null) {
             deviceSpecificSettingsCustomizer.onPreferenceChange(preference, DeviceSpecificSettingsFragment.this);
         }
+    }
+
+    private void launchAuthHelper() {
+        if (device == null) {
+            LOG.warn("Device is null, cannot launch Auth Helper");
+            return;
+        }
+
+        final DeviceCoordinator coordinator = device.getDeviceCoordinator();
+        final String brand = coordinator.getAuthHelperBrand();
+
+        if (brand == null) {
+            LOG.warn("Device does not support Auth Helper");
+            return;
+        }
+
+        // Check if Auth Helper app is installed
+        if (!isAuthHelperInstalled()) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=nodomain.freeyourgadget.authhelper")));
+            } catch (final ActivityNotFoundException e) {
+                GB.toast(requireContext(), requireContext().getString(R.string.install_app_fail, "Auth Helper"), Toast.LENGTH_LONG, GB.WARN, e);
+            }
+            return;
+        }
+
+        final Intent authIntent = new Intent("nodomain.freeyourgadget.authhelper.action.AUTHENTICATE");
+        authIntent.setPackage("nodomain.freeyourgadget.authhelper");
+        authIntent.putExtra("nodomain.freeyourgadget.authhelper.EXTRA_BRAND", brand);
+        authIntent.putExtra("nodomain.freeyourgadget.authhelper.EXTRA_MAC", device.getAddress());
+
+        authHelperLauncher.launch(authIntent);
+    }
+
+    private boolean isAuthHelperInstalled() {
+        try {
+            requireContext().getPackageManager().getApplicationInfo("nodomain.freeyourgadget.authhelper", 0);
+            return true;
+        } catch (final android.content.pm.PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private void handleAuthHelperResult(final ActivityResult result) {
+        if (result.getResultCode() != android.app.Activity.RESULT_OK) {
+            LOG.debug("Auth Helper returned non-OK result code: {}", result.getResultCode());
+            GB.toast(requireContext(), requireContext().getString(R.string.auth_helper_failed), Toast.LENGTH_LONG, GB.WARN);
+            return;
+        }
+
+        final Intent data = result.getData();
+        if (data == null) {
+            LOG.warn("Auth Helper returned null data");
+            GB.toast(requireContext(), requireContext().getString(R.string.auth_helper_failed), Toast.LENGTH_LONG, GB.WARN);
+            return;
+        }
+
+        final String authKey = data.getStringExtra("nodomain.freeyourgadget.authhelper.RESULT_KEY");
+        if (authKey == null) {
+            LOG.warn("Auth Helper did not return an auth key");
+            GB.toast(requireContext(), requireContext().getString(R.string.auth_helper_failed), Toast.LENGTH_LONG, GB.WARN);
+            return;
+        }
+
+        LOG.debug("Received auth key from Auth Helper");
+
+        GBApplication.getDevicePrefs(device).getPreferences().edit()
+                .putString("authkey", authKey)
+                .apply();
     }
 }

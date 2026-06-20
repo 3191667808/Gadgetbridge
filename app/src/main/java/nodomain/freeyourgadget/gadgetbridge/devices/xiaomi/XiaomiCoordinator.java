@@ -567,6 +567,11 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public String getAuthHelperBrand() {
+        return "xiaomi";
+    }
+
+    @Override
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(@NonNull final GBDevice device) {
         return new XiaomiSettingsCustomizer();
     }
