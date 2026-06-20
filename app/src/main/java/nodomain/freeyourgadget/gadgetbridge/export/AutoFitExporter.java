@@ -78,18 +78,10 @@ public class AutoFitExporter {
 
     public static void doExport(final Context context,
                                 final GBDevice gbDevice,
-                                @Nullable final BaseActivitySummary summary,
+                                @NonNull final BaseActivitySummary summary,
                                 @Nullable final ActivityTrack activityTrack) {
         final String directory = getExportDirectory(gbDevice);
         if (directory == null) {
-            return;
-        }
-        if (summary == null) {
-            LOG.warn("Not auto-exporting fit, summary is null");
-            return;
-        }
-        if (summary.getStartTime() == null) {
-            LOG.warn("Not auto-exporting fit, summary start time is null");
             return;
         }
 
@@ -106,10 +98,6 @@ public class AutoFitExporter {
             summaryData = null;
         }
 
-        // FitExporter requires a target File (not OutputStream), so write to cache first,
-        // then copy bytes into the SAF tree entry. The SAF DocumentFile API does not expose
-        // a File path for FitExporter to write to directly.
-        File tmpFile = null;
         try {
             final Uri directoryUri = Uri.parse(directory);
             final DocumentFile documentDir = DocumentFile.fromTreeUri(context, directoryUri);
@@ -124,47 +112,37 @@ public class AutoFitExporter {
                 return;
             }
 
-            // FIT-native devices (Garmin, iGPSPORT) keep the original .fit at
-            // rawDetailsPath — export it verbatim instead of regenerating.
-            final File rawFit = FitExporter.resolveRawFitFile(summary);
-            final File sourceFile;
-            if (rawFit != null) {
-                sourceFile = rawFit;
-                LOG.debug("Auto-export: using original FIT {}", rawFit);
-            } else {
-                tmpFile = File.createTempFile("auto-fit-export-", ".fit", context.getCacheDir());
-                new FitExporter().performExport(activityTrack, summary, summaryData, tmpFile);
-                sourceFile = tmpFile;
-            }
-
             final DocumentFile targetFile = documentDir.createFile("application/octet-stream", fileName);
             if (targetFile == null) {
                 LOG.error("Failed to create file: {}", fileName);
                 return;
             }
 
-            try (FileInputStream in = new FileInputStream(sourceFile);
-                 OutputStream out = context.getContentResolver().openOutputStream(targetFile.getUri())) {
+            // FIT-native devices (Garmin, iGPSPORT) keep the original .fit at
+            // rawDetailsPath — export it verbatim instead of regenerating.
+            final File rawFit = FitExporter.resolveRawFitFile(summary);
+            try (OutputStream out = context.getContentResolver().openOutputStream(targetFile.getUri())) {
                 if (out == null) {
                     LOG.error("Failed to open output stream for {}", targetFile.getUri());
                     return;
                 }
-                final byte[] buf = new byte[8192];
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    out.write(buf, 0, n);
+                if (rawFit != null) {
+                    LOG.debug("Auto-export: using original FIT {}", rawFit);
+                    try (FileInputStream in = new FileInputStream(rawFit)) {
+                        final byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) > 0) {
+                            out.write(buf, 0, n);
+                        }
+                    }
+                } else {
+                    new FitExporter().performExport(activityTrack, summary, summaryData, out);
                 }
             }
 
             LOG.info("Auto-exported FIT to: {}", targetFile.getUri());
-        } catch (final IOException e) {
-            LOG.error("Failed to auto-export FIT", e);
         } catch (final Exception e) {
             LOG.error("Failed to auto-export FIT", e);
-        } finally {
-            if (tmpFile != null && !tmpFile.delete()) {
-                LOG.debug("Failed to delete tmp file {}", tmpFile);
-            }
         }
     }
 }

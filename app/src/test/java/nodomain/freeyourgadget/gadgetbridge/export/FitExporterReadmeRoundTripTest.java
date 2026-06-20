@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -66,6 +67,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.
  *
  * <p>Pure JVM — no Robolectric, no Android context, no DB.
  */
+@Ignore("requires FIT-test-files-main corpus, not committed to the repo — keep for local/future use")
 public class FitExporterReadmeRoundTripTest {
 
     @Rule

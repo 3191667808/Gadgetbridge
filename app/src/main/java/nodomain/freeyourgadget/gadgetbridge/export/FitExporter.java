@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -233,6 +234,15 @@ public class FitExporter {
                               @NonNull final BaseActivitySummary summary,
                               @Nullable final ActivitySummaryData summaryData,
                               @NonNull final File targetFile) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+            performExport(track, summary, summaryData, fos);
+        }
+    }
+
+    public void performExport(@Nullable final ActivityTrack track,
+                              @NonNull final BaseActivitySummary summary,
+                              @Nullable final ActivitySummaryData summaryData,
+                              @NonNull final OutputStream outputStream) throws IOException {
         final long startMs = summary.getStartTime().getTime();
         final long endMs = summary.getEndTime() != null ? summary.getEndTime().getTime() : startMs;
         final long startSeconds = startMs / 1000L;
@@ -445,12 +455,10 @@ public class FitExporter {
         final FitFile fitFile = new FitFile(records);
         final byte[] bytes = fitFile.getOutgoingMessage();
 
-        try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-            fos.write(bytes);
-        }
+        outputStream.write(bytes);
 
-        LOG.info("Exported FIT activity ({} bytes, {} laps) for summary {} to {}",
-                bytes.length, emittedLaps, summary.getId(), targetFile.getAbsolutePath());
+        LOG.info("Exported FIT activity ({} bytes, {} laps) for summary {}",
+                bytes.length, emittedLaps, summary.getId());
     }
 
     /** Per-lap state collected during the segment walk; used in pass 2 to emit laps. */
