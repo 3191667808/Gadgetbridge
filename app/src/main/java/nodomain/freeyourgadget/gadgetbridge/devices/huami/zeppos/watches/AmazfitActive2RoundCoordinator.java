@@ -18,10 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 
 import androidx.annotation.NonNull;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -30,7 +28,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 public class AmazfitActive2RoundCoordinator extends ZeppOsCoordinator {
     @Override
     public List<String> getDeviceBluetoothNames() {
-        return Arrays.asList(
+        return Collections.singletonList(
                 "Active 2 (Round)"
         );
     }
@@ -38,20 +36,6 @@ public class AmazfitActive2RoundCoordinator extends ZeppOsCoordinator {
     @Override
     public ConnectionType getConnectionType() {
         return ConnectionType.BOTH;
-    }
-
-    @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(
-                8913152, // chinese mainland version
-                8913153,
-                8913155, // chinese mainland version
-                8913159,
-                10092800,
-                10092801,
-                10092803,
-                10092807
-        ));
     }
 
     @Override

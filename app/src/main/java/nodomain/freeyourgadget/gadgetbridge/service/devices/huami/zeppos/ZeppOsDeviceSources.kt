@@ -1,9 +1,12 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos
 
 object ZeppOsDeviceSources {
-    // jq '.[] | [.value.productId, .value.productVersion, .deviceSource] | @csv' -r devices.json | \
-    //     sed 's/,/, /g; s/^/ZeppOsDeviceInfo(/; s/$/),/'
+    // jq '.[] | [.value.productId, .value.productVersion, .deviceSource, .productName] | @csv' -r devices.json | \
+    //     sed 's/,/, /g; s/^/ZeppOsDeviceInfo(/; s/$/),/' | \
+    //     sed 's/"),//g' | \
+    //     sed 's#, "#), // #'
     // TODO: A few are missing: mi band 7, amazfit band 7, amazfit gtr mini
+    // While we can compute some of them, we can't compute all, so we still need this mapping
     val DEVICE_SOURCES = listOf(
         ZeppOsDeviceInfo(94, 256, 224),
         ZeppOsDeviceInfo(94, 257, 225),
@@ -98,6 +101,8 @@ object ZeppOsDeviceSources {
         ZeppOsDeviceInfo(167, 257, 10944769),
         ZeppOsDeviceInfo(167, 259, 10944771),
         ZeppOsDeviceInfo(167, 4355, 10948867),
+        // Helio Strap - from matrix
+        ZeppOsDeviceInfo(157, 259, 10289411),
     )
 
     fun resolve(productId: Int, productVersion: Int): ZeppOsDeviceInfo? {

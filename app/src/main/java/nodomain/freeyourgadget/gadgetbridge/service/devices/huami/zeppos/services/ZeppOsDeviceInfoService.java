@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos.services;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -107,6 +108,7 @@ public class ZeppOsDeviceInfoService extends AbstractZeppOsService {
 
         if ((flags & 2) != 0) {
             final String serialNumber = StringUtils.untilNullTerminator(buf);
+            events.add(new GBDeviceEventUpdateDeviceInfo("SERIAL: ", serialNumber));
         }
 
         if ((flags & 4) != 0) {
@@ -130,11 +132,9 @@ public class ZeppOsDeviceInfoService extends AbstractZeppOsService {
 
             LOG.debug("Got PNP ID={} -> {}", GB.hexdump(pnpId), deviceInfo);
 
-            if (deviceInfo != null) {
-                events.add(new GBDeviceEventUpdateDeviceInfo("PRODUCT_ID: ", String.valueOf(deviceInfo.getProductId())));
-                events.add(new GBDeviceEventUpdateDeviceInfo("PRODUCT_VERSION: ", String.valueOf(deviceInfo.getProductVersion())));
-                events.add(new GBDeviceEventUpdateDeviceInfo("DEVICE_SOURCE: ", String.valueOf(deviceInfo.getDeviceSource())));
-            }
+            events.add(new GBDeviceEventUpdateDeviceInfo("PRODUCT_ID: ", String.valueOf(deviceInfo.getProductId())));
+            events.add(new GBDeviceEventUpdateDeviceInfo("PRODUCT_VERSION: ", String.valueOf(deviceInfo.getProductVersion())));
+            events.add(new GBDeviceEventUpdateDeviceInfo("DEVICE_SOURCE: ", String.valueOf(deviceInfo.getDeviceSource())));
         }
 
         return events;
@@ -154,7 +154,7 @@ public class ZeppOsDeviceInfoService extends AbstractZeppOsService {
         return getDeviceInfo(pnpId);
     }
 
-    @Nullable
+    @NonNull
     public static ZeppOsDeviceInfo getDeviceInfo(final byte[] pnpId) {
         final int productId = BLETypeConversions.toUint16(pnpId, 3);
         final int productVersion = BLETypeConversions.toUint16(pnpId, 5);
@@ -166,7 +166,23 @@ public class ZeppOsDeviceInfoService extends AbstractZeppOsService {
                 productVersion
         );
 
-        return ZeppOsDeviceSources.INSTANCE.resolve(productId, productVersion);
+        // Prioritize resolved device sources, since we are unable to compute them for older devices
+        // that did not use the bit-shift logic
+        final ZeppOsDeviceInfo resolved = ZeppOsDeviceSources.INSTANCE.resolve(productId, productVersion);
+        if (resolved != null) {
+            return resolved;
+        }
+
+        final int computedDeviceSource = (productId << 16) | productVersion;
+
+        LOG.warn(
+                "Unknown device productId={}, productVersion={} -> computed as {}",
+                productId,
+                productVersion,
+                computedDeviceSource
+        );
+
+        return new ZeppOsDeviceInfo(productId, productVersion, (productId << 16) | productVersion);
     }
 
     public void requestDeviceInfo(final ZeppOsTransactionBuilder builder) {

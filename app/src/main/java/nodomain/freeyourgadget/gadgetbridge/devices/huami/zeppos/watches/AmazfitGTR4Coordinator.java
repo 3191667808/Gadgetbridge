@@ -20,10 +20,8 @@ import androidx.annotation.NonNull;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -36,15 +34,6 @@ public class AmazfitGTR4Coordinator extends ZeppOsCoordinator {
                 "Amazfit GTR 4",
                 "Amazfit GTR 4 LE"
         );
-    }
-
-    @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(
-                7930112, // chinese mainland version
-                7930113,
-                7864577
-        ));
     }
 
     @Override

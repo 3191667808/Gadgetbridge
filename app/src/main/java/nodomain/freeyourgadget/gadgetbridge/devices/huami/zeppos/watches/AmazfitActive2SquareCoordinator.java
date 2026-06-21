@@ -19,9 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 import androidx.annotation.NonNull;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -41,19 +39,6 @@ public class AmazfitActive2SquareCoordinator extends ZeppOsCoordinator {
                 "Active 2 Square", // never seen
                 "Active 2 NFC Square" // #5056
         );
-    }
-
-    @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(
-                // Old values removed from the website?
-                //9830656, // chinese mainland version
-                //9830657,
-                //9830659,
-                10223872, // chinese mainland version
-                10223873,
-                10223875
-        ));
     }
 
     @Override

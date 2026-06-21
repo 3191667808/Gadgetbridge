@@ -83,8 +83,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 public abstract class ZeppOsCoordinator extends HuamiCoordinator {
     public abstract List<String> getDeviceBluetoothNames();
 
-    public abstract Set<Integer> getDeviceSources();
-
     protected Map<Integer, String> getCrcMap() {
         // A map from CRC16 to human-readable version for flashable files
         return Collections.emptyMap();
@@ -119,7 +117,7 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
 
     @NonNull
     @Override
-    public final Class<? extends DeviceSupport> getDeviceSupportClass(final GBDevice device) {
+    public final Class<? extends DeviceSupport> getDeviceSupportClass(@NonNull final GBDevice device) {
         // Prioritize user choice
         DeviceCoordinator.ConnectionType connType = GBApplication.getDevicePrefs(device).getForcedConnectionTypeFromPrefs();
         if (connType == DeviceCoordinator.ConnectionType.BOTH) {
@@ -159,8 +157,7 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
         final ZeppOsFwInstallHandler fwInstallHandler = new ZeppOsFwInstallHandler(
                 uri,
                 context,
-                getDeviceBluetoothNames(),
-                getDeviceSources()
+                getDeviceBluetoothNames()
         );
         return fwInstallHandler.isValid() ? fwInstallHandler : null;
     }

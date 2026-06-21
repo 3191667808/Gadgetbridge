@@ -24,6 +24,7 @@ import android.widget.Toast;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
@@ -37,8 +38,10 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.HuamiFirmwareType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.operations.update.UpdateFirmwareOperation2020;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos.ZeppOsDeviceInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos.ZeppOsSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos.ZeppOsTransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos.services.ZeppOsDeviceInfoService;
 import nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
@@ -96,15 +99,23 @@ public class ZeppOsFirmwareUpdateOperation extends AbstractZeppOsOperation<ZeppO
         fwHelper = new ZeppOsFwHelper(
                 uri,
                 getContext(),
-                ((ZeppOsCoordinator) coordinator).getDeviceBluetoothNames(),
-                ((ZeppOsCoordinator) coordinator).getDeviceSources()
+                ((ZeppOsCoordinator) coordinator).getDeviceBluetoothNames()
         );
 
         if (!fwHelper.isValid()) {
             throw new IOException("Firmware is not valid for: " + getDevice().getAddress());
         }
 
-        raf = new RandomAccessFile(fwHelper.getFile(), "r");
+        final ZeppOsDeviceInfo deviceInfo = ZeppOsDeviceInfoService.getDeviceInfo(getDevice());
+        if (deviceInfo == null) {
+            throw new IOException("Device info not found for: " + getDevice().getAddress());
+        }
+        final File compatibleFile = fwHelper.getFile();
+        if (compatibleFile == null) {
+            throw new IOException("No compatible file found for " + deviceInfo + " / " + getDevice().getAddress());
+        }
+
+        raf = new RandomAccessFile(compatibleFile, "r");
 
         requestParameters();
     }

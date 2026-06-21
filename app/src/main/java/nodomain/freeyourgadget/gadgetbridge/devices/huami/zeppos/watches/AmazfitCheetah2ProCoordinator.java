@@ -19,9 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 import androidx.annotation.NonNull;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -45,15 +43,6 @@ public class AmazfitCheetah2ProCoordinator extends ZeppOsCoordinator {
                 "Amazfit Cheetah 2 Pro",
                 "Cheetah 2 Pro"
         );
-    }
-
-    @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(
-                11010304, // chinese mainland version
-                11010305,
-                11010307
-        ));
     }
 
     @Override

@@ -18,13 +18,10 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 
 import androidx.annotation.NonNull;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -43,13 +40,8 @@ public class MiBand7Coordinator extends ZeppOsCoordinator {
     }
 
     @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(260, 262, 263, 264, 265));
-    }
-
-    @Override
     protected Map<Integer, String> getCrcMap() {
-        return new HashMap<Integer, String>() {{
+        return new HashMap<>() {{
             // firmware
             put(26036, "1.20.3.1");
             put(55449, "1.27.0.4");

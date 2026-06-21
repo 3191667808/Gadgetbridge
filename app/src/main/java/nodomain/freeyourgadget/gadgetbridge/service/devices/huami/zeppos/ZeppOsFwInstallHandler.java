@@ -36,7 +36,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.List;
-import java.util.Set;
+import java.util.Objects;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.install.FwAppInstallerActivity;
@@ -57,10 +57,10 @@ public class ZeppOsFwInstallHandler implements InstallHandler {
 
     private final ZeppOsFwHelper mHelper;
 
-    public ZeppOsFwInstallHandler(final Uri uri, final Context context, final List<String> deviceNames, final Set<Integer> deviceSources) {
+    public ZeppOsFwInstallHandler(final Uri uri, final Context context, final List<String> deviceNames) {
         mUri = uri;
         mContext = context;
-        mHelper = new ZeppOsFwHelper(uri, context, deviceNames, deviceSources);
+        mHelper = new ZeppOsFwHelper(uri, context, deviceNames);
     }
 
     @NonNull
@@ -160,7 +160,7 @@ public class ZeppOsFwInstallHandler implements InstallHandler {
         final File appOutputFile = new File(appCacheDir, app.getUUID().toString() + coordinator.getAppFileExtension());
         try {
             //noinspection ResultOfMethodCallIgnored
-            appCacheDir.mkdirs();
+            Objects.requireNonNull(appCacheDir).mkdirs();
             FileUtils.copyURItoFile(mContext, mUri, appOutputFile);
         } catch (final IOException e) {
             LOG.error("Failed to save app to cache", e);

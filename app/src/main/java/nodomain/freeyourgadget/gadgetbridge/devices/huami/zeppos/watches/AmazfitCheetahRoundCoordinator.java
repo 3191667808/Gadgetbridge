@@ -18,11 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 
 import androidx.annotation.NonNull;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -32,14 +29,6 @@ public class AmazfitCheetahRoundCoordinator extends ZeppOsCoordinator {
     @Override
     public List<String> getDeviceBluetoothNames() {
         return Collections.singletonList("Amazfit Cheetah R");
-    }
-
-    @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(
-                8192256, // chinese mainland version
-                8192257
-        ));
     }
 
     @Override

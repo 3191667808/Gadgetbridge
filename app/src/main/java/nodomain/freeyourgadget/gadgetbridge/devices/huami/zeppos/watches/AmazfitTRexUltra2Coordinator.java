@@ -19,9 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.watches;
 import androidx.annotation.NonNull;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsCoordinator;
@@ -40,15 +38,6 @@ public class AmazfitTRexUltra2Coordinator extends ZeppOsCoordinator {
                 "Amazfit T-Rex Ultra 2",
                 "T-Rex Ultra 2"
         );
-    }
-
-    @Override
-    public Set<Integer> getDeviceSources() {
-        return new HashSet<>(Arrays.asList(
-                10879232, // chinese mainland version
-                10879233,
-                10879235
-        ));
     }
 
     @Override
