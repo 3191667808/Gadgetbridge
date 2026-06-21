@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -103,7 +104,9 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
     @Override
     protected BodyEnergyData refreshInBackground(ChartsHost chartsHost, DBHandler db, GBDevice device) {
         List<? extends BodyEnergySample> todaySamples = getBodyEnergySamples(db, device, getTSStart(), getTSEnd());
-        List<List<? extends BodyEnergySample>> historicalData = getHistoricalBodyEnergyData(db, device, DAYS_FOR_AVERAGE);
+        List<List<? extends BodyEnergySample>> historicalData = shouldShowAverage()
+                ? getHistoricalBodyEnergyData(db, device, DAYS_FOR_AVERAGE)
+                : Collections.emptyList();
         return new BodyEnergyData(todaySamples, historicalData);
     }
 
@@ -137,7 +140,7 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
             });
         }
 
-        if (!bodyEnergyData.historicalData.isEmpty()) {
+        if (shouldShowAverage() && !bodyEnergyData.historicalData.isEmpty()) {
             averageLineEntries = buildAverageEntries(bodyEnergyData.historicalData, AVERAGE_BIN_SIZE_MINS);
         }
 
@@ -267,6 +270,10 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
         }
 
         return historicalData;
+    }
+
+    private boolean shouldShowAverage() {
+        return GBApplication.getPrefs().getBoolean("charts_show_average", true);
     }
 
     /**
