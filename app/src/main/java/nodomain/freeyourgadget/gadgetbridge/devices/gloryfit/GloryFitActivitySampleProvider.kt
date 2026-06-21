@@ -22,6 +22,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GloryFitStepsSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericActivitySample
+import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
@@ -54,17 +55,12 @@ open class GloryFitActivitySampleProvider(device: GBDevice, session: DaoSession)
 
     override fun getAllActivitySamples(timestampFrom: Int, timestampTo: Int): MutableList<GenericActivitySample> {
         val byTimestamp: MutableMap<Int, GenericActivitySample> = mutableMapOf()
-        val ret: MutableList<GenericActivitySample> = mutableListOf()
+        val ret = getStepActivitySamples(timestampFrom, timestampTo)
 
-        val stepsSamples = stepsProvider.getAllSamples(timestampFrom * 1000L - 2 * 86400L, timestampTo * 1000L)
-        for (stepsSample in stepsSamples) {
-            val activitySample = GenericActivitySample()
-            activitySample.provider = this
-            activitySample.timestamp = (stepsSample.timestamp / 1000L).toInt()
-            activitySample.steps = stepsSample.totalSteps
-            ret.add(activitySample)
+        for (activitySample in ret) {
             byTimestamp.put(activitySample.timestamp, activitySample)
         }
+
         val hrSamples = heartRateProvider.getAllSamples(timestampFrom * 1000L - 2 * 86400L, timestampTo * 1000L)
         for (hrSample in hrSamples) {
             val timestamp = (hrSample.timestamp / 1000L).toInt()
@@ -88,6 +84,31 @@ open class GloryFitActivitySampleProvider(device: GBDevice, session: DaoSession)
             .filter { sample -> sample.timestamp in timestampFrom..timestampTo }
             .sortedBy { sample -> sample.timestamp }
             .toMutableList()
+    }
+
+    override fun supportsFastStepsQuery(): Boolean {
+        return true
+    }
+
+    override fun getFastStepsSamples(timestampFrom: Int, timestampTo: Int): MutableList<GenericActivitySample> {
+        return getStepActivitySamples(timestampFrom, timestampTo)
+            .filter { sample -> sample.timestamp in timestampFrom..timestampTo }
+            .sortedBy { sample -> sample.timestamp }
+            .toMutableList()
+    }
+
+    private fun getStepActivitySamples(timestampFrom: Int, timestampTo: Int): MutableList<GenericActivitySample> {
+        return stepsProvider.getAllSamples(timestampFrom * 1000L - 2 * 86400L, timestampTo * 1000L)
+            .map { stepsSample -> toGenericActivitySample(stepsSample) }
+            .toMutableList()
+    }
+
+    private fun toGenericActivitySample(stepsSample: GloryFitStepsSample): GenericActivitySample {
+        val activitySample = GenericActivitySample()
+        activitySample.provider = this
+        activitySample.timestamp = (stepsSample.timestamp / 1000L).toInt()
+        activitySample.steps = stepsSample.totalSteps
+        return activitySample
     }
 
     override fun getAllActivitySamplesHighRes(

@@ -115,4 +115,22 @@ public class OVTouch26SampleProvider extends AbstractSampleProvider<OVTouch26Act
 
         return samples;
     }
+
+    @Override
+    public boolean supportsFastStepsQuery() {
+        return true;
+    }
+
+    @NonNull
+    @Override
+    public List<OVTouch26ActivitySample> getFastStepsSamples(final int timestamp_from, final int timestamp_to) {
+        // Mirror the cumulative-step handling of getGBActivitySamples, but skip the gap filling, which
+        // does not affect step counts and is expensive over the long ranges used for step averages.
+        final List<OVTouch26ActivitySample> samples = getGBActivitySamplesRaw(timestamp_from + 60, timestamp_to + 60);
+        samples.forEach(s -> s.setTimestamp(s.getTimestamp() - 60));
+        if (!samples.isEmpty()) {
+            convertCumulativeSteps(samples, OVTouch26ActivitySampleDao.Properties.Steps);
+        }
+        return samples;
+    }
 }

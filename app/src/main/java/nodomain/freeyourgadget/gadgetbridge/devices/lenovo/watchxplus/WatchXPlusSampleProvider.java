@@ -232,12 +232,7 @@ public class WatchXPlusSampleProvider extends AbstractSampleProvider<WatchXPlusA
         if (secondBlock) {
             next_block = sleepStartIndex_2;
         }
-        int newSleepStartIndex_1 = 0;
-        if (sleepStartIndex_1 >= seekAhead) {
-          newSleepStartIndex_1 = sleepStartIndex_1 - seekAhead;
-        } else {
-            newSleepStartIndex_1 = 0;
-        }
+        final int newSleepStartIndex_1 = Math.max(sleepStartIndex_1 - seekAhead, 0);
         for (int i = 0; i < newSleepStartIndex_1; i++) {
             if (samples.get(i).getRawKind() == ActivityKind.LIGHT_SLEEP.getCode()) {
                 if (samples.get(i).getRawIntensity() <= 300) {
@@ -268,13 +263,7 @@ public class WatchXPlusSampleProvider extends AbstractSampleProvider<WatchXPlusA
         }
 
 // add sleep activity
-        int newSleepStopIndex_1;
-
-        if ((sleepStopIndex_1 + seekAhead * 2) < next_block) {
-            newSleepStopIndex_1 = sleepStopIndex_1 + seekAhead * 2;
-        } else {
-            newSleepStopIndex_1 = next_block;
-        }
+        final int newSleepStopIndex_1 = Math.min(sleepStopIndex_1 + seekAhead * 2, next_block);
 
         boolean replaceActivity_1 = false;
         for (int i = newSleepStartIndex_1; i < newSleepStopIndex_1; i++) {
@@ -538,4 +527,5 @@ public class WatchXPlusSampleProvider extends AbstractSampleProvider<WatchXPlusA
         }
         return checkActivityData(resultList, 900, 3600);
     }
+
 }

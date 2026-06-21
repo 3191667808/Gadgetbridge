@@ -127,6 +127,31 @@ public class CmfActivitySampleProvider extends AbstractSampleProvider<CmfActivit
         return finalSamples;
     }
 
+    @Override
+    public boolean supportsFastStepsQuery() {
+        return true;
+    }
+
+    @NonNull
+    @Override
+    public List<CmfActivitySample> getFastStepsSamples(final int timestamp_from, final int timestamp_to) {
+        // Step aggregation needs the cumulative-step conversion but not the sleep/heart-rate overlays,
+        // which are expensive over the long ranges used for step averages and irrelevant to step counts.
+        final List<CmfActivitySample> samples = getGBActivitySamplesRaw(timestamp_from, timestamp_to);
+
+        if (!samples.isEmpty()) {
+            convertCumulativeSteps(samples, CmfActivitySampleDao.Properties.Steps);
+        }
+
+        // convertCumulativeSteps may introduce duplicate timestamps, which must be combined to avoid
+        // double-counting steps (see getGBActivitySamples).
+        final Map<Integer, CmfActivitySample> sampleByTs = getActivitySampleMapByTimestamp(samples);
+        final List<CmfActivitySample> finalSamples = new ArrayList<>(sampleByTs.values());
+        Collections.sort(finalSamples, Comparator.comparingInt(CmfActivitySample::getTimestamp));
+
+        return finalSamples;
+    }
+
     @NonNull
     private static Map<Integer, CmfActivitySample> getActivitySampleMapByTimestamp(final List<CmfActivitySample> samples) {
         final Map<Integer, CmfActivitySample> sampleByTs = new HashMap<>(samples.size());

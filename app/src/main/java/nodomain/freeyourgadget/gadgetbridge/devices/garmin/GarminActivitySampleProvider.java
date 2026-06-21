@@ -130,6 +130,25 @@ public class GarminActivitySampleProvider extends AbstractSampleProvider<GarminA
         return samples;
     }
 
+    @Override
+    public boolean supportsFastStepsQuery() {
+        return true;
+    }
+
+    @NonNull
+    @Override
+    public List<GarminActivitySample> getFastStepsSamples(final int timestamp_from, final int timestamp_to) {
+        // Mirror the cumulative-step handling of getGBActivitySamples, but skip the sleep overlay and
+        // gap filling: they do not affect step counts and are expensive over the long ranges used for
+        // step averages.
+        final List<GarminActivitySample> samples = getGBActivitySamplesRaw(timestamp_from + 60, timestamp_to + 60);
+        samples.forEach(s -> s.setTimestamp(s.getTimestamp() - 60));
+        if (!samples.isEmpty()) {
+            convertCumulativeSteps(samples, GarminActivitySampleDao.Properties.Steps);
+        }
+        return samples;
+    }
+
     /**
      * Converts the calories from kcal to cal
      */

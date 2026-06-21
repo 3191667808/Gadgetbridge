@@ -212,6 +212,16 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
      * @return Exactly one sample for every minute
      */
     protected List<T> getGBActivitySamples(int timestamp_from, int timestamp_to) {
+        return getGBActivitySamplesRaw(timestamp_from, timestamp_to);
+    }
+
+    /**
+     * Reads the stored samples between two timestamps (inclusive), ordered by timestamp, without any
+     * device-specific post-processing (sleep/heart-rate overlays, gap filling, cumulative-step
+     * conversion, etc.). This is the unmodified database content and the building block used by
+     * {@link #getGBActivitySamples(int, int)} and explicit fast-step implementations.
+     */
+    protected List<T> getGBActivitySamplesRaw(int timestamp_from, int timestamp_to) {
         QueryBuilder<T> qb = getSampleDao().queryBuilder();
         Property timestampProperty = getTimestampSampleProperty();
         Device dbDevice = DBHelper.findDevice(getDevice(), getSession());

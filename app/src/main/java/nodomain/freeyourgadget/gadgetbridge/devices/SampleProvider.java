@@ -56,6 +56,33 @@ public interface SampleProvider<T extends AbstractActivitySample> {
     List<T> getAllActivitySamples(int timestamp_from, int timestamp_to);
 
     /**
+     * Specifies whether {@link #getFastStepsSamples(int, int)} can retrieve steps without falling
+     * back to the full activity sample processing path.
+     * <p>
+     * The daily steps chart uses this to avoid running expensive long-range historical queries for
+     * providers that need {@link #getAllActivitySamples(int, int)} to derive steps.
+     */
+    default boolean supportsFastStepsQuery() {
+        return false;
+    }
+
+    /**
+     * Returns samples for fast long-range step aggregation within the given time span.
+     * <p>
+     * This is only valid when {@link #supportsFastStepsQuery()} returns true. Implementations may
+     * skip processing that does not affect step counts (e.g. sleep/heart-rate overlays or gap
+     * filling), but the reported step values must remain equivalent to those of
+     * {@link #getAllActivitySamples(int, int)}.
+     * @param timestamp_from the start timestamp
+     * @param timestamp_to the end timestamp
+     * @return the samples to use for step aggregation
+     */
+    @NonNull
+    default List<T> getFastStepsSamples(int timestamp_from, int timestamp_to) {
+        throw new UnsupportedOperationException("Fast steps query not supported");
+    }
+
+    /**
      * Same as {@link #getAllActivitySamples(int, int)}}, but returns as many samples as possible.
      * Explicitly does not make a guarantee about how many samples there are per timeframe, which
      * can also change over time.
