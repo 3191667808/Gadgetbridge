@@ -9,8 +9,10 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.GregorianCalendar;
@@ -58,13 +60,45 @@ final class DailyCumulativeLineChartHelper {
             final int goal,
             final float yAxisMaximum
     ) {
+        setCumulativeData(
+                chart,
+                entries,
+                xValueFormatter,
+                label,
+                color,
+                textColor,
+                goal,
+                yAxisMaximum,
+                Collections.emptyList()
+        );
+    }
+
+    static void setCumulativeData(
+            final LineChart chart,
+            final List<Entry> entries,
+            final ValueFormatter xValueFormatter,
+            final String label,
+            final int color,
+            final int textColor,
+            final int goal,
+            final float yAxisMaximum,
+            final List<LineDataSet> backgroundDataSets
+    ) {
         chart.setData(null);
 
+        final List<LegendEntry> legendEntries = new ArrayList<>(1 + backgroundDataSets.size());
         final LegendEntry legendEntry = new LegendEntry();
         legendEntry.label = label;
         legendEntry.formColor = color;
+        legendEntries.add(legendEntry);
+        for (final LineDataSet backgroundDataSet : backgroundDataSets) {
+            final LegendEntry backgroundEntry = new LegendEntry();
+            backgroundEntry.label = backgroundDataSet.getLabel();
+            backgroundEntry.formColor = backgroundDataSet.getColor();
+            legendEntries.add(backgroundEntry);
+        }
         chart.getLegend().setTextColor(textColor);
-        chart.getLegend().setCustom(Collections.singletonList(legendEntry));
+        chart.getLegend().setCustom(legendEntries);
 
         chart.getXAxis().setValueFormatter(xValueFormatter);
 
@@ -90,7 +124,10 @@ final class DailyCumulativeLineChartHelper {
         yAxisLeft.addLimitLine(goalLine);
         yAxisLeft.setAxisMaximum(yAxisMaximum);
 
-        chart.setData(new LineData(lineDataSet));
+        final List<ILineDataSet> dataSets = new ArrayList<>(backgroundDataSets.size() + 1);
+        dataSets.addAll(backgroundDataSets);
+        dataSets.add(lineDataSet);
+        chart.setData(new LineData(dataSets));
     }
 
     static float maxY(final List<Entry> entries) {
