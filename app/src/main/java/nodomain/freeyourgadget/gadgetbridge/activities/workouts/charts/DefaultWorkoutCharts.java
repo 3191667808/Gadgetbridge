@@ -247,8 +247,10 @@ public class DefaultWorkoutCharts {
 
             final int performanceCondition = point.getPerformanceCondition();
             if (performanceCondition > Integer.MIN_VALUE) {
+                // Integer.MIN_VALUE is the no-data sentinel; any other value is a valid
+                // reading, including negative ones (performance condition can be < 0).
                 performanceConditionPoints.add(new Entry(tsShorten, performanceCondition));
-                hasPerformanceConditionValues = hasPerformanceConditionValues || (performanceCondition > 0);
+                hasPerformanceConditionValues = true;
             }
         }
 

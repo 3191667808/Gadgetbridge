@@ -649,13 +649,13 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             devToolsMenu?.isVisible = devToolsSubMenu != null && devToolsSubMenu.hasVisibleItems()
         }
 
-        // A FIT can be built from the summary alone, so these uploads are offered for
-        // any workout (not just ones with a GPS track) when the service is configured.
+        // Endurain accepts FIT (built from the summary alone if needed), so it is offered
+        // for any workout. Wanderer only supports GPX uploads, so it requires a GPS track.
         val endurainVm: EndurainSetupViewModel by viewModels()
         val endurainServer = GBApplication.getPrefs().preferences.getString("endurain_server", null)
         val wandererServer = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
         overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
-        overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+        overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
     }
 
     private fun takeSharedScreenshot() {
@@ -821,53 +821,46 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
 
     private fun uploadToWanderer() {
         val workout = currentWorkout ?: return
+        val activityTrackProvider = gbDevice.deviceCoordinator.getActivityTrackProvider(gbDevice, requireContext())
 
-        lifecycleScope.launch {
-            val activityFile = try {
-                buildFitFile(workout)
-            } catch (e: Exception) {
-                LOG.error("Failed to build FIT for Wanderer upload", e)
-                GB.toast(
-                    getString(R.string.wanderer_unable_to_upload_gpx_file_toast, e.localizedMessage),
-                    Toast.LENGTH_LONG,
-                    GB.ERROR,
-                    e
-                )
-                return@launch
-            }
+        // Wanderer only supports GPX uploads, so always send GPX (never a FIT file).
+        val activityFile = ActivitySummaryUtils.getShareableGpxFile(activityTrackProvider, workout.summary)
+        if (activityFile == null) {
+            GB.toast(getString(R.string.no_activity_track_in_activity_toast), Toast.LENGTH_LONG, GB.INFO)
+            return
+        }
 
-            try {
-                val serverUrl = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
-                val apiClient = WandererApiClient(serverUrl!!, WandererTokenManager(requireContext()))
-                apiClient.uploadActivity(activityFile) { newId, message ->
-                    if (newId != null && message == null) {
-                        LOG.info("Uploaded FIT to Wanderer, ID $newId")
-                        // TODO: Update activity type on the server
-                        //apiClient.editActivity(newId, activityKind, workoutName)
-                    }
-                    activity?.runOnUiThread {
-                        if (newId != null && message == null)
-                            GB.toast(
-                                getString(R.string.wanderer_toast_successfully_uploaded),
-                                Toast.LENGTH_LONG,
-                                GB.INFO
-                            )
-                        else
-                            GB.toast(
-                                getString(R.string.wanderer_toast_upload_error, message),
-                                Toast.LENGTH_LONG,
-                                GB.INFO
-                            )
-                    }
+        try {
+            val serverUrl = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
+            val apiClient = WandererApiClient(serverUrl!!, WandererTokenManager(requireContext()))
+            apiClient.uploadActivity(activityFile) { newId, message ->
+                if (newId != null && message == null) {
+                    LOG.info("Uploaded GPX to Wanderer, ID $newId")
+                    // TODO: Update activity type on the server
+                    //apiClient.editActivity(newId, activityKind, workoutName)
                 }
-            } catch (e: Exception) {
-                GB.toast(
-                    getString(R.string.wanderer_unable_to_upload_gpx_file_toast, e.localizedMessage),
-                    Toast.LENGTH_LONG,
-                    GB.ERROR,
-                    e
-                )
+                activity?.runOnUiThread {
+                    if (newId != null && message == null)
+                        GB.toast(
+                            getString(R.string.wanderer_toast_successfully_uploaded),
+                            Toast.LENGTH_LONG,
+                            GB.INFO
+                        )
+                    else
+                        GB.toast(
+                            getString(R.string.wanderer_toast_upload_error, message),
+                            Toast.LENGTH_LONG,
+                            GB.INFO
+                        )
+                }
             }
+        } catch (e: Exception) {
+            GB.toast(
+                getString(R.string.wanderer_unable_to_upload_gpx_file_toast, e.localizedMessage),
+                Toast.LENGTH_LONG,
+                GB.ERROR,
+                e
+            )
         }
     }
 
