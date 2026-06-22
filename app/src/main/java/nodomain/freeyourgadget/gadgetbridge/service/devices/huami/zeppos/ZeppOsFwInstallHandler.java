@@ -47,6 +47,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huami.zeppos.ZeppOsFwHelper;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
 import nodomain.freeyourgadget.gadgetbridge.model.GenericItem;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huami.zeppos.services.ZeppOsDeviceInfoService;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 
 public class ZeppOsFwInstallHandler implements InstallHandler {
@@ -89,6 +90,13 @@ public class ZeppOsFwInstallHandler implements InstallHandler {
         }
 
         if (!mHelper.isValid()) {
+            installActivity.setInfoText(mContext.getString(R.string.fwapp_install_device_not_supported));
+            installActivity.setInstallEnabled(false);
+            return;
+        }
+
+        final ZeppOsDeviceInfo deviceInfo = ZeppOsDeviceInfoService.getDeviceInfo(device);
+        if (deviceInfo == null || !mHelper.isCompatible(deviceInfo.getDeviceSource())) {
             installActivity.setInfoText(mContext.getString(R.string.fwapp_install_device_not_supported));
             installActivity.setInstallEnabled(false);
             return;

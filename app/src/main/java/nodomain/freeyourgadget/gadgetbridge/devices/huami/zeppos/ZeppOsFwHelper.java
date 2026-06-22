@@ -62,19 +62,16 @@ public class ZeppOsFwHelper {
     private final Uri uri;
     private final Context context;
     private final List<String> deviceNames;
-    private final Set<Integer> deviceSources;
 
     private HuamiFirmwareType firmwareType = HuamiFirmwareType.INVALID;
-    private File file = null;
-    private int crc32;
+    private File filee = null;
     private String version = "Unknown";
     private GBDeviceApp gbDeviceApp = null;
 
-    public ZeppOsFwHelper(final Uri uri, final Context context, final List<String> deviceNames, final Set<Integer> deviceSources) {
+    public ZeppOsFwHelper(final Uri uri, final Context context, final List<String> deviceNames) {
         this.uri = uri;
         this.context = context;
         this.deviceNames = deviceNames;
-        this.deviceSources = deviceSources;
 
         processUri();
     }
@@ -87,7 +84,7 @@ public class ZeppOsFwHelper {
         return version;
     }
 
-    public File getFile() {
+    public File getFile(final int deviceSource) {
         if (file == null) {
             throw new IllegalStateException("file is null");
         }
@@ -95,33 +92,22 @@ public class ZeppOsFwHelper {
         return file;
     }
 
-    public int getSize() {
-        if (file == null) {
-            throw new IllegalStateException("file is null");
-        }
-
-        return (int) file.length();
-    }
-
-    public int getCrc32() {
-        return crc32;
-    }
-
     private void processUri() {
         // Copy file to cache first
         final File cacheDir = context.getCacheDir();
         final File zpkCacheDir = new File(cacheDir, "zeppos");
         zpkCacheDir.mkdir();
+        final File cacheFile;
+        final UriHelper uriHelper;
 
         try {
-            file = File.createTempFile("fwhelper", "bin", context.getCacheDir());
-            file.deleteOnExit();
+            cacheFile = File.createTempFile("fwhelper", "bin", context.getCacheDir());
+            cacheFile.deleteOnExit();
         } catch (final IOException e) {
             LOG.error("Failed to create temp file for zpk", e);
             return;
         }
 
-        final UriHelper uriHelper;
         try {
             uriHelper = UriHelper.get(uri, context);
         } catch (final IOException e) {
@@ -129,29 +115,24 @@ public class ZeppOsFwHelper {
             return;
         }
 
-        final CRC32 crc = new CRC32();
-        try (FileOutputStream outputStream = new FileOutputStream(file);
-             InputStream inputStream = uriHelper.openInputStream()) {
-            final byte[] buffer = new byte[64 * 1024];
-            int len;
-            while ((len = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, len);
-                crc.update(buffer, 0, len);
-            }
-            crc32 = (int) crc.getValue();
+        try (InputStream inputStream = uriHelper.openInputStream()) {
+            FileUtils.copyStreamToFile(inputStream, cacheFile);
         } catch (final IOException e) {
             LOG.error("Failed to write bytes to temporary file", e);
             return;
         }
 
-        final byte[] header = getHeader(file, 4);
+        final byte[] header = getHeader(cacheFile, 4);
         if (header == null) {
             return;
         }
 
         if (Arrays.equals(header, GBZipFile.ZIP_HEADER)) {
-            try (ZipFile zipFile = new ZipFile(file, java.util.zip.ZipFile.OPEN_READ)) {
+            try (ZipFile zipFile = new ZipFile(cacheFile, java.util.zip.ZipFile.OPEN_READ)) {
                 processZipFile(zipFile);
+                if (firmwareType != HuamiFirmwareType.INVALID) {
+                    filee = cacheFile;
+                }
             } catch (final ZipException e) {
                 LOG.warn("{} is not a valid zip file", uri, e);
             } catch (final IOException e) {
@@ -163,6 +144,9 @@ public class ZeppOsFwHelper {
             try (InputStream in = new BufferedInputStream(uriHelper.openInputStream())) {
                 final byte[] fullFile = FileUtils.readAll(in, 32 * 1024 * 1024); // 32MB
                 processAsUihh(fullFile);
+                if (firmwareType != HuamiFirmwareType.INVALID) {
+                    filee = cacheFile;
+                }
             } catch (final IOException e) {
                 LOG.error("Failed to read full uihh from file", e);
             }
@@ -272,6 +256,7 @@ public class ZeppOsFwHelper {
                 appName = appJsonApp.getString("appName");
                 appVersion = appJsonApp.getJSONObject("version").getString("name");
                 appType = appJsonApp.getString("appType");
+                //noinspection SpellCheckingInspection
                 appCreator = appJsonApp.getString("vender");
                 appIconPath = appJsonApp.getString("icon");
             } catch (final Exception e) {
@@ -310,7 +295,6 @@ public class ZeppOsFwHelper {
                         }
                     } catch (final Exception e) {
                         LOG.error("Failed to decode icon from {}", appIconPath);
-                        icon = null;
                     }
                 }
             }
@@ -328,7 +312,7 @@ public class ZeppOsFwHelper {
         }
 
         // Attempt to handle as a zab file
-        byte[] zpkDeviceZipBytes = handleZabPackage(zipFile);
+        byte[] zpkDeviceZipBytes = handleZabPackage(zipFile, deviceSource);
         if (zpkDeviceZipBytes == null) {
             // Attempt to handle as direct zpk
             zpkDeviceZipBytes = getFileFromZip(zipFile, "device.zip");
@@ -379,7 +363,7 @@ public class ZeppOsFwHelper {
      * <p>
      * Right now, we only handle the first compatible zpk file that is supported by the connected device.
      */
-    private byte[] handleZabPackage(final ZipFile zipFile) {
+    private byte[] handleZabPackage(final ZipFile zipFile, final int deviceSource) {
         final JSONObject manifest = getJson(zipFile, "manifest.json");
         if (manifest == null) {
             return null;
@@ -403,7 +387,7 @@ public class ZeppOsFwHelper {
                 for (int j = 0; j < platforms.length(); j++) {
                     final JSONObject platform = platforms.getJSONObject(j);
 
-                    if (deviceSources.contains(platform.getInt("deviceSource"))) {
+                    if (deviceSource == platform.getInt("deviceSource")) {
                         // It's compatible with the device, fetch device.zip
                         final String name = zpkEntry.getString("name");
                         final byte[] zpkBytes = getFileFromZip(zipFile, name);
@@ -437,6 +421,10 @@ public class ZeppOsFwHelper {
     }
 
     public boolean isValid() {
+        return firmwareType != HuamiFirmwareType.INVALID;
+    }
+
+    public boolean isCompatible(final int deviceSource) {
         return firmwareType != HuamiFirmwareType.INVALID;
     }
 
@@ -505,7 +493,7 @@ public class ZeppOsFwHelper {
                     .replace("\uFEFF", "");
             return new JSONObject(appJsonString);
         } catch (final Exception e) {
-            LOG.error("Failed to parse " + path, e);
+            LOG.error("Failed to parse {}", path, e);
         }
 
         return null;

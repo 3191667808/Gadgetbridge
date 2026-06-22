@@ -90,7 +90,7 @@ public class FileUtils {
      */
     public static void copyStreamToFile(InputStream inputStream, File destFile) throws IOException {
         try (FileOutputStream fout = new FileOutputStream(destFile)) {
-            byte[] buf = new byte[4096];
+            byte[] buf = new byte[64 * 1024];
             while (inputStream.available() > 0) {
                 int bytes = inputStream.read(buf);
                 fout.write(buf, 0, bytes);
