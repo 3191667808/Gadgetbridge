@@ -5056,5 +5056,32 @@
     <string name="pref_category_endurain" translatable="false">Endurain</string>
     <string name="pref_category_wanderer" translatable="false">Wanderer</string>
     <string name="activity_detail_upload_to_wanderer">Upload GPX to Wanderer</string>
+    <string name="activity_detail_upload_to_fitquest">Upload to FitQuest</string>
+    <!-- FitQuest setup wizard: server URL + username + password -->
+    <string name="fitquest_setup_title">FitQuest setup</string>
+    <string name="fitquest_setup_subtitle">Sign in to your FitQuest server. Activities will be uploaded automatically after a workout sync.</string>
+    <string name="fitquest_setup_server_hint">Server URL</string>
+    <string name="fitquest_setup_username_hint">Username</string>
+    <string name="fitquest_setup_password_hint">Password</string>
+    <string name="fitquest_setup_login_button">Sign in</string>
+    <string name="fitquest_setup_missing_information">Please fill all three fields</string>
+    <string name="fitquest_setup_invalid_credentials">Invalid username or password</string>
+    <string name="fitquest_setup_network_error">Could not reach FitQuest: %1$s</string>
+    <!-- FitQuest status / prefs rows -->
+    <string name="fitquest_logged_in">Logged in to %1$s</string>
+    <string name="fitquest_not_logged_in">Not logged in</string>
+    <string name="fitquest_logged_out_toast">Logged out of FitQuest</string>
+    <string name="pref_category_fitquest" translatable="false">FitQuest</string>
+    <string name="pref_info_fitquest_status_title">FitQuest status</string>
+    <string name="pref_fitquest_log_in_title">Log in to FitQuest</string>
+    <string name="pref_fitquest_log_in_summary">Tap here to enter the FitQuest server and your credentials</string>
+    <string name="pref_fitquest_log_out_title">Log out of FitQuest</string>
+    <string name="pref_fitquest_log_out_summary">Tap to clear the stored session</string>
+    <!-- Upload toasts -->
+    <string name="fitquest_toast_upload_started">Uploading to FitQuest…</string>
+    <string name="fitquest_toast_upload_success">FitQuest: %1$s</string>
+    <string name="fitquest_toast_upload_error">FitQuest upload failed: %1$s</string>
+    <string name="fitquest_toast_not_logged_in">Not logged in to FitQuest. Open Settings → Online fitness trackers to sign in.</string>
+    <string name="fitquest_toast_no_activity_file">No activity file to upload</string>
     <string name="select_at_least_option">Please select at least %1$d option</string>
 </resources>

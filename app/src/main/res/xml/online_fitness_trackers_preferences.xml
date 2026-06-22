@@ -42,4 +42,22 @@
             android:title="@string/pref_wanderer_log_out_title"
             android:summary="@string/pref_endurain_log_out_summary" />
     </PreferenceCategory>
+    <PreferenceCategory
+        android:title="@string/pref_category_fitquest">
+        <Preference
+            android:icon="@drawable/ic_info"
+            android:key="pref_key_fitquest_status"
+            android:title="@string/pref_info_fitquest_status_title"
+            android:summary="Not logged in" />
+        <Preference
+            android:icon="@drawable/ic_language"
+            android:key="pref_key_fitquest_log_in"
+            android:title="@string/pref_fitquest_log_in_title"
+            android:summary="@string/pref_fitquest_log_in_summary" />
+        <Preference
+            android:icon="@drawable/ic_language"
+            android:key="pref_key_fitquest_log_out"
+            android:title="@string/pref_fitquest_log_out_title"
+            android:summary="@string/pref_fitquest_log_out_summary" />
+    </PreferenceCategory>
 </PreferenceScreen>

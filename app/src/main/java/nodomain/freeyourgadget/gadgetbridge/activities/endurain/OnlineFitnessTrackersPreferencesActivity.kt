@@ -25,6 +25,9 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractPreferenceFragment
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractSettingsActivityV2
+import nodomain.freeyourgadget.gadgetbridge.activities.fitquest.FitQuestApiClient
+import nodomain.freeyourgadget.gadgetbridge.activities.fitquest.FitQuestSetupBottomSheet
+import nodomain.freeyourgadget.gadgetbridge.activities.fitquest.FitQuestTokenManager
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 
@@ -64,6 +67,28 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     }
                 }
             }
+
+            // FitQuest: confirm the stored cookie is still valid
+            // against /auth/me. We don't background-thread this —
+            // the request is small and the prefs screen is cheap to
+            // refresh.
+            val fitquestToken = FitQuestTokenManager(requireContext())
+            if (fitquestToken.isLoggedIn()) {
+                val fitquestClient = FitQuestApiClient(
+                    fitquestToken.getServerUrl()!!,
+                    fitquestToken
+                )
+                Thread {
+                    val stillValid = fitquestClient.validateSession()
+                    if (!stillValid) {
+                        fitquestToken.clearSession()
+                    }
+                    activity?.runOnUiThread {
+                        updateStatus()
+                        updateLogoutPreferenceVisibility()
+                    }
+                }.start()
+            }
         }
 
         private fun setupLoginResultListener() {
@@ -79,6 +104,16 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
             }
             parentFragmentManager.setFragmentResultListener(
                 "wanderer_login_result",
+                this
+            ) { _, bundle ->
+                val success = bundle.getBoolean("success", false)
+                if (success) {
+                    updateStatus()
+                    updateLogoutPreferenceVisibility()
+                }
+            }
+            parentFragmentManager.setFragmentResultListener(
+                "fitquest_login_result",
                 this
             ) { _, bundle ->
                 val success = bundle.getBoolean("success", false)
@@ -111,6 +146,11 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     .show(parentFragmentManager, "wanderer_setup")
                 true
             }
+            findPreference<Preference>("pref_key_fitquest_log_in")?.setOnPreferenceClickListener {
+                FitQuestSetupBottomSheet()
+                    .show(parentFragmentManager, "fitquest_setup")
+                true
+            }
         }
 
         private fun wireLogoutPreferences() {
@@ -138,6 +178,26 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
 
                 true
             }
+            findPreference<Preference>("pref_key_fitquest_log_out")?.setOnPreferenceClickListener {
+                val tokenManager = FitQuestTokenManager(requireContext())
+                val server = tokenManager.getServerUrl()
+                if (server != null) {
+                    val apiClient = FitQuestApiClient(server, tokenManager)
+                    Thread {
+                        apiClient.logout()
+                        activity?.runOnUiThread {
+                            GB.toast(getString(R.string.fitquest_logged_out_toast), Toast.LENGTH_SHORT, GB.INFO)
+                            updateStatus()
+                            updateLogoutPreferenceVisibility()
+                        }
+                    }.start()
+                } else {
+                    tokenManager.clearSession()
+                    updateStatus()
+                    updateLogoutPreferenceVisibility()
+                }
+                true
+            }
         }
 
         private fun updateLogoutPreferenceVisibility() {
@@ -145,6 +205,9 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
             findPreference<Preference>("pref_key_endurain_log_in")?.isVisible = !vm.endurainTokenManager.isLoggedIn()
             findPreference<Preference>("pref_key_wanderer_log_out")?.isVisible = WandererTokenManager(requireContext()).isLoggedIn()
             findPreference<Preference>("pref_key_wanderer_log_in")?.isVisible = !WandererTokenManager(requireContext()).isLoggedIn()
+            val fitquestToken = FitQuestTokenManager(requireContext())
+            findPreference<Preference>("pref_key_fitquest_log_out")?.isVisible = fitquestToken.isLoggedIn()
+            findPreference<Preference>("pref_key_fitquest_log_in")?.isVisible = !fitquestToken.isLoggedIn()
         }
 
         private fun updateStatus() {
@@ -173,6 +236,25 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     getString(R.string.wanderer_logged_in).format(wandererServer)
             }
             wandererStatusPref?.summary = summaryText
+
+            // Update FitQuest preferences
+            val fitquestStatusPref = findPreference<Preference>("pref_key_fitquest_status")
+            val fitquestToken = FitQuestTokenManager(requireContext())
+            if (fitquestStatusPref != null) {
+                fitquestStatusPref.summary = if (fitquestToken.isLoggedIn()) {
+                    val server = fitquestToken.getServerUrl()
+                    val username = fitquestToken.getUsername()
+                    if (server != null && username != null) {
+                        getString(R.string.fitquest_logged_in, "$username @ $server")
+                    } else if (server != null) {
+                        getString(R.string.fitquest_logged_in, server)
+                    } else {
+                        getString(R.string.fitquest_not_logged_in)
+                    }
+                } else {
+                    getString(R.string.fitquest_not_logged_in)
+                }
+            }
         }
     }
 }

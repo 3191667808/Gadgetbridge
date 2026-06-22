@@ -63,6 +63,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainApiClien
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainSetupViewModel
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererApiClient
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererTokenManager
+import nodomain.freeyourgadget.gadgetbridge.activities.fitquest.FitQuestApiClient
+import nodomain.freeyourgadget.gadgetbridge.activities.fitquest.FitQuestTokenManager
 import nodomain.freeyourgadget.gadgetbridge.activities.fit.FitViewerActivity
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.charts.ChartDataRepository
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.charts.DefaultWorkoutCharts
@@ -559,6 +561,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 true
             }
 
+            R.id.activity_action_upload_to_fitquest -> {
+                uploadToFitQuest()
+                true
+            }
+
             R.id.activity_action_dev_inspect_file -> {
                 val intent = Intent(requireContext(), FitViewerActivity::class.java).apply {
                     putExtra(FitViewerActivity.EXTRA_PATH, File(workout.summary.rawDetailsPath).absolutePath)
@@ -654,8 +661,13 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         val endurainVm: EndurainSetupViewModel by viewModels()
         val endurainServer = GBApplication.getPrefs().preferences.getString("endurain_server", null)
         val wandererServer = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
-        overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
-        overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
+            overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+            // FitQuest accepts FIT (built from the summary alone if needed), so it is offered
+            // for any workout regardless of GPS track. The menu item is shown only when the
+            // user has set up a FitQuest server + logged in (cookie stored).
+            val fitquestToken = FitQuestTokenManager(requireContext())
+            overflowMenu?.findItem(R.id.activity_action_upload_to_fitquest)?.isVisible = fitquestToken.isLoggedIn()
     }
 
     private fun takeSharedScreenshot() {
@@ -861,6 +873,83 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 GB.ERROR,
                 e
             )
+        }
+    }
+
+    private fun uploadToFitQuest() {
+        val workout = currentWorkout ?: return
+        val workoutName = ActivityKind.fromCode(workout.summary.activityKind)
+            .getLabel(requireContext())
+
+        val tokenManager = FitQuestTokenManager(requireContext())
+        val serverUrl = tokenManager.getServerUrl()
+        if (serverUrl == null || !tokenManager.isLoggedIn()) {
+            GB.toast(
+                getString(R.string.fitquest_toast_not_logged_in),
+                Toast.LENGTH_LONG,
+                GB.WARN
+            )
+            return
+        }
+
+        GB.toast(
+            getString(R.string.fitquest_toast_upload_started),
+            Toast.LENGTH_SHORT,
+            GB.INFO
+        )
+
+        lifecycleScope.launch {
+            // Reuse the same FIT builder as the Endurain flow.
+            // FitQuest's /import endpoint accepts a raw .fit file
+            // (no multipart), and the server-side parser handles
+            // every FIT kind (activity / sleep / hrv / monitor /
+            // metrics). Falls back to synthesising a FIT from the
+            // summary if no native FIT is available.
+            val activityFile: File? = try {
+                buildFitFile(workout)
+            } catch (e: Exception) {
+                LOG.error("Failed to build FIT for FitQuest upload", e)
+                null
+            }
+            if (activityFile == null) {
+                activity?.runOnUiThread {
+                    GB.toast(
+                        getString(R.string.fitquest_toast_no_activity_file),
+                        Toast.LENGTH_LONG,
+                        GB.WARN
+                    )
+                }
+                return@launch
+            }
+
+            try {
+                val apiClient = FitQuestApiClient(serverUrl, tokenManager)
+                LOG.info("Uploading workout '{}' to FitQuest ({})", workoutName, serverUrl)
+                apiClient.uploadActivity(activityFile) { filename, summary ->
+                    activity?.runOnUiThread {
+                        if (filename != null) {
+                            GB.toast(
+                                getString(R.string.fitquest_toast_upload_success, summary ?: "ok"),
+                                Toast.LENGTH_LONG,
+                                GB.INFO
+                            )
+                        } else {
+                            GB.toast(
+                                getString(R.string.fitquest_toast_upload_error, summary ?: "unknown"),
+                                Toast.LENGTH_LONG,
+                                GB.WARN
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                GB.toast(
+                    getString(R.string.fitquest_toast_upload_error, e.localizedMessage ?: "unknown"),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+            }
         }
     }
 
