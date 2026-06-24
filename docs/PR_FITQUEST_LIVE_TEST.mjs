@@ -130,20 +130,6 @@ async function main() {
     pass('me with cookie = 200 + username');
   }
 
-  // --- 2. /auth/me with the cookie ---
-  console.log('\nStep 2: GET /auth/me with cookie');
-  const meRes = await fetch(`${BASE}/auth/me`, { headers: session.authHeader() });
-  if (meRes.status !== 200) {
-    fail('me with cookie = 200', `got ${meRes.status}`);
-    process.exit(1);
-  }
-  const meBody = await meRes.text();
-  if (!meBody.includes('"username"')) {
-    fail('me response has username', `body: ${meBody.slice(0, 200)}`);
-    process.exit(1);
-  }
-  pass('me with cookie = 200 + username');
-
   // --- 3. Upload one real .fit ---
   console.log('\nStep 3: POST /import with a real .fit');
   const fitFiles = await collectFitFiles(FIT_DIR, 5);

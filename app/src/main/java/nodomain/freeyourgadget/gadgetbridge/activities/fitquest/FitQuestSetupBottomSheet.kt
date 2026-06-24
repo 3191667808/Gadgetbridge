@@ -138,6 +138,21 @@ class FitQuestSetupBottomSheet : BottomSheetDialogFragment() {
                 passwordInput.text?.clear()
                 passwordInput.requestFocus()
             }
+            is FitQuestLoginResult.RequiresTotp -> {
+                // Server has 2FA enabled for this account. The
+                // Kotlin client doesn't implement the TOTP step yet
+                // (server expects /auth/login/totp with the code);
+                // surface a clear toast so the user knows the
+                // missing piece is on our side.
+                LOG.warn("FitQuest login: account has TOTP enabled; not yet supported in client")
+                GB.toast(
+                    getString(R.string.fitquest_setup_totp_required),
+                    Toast.LENGTH_LONG,
+                    GB.WARN
+                )
+                passwordInput.text?.clear()
+                passwordInput.requestFocus()
+            }
             is FitQuestLoginResult.NetworkError -> {
                 LOG.error("FitQuest login network error: {}", result.message)
                 GB.toast(

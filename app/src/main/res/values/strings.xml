@@ -5067,6 +5067,7 @@
     <string name="fitquest_setup_missing_information">Please fill all three fields</string>
     <string name="fitquest_setup_invalid_credentials">Invalid username or password</string>
     <string name="fitquest_setup_network_error">Could not reach FitQuest: %1$s</string>
+    <string name="fitquest_setup_totp_required">Account has 2FA enabled — sign in on the web first to complete TOTP, then try again here.</string>
     <!-- FitQuest status / prefs rows -->
     <string name="fitquest_logged_in">Logged in to %1$s</string>
     <string name="fitquest_not_logged_in">Not logged in</string>

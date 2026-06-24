@@ -94,23 +94,45 @@ class FitQuestApiClient(
             httpClient.newCall(request).execute().use { response ->
                 val status = response.code
                 if (status in 200..299) {
+                    // Detect TOTP_REQUIRED before we save anything.
+                    // If the server returns requiresTotp=true, it has
+                    // set a TOTP_PENDING cookie that requireUser()
+                    // rejects for non-/auth/login/totp routes — saving
+                    // it as a regular session would silently break
+                    // /import later. Surface it as a separate result
+                    // and don't persist the cookie.
+                    val bodyText = response.body?.string() ?: ""
+                    val userJson = try { JSONObject(bodyText) } catch (e: Exception) { JSONObject() }
+                    if (userJson.optBoolean("requiresTotp", false)) {
+                        LOG.warn("FitQuest login: TOTP required for {}", username)
+                        return FitQuestLoginResult.RequiresTotp
+                    }
                     // Capture the session cookie. The server's
                     // @fastify/cookie emits "fitquest_session=<value>; Path=/; ..."
-                    // (possibly signed). We grab the first
-                    // set-cookie header and extract its value.
-                    val setCookie = response.header("set-cookie")
-                    if (setCookie.isNullOrEmpty()) {
+                    // (possibly signed). headers("set-cookie") returns
+                    // ALL set-cookie headers — OkHttp's singular header()
+                    // only returns the first, so we'd silently drop any
+                    // extra cookies the server starts sending later.
+                    val setCookies = response.headers("set-cookie")
+                    if (setCookies.isEmpty()) {
                         LOG.error("FitQuest login succeeded but no Set-Cookie header")
                         return FitQuestLoginResult.NetworkError("Server did not return a session cookie")
                     }
-                    val cookieValue = parseCookieValue(setCookie, FitQuestTokenManager.COOKIE_NAME)
+                    val cookieValue = setCookies
+                        .mapNotNull { parseCookieValue(it, FitQuestTokenManager.COOKIE_NAME) }
+                        .firstOrNull()
                     if (cookieValue == null) {
-                        LOG.error("FitQuest login: Set-Cookie header missing ${FitQuestTokenManager.COOKIE_NAME}")
+                        LOG.error("FitQuest login: no Set-Cookie matched ${FitQuestTokenManager.COOKIE_NAME}")
                         return FitQuestLoginResult.NetworkError("Server response did not include a session cookie")
                     }
                     tokenManager.saveSession(baseUrl, username, cookieValue)
-                    val userJson = try { JSONObject(response.body?.string() ?: "{}") } catch (e: Exception) { JSONObject() }
-                    val usernameOut = userJson.optString("username", username)
+                    // Actual response shape is { user: { username: ... } }
+                    // (see publicUser() in server auth.ts). Read from
+                    // the nested object — the previous top-level read
+                    // always fell through to the fallback.
+                    val usernameOut = userJson.optJSONObject("user")
+                        ?.optString("username", username)
+                        ?: username
                     return FitQuestLoginResult.Success(usernameOut)
                 }
                 if (status == 401) return FitQuestLoginResult.InvalidCredentials
@@ -225,7 +247,17 @@ class FitQuestApiClient(
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return false
                 val text = response.body?.string() ?: return false
-                return text.contains("\"username\"")
+                // Parse the JSON and check for the user.username
+                // field rather than substring-matching "\"username\"".
+                // A substring match would falsely succeed if the
+                // server returned a 200 with an error body containing
+                // "username" in a stack trace or message.
+                return try {
+                    JSONObject(text).optJSONObject("user")
+                        ?.has("username") == true
+                } catch (e: Exception) {
+                    false
+                }
             }
         } catch (e: Exception) {
             LOG.debug("FitQuest session validation failed", e)
@@ -290,12 +322,16 @@ class FitQuestApiClient(
 
 /**
  * Result type for FitQuest login. We keep the network-level
- * distinction (success / wrong-password / unreachable) so the UI
- * can show "invalid credentials" vs "server unreachable" with
- * different copy + severity.
+ * distinction (success / wrong-password / TOTP-required /
+ * unreachable) so the UI can show different copy + severity
+ * for each case.
  */
 sealed class FitQuestLoginResult {
     data class Success(val username: String) : FitQuestLoginResult()
     data object InvalidCredentials : FitQuestLoginResult()
+    /// User has TOTP enabled and the server has issued a
+    /// TOTP_PENDING cookie. The caller should prompt for the
+    /// 6-digit code and call /auth/login/totp to complete.
+    data object RequiresTotp : FitQuestLoginResult()
     data class NetworkError(val message: String) : FitQuestLoginResult()
 }
