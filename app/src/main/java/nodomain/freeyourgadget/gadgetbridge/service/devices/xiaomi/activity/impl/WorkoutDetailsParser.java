@@ -201,6 +201,34 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
         return records;
     }
 
+    /**
+     * Maps a segment-header phase byte to an interval intensity, for layouts whose phase semantics
+     * are confirmed against on-device behaviour. Returns {@code null} when the layout does not
+     * encode confirmed interval phases — the caller then treats the file as a single, unsplit
+     * segment (no fabricated ACTIVE/REST). Add a new layout here only with a captured-on-device
+     * fixture proving the phase byte tracks the workout's active/rest phases.
+     *
+     * Confirmed:
+     * <ul>
+     *   <li>Rowing v4 (layoutCode 4): 0x81 = ACTIVE, 0x82 = REST.</li>
+     * </ul>
+     * Deliberately NOT mapped: treadmill / indoor-cycling v6 and walking v5 only ever showed a
+     * constant 0x7f (or unvalidated 0x81/0x82) — their phase semantics are unconfirmed.
+     */
+    @Nullable
+    private static ActivityTrack.SegmentIntensity segmentIntensityFor(final int layoutCode, final byte phaseByte) {
+        if (layoutCode == 4) {
+            if (phaseByte == (byte) 0x81) {
+                return ActivityTrack.SegmentIntensity.ACTIVE;
+            }
+            if (phaseByte == (byte) 0x82) {
+                return ActivityTrack.SegmentIntensity.REST;
+            }
+            return ActivityTrack.SegmentIntensity.UNKNOWN;
+        }
+        return null;
+    }
+
     @Nullable
     private static List<WorkoutDetailRecord> parseRecords(final XiaomiActivityFileId fileId, final byte[] bytes) {
         final int version = fileId.getVersion();
@@ -472,17 +500,16 @@ public class WorkoutDetailsParser extends XiaomiActivityParser {
             LOG.debug("Segment: {} records starting at ts={}", nr, ts);
 
             // Per-segment interval metadata — only for layouts with confirmed phase semantics.
-            // Rowing v4: header offset 8 = phase (0x81 active / 0x82 rest), offset 9-12 = strokes.
+            // Phase semantics live in segmentIntensityFor(); a null result means this layout does
+            // not encode confirmed interval phases, so the file is treated as one unsplit segment.
             // Stamped onto the first record of the segment so getActivityTrack can open one
             // ActivityTrack segment (→ FIT lap) per interval.
-            final boolean segmentedLayout = layoutCode == 4;
-            ActivityTrack.SegmentIntensity segmentIntensity = null;
+            final ActivityTrack.SegmentIntensity segmentIntensity =
+                    segmentIntensityFor(layoutCode, segHdr.get(8));
+            final boolean segmentedLayout = segmentIntensity != null;
             Integer segmentStrokes = null;
             if (segmentedLayout) {
-                final byte phase = segHdr.get(8);
-                segmentIntensity = phase == (byte) 0x81 ? ActivityTrack.SegmentIntensity.ACTIVE
-                        : phase == (byte) 0x82 ? ActivityTrack.SegmentIntensity.REST
-                        : ActivityTrack.SegmentIntensity.UNKNOWN;
+                // Rowing v4: offset 9-12 = strokes for this segment (sum matches summary STROKES).
                 final int strokes = segHdr.getInt(9);
                 segmentStrokes = strokes > 0 ? strokes : null;
             }

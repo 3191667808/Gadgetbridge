@@ -24,6 +24,7 @@ import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_METERS_PER_SECOND;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MILLISECONDS;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MINUTES_PER_100_METERS;
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MINUTES_PER_500_METERS;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MINUTES_PER_KM;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MM;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_PERCENTAGE;
@@ -45,6 +46,7 @@ import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.data.ScatterData;
 import com.github.mikephil.charting.data.ScatterDataSet;
 import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -52,13 +54,18 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DecimalValueFormatter;
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.HeartRateZoneChartUtils;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.SpeedYLabelFormatter;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.TimestampTranslation;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.GPSCoordinate;
+import nodomain.freeyourgadget.gadgetbridge.model.heartratezones.HeartRateZones;
+import nodomain.freeyourgadget.gadgetbridge.model.heartratezones.HeartRateZonesResolver;
 import nodomain.freeyourgadget.gadgetbridge.model.workout.WorkoutChart;
 import nodomain.freeyourgadget.gadgetbridge.util.Accumulator;
 
@@ -264,8 +271,13 @@ public class DefaultWorkoutCharts {
             charts.add(createSpeedChart(context, activityKind, speedDataPoints));
         }
 
-        if (hasCadenceValues && !cadenceDataPoints.isEmpty()) {
-            charts.add(createCadenceChart(context, cycleUnit, cadenceDataPoints, cadenceAccumulator));
+        // Hide step-cadence dot chart for foot-paced activities EXCEPT walking — walking
+        // cadence varies less and dots remain readable, plus walkers prefer the SPM detail.
+        // Running/treadmill keep the continuous min/km speed chart instead.
+        final boolean stepsCadenceHidden = cycleUnit == ActivityKind.CycleUnit.STEPS
+                && !activityKind.name().contains("WALK");
+        if (hasCadenceValues && !cadenceDataPoints.isEmpty() && !stepsCadenceHidden) {
+            charts.add(createCadenceChart(context, activityKind, cycleUnit, cadenceDataPoints, cadenceAccumulator));
         }
 
         if (hasElevationValues && !elevationDataPoints.isEmpty()) {
@@ -358,22 +370,37 @@ public class DefaultWorkoutCharts {
 
     private static WorkoutChart createHeartRateChart(final Context context,
                                                      final List<Entry> heartRateDataPoints) {
-        final String label = String.format("%s(%s)", context.getString(R.string.heart_rate), getUnitString(context, UNIT_BPM));
-        final LineDataSet dataset = createLineDataSet(context, heartRateDataPoints, label, ContextCompat.getColor(context, R.color.chart_line_heart_rate));
+        final String label = String.format("%s (%s)", context.getString(R.string.heart_rate), getUnitString(context, UNIT_BPM));
         final ValueFormatter integerFormatter = new ValueFormatter() {
             @Override
             public String getFormattedValue(float value) {
                 return String.valueOf((int) value);
             }
         };
-        return new WorkoutChart(
+
+        final HeartRateZones zones = HeartRateZonesResolver.resolve(null, new ActivityUser());
+        final int chartMax = Math.max(HeartRateUtils.getInstance().getMaxHeartRate(), zones.getZone5() + 1);
+        // Workout entries use x in milliseconds (tsTranslation.shorten on point.getTime().getTime()),
+        // so gap and unit conversions are millisecond-based.
+        final float gapMillis = 60f * HeartRateUtils.MAX_HR_MEASUREMENTS_GAP_MINUTES * 1000f;
+        final HeartRateZoneChartUtils.ZoneAnalysis analysis = HeartRateZoneChartUtils.analyze(
+                heartRateDataPoints, zones, gapMillis, 1000f);
+
+        final List<ILineDataSet> dataSets = new ArrayList<>();
+        dataSets.addAll(HeartRateZoneChartUtils.buildZoneAreas(context, zones, heartRateDataPoints, chartMax, YAxis.AxisDependency.RIGHT));
+        dataSets.add(createLineDataSet(context, heartRateDataPoints, label, ContextCompat.getColor(context, R.color.chart_line_heart_rate)));
+
+        final WorkoutChart chart = new WorkoutChart(
                 "heart_rate",
                 context.getString(R.string.heart_rate),
                 ActivitySummaryEntries.GROUP_HEART_RATE,
-                new LineData(dataset),
+                new LineData(dataSets),
                 integerFormatter,
                 getUnitString(context, UNIT_BPM)
         );
+        chart.setSecondsInZone(analysis.secondsInZone);
+        chart.setZoneThresholds(zones);
+        return chart;
     }
 
     private static WorkoutChart createSpeedChart(final Context context,
@@ -404,6 +431,17 @@ public class DefaultWorkoutCharts {
                     new SpeedYLabelFormatter(UNIT_SECONDS_PER_100_METERS),
                     unitString
             );
+        } else if (ActivityKind.isRowingActivity(activityKind)) {
+            final String label = String.format("%s (%s)", context.getString(R.string.Pace), getUnitString(context, UNIT_MINUTES_PER_500_METERS));
+            final LineDataSet dataset = createLineDataSet(context, speedDataPoints, label, ContextCompat.getColor(context, R.color.chart_line_speed));
+            return new WorkoutChart(
+                    "pace",
+                    context.getString(R.string.Pace),
+                    ActivitySummaryEntries.GROUP_SPEED,
+                    new LineData(dataset),
+                    new SpeedYLabelFormatter(UNIT_SECONDS_PER_500_METERS),
+                    getUnitString(context, UNIT_MINUTES_PER_500_METERS)
+            );
         } else if (ActivityKind.isPaceActivity(activityKind)) {
             final String unitString = getUnitString(context, units.token(WorkoutChartUnits.Quantity.PACE));
             final String label = String.format("%s (%s)", context.getString(R.string.Pace), unitString);
@@ -433,29 +471,54 @@ public class DefaultWorkoutCharts {
     }
 
     private static WorkoutChart createCadenceChart(final Context context,
+                                                   final ActivityKind activityKind,
                                                    final ActivityKind.CycleUnit cycleUnit,
                                                    final List<Entry> cadenceDataPoints,
                                                    final Accumulator cadenceAccumulator) {
-        final String label = String.format("%s (%s)", context.getString(R.string.workout_cadence), getUnitString(context, getCadenceUnit(cycleUnit)));
-        final ScatterDataSet dataset = createScatterDataSet(context, cadenceDataPoints, label, ContextCompat.getColor(context, R.color.chart_cadence_circle));
+        final String cadenceUnit = getCadenceUnit(cycleUnit);
+        final String label = String.format("%s (%s)", context.getString(R.string.workout_cadence), getUnitString(context, cadenceUnit));
         final ValueFormatter integerFormatter = new ValueFormatter() {
             @Override
             public String getFormattedValue(float value) {
                 return String.valueOf((int) value);
             }
         };
-        float xAxisMaximum = Math.max(
-                (float) (cadenceAccumulator.getMax() + 30),
-                (float) cadenceAccumulator.getAverage() * 2
+        final float xAxisMaximum = (float) Math.max(
+                cadenceAccumulator.getMax() + 30,
+                cadenceAccumulator.getAverage() * 2
         );
 
+        final int color = ContextCompat.getColor(context, R.color.chart_cadence_circle);
+        if (ActivityKind.isRowingActivity(activityKind)) {
+            // Rowing stroke rate is a continuous signal — render as a line rather than dots.
+            final LineDataSet dataset = createLineDataSet(context, cadenceDataPoints, label, color);
+            return new WorkoutChart(
+                    "cadence",
+                    context.getString(R.string.workout_cadence),
+                    ActivitySummaryEntries.GROUP_CADENCE,
+                    new LineData(dataset),
+                    integerFormatter,
+                    getUnitString(context, cadenceUnit),
+                    lineChart -> {
+                        YAxis yAxisLeft = lineChart.getAxisLeft();
+                        yAxisLeft.setAxisMinimum(0);
+                        yAxisLeft.setAxisMaximum(xAxisMaximum);
+                        YAxis yAxisRight = lineChart.getAxisRight();
+                        yAxisRight.setAxisMinimum(0);
+                        yAxisRight.setAxisMaximum(xAxisMaximum);
+                        return kotlin.Unit.INSTANCE;
+                    }
+            );
+        }
+
+        final ScatterDataSet dataset = createScatterDataSet(context, cadenceDataPoints, label, color);
         return new WorkoutChart(
                 "cadence",
                 context.getString(R.string.workout_cadence),
                 ActivitySummaryEntries.GROUP_CADENCE,
                 new ScatterData(dataset),
                 integerFormatter,
-                getUnitString(context, UNIT_SPM),
+                getUnitString(context, cadenceUnit),
                 lineChart -> {
                     YAxis yAxisLeft = lineChart.getAxisLeft();
                     yAxisLeft.setAxisMinimum(0);

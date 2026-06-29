@@ -29,6 +29,8 @@ object ActivitySummaryGroup {
 
         activitySummaryData.keys
             .filterNot { it.startsWith("internal") }
+            // Legacy text HR-zone breakdown is now shown as a chart overlay; hide the duplicate rows.
+            .filterNot { it.startsWith("hrZone") }
             .forEach { key ->
                 val item = activitySummaryData[key]
                 // Use the group if specified in the entry, otherwise fallback to the default mapping from getDefaultGroup
@@ -108,20 +110,8 @@ object ActivitySummaryGroup {
                 )
             )
 
-            // Heart rate zones
-            put(
-                ActivitySummaryEntries.GROUP_HEART_RATE_ZONES, listOf<String>(
-                    ActivitySummaryEntries.HR_ZONE_NA,
-                    ActivitySummaryEntries.HR_ZONE_WARM_UP,
-                    ActivitySummaryEntries.HR_ZONE_FAT_BURN,
-                    ActivitySummaryEntries.HR_ZONE_EASY,
-                    ActivitySummaryEntries.HR_ZONE_AEROBIC,
-                    ActivitySummaryEntries.HR_ZONE_ANAEROBIC,
-                    ActivitySummaryEntries.HR_ZONE_THRESHOLD,
-                    ActivitySummaryEntries.HR_ZONE_EXTREME,
-                    ActivitySummaryEntries.HR_ZONE_MAXIMUM,
-                )
-            )
+            // Heart rate zones are now rendered as a chart overlay (see HeartRateZoneChartUtils),
+            // so the legacy text breakdown group is intentionally omitted here.
 
             // Speed
             put(

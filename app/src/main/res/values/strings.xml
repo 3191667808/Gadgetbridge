@@ -3027,6 +3027,7 @@
     <string name="minutes_100m">min/100m</string>
     <string name="minutes_100yd">min/100yd</string>
     <string name="minutes_500m">min/500m</string>
+    <string name="seconds_500m">sec/500m</string>
     <string name="Pace">Pace</string>
     <!-- activity summary groups-->
     <string name="Strokes">Strokes</string>
@@ -3129,6 +3130,12 @@
 
     <string name="category">Category</string>
     <string name="workout_intervals">Intervals</string>
+    <string name="interval_type_active">Active</string>
+    <string name="interval_type_rest">Rest</string>
+    <string name="interval_type_unknown">Unknown</string>
+    <string name="interval_total_active">Total Active</string>
+    <string name="interval_total_rest">Total Rest</string>
+    <string name="interval_total_unknown">Total Unknown</string>
     <!-- Diving params -->
     <string name="diving_maximum_diving_depth">Maximum Diving Depth</string>
     <string name="diving_water_type">Water Type</string>

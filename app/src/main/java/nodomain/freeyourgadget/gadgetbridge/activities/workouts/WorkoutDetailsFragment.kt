@@ -48,6 +48,7 @@ import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.charts.BarLineChartBase
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.charts.ScatterChart
+import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.ScatterData
@@ -60,6 +61,9 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.ActivitySummariesChartFragment
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DurationXLabelFormatter
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.HeartRateZoneChartUtils
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.IntervalChartUtils
+import nodomain.freeyourgadget.gadgetbridge.model.heartratezones.HeartRateZonesResolver
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainApiClient
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainSetupViewModel
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererApiClient
@@ -76,6 +80,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.Device
 import nodomain.freeyourgadget.gadgetbridge.export.FitExporter
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries
 import nodomain.freeyourgadget.gadgetbridge.model.workout.Workout
@@ -101,6 +106,16 @@ import java.util.concurrent.TimeUnit
 class WorkoutDetailsFragment : Fragment(), MenuProvider {
     private var workoutId: Long = -1
     private var currentWorkout: Workout? = null
+    // Interval rows derived from the loaded track's segments; rendered as the Intervals summary
+    // and as per-chart x-axis markers. Empty when the track has no multi-segment phase data.
+    private var currentIntervals: List<IntervalChartUtils.IntervalRow> = emptyList()
+
+    // Only render the interval UI for genuine ACTIVE/REST interval workouts (currently rowing).
+    // Other providers split tracks into segments for GPX pauses or FIT laps with UNKNOWN
+    // intensity — those must NOT surface an Intervals section or per-chart lap markers.
+    private val hasIntervalPhases: Boolean
+        get() = currentIntervals.size > 1 &&
+                currentIntervals.any { it.type != ActivityTrack.SegmentIntensity.UNKNOWN }
     private lateinit var gbDevice: GBDevice
 
     private lateinit var binding: FragmentWorkoutDetailsBinding
@@ -190,20 +205,28 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                             mutableListOf()
                         )
                     }
+                    val activityTrack = try {
+                        gbDevice.deviceCoordinator.getActivityTrackProvider(gbDevice, requireContext())
+                            ?.getActivityTrack(parsedWorkout.summary)
+                    } catch (e: Exception) {
+                        LOG.error("Failed to load activity track", e)
+                        null
+                    }
+                    // Interval rows from the track's segments — rowing carries ACTIVE/REST + strokes;
+                    // other sports yield a single UNKNOWN segment (filtered out by the size > 1 checks).
+                    currentIntervals = IntervalChartUtils.deriveIntervals(
+                        activityTrack?.segments, activityTrack?.segmentInfos
+                    )
                     if (parsedWorkout.charts.isEmpty()) {
                         try {
-                            val activityTrackProvider =
-                                gbDevice.deviceCoordinator.getActivityTrackProvider(gbDevice, requireContext())
-                            if (activityTrackProvider != null) {
-                                val activityPoints = activityTrackProvider.getActivityTrack(parsedWorkout.summary)?.allPoints
-                                if (!activityPoints.isNullOrEmpty()) {
-                                    val defaultCharts = DefaultWorkoutCharts.buildDefaultCharts(
-                                        requireContext(),
-                                        activityPoints,
-                                        ActivityKind.fromCode(parsedWorkout.summary.activityKind)
-                                    )
-                                    return@withContext Workout(parsedWorkout.summary, parsedWorkout.data, defaultCharts)
-                                }
+                            val activityPoints = activityTrack?.allPoints
+                            if (!activityPoints.isNullOrEmpty()) {
+                                val defaultCharts = DefaultWorkoutCharts.buildDefaultCharts(
+                                    requireContext(),
+                                    activityPoints,
+                                    ActivityKind.fromCode(parsedWorkout.summary.activityKind)
+                                )
+                                return@withContext Workout(parsedWorkout.summary, parsedWorkout.data, defaultCharts)
                             }
                         } catch (e: Exception) {
                             LOG.error("Failed to build default charts", e)
@@ -328,6 +351,18 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 addChart(binding.summaryDetails, false, chart, workout.charts)
             }
         }
+
+        // Interval breakdown: only for workouts with confirmed ACTIVE/REST phases (rowing).
+        if (hasIntervalPhases) {
+            addGroupHeader(ActivitySummaryEntries.GROUP_INTERVALS)
+            IntervalChartUtils.populateIntervalSummary(
+                requireContext(),
+                binding.summaryDetails,
+                currentIntervals,
+                ActivityKind.fromCode(workout.summary.activityKind)
+            )
+            binding.summaryDetails.addView(createSeparator())
+        }
     }
 
     private fun addGroupHeader(groupKey: String) {
@@ -450,10 +485,41 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         lineChart.axisLeft.apply {
             setDrawGridLines(false)
             setDrawTopYLabelEntry(true)
+            setDrawLimitLinesBehindData(true)
             textColor = chartTextColor
             isEnabled = true
             if (chart.chartYLabelFormatter != null) {
                 valueFormatter = chart.chartYLabelFormatter
+            }
+        }
+        // HR-zone threshold lines on the HR chart.
+        chart.zoneThresholds?.let { zones ->
+            val thresholds = listOf(
+                2 to zones.zone2,
+                3 to zones.zone3,
+                4 to zones.zone4,
+                5 to zones.zone5,
+            )
+            for ((zoneIdx, hr) in thresholds) {
+                if (hr <= 0) continue
+                val limit = LimitLine(hr.toFloat())
+                limit.lineColor = HeartRateZonesResolver.colorForZone(requireContext(), zoneIdx)
+                limit.lineWidth = 0.7f
+                limit.enableDashedLine(6f, 6f, 0f)
+                lineChart.axisLeft.addLimitLine(limit)
+            }
+        }
+        // Interval boundary markers on the time axis (skip the first, which is the track start).
+        if (hasIntervalPhases) {
+            for (iv in currentIntervals.drop(1)) {
+                // x-axis units = milliseconds (DurationXLabelFormatter / tsTranslation)
+                val xMs = iv.startSeconds * 1000f
+                val limitLine = LimitLine(xMs, IntervalChartUtils.shortLabelForType(requireContext(), iv.type))
+                limitLine.lineColor = IntervalChartUtils.colorForType(requireContext(), iv.type)
+                limitLine.lineWidth = 1f
+                limitLine.textColor = chartTextColor
+                limitLine.textSize = 9f
+                lineChart.xAxis.addLimitLine(limitLine)
             }
         }
         lineChart.axisRight.apply {
@@ -490,6 +556,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         chartsFragmentHolder.addView(lineChart)
 
         chartsLayout.addView(chartsFragmentHolder)
+        val zoneSeconds = chart.secondsInZone
+        val zoneThresholds = chart.zoneThresholds
+        if (zoneSeconds != null && zoneThresholds != null) {
+            HeartRateZoneChartUtils.populateZoneSummary(requireContext(), chartsLayout, zoneSeconds, zoneThresholds)
+        }
         chartsLayout.addView(createSeparator())
     }
 

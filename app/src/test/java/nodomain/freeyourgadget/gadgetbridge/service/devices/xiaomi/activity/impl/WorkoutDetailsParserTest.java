@@ -386,6 +386,35 @@ public class WorkoutDetailsParserTest {
         assertNull(records(makeFileId(5), bytes).get(0).segmentIntensity);
     }
 
+    /** Treadmill v6 reuses the multi-segment header shape but its phase byte is unconfirmed
+     *  (only 0x7f observed). The parser must NOT fabricate ACTIVE/REST intervals: even a
+     *  multi-segment v6 file collapses to a single track segment with no intensity markers. */
+    @Test
+    public void testGetActivityTrackV6NoFabricatedIntervals() {
+        final int ts1 = 1700008000;
+        final int ts2 = ts1 + 120;
+        final byte[] bytes = buildBytes(6,
+                new Segment(ts1, new int[][]{
+                        {3, 150, 0, 80, 1000},
+                        {4, 152, 0, 82, 1010},
+                }),
+                new Segment(ts2, new int[][]{
+                        {5, 148, 0, 78, 990},
+                        {6, 151, 0, 81, 1005},
+                }));
+
+        final ActivityTrack track = new WorkoutDetailsParser().getActivityTrack(makeFileId(6), bytes);
+        assertNotNull(track);
+
+        // No confirmed phase semantics for v6 → all records collapse into one segment.
+        assertEquals(1, track.getSegments().size());
+        assertEquals(4, track.getSegments().get(0).size());
+        for (final WorkoutDetailRecord r : records(makeFileId(6), bytes)) {
+            assertNull(r.segmentIntensity);
+            assertNull(r.segmentStrokes);
+        }
+    }
+
     /** Rowing v4 multi-segment → one ActivityTrack segment per interval, with the
      *  active/rest intensity and per-segment strokes carried through to SegmentInfo
      *  so the FIT exporter can emit a lap per interval. */
