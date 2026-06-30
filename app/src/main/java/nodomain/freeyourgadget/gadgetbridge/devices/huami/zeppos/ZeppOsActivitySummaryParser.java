@@ -158,7 +158,16 @@ public class ZeppOsActivitySummaryParser extends HuamiActivitySummaryParser {
         }
 
         if (summaryProto.hasHeartRateZones()) {
-            // TODO hr zones bpm?
+            // zoneMax[i] is the upper bpm bound of zone i (index 0 = N/A), so zoneMax[0..4] are the
+            // lower entries of zones 1..5. Surface them so the HR chart uses the watch's own zones.
+            if (summaryProto.getHeartRateZones().getZoneMaxCount() >= 5) {
+                final HuamiProtos.HeartRateZones hrZones = summaryProto.getHeartRateZones();
+                summaryData.add(HR_ZONE_BOUND_1, hrZones.getZoneMax(0), UNIT_BPM);
+                summaryData.add(HR_ZONE_BOUND_2, hrZones.getZoneMax(1), UNIT_BPM);
+                summaryData.add(HR_ZONE_BOUND_3, hrZones.getZoneMax(2), UNIT_BPM);
+                summaryData.add(HR_ZONE_BOUND_4, hrZones.getZoneMax(3), UNIT_BPM);
+                summaryData.add(HR_ZONE_BOUND_5, hrZones.getZoneMax(4), UNIT_BPM);
+            }
             if (summaryProto.getHeartRateZones().getZoneTimeCount() == 6) {
                 final double totalTime = summaryProto.getHeartRateZones().getZoneTimeList()
                         .stream()

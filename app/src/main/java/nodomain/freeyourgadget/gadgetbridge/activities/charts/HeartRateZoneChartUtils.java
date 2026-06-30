@@ -105,7 +105,8 @@ public final class HeartRateZoneChartUtils {
      * For zone z at any x: line y = clamp(hr, zoneBottom, zoneTop), fill terminates at zoneBottom.
      * When hr is below the zone, line sits AT zoneBottom and no area is rendered.
      * Datasets have empty labels and {@link Legend.LegendForm#NONE} so they don't appear in the legend.
-     * Insert these BEFORE the HR line in the chart's data list.
+     * The HR line is kept at dataset index 0 (the overlay/compare view reads index 0); append these
+     * after it. Their fills are alpha-blended, so the HR line stays legible despite being drawn under them.
      */
     public static List<ILineDataSet> buildZoneAreas(Context ctx,
                                                     HeartRateZones zones,
@@ -249,11 +250,11 @@ public final class HeartRateZoneChartUtils {
     private static String formatZoneLabel(Context ctx, int zoneIdx, HeartRateZones zones) {
         final String name = HeartRateZonesResolver.labelForZone(ctx, zoneIdx);
         final String range = switch (zoneIdx) {
-            case 1 -> String.format(Locale.getDefault(), "HR<%d", zones.getZone2());
-            case 2 -> String.format(Locale.getDefault(), "%d<HR<%d", zones.getZone2(), zones.getZone3());
-            case 3 -> String.format(Locale.getDefault(), "%d<HR<%d", zones.getZone3(), zones.getZone4());
-            case 4 -> String.format(Locale.getDefault(), "%d<HR<%d", zones.getZone4(), zones.getZone5());
-            case 5 -> String.format(Locale.getDefault(), "HR>%d", zones.getZone5());
+            case 1 -> String.format(Locale.getDefault(), "< %d", zones.getZone2());
+            case 2 -> ctx.getString(R.string.integer_range, zones.getZone2(), zones.getZone3());
+            case 3 -> ctx.getString(R.string.integer_range, zones.getZone3(), zones.getZone4());
+            case 4 -> ctx.getString(R.string.integer_range, zones.getZone4(), zones.getZone5());
+            case 5 -> String.format(Locale.getDefault(), "> %d", zones.getZone5());
             default -> "";
         };
         return String.format(Locale.getDefault(), "%s (%s)", name, range);

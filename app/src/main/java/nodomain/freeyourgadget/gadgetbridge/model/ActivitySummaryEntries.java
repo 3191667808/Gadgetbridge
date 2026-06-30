@@ -134,6 +134,14 @@ public class ActivitySummaryEntries {
     public static final String HR_ZONE_THRESHOLD = "hrZoneThreshold";
     public static final String HR_ZONE_EXTREME = "hrZoneExtreme";
     public static final String HR_ZONE_MAXIMUM = "hrZoneMaximum";
+    // Per-activity HR-zone boundary thresholds (bpm), i.e. the lower entry of each zone 1..5 as
+    // reported by the device for this workout. Distinct from the HR_ZONE_* time-in-zone values above.
+    // hrZone* prefix keeps them hidden from the generic summary UI (ActivitySummaryGroup filter).
+    public static final String HR_ZONE_BOUND_1 = "hrZoneBound1";
+    public static final String HR_ZONE_BOUND_2 = "hrZoneBound2";
+    public static final String HR_ZONE_BOUND_3 = "hrZoneBound3";
+    public static final String HR_ZONE_BOUND_4 = "hrZoneBound4";
+    public static final String HR_ZONE_BOUND_5 = "hrZoneBound5";
 
     public static final String TEMPERATURE_AVG = "avg_temperature";
     public static final String TEMPERATURE_MIN = "min_temperature";

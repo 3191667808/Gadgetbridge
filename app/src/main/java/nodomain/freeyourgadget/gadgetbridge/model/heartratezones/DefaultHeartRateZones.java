@@ -22,6 +22,22 @@ public class DefaultHeartRateZones extends HeartRateZones {
         super(method, HRThreshold);
     }
 
+    /**
+     * Builds zones straight from explicit per-zone lower-bound thresholds (bpm), bypassing the
+     * MHR/HRR/LTHR formula. Used when a device reports the user's configured zones for a workout
+     * (e.g. Garmin FIT, Zepp OS), so the displayed bands match the device instead of a 220−age estimate.
+     */
+    public static DefaultHeartRateZones fromBoundaries(int zone1, int zone2, int zone3, int zone4, int zone5) {
+        final DefaultHeartRateZones zones = new DefaultHeartRateZones(CalculationMethod.MHR, zone5);
+        zones.setZone1(zone1);
+        zones.setZone2(zone2);
+        zones.setZone3(zone3);
+        zones.setZone4(zone4);
+        zones.setZone5(zone5);
+        zones.setHRThreshold(zone5);
+        return zones;
+    }
+
     @Override
     public void reset() {
         switch (this.method) {

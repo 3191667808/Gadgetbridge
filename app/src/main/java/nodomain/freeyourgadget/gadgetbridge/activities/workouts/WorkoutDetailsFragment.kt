@@ -224,7 +224,8 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                                 val defaultCharts = DefaultWorkoutCharts.buildDefaultCharts(
                                     requireContext(),
                                     activityPoints,
-                                    ActivityKind.fromCode(parsedWorkout.summary.activityKind)
+                                    ActivityKind.fromCode(parsedWorkout.summary.activityKind),
+                                    parsedWorkout.data
                                 )
                                 return@withContext Workout(parsedWorkout.summary, parsedWorkout.data, defaultCharts)
                             }

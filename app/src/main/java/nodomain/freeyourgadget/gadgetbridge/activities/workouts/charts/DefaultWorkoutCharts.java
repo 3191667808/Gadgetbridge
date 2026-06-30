@@ -61,6 +61,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.SpeedYLabelFormatt
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.TimestampTranslation;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.GPSCoordinate;
@@ -73,6 +74,13 @@ public class DefaultWorkoutCharts {
     public static List<WorkoutChart> buildDefaultCharts(final Context context,
                                                         final List<? extends ActivityPoint> activityPoints,
                                                         final ActivityKind activityKind) {
+        return buildDefaultCharts(context, activityPoints, activityKind, null);
+    }
+
+    public static List<WorkoutChart> buildDefaultCharts(final Context context,
+                                                        final List<? extends ActivityPoint> activityPoints,
+                                                        final ActivityKind activityKind,
+                                                        final ActivitySummaryData summary) {
         final ActivityKind.CycleUnit cycleUnit = ActivityKind.getCycleUnit(activityKind);
         final List<WorkoutChart> charts = new LinkedList<>();
         final TimestampTranslation tsTranslation = new TimestampTranslation();
@@ -264,7 +272,7 @@ public class DefaultWorkoutCharts {
         }
 
         if (!heartRateDataPoints.isEmpty()) {
-            charts.add(createHeartRateChart(context, heartRateDataPoints));
+            charts.add(createHeartRateChart(context, heartRateDataPoints, summary));
         }
 
         if (hasSpeedValues && !speedDataPoints.isEmpty()) {
@@ -369,7 +377,8 @@ public class DefaultWorkoutCharts {
     }
 
     private static WorkoutChart createHeartRateChart(final Context context,
-                                                     final List<Entry> heartRateDataPoints) {
+                                                     final List<Entry> heartRateDataPoints,
+                                                     final ActivitySummaryData summary) {
         final String label = String.format("%s (%s)", context.getString(R.string.heart_rate), getUnitString(context, UNIT_BPM));
         final ValueFormatter integerFormatter = new ValueFormatter() {
             @Override
@@ -378,7 +387,7 @@ public class DefaultWorkoutCharts {
             }
         };
 
-        final HeartRateZones zones = HeartRateZonesResolver.resolve(null, new ActivityUser());
+        final HeartRateZones zones = HeartRateZonesResolver.resolve(summary, null, new ActivityUser());
         final int chartMax = Math.max(HeartRateUtils.getInstance().getMaxHeartRate(), zones.getZone5() + 1);
         // Workout entries use x in milliseconds (tsTranslation.shorten on point.getTime().getTime()),
         // so gap and unit conversions are millisecond-based.
@@ -386,9 +395,12 @@ public class DefaultWorkoutCharts {
         final HeartRateZoneChartUtils.ZoneAnalysis analysis = HeartRateZoneChartUtils.analyze(
                 heartRateDataPoints, zones, gapMillis, 1000f);
 
+        // HR line must be dataset index 0: the overlay/compare view (WorkoutChartsActivity) picks
+        // getDataSetByIndex(0) as the chart's representative series. Zone areas follow; their fills are
+        // alpha-blended so the HR line stays legible even though they are drawn on top of it.
         final List<ILineDataSet> dataSets = new ArrayList<>();
-        dataSets.addAll(HeartRateZoneChartUtils.buildZoneAreas(context, zones, heartRateDataPoints, chartMax, YAxis.AxisDependency.RIGHT));
         dataSets.add(createLineDataSet(context, heartRateDataPoints, label, ContextCompat.getColor(context, R.color.chart_line_heart_rate)));
+        dataSets.addAll(HeartRateZoneChartUtils.buildZoneAreas(context, zones, heartRateDataPoints, chartMax, YAxis.AxisDependency.RIGHT));
 
         final WorkoutChart chart = new WorkoutChart(
                 "heart_rate",

@@ -25,6 +25,8 @@ import java.util.List;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 
 public class HeartRateZonesResolver {
@@ -34,6 +36,36 @@ public class HeartRateZonesResolver {
     private static final int MAX_AGE = 100;
 
     private HeartRateZonesResolver() {
+    }
+
+    /**
+     * Resolves zones for a specific workout. Precedence:
+     * per-activity thresholds reported by the device (Garmin FIT, Zepp OS) → device config
+     * ({@link HeartRateZonesSpec}, Huawei only) → {@code 220 − age} default. The per-activity path
+     * keeps the displayed bands consistent with what the watch actually used for the session.
+     */
+    public static HeartRateZones resolve(ActivitySummaryData summary, GBDevice device, ActivityUser user) {
+        final HeartRateZones fromActivity = fromActivitySummary(summary);
+        if (fromActivity != null) {
+            return fromActivity;
+        }
+        return resolve(device, user);
+    }
+
+    private static HeartRateZones fromActivitySummary(ActivitySummaryData summary) {
+        if (summary == null) {
+            return null;
+        }
+        final int z1 = summary.getNumber(ActivitySummaryEntries.HR_ZONE_BOUND_1, 0).intValue();
+        final int z2 = summary.getNumber(ActivitySummaryEntries.HR_ZONE_BOUND_2, 0).intValue();
+        final int z3 = summary.getNumber(ActivitySummaryEntries.HR_ZONE_BOUND_3, 0).intValue();
+        final int z4 = summary.getNumber(ActivitySummaryEntries.HR_ZONE_BOUND_4, 0).intValue();
+        final int z5 = summary.getNumber(ActivitySummaryEntries.HR_ZONE_BOUND_5, 0).intValue();
+        // Require all five present and strictly increasing; otherwise fall through to spec/default.
+        if (z1 > 0 && z1 < z2 && z2 < z3 && z3 < z4 && z4 < z5) {
+            return DefaultHeartRateZones.fromBoundaries(z1, z2, z3, z4, z5);
+        }
+        return null;
     }
 
     public static HeartRateZones resolve(GBDevice device, ActivityUser user) {
