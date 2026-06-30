@@ -543,6 +543,7 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             override fun onChartGestureEnd(me: MotionEvent?, lastPerformedGesture: ChartTouchListener.ChartGesture?) {}
             override fun onChartSingleTapped(me: MotionEvent?) {
                 ChartDataRepository.chartData = allChartsData
+                ChartDataRepository.intervals = currentIntervals
                 val intent = Intent(requireContext(), WorkoutChartsActivity::class.java).apply {
                     putExtra(WorkoutChartsActivity.INIT_CHART_ID, chart.id)
                 }

@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.children
+import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.CombinedData
@@ -28,9 +29,14 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity
+import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DurationXLabelFormatter
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.HeartRateZoneChartUtils
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.IntervalChartUtils
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.marker.ValueMarker
 import nodomain.freeyourgadget.gadgetbridge.databinding.WorkoutChartsBinding
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack
+import nodomain.freeyourgadget.gadgetbridge.model.heartratezones.HeartRateZonesResolver
 import nodomain.freeyourgadget.gadgetbridge.model.workout.WorkoutChart
 
 class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
@@ -39,6 +45,10 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
     private lateinit var binding: WorkoutChartsBinding
     private var chartData: List<WorkoutChart>? = null
     val selectedCharts = mutableListOf<Any>()
+
+    // Selectable overlays drawn on top of the compared charts.
+    private var showHrZones = false
+    private var showIntervals = false
 
     private var menu: Menu? = null
 
@@ -83,6 +93,7 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
         val initChartId = intent.getStringExtra(INIT_CHART_ID) ?: "none"
         selectedCharts.add(0, initChartId)
         setupChipGroup(binding.workoutDataChartChipGroup, initChartId)
+        setupOverlayChips(binding.workoutDataChartOverlayChipGroup)
         refreshChart()
     }
 
@@ -134,22 +145,68 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
         chip?.isChecked = checked
     }
 
+    private fun setupOverlayChips(group: ChipGroup) {
+        // HR-zone bands: only offered when an HR chart with resolved thresholds is present.
+        val hrChart = chartData?.find { it.id == HR_CHART_ID }
+        if (hrChart?.zoneThresholds != null) {
+            val chip = Chip(this).apply {
+                text = context.getString(R.string.HeartRateZones)
+                isCheckable = true
+                isClickable = true
+                isChecked = false
+            }
+            chip.setOnCheckedChangeListener { _, isChecked ->
+                showHrZones = isChecked
+                refreshChart()
+            }
+            group.addView(chip)
+        }
+        // Interval splits: only offered when the workout actually has distinct interval phases.
+        val intervals = ChartDataRepository.intervals
+        if (intervals != null && intervals.size > 1 &&
+            intervals.any { it.type != ActivityTrack.SegmentIntensity.UNKNOWN }
+        ) {
+            val chip = Chip(this).apply {
+                text = context.getString(R.string.workout_intervals)
+                isCheckable = true
+                isClickable = true
+                isChecked = false
+            }
+            chip.setOnCheckedChangeListener { _, isChecked ->
+                showIntervals = isChecked
+                refreshChart()
+            }
+            group.addView(chip)
+        }
+    }
+
     fun refreshChart() {
         val combinedData = CombinedData()
         val lineData = LineData()
         val scatterData = ScatterData()
         val lineDataSetsMarkerFormatters = mutableListOf<ValueFormatter?>()
         val lineDataSetsMarkerUnits = mutableListOf<String?>()
+        // Overlays are re-added from scratch on every refresh, so drop any from a previous pass.
+        binding.workoutDataChart.xAxis.removeAllLimitLines()
+        binding.workoutDataChart.axisLeft.removeAllLimitLines()
+        binding.workoutDataChart.axisRight.removeAllLimitLines()
         var leftY = true
+        var hrAxis: YAxis.AxisDependency? = null
+        // Metric lines are collected first, then added AFTER the zone bands so the bands stay in the
+        // background and never hide the lines or the other overlays.
+        val metricLineSets = mutableListOf<LineDataSet>()
         selectedCharts.forEach { selectedChart ->
             val workoutChart = chartData?.find { it.id == selectedChart } ?: return@forEach
             val dataSet = workoutChart.chartData.getDataSetByIndex(0) as? LineScatterCandleRadarDataSet<Entry> ?: return@forEach
             dataSet.highLightColor = ContextCompat.getColor(context, R.color.chart_highline_dolor)
             dataSet.highlightLineWidth = 1f
             dataSet.axisDependency = if(leftY) YAxis.AxisDependency.LEFT else YAxis.AxisDependency.RIGHT
+            if (workoutChart.id == HR_CHART_ID) {
+                hrAxis = dataSet.axisDependency
+            }
             when (dataSet) {
                 is LineDataSet -> {
-                    lineData.addDataSet(dataSet)
+                    metricLineSets.add(dataSet)
                 }
                 is ScatterDataSet -> {
                     scatterData.addDataSet(dataSet)
@@ -162,6 +219,16 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
             axis.valueFormatter = workoutChart.chartYLabelFormatter ?: DefaultAxisValueFormatter(0)
             leftY = false
         }
+        // Zone bands first (background), then the metric lines on top.
+        if (showHrZones) {
+            addHrZoneOverlay(lineData, hrAxis)
+        }
+        for (lineSet in metricLineSets) {
+            lineData.addDataSet(lineSet)
+        }
+        if (showIntervals) {
+            addIntervalOverlay()
+        }
         if (selectedCharts.size == 1) {
             val selectedChartId = selectedCharts.first()
             val workoutChart = chartData?.find { it.id == selectedChartId } ?: return
@@ -173,6 +240,56 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
         binding.workoutDataChart.marker = ValueMarker(this, combinedData, lineDataSetsMarkerFormatters, lineDataSetsMarkerUnits)
         binding.workoutDataChart.highlightValues(null)
         binding.workoutDataChart.invalidate()
+    }
+
+    /**
+     * Draws the HR-zone bands (and dashed threshold lines) on the HR line's axis. No-op unless the
+     * HR chart is among the selected charts, since the bands are only meaningful at the HR scale.
+     */
+    private fun addHrZoneOverlay(lineData: LineData, axis: YAxis.AxisDependency?) {
+        if (axis == null) return
+        val hrChart = chartData?.find { it.id == HR_CHART_ID } ?: return
+        val zones = hrChart.zoneThresholds ?: return
+        val hrDataSet = hrChart.chartData.getDataSetByIndex(0) ?: return
+        val hrEntries = ArrayList<Entry>(hrDataSet.entryCount)
+        for (i in 0 until hrDataSet.entryCount) {
+            (hrDataSet.getEntryForIndex(i) as? Entry)?.let { hrEntries.add(it) }
+        }
+        val chartMax = maxOf(HeartRateUtils.getInstance().maxHeartRate, zones.zone5 + 1)
+        for (area in HeartRateZoneChartUtils.buildZoneAreas(context, zones, hrEntries, chartMax, axis)) {
+            lineData.addDataSet(area)
+        }
+        val axisObj = if (axis == YAxis.AxisDependency.LEFT) {
+            binding.workoutDataChart.axisLeft
+        } else {
+            binding.workoutDataChart.axisRight
+        }
+        axisObj.setDrawLimitLinesBehindData(true)
+        for ((zoneIdx, hr) in listOf(2 to zones.zone2, 3 to zones.zone3, 4 to zones.zone4, 5 to zones.zone5)) {
+            if (hr <= 0) continue
+            val limit = LimitLine(hr.toFloat())
+            limit.lineColor = HeartRateZonesResolver.colorForZone(context, zoneIdx)
+            limit.lineWidth = 0.7f
+            limit.enableDashedLine(6f, 6f, 0f)
+            axisObj.addLimitLine(limit)
+        }
+    }
+
+    /** Draws vertical interval-boundary lines (skipping the first, the track start) on the time axis. */
+    private fun addIntervalOverlay() {
+        val intervals = ChartDataRepository.intervals ?: return
+        if (intervals.size <= 1) return
+        val textColor = GBApplication.getTextColor(context)
+        for (iv in intervals.drop(1)) {
+            // x-axis units are milliseconds (DurationXLabelFormatter), matching the dataset entries.
+            val xMs = iv.startSeconds * 1000f
+            val limit = LimitLine(xMs, IntervalChartUtils.shortLabelForType(context, iv.type))
+            limit.lineColor = IntervalChartUtils.colorForType(context, iv.type)
+            limit.lineWidth = 1f
+            limit.textColor = textColor
+            limit.textSize = 9f
+            binding.workoutDataChart.xAxis.addLimitLine(limit)
+        }
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -255,5 +372,6 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
 
     companion object {
         const val INIT_CHART_ID = "INIT_CHART_ID"
+        private const val HR_CHART_ID = "heart_rate"
     }
 }

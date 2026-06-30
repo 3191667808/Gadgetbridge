@@ -39,24 +39,35 @@ public class ValueMarker extends MarkerView {
     public void refreshContent(Entry e, Highlight highlight) {
         float xVal = e.getX();
         StringBuilder content = new StringBuilder();
+        // Overlay datasets (e.g. HR-zone bands) carry an empty label and are not real metrics; skip
+        // them so they neither print a value nor shift the formatter/unit indices, which are aligned
+        // to the metric datasets only.
+        int metricIndex = 0;
         for (int i = 0; i < lineData.getDataSetCount(); i++) {
             IBarLineScatterCandleBubbleDataSet dataSet = lineData.getDataSetByIndex(i);
             if (dataSet == null || !dataSet.isVisible()) {
                 continue;
             }
+            final String label = dataSet.getLabel();
+            if (label == null || label.isEmpty()) {
+                continue;
+            }
             Entry entryForX = dataSet.getEntryForXValue(xVal, Float.NaN);
             if (entryForX != null) {
-                if (valueFormatters.get(i) != null) {
-                    content.append(valueFormatters.get(i).getFormattedValue(entryForX.getY()));
+                final ValueFormatter formatter = metricIndex < valueFormatters.size() ? valueFormatters.get(metricIndex) : null;
+                final String unit = metricIndex < valueUnits.size() ? valueUnits.get(metricIndex) : null;
+                if (formatter != null) {
+                    content.append(formatter.getFormattedValue(entryForX.getY()));
                 } else {
                     content.append(entryForX.getY());
                 }
-                if (valueUnits.get(i) != null) {
+                if (unit != null) {
                     content.append(" ");
-                    content.append(valueUnits.get(i));
+                    content.append(unit);
                 }
                 content.append("\n");
             }
+            metricIndex++;
         }
         markerContent.setText(content.toString().trim());
         super.refreshContent(e, highlight);
