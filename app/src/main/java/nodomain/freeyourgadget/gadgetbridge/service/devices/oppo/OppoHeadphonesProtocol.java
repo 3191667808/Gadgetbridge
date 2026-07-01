@@ -577,7 +577,7 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
             final EnumSet<AncConfigValue> modes = AncConfigValue.fromPrefIds(prefIds);
             if (modes.size() < 2) {
                 LOG.warn("ANC cycle must contain at least 2 modes. Current selection: {}", modes);
-                return super.encodeSendConfiguration(config);
+                return encodeAncConfigReq(AncConfigType.TOUCH_CYCLE_MODES);
             }
 
             LOG.debug("Sending ANC touch cycle modes = {}", modes);
