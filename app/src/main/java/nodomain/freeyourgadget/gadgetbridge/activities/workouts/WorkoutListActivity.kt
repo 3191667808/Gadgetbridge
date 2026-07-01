@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes
 import nodomain.freeyourgadget.gadgetbridge.util.ActivitySummaryUtils
 import nodomain.freeyourgadget.gadgetbridge.util.GB
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectWorkoutDeletion
 import nodomain.freeyourgadget.gadgetbridge.util.WorkoutFilterUtils
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -415,8 +416,10 @@ class WorkoutListActivity : AbstractListActivity<BaseActivitySummary>() {
 
     private fun deleteItems(items: List<BaseActivitySummary>) {
         items.forEach { item ->
+            val healthConnectSnapshot = HealthConnectWorkoutDeletion.snapshot(item)
             try {
                 item.delete()
+                healthConnectSnapshot?.let { HealthConnectWorkoutDeletion.deleteWorkoutFromHealthConnect(this, it) }
             } catch (e: Exception) {
                 // pass delete error
             }
