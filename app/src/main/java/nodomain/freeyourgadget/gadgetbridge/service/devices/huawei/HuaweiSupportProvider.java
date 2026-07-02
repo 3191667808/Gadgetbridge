@@ -244,6 +244,17 @@ public class HuaweiSupportProvider {
 
     private final int initTimeout = 2000;
 
+    // Number of consecutive authentication failures after which the lightweight socket-drop
+    // reconnect is escalated to a full disconnect + delayed reconnect (see reconnectAfterAuthFailure).
+    private static final int AUTH_FAILURE_ESCALATION_THRESHOLD = 3;
+    // Quiet gap between the full disconnect and the fresh connect during an escalated reconnect.
+    // The watch's HiChain endpoint needs the connection fully torn down for a moment before it
+    // accepts a new handshake; a manual Disconnect→Connect observed to recover a wedge had ~6 s
+    // between the two. Firing connect() immediately after disconnect() races the still-running
+    // teardown and can leave an orphaned connection stuck in AUTHENTICATING.
+    private static final long AUTH_FAILURE_ESCALATION_RECONNECT_DELAY_MS = 6000;
+    private int consecutiveAuthFailures = 0;
+
     private HuaweiBRSupport brSupport;
     private HuaweiLESupport leSupport;
 
@@ -645,12 +656,44 @@ public class HuaweiSupportProvider {
      * then never succeeds until a manual disconnect. So drop the socket and let the transport's
      * read thread perform the cleanup and state transition; only fall back to a bare state flip if
      * there is no live BR connection to drop (e.g. the LE transport).
+     * <p>
+     * The lightweight drop reuses the same support + queue, so every retry re-runs the handshake
+     * against a connection the watch never saw fully torn down. When the watch's HiChain endpoint
+     * gets wedged (typically after an overnight out-of-range separation) it then keeps rejecting the
+     * correct, persisted stored key indefinitely — observed to survive dozens of lightweight
+     * reconnects and several plain manual Connects, while a single manual Disconnect→(~6 s)→Connect
+     * recovered it with the same key. So after {@link #AUTH_FAILURE_ESCALATION_THRESHOLD}
+     * consecutive auth failures, escalate to a full {@code disconnect()} followed by a
+     * {@code connect()} deferred by {@link #AUTH_FAILURE_ESCALATION_RECONNECT_DELAY_MS}, which
+     * reproduces that manual recovery. The counter is reset on successful auth
+     * ({@link #initializeDeviceConfigure}).
      */
     private void reconnectAfterAuthFailure() {
         final GBDevice device = getDevice();
         if (device == null) {
             return;
         }
+
+        consecutiveAuthFailures++;
+        if (consecutiveAuthFailures >= AUTH_FAILURE_ESCALATION_THRESHOLD) {
+            LOG.warn("Authentication failed {} times in a row, escalating to full disconnect + delayed reconnect",
+                    consecutiveAuthFailures);
+            consecutiveAuthFailures = 0;
+            // Full teardown now; reconnect after a quiet gap (NOT immediately — see Javadoc). Use an
+            // independent main-looper handler so the deferred reconnect survives this support being
+            // disposed by the disconnect().
+            GBApplication.deviceService(device).disconnect();
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (device.getState() == GBDevice.State.NOT_CONNECTED) {
+                    LOG.info("Reconnecting after escalated auth-failure teardown");
+                    GBApplication.deviceService(device).connect();
+                } else {
+                    LOG.info("Skipping escalated reconnect, device state is now {}", device.getState());
+                }
+            }, AUTH_FAILURE_ESCALATION_RECONNECT_DELAY_MS);
+            return;
+        }
+
         if (brSupport != null && brSupport.disconnectForReconnect()) {
             // the read thread will clean up the socket and set WAITING_FOR_RECONNECT / NOT_CONNECTED
             return;
@@ -719,6 +762,8 @@ public class HuaweiSupportProvider {
     }
 
     protected void initializeDeviceConfigure() {
+        // Authentication succeeded; clear the consecutive-failure escalation counter.
+        consecutiveAuthFailures = 0;
         if (isBLE()) {
             nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder leBuilder = createLeTransactionBuilder("Initializing");
             leBuilder.setCallback(leSupport);
