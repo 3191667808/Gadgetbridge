@@ -913,6 +913,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsTasksSync(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean getRemindersHaveTime() {
         return true;
     }

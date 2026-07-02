@@ -825,6 +825,9 @@ public interface DeviceCoordinator {
      */
     int getReminderSlotCount(@NonNull final GBDevice device);
 
+    /** Whether this device supports syncing reminders with OpenTasks/tasks.org. */
+    boolean supportsTasksSync(@NonNull final GBDevice device);
+
     /**
      * Indicates whether reminders have a time of day.
      */

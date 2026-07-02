@@ -237,6 +237,9 @@
     <string name="pref_title_audio_player">Preferred Audioplayer</string>
     <string name="pref_title_nagivation_apps">Navigation apps</string>
     <string name="pref_header_external_integrations">External Integrations</string>
+    <string name="pref_title_tasks_sync">Sync tasks.org reminders</string>
+    <string name="pref_summary_tasks_sync">Push due tasks from the tasks.org app to the watch as reminders on each sync. Note: watch reminders are overwritten on every sync, subtasks are not supported, and reminders you dismiss on the watch are marked complete in the tasks.org app.</string>
+    <string name="tasks_sync_refresh_requested">Syncing tasks to the watch…</string>
     <string name="pref_header_automations">Automations</string>
     <string name="pref_description_general">Startup, language, region, location</string>
     <string name="pref_description_about_you">Date of birth, gender, height, weight, goals</string>

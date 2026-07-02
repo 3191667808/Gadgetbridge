@@ -42,6 +42,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.util.tasks.OpenTasksManager;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
@@ -55,6 +56,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.Contact;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
 import nodomain.freeyourgadget.gadgetbridge.model.Reminder;
 import nodomain.freeyourgadget.gadgetbridge.model.WorldClock;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction;
@@ -70,6 +72,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.Xiao
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiPhonebookService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiRpkService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiScheduleService;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiTasksService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiSystemService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiWatchfaceService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiWeatherService;
@@ -92,6 +95,7 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
     private final XiaomiDataUploadService dataUploadService = new XiaomiDataUploadService(this);
     private final XiaomiPhonebookService phonebookService = new XiaomiPhonebookService(this);
     private final XiaomiRpkService rpkService = new XiaomiRpkService(this);
+    private final XiaomiTasksService tasksService = new XiaomiTasksService(this, scheduleService);
 
 
     private String cachedFirmwareVersion = null;
@@ -371,6 +375,14 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
     @Override
     public void onFetchRecordedData(final int dataTypes) {
         healthService.onFetchRecordedData(dataTypes);
+        if ((dataTypes & RecordedDataTypes.TYPE_SYNC) != 0
+                && OpenTasksManager.isSyncEnabled(getDevice())) {
+            tasksService.syncTasks();
+        }
+    }
+
+    public XiaomiTasksService getTasksService() {
+        return tasksService;
     }
 
     @Override

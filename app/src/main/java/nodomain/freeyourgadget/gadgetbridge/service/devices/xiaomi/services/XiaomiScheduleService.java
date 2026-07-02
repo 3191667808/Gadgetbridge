@@ -51,6 +51,7 @@ import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiPreferences;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.tasks.OpenTasksManager;
 
 public class XiaomiScheduleService extends AbstractXiaomiService {
     private static final Logger LOG = LoggerFactory.getLogger(XiaomiScheduleService.class);
@@ -177,40 +178,43 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
 
     public void handleReminders(final XiaomiProto.Reminders reminders) {
         LOG.debug("Got {} reminders from the watch", reminders.getReminderCount());
+        final boolean tasksPushed = getSupport().getTasksService().onWatchReminders(reminders);
 
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences()
                 .withPreference(XiaomiPreferences.PREF_REMINDER_SLOTS, reminders.getMaxReminders());
 
         getSupport().evaluateGBDeviceEvent(eventUpdatePreferences);
 
-        watchReminders.clear();
-        for (final XiaomiProto.Reminder reminder : reminders.getReminderList()) {
-            final nodomain.freeyourgadget.gadgetbridge.entities.Reminder gbReminder = new nodomain.freeyourgadget.gadgetbridge.entities.Reminder();
-            gbReminder.setReminderId(REMINDER_DB_PREFIX + reminder.getId());
-            gbReminder.setMessage(reminder.getReminderDetails().getTitle());
-            gbReminder.setDate(XiaomiPreferences.toDate(reminder.getReminderDetails().getDate(), reminder.getReminderDetails().getTime()));
+        if (!tasksPushed) {
+            watchReminders.clear();
+            for (final XiaomiProto.Reminder reminder : reminders.getReminderList()) {
+                final nodomain.freeyourgadget.gadgetbridge.entities.Reminder gbReminder = new nodomain.freeyourgadget.gadgetbridge.entities.Reminder();
+                gbReminder.setReminderId(REMINDER_DB_PREFIX + reminder.getId());
+                gbReminder.setMessage(reminder.getReminderDetails().getTitle());
+                gbReminder.setDate(XiaomiPreferences.toDate(reminder.getReminderDetails().getDate(), reminder.getReminderDetails().getTime()));
 
-            switch (reminder.getReminderDetails().getRepeatMode()) {
-                case REPETITION_DAILY:
-                    gbReminder.setRepetition(Reminder.EVERY_DAY);
-                    break;
-                case REPETITION_WEEKLY:
-                    gbReminder.setRepetition(Reminder.EVERY_WEEK);
-                    // TODO support for weekly repeat flags reminder.getReminderDetails().getRepeatFlags()
-                    break;
-                case REPETITION_MONTHLY:
-                    gbReminder.setRepetition(Reminder.EVERY_MONTH);
-                    break;
-                case REPETITION_YEARLY:
-                    gbReminder.setRepetition(Reminder.EVERY_YEAR);
-                    break;
-                case REPETITION_ONCE:
-                default:
-                    gbReminder.setRepetition(Reminder.ONCE);
-                    break;
+                switch (reminder.getReminderDetails().getRepeatMode()) {
+                    case REPETITION_DAILY:
+                        gbReminder.setRepetition(Reminder.EVERY_DAY);
+                        break;
+                    case REPETITION_WEEKLY:
+                        gbReminder.setRepetition(Reminder.EVERY_WEEK);
+                        // TODO support for weekly repeat flags reminder.getReminderDetails().getRepeatFlags()
+                        break;
+                    case REPETITION_MONTHLY:
+                        gbReminder.setRepetition(Reminder.EVERY_MONTH);
+                        break;
+                    case REPETITION_YEARLY:
+                        gbReminder.setRepetition(Reminder.EVERY_YEAR);
+                        break;
+                    case REPETITION_ONCE:
+                    default:
+                        gbReminder.setRepetition(Reminder.ONCE);
+                        break;
+                }
+
+                watchReminders.put(gbReminder.getReminderId(), gbReminder);
             }
-
-            watchReminders.put(gbReminder.getReminderId(), gbReminder);
         }
 
         final List<nodomain.freeyourgadget.gadgetbridge.entities.Reminder> dbReminders = DBHelper.getReminders(getSupport().getDevice());
@@ -219,10 +223,15 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
 
         int numUpdatedReminders = 0;
 
-        // Delete reminders that do not exist on the watch anymore
+        // Tasks.org sync owns the full reminder set, so prune any DB reminder no longer on watch.
+        final boolean tasksSyncEnabled = OpenTasksManager.isSyncEnabled(getSupport().getDevice());
+
         for (nodomain.freeyourgadget.gadgetbridge.entities.Reminder reminder : dbReminders) {
-            if (!reminder.getReminderId().startsWith(REMINDER_DB_PREFIX)) {
-                LOG.debug("Deleting reminder {}", reminder.getReminderId());
+            final boolean stale = tasksSyncEnabled
+                    ? !watchReminders.containsKey(reminder.getReminderId())
+                    : !reminder.getReminderId().startsWith(REMINDER_DB_PREFIX);
+            if (stale) {
+                LOG.debug("Deleting stale DB reminder {}", reminder.getReminderId());
                 DBHelper.delete(reminder);
                 numUpdatedReminders++;
                 continue;

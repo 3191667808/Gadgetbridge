@@ -359,6 +359,11 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsTasksSync(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public int getCannedRepliesSlotCount(@NonNull final GBDevice device) {
         return getPrefs(device).getInt(XiaomiPreferences.PREF_CANNED_MESSAGES_MAX, 0);
     }

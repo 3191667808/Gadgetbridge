@@ -414,6 +414,14 @@
             android:key="pref_category_online_fitness_trackers"
             android:title="@string/prefs_online_fitness_trackers_title"
             android:summary="@string/prefs_online_fitness_trackers_summary" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_tasks_sync_enabled"
+            android:layout="@layout/preference_checkbox"
+            android:summary="@string/pref_summary_tasks_sync"
+            android:title="@string/pref_title_tasks_sync"
+            app:iconSpaceReserved="false" />
     </PreferenceScreen>
 
     <Preference

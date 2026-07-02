@@ -25,6 +25,7 @@ import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -52,6 +53,9 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.Reminder;
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.tasks.OpenTasksManager;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
@@ -64,6 +68,7 @@ public class ConfigureReminders extends AbstractGBActivity {
 
     private GBReminderListAdapter mGBReminderListAdapter;
     private GBDevice gbDevice;
+    private FloatingActionButton fab;
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -87,6 +92,7 @@ public class ConfigureReminders extends AbstractGBActivity {
         gbDevice = getIntent().getParcelableExtra(GBDevice.EXTRA_DEVICE);
 
         mGBReminderListAdapter = new GBReminderListAdapter(this, gbDevice.getDeviceCoordinator().getRemindersHaveTime());
+        mGBReminderListAdapter.setReadOnly(OpenTasksManager.isSyncEnabled(gbDevice));
 
         final RecyclerView remindersRecyclerView = findViewById(R.id.reminder_list);
         remindersRecyclerView.setHasFixedSize(true);
@@ -94,43 +100,60 @@ public class ConfigureReminders extends AbstractGBActivity {
         remindersRecyclerView.setAdapter(mGBReminderListAdapter);
         updateRemindersFromDB();
 
-        final FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                final DeviceCoordinator coordinator = gbDevice.getDeviceCoordinator();
+        fab = findViewById(R.id.fab);
+        updateFab();
+    }
 
-                int deviceSlots = coordinator.getReminderSlotCount(gbDevice) - GBApplication.getDevicePrefs(gbDevice).getReservedReminderCalendarSlots();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mGBReminderListAdapter.setReadOnly(OpenTasksManager.isSyncEnabled(gbDevice));
+        mGBReminderListAdapter.notifyDataSetChanged();
+        updateFab();
+    }
 
-                if (mGBReminderListAdapter.getItemCount() >= deviceSlots) {
-                    // No more free slots
-                    new MaterialAlertDialogBuilder(v.getContext())
-                            .setTitle(R.string.reminder_no_free_slots_title)
-                            .setMessage(getBaseContext().getString(R.string.reminder_no_free_slots_description, String.format(Locale.getDefault(), "%d", deviceSlots)))
-                            .setIcon(R.drawable.ic_warning)
-                            .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(final DialogInterface dialog, final int whichButton) {
-                                }
-                            })
-                            .show();
-                    return;
-                }
+    /**
+     * When the tasks.org integration manages this device's reminders, manual adds would be wiped on
+     * the next sync, so the button triggers a sync instead.
+     */
+    private void updateFab() {
+        final boolean tasksSyncActive = OpenTasksManager.isSyncEnabled(gbDevice);
+        fab.setImageResource(tasksSyncActive ? R.drawable.ic_refresh : R.drawable.ic_add);
+        fab.setOnClickListener(tasksSyncActive ? v -> requestTasksSync() : v -> addReminder());
+    }
 
-                final Reminder reminder;
-                try (DBHandler db = GBApplication.acquireDB()) {
-                    final DaoSession daoSession = db.getDaoSession();
-                    final Device device = DBHelper.getDevice(gbDevice, daoSession);
-                    final User user = DBHelper.getUser(daoSession);
-                    reminder = createDefaultReminder(device, user);
-                } catch (final Exception e) {
-                    LOG.error("Error accessing database", e);
-                    return;
-                }
+    private void requestTasksSync() {
+        GBApplication.deviceService(gbDevice).onFetchRecordedData(RecordedDataTypes.TYPE_SYNC);
+        GB.toast(this, getString(R.string.tasks_sync_refresh_requested), Toast.LENGTH_SHORT, GB.INFO);
+    }
 
-                configureReminder(reminder);
-            }
-        });
+    private void addReminder() {
+        final DeviceCoordinator coordinator = gbDevice.getDeviceCoordinator();
+
+        int deviceSlots = coordinator.getReminderSlotCount(gbDevice) - GBApplication.getDevicePrefs(gbDevice).getReservedReminderCalendarSlots();
+
+        if (mGBReminderListAdapter.getItemCount() >= deviceSlots) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.reminder_no_free_slots_title)
+                    .setMessage(getBaseContext().getString(R.string.reminder_no_free_slots_description, String.format(Locale.getDefault(), "%d", deviceSlots)))
+                    .setIcon(R.drawable.ic_warning)
+                    .setPositiveButton(android.R.string.ok, (dialog, whichButton) -> {})
+                    .show();
+            return;
+        }
+
+        final Reminder reminder;
+        try (DBHandler db = GBApplication.acquireDB()) {
+            final DaoSession daoSession = db.getDaoSession();
+            final Device device = DBHelper.getDevice(gbDevice, daoSession);
+            final User user = DBHelper.getUser(daoSession);
+            reminder = createDefaultReminder(device, user);
+        } catch (final Exception e) {
+            LOG.error("Error accessing database", e);
+            return;
+        }
+
+        configureReminder(reminder);
     }
 
     @Override

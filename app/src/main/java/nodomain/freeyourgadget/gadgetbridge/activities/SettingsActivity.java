@@ -77,6 +77,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.NotificationUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.SubtitleListPreference;
+import nodomain.freeyourgadget.gadgetbridge.util.tasks.OpenTasksManager;
 
 public class SettingsActivity extends AbstractSettingsActivityV2 implements ActivityCompat.OnRequestPermissionsResultCallback {
     public static final String PREF_LANGUAGE = "language";
@@ -155,6 +156,28 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
             setInputTypeFor("location_longitude", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED  | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
             Prefs prefs = GBApplication.getPrefs();
+
+            final Preference tasksSyncPref = findPreference(OpenTasksManager.PREF_ENABLED);
+            if (tasksSyncPref != null) {
+                tasksSyncPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                    if (Boolean.TRUE.equals(newValue)) {
+                        final String[] perms = {OpenTasksManager.PERMISSION_READ_TASKS, OpenTasksManager.PERMISSION_WRITE_TASKS};
+                        boolean granted = true;
+                        for (final String perm : perms) {
+                            if (ActivityCompat.checkSelfPermission(requireContext().getApplicationContext(), perm) != PackageManager.PERMISSION_GRANTED) {
+                                granted = false;
+                                break;
+                            }
+                        }
+                        if (!granted) {
+                            ActivityCompat.requestPermissions(requireActivity(), perms, 0);
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            }
+
             Preference pref = findPreference("pref_category_activity_personal");
             if (pref != null) {
                 pref.setOnPreferenceClickListener(preference -> {

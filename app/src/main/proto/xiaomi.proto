@@ -1039,6 +1039,9 @@ message ReminderDetails {
   optional uint32 repeatMode = 3; // 0 once, 1 daily, weekly (every monday), 7 monthly, 8 yearly
   optional uint32 repeatFlags = 4; // 64 for unset, day flags on weekly
   optional string title = 5;
+  // Present in watch GET responses, not sent by phone.
+  optional uint32 state = 8; // 1 = active, 2 = dismissed on watch
+  optional uint32 dismissedAt = 9; // unix seconds of dismissal
 }
 
 message ReminderDelete {

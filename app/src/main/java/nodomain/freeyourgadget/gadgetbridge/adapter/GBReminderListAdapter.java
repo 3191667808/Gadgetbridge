@@ -48,10 +48,15 @@ public class GBReminderListAdapter extends RecyclerView.Adapter<GBReminderListAd
     private final Context mContext;
     private ArrayList<Reminder> reminderList;
     private boolean remindersHaveTime;
+    private boolean readOnly;
 
     public GBReminderListAdapter(Context context, boolean remindersHaveTime) {
         this.mContext = context;
         this.remindersHaveTime = remindersHaveTime;
+    }
+
+    public void setReadOnly(final boolean readOnly) {
+        this.readOnly = readOnly;
     }
 
     public void setReminderList(List<Reminder> reminders) {
@@ -73,32 +78,37 @@ public class GBReminderListAdapter extends RecyclerView.Adapter<GBReminderListAd
     public void onBindViewHolder(@NonNull ViewHolder holder, final int position) {
         final Reminder reminder = reminderList.get(position);
 
-        holder.container.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                ((ConfigureReminders) mContext).configureReminder(reminder);
-            }
-        });
+        if (!readOnly) {
+            holder.container.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    ((ConfigureReminders) mContext).configureReminder(reminder);
+                }
+            });
 
-        holder.container.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                new MaterialAlertDialogBuilder(v.getContext())
-                        .setTitle(R.string.reminder_delete_confirm_title)
-                        .setMessage(R.string.reminder_delete_confirm_description)
-                        .setIcon(R.drawable.ic_warning)
-                        .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(final DialogInterface dialog, final int whichButton) {
-                                ((ConfigureReminders) mContext).deleteReminder(reminder);
-                            }
-                        })
-                        .setNegativeButton(android.R.string.no, null)
-                        .show();
+            holder.container.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    new MaterialAlertDialogBuilder(v.getContext())
+                            .setTitle(R.string.reminder_delete_confirm_title)
+                            .setMessage(R.string.reminder_delete_confirm_description)
+                            .setIcon(R.drawable.ic_warning)
+                            .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(final DialogInterface dialog, final int whichButton) {
+                                    ((ConfigureReminders) mContext).deleteReminder(reminder);
+                                }
+                            })
+                            .setNegativeButton(android.R.string.no, null)
+                            .show();
 
-                return true;
-            }
-        });
+                    return true;
+                }
+            });
+        } else {
+            holder.container.setOnClickListener(null);
+            holder.container.setOnLongClickListener(null);
+        }
 
         holder.reminderMessage.setText(reminder.getMessage());
 
