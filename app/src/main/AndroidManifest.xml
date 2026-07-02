@@ -52,7 +52,11 @@
     <uses-permission android:name="me.hackerchick.catima.READ_CARDS"/>
     <uses-permission android:name="me.hackerchick.catima.debug.READ_CARDS"/>
 
-    <!-- Make sure we don't get the INTERNET permission even when a depencency requires it -->
+    <!-- Read passes from FossWallet -->
+    <uses-permission android:name="nz.eloque.foss_wallet.READ_CARDS"/>
+    <uses-permission android:name="nz.eloque.foss_wallet.dev.READ_CARDS"/>
+
+    <!-- Make sure we don't get the INTERNET permission even when a dependency requires it -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
 
     <!-- Internet Helper -->
@@ -231,6 +235,10 @@
             android:label="@string/pref_header_auto_export_gpx"
             android:parentActivityName=".activities.SettingsActivity" />
         <activity
+            android:name=".activities.automations.AutoExportFitSettingsActivity"
+            android:label="@string/pref_header_auto_export_fit"
+            android:parentActivityName=".activities.SettingsActivity" />
+        <activity
             android:name=".activities.maps.MapsTrackActivity"
             android:label="@string/maps"
             android:parentActivityName=".activities.SettingsActivity" />
@@ -254,6 +262,10 @@
         <activity
             android:name=".activities.preferences.HealthConnectPreferencesActivity"
             android:label="@string/healthconnect_settings"
+            android:parentActivityName=".activities.SettingsActivity" />
+        <activity
+            android:name=".activities.endurain.OnlineFitnessTrackersPreferencesActivity"
+            android:label="@string/prefs_online_fitness_trackers_title"
             android:parentActivityName=".activities.SettingsActivity" />
         <activity
             android:name=".activities.AboutUserPreferencesActivity"
@@ -1054,7 +1066,7 @@
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
+                <data android:mimeType="application/gpx+xml" />
             </intent-filter>
         </activity>
 
@@ -1094,6 +1106,44 @@
             android:name=".devices.cycling_sensor.activity.CyclingLiveDataActivity"
             android:launchMode="singleInstance"
             android:exported="true" />
+
+        <activity
+            android:name=".devices.garmin.actions.GarminSendWaypointActivity"
+            android:exported="true"
+            android:label="@string/activity_send_waypoint_titel">
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="geo" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".activities.endurain.EndurainOAuthCallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!-- Deep link scheme for OAuth callback -->
+                <data
+                    android:scheme="${appAuthRedirectScheme}"
+                    android:host="endurain"
+                    android:pathPrefix="/oauth/callback" />
+            </intent-filter>
+        </activity>
 
         <!-- For supported versions through Android 13, create an activity to show the rationale
        of Health Connect permissions once users click the privacy policy link. -->

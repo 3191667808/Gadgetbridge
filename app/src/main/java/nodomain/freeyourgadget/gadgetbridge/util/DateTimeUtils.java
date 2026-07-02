@@ -21,6 +21,7 @@ import android.content.Context;
 import android.text.format.DateUtils;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.github.pfichtner.durationformatter.DurationFormatter;
 
@@ -79,6 +80,11 @@ public class DateTimeUtils {
         }
         ISO_8601_FORMAT.setTimeZone(TimeZone.getDefault());
         return ISO_8601_FORMAT.format(date);
+    }
+
+    @Nullable
+    public static String formatIso8601(@Nullable Calendar calendar) {
+        return (calendar == null) ? null : formatIso8601(calendar.getTime());
     }
 
     public static String formatIso8601UTC(Date date) {
@@ -337,6 +343,17 @@ public class DateTimeUtils {
         Date date = new Date(epochMilli);
         SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss", Locale.ROOT);
         return format.format(date);
+    }
+
+    /// format duration day - milliseconds with max 3 units shown
+    public static String formatSportsDuration(long duration, TimeUnit unit) {
+        DurationFormatter df = DurationFormatter.Builder.SYMBOLS
+                .maximum(TimeUnit.HOURS)
+                .minimum(TimeUnit.MILLISECONDS)
+                .suppressZeros(DurationFormatter.SuppressZeros.LEADING, DurationFormatter.SuppressZeros.TRAILING)
+                .maximumAmountOfUnitsToShow(3)
+                .build();
+        return df.format(duration, unit);
     }
 
     /// number of seconds since UTC epoch of 1970-01-01T00:00:00Z

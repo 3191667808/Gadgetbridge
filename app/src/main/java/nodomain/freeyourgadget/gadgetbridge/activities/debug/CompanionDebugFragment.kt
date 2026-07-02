@@ -75,7 +75,7 @@ class CompanionDebugFragment : AbstractDebugFragment() {
                         .setIcon(device.icon)
                         .setTitle("Unpair companion device")
                         .setMessage("Unpair ${device.name} (${device.address}) from companion device?")
-                        .setNeutralButton(R.string.Cancel) { _, _ -> }
+                        .setNeutralButton(R.string.cancel) { _, _ -> }
                         .setPositiveButton(R.string.ok) { _, _ -> unpairCompanion(device) }
                         .show()
                 }
@@ -93,7 +93,7 @@ class CompanionDebugFragment : AbstractDebugFragment() {
                         .setIcon(device.icon)
                         .setTitle("Pair as companion")
                         .setMessage("Pair ${device.name} (${device.address}) as companion device?")
-                        .setNeutralButton(R.string.Cancel) { _, _ -> }
+                        .setNeutralButton(R.string.cancel) { _, _ -> }
                         .setPositiveButton(R.string.ok) { _, _ -> pairAsCompanion(device) }
                         .show()
                 }
@@ -171,6 +171,13 @@ class CompanionDebugFragment : AbstractDebugFragment() {
                     LOG.error("Failed to send intent", e)
                 }
             }
+
+            /** 
+	         * older and deprecated name for onAssociationPending, needed for compatibility with Android 12.
+	         */
+	        override fun onDeviceFound(chooserLauncher: IntentSender) {
+	            onAssociationPending(chooserLauncher)
+	        }
 
             override fun onAssociationCreated(associationInfo: AssociationInfo) {
                 GB.toast("Companion pairing success", Toast.LENGTH_SHORT, GB.INFO)

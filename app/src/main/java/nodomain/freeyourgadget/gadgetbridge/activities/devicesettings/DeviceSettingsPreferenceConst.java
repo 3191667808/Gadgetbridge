@@ -47,6 +47,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SCREEN_SLEEP_MODE = "pref_screen_sleep_mode";
     public static final String PREF_SCREEN_LIFT_WRIST = "pref_screen_lift_wrist";
     public static final String PREF_SCREEN_PASSWORD = "pref_screen_password";
+    public static final String PREF_PASSWORD = "pref_password";
+    public static final String PREF_PASSWORD_ENABLED = "pref_password_enabled";
     public static final String PREF_SCREEN_GPS = "pref_screen_gps";
     public static final String PREF_SCREEN_ALWAYS_ON_DISPLAY = "pref_screen_always_on_display";
     public static final String PREF_SCREEN_HEARTRATE_MONITORING = "pref_screen_heartrate_monitoring";
@@ -170,6 +172,7 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_ALWAYS_ON_DISPLAY_STYLE = "always_on_display_style";
 
     public static final String PREF_VOLUME = "volume";
+    public static final String PREF_PROMPT_TONE = "prompt_tone";
     public static final String PREF_CROWN_VIBRATION = "crown_vibration";
     public static final String PREF_ALERT_TONE = "alert_tone";
     public static final String PREF_COVER_TO_MUTE = "cover_to_mute";
@@ -327,6 +330,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_HYDRATION_DND = "pref_hydration_dnd";
     public static final String PREF_HYDRATION_DND_START = "pref_hydration_dnd_start";
     public static final String PREF_HYDRATION_DND_END = "pref_hydration_dnd_end";
+    public static final String PREF_HYDRATION_REMINDER_START = "pref_hydration_reminder_start";
+    public static final String PREF_HYDRATION_REMINDER_END = "pref_hydration_reminder_end";
     public static final String PREF_AMPM_ENABLED = "pref_ampm_enabled";
 
     public static final String PREF_SONYSWR12_LOW_VIBRATION = "vibration_preference";
@@ -374,7 +379,11 @@ public class DeviceSettingsPreferenceConst {
 
     public static final String PREF_NOTHING_EAR1_INEAR = "pref_nothing_inear_detection";
     public static final String PREF_NOTHING_EAR1_AUDIOMODE = "pref_nothing_audiomode";
-
+    public static final String PREF_NOTHING_EAR1_ULTRA_BASS_ENABLED = "pref_nothing_ultra_bass_enabled";
+    public static final String PREF_NOTHING_EAR1_ULTRA_BASS_LEVEL = "pref_nothing_ultra_bass_level";
+    public static final String PREF_HEADPHONES_EQUALIZER = "pref_headphones_equalizer";
+    public static final String PREF_HEADPHONES_LOW_LATENCY = "pref_headphones_low_latency";
+    public static final String PREF_NOTHING_EAR1_SPATIAL_AUDIO = "pref_nothing_spatial_audio";
 
     public static final String PREF_HUAWEI_FREEBUDS_INEAR = "pref_freebuds_inear_detection";
     public static final String PREF_HUAWEI_FREEBUDS_AUDIOMODE = "pref_freebuds_audiomode";
@@ -516,6 +525,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SOUNDCORE_VOICE_PROMPTS = "pref_soundcore_voice_prompts";
     public static final String PREF_SOUNDCORE_BUTTON_BRIGHTNESS = "pref_soundcore_button_brightness";
     public static final String PREF_SOUNDCORE_AUTO_POWER_OFF = "pref_soundcore_auto_power_off";
+    public static final String PREF_SOUNDCORE_3D_SURROUND = "pref_soundcore_3d_surround";
+    public static final String PREF_SOUNDCORE_ENABLE_PAIRING_MODE = "pref_soundcore_enable_pairing_mode";
     public static final String PREF_SOUNDCORE_LDAC_MODE = "pref_soundcore_ldac_mode";
     public static final String PREF_SOUNDCORE_GAMING_MODE = "pref_soundcore_gaming_mode";
     public static final String PREF_SOUNDCORE_ADAPTIVE_DIRECTION = "pref_soundcore_adaptive_direction";
@@ -552,6 +563,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SONY_SURROUND_MODE = "pref_sony_surround_mode";
     public static final String PREF_SONY_EQUALIZER = "pref_sony_equalizer";
     public static final String PREF_SONY_EQUALIZER_MODE = "pref_sony_equalizer_mode";
+    public static final String PREF_SONY_AUDIO_HD = "pref_sony_audio_hd";
+    public static final String PREF_SONY_BUTTON_FUNCTION_NC_AMBIENT = "pref_sony_button_function_nc_ambient";
     public static final String PREF_SONY_AUDIO_UPSAMPLING = "pref_sony_audio_upsampling";
     public static final String PREF_SONY_EQUALIZER_BAND_400 = "pref_sony_equalizer_band_400";
     public static final String PREF_SONY_EQUALIZER_BAND_1000 = "pref_sony_equalizer_band_1000";
@@ -574,6 +587,11 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SONY_CONNECT_TWO_DEVICES = "pref_sony_connect_two_devices";
     public static final String PREF_SONY_ADAPTIVE_VOLUME_CONTROL = "pref_adaptive_volume_control";
     public static final String PREF_SONY_WIDE_AREA_TAP = "pref_wide_area_tap";
+
+    public static final String PREF_GYMLINK_ENABLED = "gymlink_enabled";
+    public static final String PREF_ANTPLUS_ENABLED = "antplus_enabled";
+    public static final String PREF_HR_BROADCAST = "hr_broadcast";
+    public static final String PREF_DUAL_CONNECTION = "dual_connection";
 
     public static final String PREF_MEDIA_SOURCE = "pref_media_source";
     public static final String PREF_MEDIA_PLAYBACK_MODE = "pref_media_playback_mode";
@@ -600,6 +618,7 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_MOONDROP_TOUCH_ASSISTANT_TRIGGER = "pref_moondrop_touch_assistant_trigger";
     public static final String PREF_MOONDROP_TOUCH_ANC_MODE_EARBUD = "pref_moondrop_touch_anc_mode_earbud";
     public static final String PREF_MOONDROP_TOUCH_ANC_MODE_TRIGGER = "pref_moondrop_touch_anc_mode_trigger";
+    public static final String PREF_MOONDROP_ANC_MODE = "pref_moondrop_anc_mode";
 
     public static final String PREF_MISCALE_SMALL_OBJECTS = "pref_miscale_small_objects";
 

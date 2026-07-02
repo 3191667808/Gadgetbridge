@@ -39,13 +39,11 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.SwitchPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
 import com.bytehamster.lib.preferencesearch.SearchPreferenceResult;
@@ -68,6 +66,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.automations.AutomationsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.ChartsPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.discovery.DiscoveryPairingPreferenceActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.OnlineFitnessTrackersPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.maps.MapsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.preferences.HealthConnectPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.TimeChangeReceiver;
@@ -204,6 +203,13 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                         });
                     }
                 }
+
+                final SwitchPreferenceCompat logLevelTrace = findPreference("log_level_trace");
+                logLevelTrace.setOnPreferenceChangeListener((preference, newVal) -> {
+                    final boolean traceEnabled = Boolean.TRUE.equals(newVal);
+                    Logging.getInstance().setTraceLogging(traceEnabled);
+                    return true;
+                });
             }
 
             pref = findPreference(PREF_LANGUAGE);
@@ -409,6 +415,15 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                 });
             }
 
+            pref = findPreference("pref_category_online_fitness_trackers");
+            if (pref != null) {
+                pref.setOnPreferenceClickListener(preference -> {
+                    Intent enableIntent = new Intent(requireContext(), OnlineFitnessTrackersPreferencesActivity.class);
+                    startActivity(enableIntent);
+                    return true;
+                });
+            }
+
             pref = findPreference("pref_category_notifications");
             if (pref != null) {
                 pref.setOnPreferenceClickListener(preference -> {
@@ -514,7 +529,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                                 editor.putString("opentracks_packagename", fitnessAppEditText.getText().toString());
                                 editor.apply();
                             })
-                            .setNegativeButton(R.string.Cancel, (dialog, which) -> {})
+                            .setNegativeButton(R.string.cancel, (dialog, which) -> {})
                             .show();
                     return false;
                 });

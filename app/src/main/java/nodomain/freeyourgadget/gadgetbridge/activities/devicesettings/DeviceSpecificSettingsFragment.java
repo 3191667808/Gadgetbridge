@@ -52,6 +52,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
@@ -81,6 +82,11 @@ import nodomain.freeyourgadget.gadgetbridge.activities.ConfigureWorldClocks;
 import nodomain.freeyourgadget.gadgetbridge.activities.NotificationsAppIconUploadActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.app_specific_notifications.AppSpecificNotificationSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.audiorecordings.AudioRecordingsActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSetting;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingRenderer;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.ScreenSetting;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.XmlScreenSetting;
 import nodomain.freeyourgadget.gadgetbridge.activities.internet.InternetFirewallActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst;
@@ -93,6 +99,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceManager;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.HuamiConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
@@ -110,6 +117,22 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
     private DeviceSpecificSettingsCustomizer deviceSpecificSettingsCustomizer;
 
     private GBDevice device;
+
+    /**
+     * Visibility-refresh callback returned by {@link DeviceSettingRenderer}
+     * after rendering model-provided preferences. Invoked when device connection state changes so
+     * that conditional visibility predicates are re-evaluated.
+     */
+    @Nullable
+    private Runnable modelVisibilityRefresh;
+
+    /**
+     * Preference keys owned by the programmatic model renderer. {@link #addPreferenceHandlerFor}
+     * skips these so that {@link #setChangeListener} cannot overwrite the renderer-registered
+     * change listeners.
+     */
+    @Nullable
+    private java.util.Set<String> modelManagedKeys;
 
     private void setSettingsFileSuffix(String settingsFileSuffix) {
         Bundle args = new Bundle();
@@ -147,6 +170,9 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
                         deviceSpecificSettingsCustomizer.onDeviceChanged(DeviceSpecificSettingsFragment.this);
                     }
                     reloadEnabledPreferences();
+                    if (modelVisibilityRefresh != null) {
+                        modelVisibilityRefresh.run();
+                    }
                 }
             }
         }
@@ -191,15 +217,55 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
 
         LOG.debug("onCreatePreferences: {}", rootKey);
 
+        if (rootKey != null) {
+            // Check whether rootKey belongs to a model-defined ScreenSetting and, if so, render
+            // the screen programmatically, bypassing the XML inflation path entirely.
+            final DeviceSettingsSpec modelSpec = device.getDeviceCoordinator().getDeviceSettings(device);
+            if (modelSpec != null) {
+                final ScreenSetting modelScreen = modelSpec.findScreen(rootKey);
+                if (modelScreen != null) {
+                    final PreferenceScreen prefScreen = getPreferenceManager().createPreferenceScreen(requireContext());
+                    prefScreen.setKey(rootKey);
+                    prefScreen.setTitle(modelScreen.getTitle());
+                    setPreferenceScreen(prefScreen);
+                    final Prefs prefs = new Prefs(getPreferenceManager().getSharedPreferences());
+                    modelVisibilityRefresh = DeviceSettingRenderer.INSTANCE.render(
+                            modelScreen.getChildren(),
+                            prefScreen,
+                            prefs,
+                            this
+                    );
+                    reloadEnabledPreferences();
+                    return;
+                }
+            }
+        }
+
         if (rootKey == null) {
             // we are the main preference screen
-            boolean first = true;
-            for (int setting : deviceSpecificSettings.getRootScreens()) {
-                if (first) {
-                    setPreferencesFromResource(setting, null);
-                    first = false;
-                } else {
-                    addPreferencesFromResource(setting);
+            final DeviceSettingsSpec modelSpec = device.getDeviceCoordinator().getDeviceSettings(device);
+            if (modelSpec != null) {
+                modelManagedKeys = modelSpec.collectAllKeys();
+                setPreferenceScreen(getPreferenceManager().createPreferenceScreen(requireContext()));
+                final Prefs prefs = new Prefs(getPreferenceManager().getSharedPreferences());
+                modelVisibilityRefresh = DeviceSettingRenderer.INSTANCE.render(
+                        modelSpec.getItems(),
+                        getPreferenceScreen(),
+                        prefs,
+                        this
+                );
+                for (final int screen : deviceSpecificSettings.getRootScreens()) {
+                    addPreferencesFromResource(screen);
+                }
+            } else {
+                boolean first = true;
+                for (int setting : deviceSpecificSettings.getRootScreens()) {
+                    if (first) {
+                        setPreferencesFromResource(setting, null);
+                        first = false;
+                    } else {
+                        addPreferencesFromResource(setting);
+                    }
                 }
             }
         } else {
@@ -678,10 +744,18 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_HYDRATION_DND);
         addPreferenceHandlerFor(PREF_HYDRATION_DND_START);
         addPreferenceHandlerFor(PREF_HYDRATION_DND_END);
+        addPreferenceHandlerFor(PREF_HYDRATION_REMINDER_START);
+        addPreferenceHandlerFor(PREF_HYDRATION_REMINDER_END);
         addPreferenceHandlerFor(PREF_AMPM_ENABLED);
         addPreferenceHandlerFor(PREF_SOUNDS);
         addPreferenceHandlerFor(PREF_CAMERA_REMOTE);
         addPreferenceHandlerFor(PREF_SCREEN_LIFT_WRIST);
+
+        final Preference sendGpsToBandPref = findPreference(PREF_WORKOUT_SEND_GPS_TO_BAND);
+        if (sendGpsToBandPref != null && !GBLocationService.isGpsSupportedAndEnabled()) {
+            sendGpsToBandPref.setEnabled(false);
+            sendGpsToBandPref.setSummary(R.string.phone_gps_not_available);
+        }
 
         addPreferenceHandlerFor(PREF_BATTERY_POLLING_ENABLE);
         addPreferenceHandlerFor(PREF_BATTERY_POLLING_INTERVAL);
@@ -730,6 +804,11 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
 
         addPreferenceHandlerFor(PREF_NOTHING_EAR1_INEAR);
         addPreferenceHandlerFor(PREF_NOTHING_EAR1_AUDIOMODE);
+        addPreferenceHandlerFor(PREF_HEADPHONES_LOW_LATENCY);
+        addPreferenceHandlerFor(PREF_HEADPHONES_EQUALIZER);
+        addPreferenceHandlerFor(PREF_NOTHING_EAR1_ULTRA_BASS_ENABLED);
+        addPreferenceHandlerFor(PREF_NOTHING_EAR1_ULTRA_BASS_LEVEL);
+        addPreferenceHandlerFor(PREF_NOTHING_EAR1_SPATIAL_AUDIO);
 
         addPreferenceHandlerFor(PREF_HUAWEI_FREEBUDS_INEAR);
         addPreferenceHandlerFor(PREF_HUAWEI_FREEBUDS_AUDIOMODE);
@@ -840,6 +919,8 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_SONY_EQUALIZER_BAND_6300);
         addPreferenceHandlerFor(PREF_SONY_EQUALIZER_BAND_16000);
         addPreferenceHandlerFor(PREF_SONY_EQUALIZER_BASS);
+        addPreferenceHandlerFor(PREF_SONY_AUDIO_HD);
+        addPreferenceHandlerFor(PREF_SONY_BUTTON_FUNCTION_NC_AMBIENT);
         addPreferenceHandlerFor(PREF_SONY_AUDIO_UPSAMPLING);
         addPreferenceHandlerFor(PREF_SONY_TOUCH_SENSOR);
         addPreferenceHandlerFor(PREF_SONY_PAUSE_WHEN_TAKEN_OFF);
@@ -857,10 +938,11 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_SONY_ADAPTIVE_VOLUME_CONTROL);
         addPreferenceHandlerFor(PREF_SONY_WIDE_AREA_TAP);
 
-        addPreferenceHandlerFor(PREF_MEDIA_SOURCE);
-        addPreferenceHandlerFor(PREF_MEDIA_PLAYBACK_MODE);
-        addPreferenceHandlerFor(PREF_SHOKZ_EQUALIZER_BLUETOOTH);
-        addPreferenceHandlerFor(PREF_SHOKZ_EQUALIZER_MP3);
+        addPreferenceHandlerFor(PREF_GYMLINK_ENABLED);
+        addPreferenceHandlerFor(PREF_ANTPLUS_ENABLED);
+        addPreferenceHandlerFor(PREF_HR_BROADCAST);
+        addPreferenceHandlerFor(PREF_DUAL_CONNECTION);
+
         addPreferenceHandlerFor(PREF_SOS_CONTACT_NAME);
         addPreferenceHandlerFor(PREF_SOS_CONTACT_NUMBER);
 
@@ -892,6 +974,7 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_SOUNDCORE_VOICE_PROMPTS);
         addPreferenceHandlerFor(PREF_SOUNDCORE_BUTTON_BRIGHTNESS);
         addPreferenceHandlerFor(PREF_SOUNDCORE_AUTO_POWER_OFF);
+        addPreferenceHandlerFor(PREF_SOUNDCORE_3D_SURROUND);
         addPreferenceHandlerFor(PREF_SOUNDCORE_LDAC_MODE);
         addPreferenceHandlerFor(PREF_SOUNDCORE_GAMING_MODE);
         addPreferenceHandlerFor(PREF_SOUNDCORE_ADAPTIVE_DIRECTION);
@@ -917,6 +1000,7 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
         addPreferenceHandlerFor(PREF_SOUNDCORE_EQUALIZER_BAND9_VALUE);
 
         addPreferenceHandlerFor(PREF_MOONDROP_EQUALIZER_PRESET);
+        addPreferenceHandlerFor(PREF_MOONDROP_ANC_MODE);
         addPreferenceHandlerFor(PREF_MOONDROP_TOUCH_PLAY_PAUSE_EARBUD);
         addPreferenceHandlerFor(PREF_MOONDROP_TOUCH_PLAY_PAUSE_TRIGGER);
         addPreferenceHandlerFor(PREF_MOONDROP_TOUCH_MEDIA_PREV_EARBUD);
@@ -981,6 +1065,7 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
 
         addPreferenceHandlerFor(PREF_VOLUME);
         addPreferenceHandlerFor(PREF_CROWN_VIBRATION);
+        addPreferenceHandlerFor(PREF_PROMPT_TONE);
         addPreferenceHandlerFor(PREF_ALERT_TONE);
         addPreferenceHandlerFor(PREF_COVER_TO_MUTE);
         addPreferenceHandlerFor(PREF_VIBRATE_FOR_ALERT);
@@ -1599,12 +1684,25 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
                 deviceSpecificSettings.addRootScreen(s);
             }
         } else { //device/application settings
-            if (coordinator.getSupportedLanguageSettings(device) != null) {
-                deviceSpecificSettings.addRootScreen(R.xml.devicesettings_language_generic);
-            }
-            DeviceSpecificSettings coordinatorDeviceSettings = coordinator.getDeviceSpecificSettings(device);
-            if (coordinatorDeviceSettings != null) {
-                deviceSpecificSettings.mergeFrom(coordinatorDeviceSettings);
+            final DeviceSettingsSpec modelSpec = coordinator.getDeviceSettings(device);
+            if (modelSpec != null) {
+                for (final DeviceSetting item : modelSpec.getItems()) {
+                    if (item instanceof XmlScreenSetting xmlScreen) {
+                        deviceSpecificSettings.addRootScreen(
+                                xmlScreen.getScreen(),
+                                xmlScreen.getSubScreens().stream().mapToInt(Integer::intValue).toArray()
+                        );
+                    }
+                }
+                deviceSpecificSettings.addConnectedPreferences(modelSpec.collectConnectedKeys());
+            } else {
+                if (coordinator.getSupportedLanguageSettings(device) != null) {
+                    deviceSpecificSettings.addRootScreen(R.xml.devicesettings_language_generic);
+                }
+                final DeviceSpecificSettings coordinatorDeviceSettings = coordinator.getDeviceSpecificSettings(device);
+                if (coordinatorDeviceSettings != null) {
+                    deviceSpecificSettings.mergeFrom(coordinatorDeviceSettings);
+                }
             }
             final int[] supportedAuthSettings = coordinator.getSupportedDeviceSpecificAuthenticationSettings();
             if (supportedAuthSettings != null && supportedAuthSettings.length > 0) {
@@ -1643,11 +1741,20 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
                     R.xml.devicesettings_device_support_can_reconnect
             );
 
-            deviceSpecificSettings.addRootScreen(
-                    DeviceSpecificSettingsScreen.DEVELOPER,
+            final List<Integer> intentApiSubScreens = new ArrayList<>();
+            Collections.addAll(
+                    intentApiSubScreens,
                     R.xml.devicesettings_header_intent_api,
                     R.xml.devicesettings_settings_third_party_apps
             );
+            if (coordinator.getAlarmSlotCount(device) > 0) {
+                intentApiSubScreens.add(R.xml.devicesettings_alarms_third_party_apps);
+            }
+            deviceSpecificSettings.addRootScreen(
+                    DeviceSpecificSettingsScreen.DEVELOPER,
+                    intentApiSubScreens
+            );
+
             if (coordinator.getConnectionType().usesBluetoothLE()) {
                 deviceSpecificSettings.addRootScreen(
                         DeviceSpecificSettingsScreen.DEVELOPER,
@@ -1708,6 +1815,10 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
 
     @Override
     public void addPreferenceHandlerFor(final String preferenceKey, final Preference.OnPreferenceChangeListener extraListener) {
+        if (modelManagedKeys != null && modelManagedKeys.contains(preferenceKey)) {
+            LOG.trace("Ignoring addPreferenceHandlerFor {} - already declared in model", preferenceKey);
+            return;
+        }
         Preference pref = findPreference(preferenceKey);
         if (pref != null) {
             pref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
@@ -1728,6 +1839,11 @@ public class DeviceSpecificSettingsFragment extends AbstractPreferenceFragment i
     @Override
     public GBDevice getDevice() {
         return device;
+    }
+
+    @Override
+    public void navigateToScreen(@NonNull final PreferenceScreen screen) {
+        onNavigateToScreen(screen);
     }
 
     @Override

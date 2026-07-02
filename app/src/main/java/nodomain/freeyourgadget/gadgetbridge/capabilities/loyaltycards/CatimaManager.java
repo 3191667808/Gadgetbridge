@@ -23,7 +23,6 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.Loyal
 import static nodomain.freeyourgadget.gadgetbridge.activities.loyaltycards.LoyaltyCardsSettingsConst.LOYALTY_CARDS_SYNC_STARRED;
 
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.widget.Toast;
 
 import org.slf4j.Logger;
@@ -69,10 +68,15 @@ public class CatimaManager {
         final String catimaPackage = prefs.getString(LOYALTY_CARDS_CATIMA_PACKAGE, installedCatimaPackages.get(0).toString());
         final CatimaContentProvider catima = new CatimaContentProvider(context, catimaPackage);
 
+        LOG.debug("Syncing loyalty cards from {}", catimaPackage);
+
         if (!catima.isCatimaCompatible()) {
             LOG.warn("Catima is not compatible");
             return;
         }
+
+        // FossWallet does not support starred sync
+        final boolean starredSupported = catimaPackage.contains("catima");
 
         final List<LoyaltyCard> cards = catima.getCards();
         final Map<String, List<Integer>> groupCards = catima.getGroupCards();
@@ -100,7 +104,7 @@ public class CatimaManager {
             if (!syncArchived && card.isArchived()) {
                 continue;
             }
-            if (syncStarred && !card.isStarred()) {
+            if (starredSupported && syncStarred && !card.isStarred()) {
                 continue;
             }
             cardsToSync.add(card);

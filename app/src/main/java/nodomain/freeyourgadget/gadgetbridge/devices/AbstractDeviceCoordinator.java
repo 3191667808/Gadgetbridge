@@ -94,6 +94,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.GpxActivityTrackProvider;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
 import nodomain.freeyourgadget.gadgetbridge.model.PaiSample;
 import nodomain.freeyourgadget.gadgetbridge.model.RespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.RestingMetabolicRateSample;
@@ -118,7 +119,7 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     protected Pattern supportedDeviceName = null;
 
     /**
-     * This method should return a Regexp pattern that will matched against a found device
+     * This method should return a Regexp pattern that will be matched against a found device
      * to check whether this coordinator supports that device.
      * If more sophisticated logic is needed to determine device support, the supports(GBDeviceCandidate)
      * should be overridden.
@@ -613,6 +614,15 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public int getBlePhyMask() {
+        // this is specified as a recommendation ("prefer to use ...") by Google
+        // however some roms - e.g. MIUI - treat it as law ("must only use ...") (#6230)
+        // -> by default prefer more reliable physical layers (PHYs) over high throughput 2M
+
+        return BluetoothDevice.PHY_LE_1M_MASK | BluetoothDevice.PHY_LE_CODED_MASK;
+    }
+
+    @Override
     public boolean suggestUnbindBeforePair() {
         return true;
     }
@@ -679,6 +689,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Override
     public boolean supportsActiveCalories(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsActivityDistance(@NonNull GBDevice device) {
         return false;
     }
 
@@ -985,7 +1000,9 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         if (connectionType.usesBluetoothClassic() || connectionType.usesBluetoothLE()) {
             settings = ArrayUtils.insert(0, settings, R.xml.devicesettings_reconnect_periodic);
             settings = ArrayUtils.insert(0, settings, R.xml.devicesettings_device_connect_back);
-            settings = ArrayUtils.add(settings, R.xml.devicesettings_connection_priority_low_power);
+            if (supportsConnectionPriority()) {
+                settings = ArrayUtils.add(settings, R.xml.devicesettings_connection_priority_low_power);
+            }
         }
 
         return settings;
@@ -1195,5 +1212,21 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     public int getReconnectionDelay() {
         // 2 seconds.
         return 2000;
+    }
+
+    @Override
+    public boolean supportsConnectionPriority() {
+        return true;
+    }
+
+    @Override
+    public GenericMetricSampleProvider getMetricsSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session) {
+        return new GenericMetricSampleProvider(device, session);
+    }
+
+    @Override
+    @NonNull
+    public Set<MetricSample.Metric> supportsMetrics(@NonNull GBDevice device) {
+        return GenericMetricSampleProvider.getSupportedMetrics(device);
     }
 }

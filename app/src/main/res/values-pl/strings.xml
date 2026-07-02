@@ -259,8 +259,8 @@
     <string name="dbmanagementactivity_overwrite_database_confirmation">Czy naprawdę nadpisać bieżące dane? Wszystkie Twoje dane dotyczące aktywności (jeśli istnieją), urządzenia i preferencje zostaną nadpisane.</string>
     <string name="dbmanagementactivity_error_importing_db">Błąd importu bazy: %1$s</string>
     <string name="dbmanagementactivity_overwrite">Nadpisz</string>
-    <string name="Cancel">Anuluj</string>
-    <string name="Delete">Usuń</string>
+    <string name="cancel">Anuluj</string>
+    <string name="delete">Usuń</string>
     <!--Strings related to Vibration Activity-->
     <string name="title_activity_vibration">Wibracje</string>
     <!--Strings related to Pebble Pairing Activity-->
@@ -418,7 +418,7 @@
     <string name="minutes_5">5 minut</string>
     <string name="minutes_10">10 minut</string>
     <string name="minutes_30">30 minut</string>
-    <string name="lack_of_step">Pozostało kroków: %1$d</string>
+    <string name="lack_of_step">Pozostało kroków: %1$s</string>
     <string name="pref_title_low_latency_fw_update">Użyj trybu o niskiej latencji przy aktualizacji firmware</string>
     <string name="live_activity_max_heart_rate">Aktualny / Maks. tętno: %1$d / %2$d</string>
     <string name="you_slept">%1$s – %2$s</string>
@@ -473,7 +473,7 @@
     <string name="find_device_you_found_it">Znalezione!</string>
     <string name="mi2_fw_installhandler_fw53_hint">Zanim wgrasz to firmware, musisz wgrać wersję %1$s!</string>
     <string name="mi2_enable_text_notifications">Powiadomienia tekstowe</string>
-    <string name="mi2_enable_text_notifications_summary">Wymaga firmware w wersji &gt;= 1.0.1.28 i zainstalowanego Mili_pro.ft*</string>
+    <string name="mi2_enable_text_notifications_summary"><![CDATA[Wymaga firmware w wersji &gt;= 1.0.1.28 i zainstalowanego Mili_pro.ft*]]></string>
     <string name="on">Wł.</string>
     <string name="off">Wył.</string>
     <string name="mi2_dnd_off">Wył.</string>
@@ -526,7 +526,7 @@
     <string name="debugactivity_really_factoryreset_title">Przywrócić do ustawień fabrycznych\?</string>
     <string name="debugactivity_really_factoryreset">Powrót do ustawień fabrycznych spowoduje usunięcie wszystkich danych z podłączonego urządzenia (jeśli jest obsługiwane). Urządzenia Xiaomi/Huami zmienią również adres MAC Bluetooth, więc pojawią się dla Gadgetbridge jako nowe urządzenia.</string>
     <string name="overslept">Nadmiar snu: %1$s</string>
-    <string name="overstep">Przekroczenie: %1$d</string>
+    <string name="overstep">Przekroczenie: %1$s</string>
     <string name="you_did_not_sleep">Nie spałeś(-aś)</string>
     <string name="mi2_prefs_button_press_broadcast">Wiadomość do rozgłoszenia</string>
     <string name="mi2_prefs_button_press_broadcast_summary">Wiadomość rozgłoszeniowa wysłana ze zdarzeniem. Parametr „button_id” jest dodawany do każdej wiadomości automatycznie.</string>
@@ -678,8 +678,6 @@
 \nKONTYNUUJ NA WŁASNE RYZYKO!</string>
     <string name="pref_chart_heartrate_color_orange">Pomarańczowy</string>
     <string name="pref_title_chart_sleep_rolling_24_hour">Zakres snu</string>
-    <string name="pref_chart_sleep_rolling_24_on">Ostatnie 24 godziny</string>
-    <string name="pref_chart_sleep_rolling_24_off">Od południa do południa</string>
     <string name="fw_upgrade_notice_amazfitgts">Właśnie zamierzasz zainstalować oprogramowanie układowe %s na swoim Amazfit GTS.
 \n
 \nProszę upewnić się, że zainstalowany został plik .fw, następnie plik .res i na końcu plik .gps. Po zainstalowaniu pliku .fw Twój zegarek zostanie ponownie uruchomiony.
@@ -687,7 +685,6 @@
 \nUwaga: Nie musisz instalować plików .res i .gps, jeśli te pliki są dokładnie takie same jak te, które zostały wcześniej zainstalowane.
 \n
 \nKONTYNUUJ NA WŁASNE RYZYKO!</string>
-    <string name="preferences_qhybrid_settings">Ustawienia Q Hybrid</string>
     <string name="pref_disable_new_ble_scanning">Wyłącz nowe skanowania BLE</string>
     <string name="pref_summary_disable_new_ble_scanning">Zaznacz tę opcję, jeśli urządzenie nie może zostać znalezione podczas wykrywania</string>
     <string name="alarm_snooze">Drzemka</string>
@@ -745,16 +742,12 @@
     <string name="discovery_need_to_enter_authkey">To urządzenie wymaga poufnego klucza autoryzacji, naciśnij i przytrzymaj, aby go wprowadzić. Więcej informacji na stronie internetowej.</string>
     <string name="pref_title_chart_heartrate_color">Kolor tętna</string>
     <string name="watch_not_connected">Zegarek niepołączony</string>
-    <string name="qhybrid_vibration_strength">siła wibracji:</string>
-    <string name="qhybrid_goal_in_steps">Cel w krokach</string>
-    <string name="qhybrid_second_timezone_offset_relative_to_utc">przesunięcie drugiej strefy czasowej względem czasu UTC</string>
-    <string name="qhybrid_overwrite_buttons">nadpisanie przycisków</string>
-    <string name="qhybrid_prompt_million_steps">Proszę ustawić liczbę kroków na milion, aby to aktywować.</string>
+    <string name="qhybrid_second_timezone_offset_relative_to_utc">Różnica czasu w stosunku do czasu UTC</string>
     <string name="qhybrid_buttons_overwrite_success">Przyciski zostały nadpisane</string>
     <string name="qhybrid_buttons_overwrite_error">Błąd podczas nadpisania przycisków</string>
-    <string name="qhybrid_offset_timezone">przesunięcie strefy czasowej o</string>
-    <string name="qhybrid_changes_delay_prompt">zmiana może potrwać kilka sekund…</string>
-    <string name="qhybrid_offset_time_by">przesunięcie czasu o</string>
+    <string name="qhybrid_offset_timezone">Przesuń strefę czasową o</string>
+    <string name="qhybrid_changes_delay_prompt">Zmiana może potrwać kilka sekund…</string>
+    <string name="qhybrid_offset_time_by">Przesuń czas o</string>
     <string name="prefs_button_single_press_action_selection_title">Akcja zdarzenia 1</string>
     <string name="prefs_button_double_press_action_selection_title">Akcja zdarzenia 2</string>
     <string name="prefs_button_triple_press_action_selection_title">Akcja zdarzenia 3</string>
@@ -763,8 +756,8 @@
     <string name="activity_web_view">Przeglądanie aktywności w sieci</string>
     <string name="reset_index">Zresetuj datę pobierania</string>
     <string name="zetime_activity_tracking_summary">Włączenie śledzenia aktywności policzy twoje kroki i inne.</string>
-    <string name="qhybrid_time_shift">przesunięcie czasowe</string>
-    <string name="qhybrid_use_activity_hand_as_notification_counter">użyj ręki aktywności jako licznika powiadomień</string>
+    <string name="qhybrid_time_shift">Przesunięcie w czasie</string>
+    <string name="qhybrid_use_activity_hand_as_notification_counter">Użyj wskaźnika aktywności jako licznika powiadomień</string>
     <string name="error_no_location_access">Dostęp do lokalizacji musi zostać przyznany i włączony, aby skanowanie działało poprawnie</string>
     <string name="pref_summary_allow_high_mtu">Zwiększa szybkość transferu, ale może nie działać na niektórych urządzeniach z Androidem.</string>
     <string name="pref_title_allow_high_mtu">Zezwól na wysoki MTU</string>
@@ -1434,10 +1427,6 @@
     <string name="pref_media_forward">Przejdź do przodu</string>
     <string name="pref_media_rewind">Przejdź do tyłu</string>
     <string name="pref_device_action_broadcast">Wyślij transmisję</string>
-    <string name="distance_format_meters">###m</string>
-    <string name="distance_format_kilometers">###.#km</string>
-    <string name="distance_format_miles">###.#mi</string>
-    <string name="distance_format_feet">###ft</string>
     <string name="prefs_activity_recognition">Ustawienia rozpoznawania aktywności</string>
     <string name="pref_activity_recognize_biking">rozpoznaj jazdę na rowerze</string>
     <string name="pref_activity_recognize_walking">rozpoznaj chodzenie</string>
@@ -1803,7 +1792,7 @@
     <string name="pref_header_authentication">Uwierzytelnianie</string>
     <string name="abstract_chart_fragment_kind_rem_sleep">Sen w fazie REM</string>
     <string name="TrainingEffect">Efekt treningu</string>
-    <string name="currentWorkoutLoad">Obciążenie treningu</string>
+    <string name="currentWorkoutLoad">Obciążenie treningowe</string>
     <string name="maximumOxygenUptake">Maksymalny pobór tlenu</string>
     <string name="pref_chart_sleep_lines_limit">Ile wierszy sesji snu pokazać przed ich przewinięciem</string>
     <string name="supercars_lights_blinking_label">Mruganie</string>
@@ -2090,7 +2079,6 @@
     <string name="updatefirmwareoperation_updateproblem_free_space">Na urządzeniu nie ma wystarczającej ilości wolnego miejsca</string>
     <string name="busy_task_fetch_sports_summaries">Pobieranie podsumowań sportowych</string>
     <string name="prefs_wena3_home_icon_name_calories">Kalorie</string>
-    <string name="loyalty_cards_install">Zainstaluj Catimę</string>
     <string name="prefs_home_icon_left_item">Do lewej</string>
     <string name="prefs_wena3_led_none">Bez LED</string>
     <string name="spanish_es">Hiszpański (Hiszpania)</string>
@@ -2154,7 +2142,6 @@
     <string name="menuitem_cards">Karty</string>
     <string name="prefs_wena3_item_weather_statusbar">Pogoda w pasku stanu</string>
     <string name="loyalty_cards_sync_groups_only">Synchronizuj tylko określone grupy</string>
-    <string name="loyalty_cards_catima_permissions_summary">Gadgetbridge potrzebuje uprawnień do odczytu kart Catima, aby je zsynchronizować. Dotknij tego przycisku, aby je przyznać.</string>
     <string name="zepp_os_watchface_red_fantasy">Czerwona fantazja</string>
     <string name="prefs_shortcut_cards">Karty skrótów</string>
     <string name="temperature_scale_celsius">Skala Celsjusza</string>
@@ -2173,7 +2160,6 @@
     <string name="english_au">Angielski (Australia)</string>
     <string name="prefs_wena3_home_icon_name_energy">Energia ciała</string>
     <string name="permission_request">%1$s umożliwia wysyłanie wiadomości i innych danych z Androida na Twoje urządzenie. Aby to zrobić, wymagany jest dostęp do tych danych i bez niego może nie działać poprawnie. \n \nZostanie wyświetlonych kilka okien dialogowych Androida z prośbą o te uprawnienia. \n \nAby kontynuować, kliknij „%2$s”.</string>
-    <string name="loyalty_cards_catima_package">Nazwa pakietu Catima</string>
     <string name="prefs_wena3_notification_vibration_repetition_2">Dwukrotnie</string>
     <string name="prefs_wena3_auto_power_off_hint">Urządzenie wyłączy się i włączy automatycznie według określonego harmonogramu</string>
     <string name="menuitem_vo2_max">Maks VO₂</string>
@@ -2181,13 +2167,12 @@
     <string name="button_reset_menu_structure">Resetuj strukturę menu</string>
     <string name="contact_name">Nazwa</string>
     <string name="pref_title_navigation_forward">Wyślij nawigację do zegarka</string>
-    <string name="changelog_ok_button">Ok</string>
+    <string name="changelog_ok_button">OK</string>
     <string name="sony_button_mode_help_summary">Opis każdego trybu przycisku</string>
     <string name="drag_handle">Przeciągnij uchwyt</string>
     <string name="prefs_wena3_hint_large_font">Zwiększ rozmiar czcionki w kalendarzu, powiadomieniach itp.</string>
     <string name="loyalty_cards_sync_summary">Kliknij, aby zsynchronizować karty z zegarkiem</string>
     <string name="prefs_wena3_button_action_item_double">Podwójne naciśnięcie</string>
-    <string name="loyalty_cards_open_catima">Otwórz Catimę</string>
     <string name="prefs_wena3_vibration_rapid">Szybkie</string>
     <string name="text_receiver_activity_title">Wyślij SMS-a na urządzenie</string>
     <string name="prefs_wena3_button_action_name_qrio_unlock">Blokada Qrio</string>
@@ -2241,7 +2226,6 @@
     <string name="loyalty_cards_sync_starred">Synchronizuj tylko karty oznaczone gwiazdką</string>
     <string name="changelog_full_title">Lista zmian</string>
     <string name="pref_contacts_summary">Skonfiguruj kontakty na zegarku</string>
-    <string name="loyalty_cards_install_catima_fail">Nie udało się otworzyć sklepu z aplikacjami, aby zainstalować Catimę</string>
     <string name="preview_image">Miniaturka</string>
     <string name="loyalty_cards_sync">Synchronizuj</string>
     <string name="english_gb">Angielski (Wielka Brytania)</string>
@@ -2249,7 +2233,6 @@
     <string name="intent_api_allow_debug_commands_summary">Zezwalaj na uruchamianie poleceń menu debugowania za pośrednictwem interfejsu Intent API</string>
     <string name="loyalty_cards_sync_options">Opcje synchronizacji</string>
     <string name="prefs_wena3_notification_default_vibration">Wibracja powiadomień</string>
-    <string name="loyalty_cards_catima_not_compatible">Zainstalowana wersja Catimy nie jest kompatybilna z Gadgetbridge. Zaktualizuj Catima i Gadgetbridge do najnowszych wersji.</string>
     <string name="prefs_wena3_notification_vibration_repetition_0">W sposób nieokreślony</string>
     <string name="activity_detail_share_raw_details">Udostępnij surowe szczegóły</string>
     <string name="activity_type_windsurfing">Windsurfing</string>
@@ -2280,7 +2263,6 @@
     <string name="info_fossil_rebuild_watchface_custom_menu">Przebuduj tarczę zegarka, aby uzyskać niestandardowe menu</string>
     <string name="pai_total">Całkowite</string>
     <string name="zepp_os_watchface_minimalist">Minimalistyczny</string>
-    <string name="loyalty_cards_catima_not_installed">Catima jest potrzebna do zarządzania kartami lojalnościowymi</string>
     <string name="prefs_wena3_notification_default_led">Kolor diody powiadomień</string>
     <string name="sony_speak_to_chat_summary">Wyłącz automatycznie redukcję szumów, gdy zaczniesz mówić.</string>
     <string name="prefs_wena3_auto_power_off_item">Automatyczny wyłącznik</string>
@@ -2690,7 +2672,7 @@
     <string name="activity_type_jujitsu">Jujitsu</string>
     <string name="activity_type_mass_gymnastics">Gimnastyka masowa</string>
     <string name="activity_type_modern_dance">Taniec nowoczesny</string>
-    <string name="activity_type_muay_thai">Muay thai</string>
+    <string name="activity_type_muay_thai">Muay Thai</string>
     <string name="activity_type_parallel_bars">Poręcze symetryczne</string>
     <string name="activity_type_pole_dance">Taniec na rurze</string>
     <string name="activity_type_race_walking">Chód sportowy</string>
@@ -2750,7 +2732,6 @@
     <string name="activity_type_biathlon">Biathlon</string>
     <string name="pref_force_enable_spo2_support">Wymuś wsparcie dla SpO2</string>
     <string name="pref_adaptive_volume_control_title">Automatyczna kontrola głośności</string>
-    <string name="preferences_qhybrid_settings_summary">Stare ustawienia dla zegarków Q hybrid</string>
     <string name="stepLengthAvg">Średnia długość kroku</string>
     <string name="RunningForm">Styl biegania</string>
     <string name="pref_header_sony_sound_control">Kontrola dźwięku</string>
@@ -3976,7 +3957,7 @@
     <string name="weight_scale_jin">jin - 市斤</string>
     <string name="weight_scale_jin_format">%1$.2f 市斤</string>
     <string name="weight_scale_kilogram">kilogram - kg</string>
-    <string name="weight_scale_kilogram_format">%1$.3f kg</string>
+    <string name="weight_scale_kilogram_format">%1$.2f kg</string>
     <string name="weight_scale_pound">funt - lb</string>
     <string name="weight_scale_pound_format">%1$.3f lb</string>
     <string name="weight_scale_show_measurement">Pokaż wagę</string>
@@ -4317,4 +4298,98 @@
     <string name="pref_title_calendar_sync_event_reminders">Synchronizuj przypomnienia o wydarzeniach</string>
     <string name="recoveryHr">Tętno spoczynkowe po wysiłku</string>
     <string name="ratingOfPerceivedExertion">Skala odczuwanego wysiłku</string>
+    <string name="pref_header_auto_export_gpx">Automatyczny eksport tras GPX</string>
+    <string name="pref_auto_export_gpx_summary">Automatycznie eksportuj pliki GPX podczas synchronizacji tras aktywności</string>
+    <string name="pref_export_directory">Katalog eksportu</string>
+    <string name="pref_auto_export_gpx_all_devices_summary">Eksportuj trasy GPX ze wszystkich urządzeń</string>
+    <string name="pref_auto_export_gpx_selected_devices">Wybrane urządzenia</string>
+    <string name="pref_auto_export_gpx_selected_devices_summary">Wybierz urządzenia, z których chcesz wyeksportować trasy GPX</string>
+    <string name="blood_pressure_systolic">Skurczowe</string>
+    <string name="blood_pressure_diastolic">Rozkurczowe</string>
+    <string name="blood_pressure_measurement_count">Pomiary</string>
+    <string name="blood_pressure_export_date">Data</string>
+    <string name="blood_pressure_export_dob">DOB: %s</string>
+    <string name="blood_pressure_avg_format">%1$d/%2$d</string>
+    <string name="auto_export_invalid_location">Nieprawidłowa lokalizacja eksportu: %s</string>
+    <string name="activity_type_floorball">Unihokej</string>
+    <string name="pref_summary_supported_devices">Ta funkcja nie jest obsługiwana przez wszystkie urządzenia. Kliknij tutaj, aby uzyskać więcej informacji.</string>
+    <string name="pref_title_supported_devices">Wspierane urządzenia</string>
+    <string name="intent_api_allow_global_settings_summary">Zezwól aplikacjom innych producentów na konfigurowanie ogólnych ustawień Gadgetbridge za pomocą intents. Aby zmiany zaczęły obowiązywać, uruchom ponownie aplikację Gadgetbridge.</string>
+    <string name="pref_summary_nautical_units">Wyświetlanie prędkości i odległości w węzłach / milach podczas aktywności związanych z żeglarstwem</string>
+    <string name="pref_title_nautical_units">Jednostki miar morskich</string>
+    <string name="pref_title_unit_distance">Jednostki odległości</string>
+    <string name="pref_title_unit_temperature">Jednostki temperatury</string>
+    <string name="pref_title_unit_weight">Jednostki wagi</string>
+    <string name="nautical_miles">M</string>
+    <string name="knots">węzłów</string>
+    <string name="redmi_buds_6_active_equalizer_preset_volume">Zwiększ głośność</string>
+    <string name="uploading_rpk">Wysyłanie pliku rpk…</string>
+    <string name="uploadrpkoperation_complete">Instalacja rpk zakończona</string>
+    <string name="uploadrpkoperation_failed">Instalacja rpk nie powiodła się</string>
+    <string name="kind_waypoints">Punkty orientacyjne</string>
+    <string name="kind_segments">Odcinki</string>
+    <string name="waypoint_count">%d punktów orientacyjnych</string>
+    <string name="pref_title_qhybrid_top_button_function">Funkcja górnego przycisku</string>
+    <string name="pref_title_qhybrid_middle_button_function">Funkcja środkowego przycisku</string>
+    <string name="pref_title_qhybrid_bottom_button_function">Funkcja dolnego przycisku</string>
+    <string name="qhybrid_button_function_forward">Przekaż do telefonu</string>
+    <string name="qhybrid_button_function_forward_multi">Przekaż do telefonu (funkcja wielofunkcyjna)</string>
+    <string name="qhybrid_button_function_stopwatch">Stoper</string>
+    <string name="qhybrid_button_function_date">Data</string>
+    <string name="qhybrid_button_function_last_notif">Ostatnie powiadomienie</string>
+    <string name="qhybrid_button_function_2nd_tz">Druga strefa czasowa</string>
+    <string name="qhybrid_button_function_volume_up">Zwiększ głośność</string>
+    <string name="qhybrid_button_function_volume_down">Zmniejsz głośność</string>
+    <string name="qhybrid_button_function_step_goal">Postęp w realizacji celu kroków</string>
+    <string name="qhybrid_button_function_control_music">Sterowanie odtwarzaczem muzyki</string>
+    <string name="qhybrid_button_function_ring_phone">Zadzwonić na telefon</string>
+    <string name="stride">Krok</string>
+    <string name="stamina">Wytrzymałość</string>
+    <string name="step_length">Długość kroku</string>
+    <string name="diving_cns_toxicity">Toksyczność dla OUN</string>
+    <string name="diving_nitrogen_load">Obciążenie azotem</string>
+    <string name="diving_oxygen_toxicity">Zatrucie tlenowe</string>
+    <string name="unit_oxygen_toxicity_units">OTU (jednostka zatrucia tlenem)</string>
+    <string name="diving_surface_interval">Przerwa na powierzchni</string>
+    <string name="battery_level_ebike_end">Poziom naładowania baterii (końcowy)</string>
+    <string name="battery_level_ebike_start">Poziom naładowania baterii (początkowy)</string>
+    <string name="battery_level_end">Poziom naładowania baterii (końcowy)</string>
+    <string name="battery_level_start">Poziom naładowania baterii (początkowy)</string>
+    <string name="battery_status">Stan baterii</string>
+    <string name="battery_status_charging">Ładowanie</string>
+    <string name="battery_status_critical">Krytyczny</string>
+    <string name="battery_status_good">Dobry</string>
+    <string name="battery_status_invalid">Nieprawidłowy</string>
+    <string name="battery_status_low">Niski</string>
+    <string name="battery_status_new">Nowa</string>
+    <string name="battery_status_ok">Ok</string>
+    <string name="battery_status_unknown">Nieznany</string>
+    <string name="unit_bar_per_minute">bar/min</string>
+    <string name="unit_kg_per_m3">kg/m³</string>
+    <string name="unit_volt">V</string>
+    <string name="water_type_custom">Niestandardowa</string>
+    <string name="water_type_en13319">EN13319</string>
+    <string name="water_type_fresh">Słodka</string>
+    <string name="water_type_salt">Słona</string>
+    <string name="workout_feel">Odczucia podczas treningu</string>
+    <string name="loyalty_cards_sync_tags">Etykiety do zsynchronizowania</string>
+    <string name="loyalty_cards_sync_tags_only">Synchronizuj tylko wybrane etykiety</string>
+    <string name="app_package_name">Nazwa pakietu</string>
+    <string name="install_app_name">Zainstaluj %s</string>
+    <string name="install_app_fail">Nie udało się otworzyć sklepu z aplikacjami w celu zainstalowania %s</string>
+    <string name="open_app">Otwórz %s</string>
+    <string name="loyalty_cards_app_not_compatible">Zainstalowana wersja %1s nie jest zgodna z Gadgetbridge. Proszę zaktualizować %1s i Gadgetbridge do najnowszych wersji.</string>
+    <string name="loyalty_cards_app_not_installed">Do zarządzania kartami lojalnościowymi potrzebna jest aplikacja do obsługi kart lojalnościowych. Proszę zainstalować jedną z poniżej obsługiwanych aplikacji.</string>
+    <string name="loyalty_cards_app_permissions_summary">Aplikacja Gadgetbridge potrzebuje uprawnień do odczytu kart z %1s, aby je zsynchronizować. Naciśnij ten przycisk, aby je przyznać.</string>
+    <string name="weight_scale_gram_format">%1$d g</string>
+    <string name="internet_firewall_note_subdomain">Adresy domen muszą zawierać pełną nazwę subdomeny, bez protokołu. Na przykład: \"subdomain.example.org\".</string>
+    <string name="gymlink_title">GymLink</string>
+    <string name="gymlink_summary">Zezwól na podłączenie do urządzenia sprzętu zgodnego z GymLink.</string>
+    <string name="antplus_title">ANT+</string>
+    <string name="antplus_summary">Pobliskie urządzenia ANT+ mogą monitorować Twoje tętno.</string>
+    <string name="broadcast_heart_rate_summary">Każde urządzenie lub aplikacja w pobliżu może zmierzyć Twoje tętno.</string>
+    <string name="broadcast_heart_rate_title">Transmituj tętno</string>
+    <string name="dual_connection_title">Podwójne połączenie</string>
+    <string name="dual_connection_summary">Umożliwia jednoczesne połączenie dwóch aplikacji lub urządzeń.</string>
+    <string name="device">Urządzenie</string>
 </resources>

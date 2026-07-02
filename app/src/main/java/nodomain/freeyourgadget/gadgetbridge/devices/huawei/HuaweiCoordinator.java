@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -301,6 +302,11 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
 
     @Override
     public boolean supportsActiveCalories(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsActivityDistance(@NonNull final GBDevice device) {
         return true;
     }
 
@@ -568,6 +574,7 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
 
         // Developer
         final List<Integer> developer = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.DEVELOPER);
+        developer.add(R.xml.devicesettings_force_encryption);
         developer.add(R.xml.devicesettings_huawei_debug);
         if (deviceState.supportsGpsAndTimeToDevice())
             developer.add(R.xml.devicesettings_huawei_gps_and_time);

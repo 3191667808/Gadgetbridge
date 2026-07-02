@@ -39,7 +39,7 @@ public final class ActivitySummaryUtils {
 
         ActivityTrack activityTrack = activityTrackProvider.getActivityTrack(summary);
         if (activityTrack == null) {
-            // Attempt to fallback to existing gpx file
+            // Attempt to fall back to existing gpx file
             if (!(activityTrackProvider instanceof GpxActivityTrackProvider)) {
                 activityTrack = new GpxActivityTrackProvider().getActivityTrack(summary);
             }
@@ -74,7 +74,7 @@ public final class ActivitySummaryUtils {
         final File gpxFile = new File(rawCacheDir, gpxFileName);
 
         final GPXExporter gpxExporter = new GPXExporter();
-        gpxExporter.performExport(activityTrack, gpxFile);
+        gpxExporter.performExport(activityTrack, gpxFile, summary);
 
         return gpxFile;
     }

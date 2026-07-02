@@ -168,9 +168,12 @@ class WeatherSpec() : Parcelable {
     fun isTimeNight(unixTimeMilliSeconds: Long): Boolean {
         if (isPolarNight()) return true
         if (isPolarDay()) return false
-        val millisPastMidnight = unixTimeMilliSeconds % 86400000
-        if ( millisPastMidnight < (this.sunRise % 86400 * 1000L ) ) return true
-        return ( millisPastMidnight > (this.sunSet % 86400 * 1000L ) )
+        // Compute where our time falls relative to sunrise. Negative numbers mean before sunrise.
+        val millisAfterSunrise = unixTimeMilliSeconds - (this.sunRise * 1000L)
+        // Compute where sunset falls relative to sunrise. We assume it's always after, thus giving a positive number.
+        val lengthOfSolarDayInMillis = (this.sunSet - this.sunRise) * 1000L
+        // Map the input time into positive time in a 24-hour solar cycle, and compare to sunset.
+        return ( millisAfterSunrise.mod(86400000) > lengthOfSolarDayInMillis )
     }
 
     fun getLocationObject(): Location? {
@@ -367,8 +370,8 @@ class WeatherSpec() : Parcelable {
         var co: Float = -1f // Carbon Monoxide, mg/m^3
         var no2: Float = -1f // Nitrogen Dioxide, ug/m^3
         var o3: Float = -1f // Ozone, ug/m^3
-        var pm10: Float = -1f // Particulate Matter, 10 microns or less in diameter, ug/m^3
-        var pm25: Float = -1f // Particulate Matter, 2.5 microns or less in diameter, ug/m^3
+        var pm10: Float = -1f // Particulate Matter, 10 microns or fewer in diameter, ug/m^3
+        var pm25: Float = -1f // Particulate Matter, 2.5 microns or fewer in diameter, ug/m^3
         var so2: Float = -1f // Sulphur Dioxide, ug/m^3
 
         // Air Quality Index values per pollutant

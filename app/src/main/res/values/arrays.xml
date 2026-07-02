@@ -190,7 +190,7 @@
 
     <string-array name="sensors_bp_cal">
         <item name="0">@string/prefs_sensors_button_bp_calibration</item>
-        <item name="1">@string/Cancel</item>
+        <item name="1">@string/cancel</item>
     </string-array>
     <string-array name="sensors_bp_cal_values">
         <item>0</item>
@@ -3431,6 +3431,7 @@
         <item>@string/body_energy</item>
         <item>@string/menuitem_vo2_max</item>
         <item>@string/pref_header_training_load</item>
+        <item>@string/generic_metrics</item>
         <item>@string/menuitem_hr</item>
         <item>@string/menuitem_stress</item>
         <item>@string/menuitem_pai</item>
@@ -3453,6 +3454,7 @@
         <item>@string/p_body_energy</item>
         <item>@string/p_vo2max</item>
         <item>@string/p_load</item>
+        <item>@string/p_generic_metrics</item>
         <item>@string/p_heartrate</item>
         <item>@string/p_stress</item>
         <item>@string/p_pai</item>
@@ -3475,6 +3477,7 @@
         <item>@string/p_body_energy</item>
         <item>@string/p_vo2max</item>
         <item>@string/p_load</item>
+        <item>@string/p_generic_metrics</item>
         <item>@string/p_heartrate</item>
         <item>@string/p_steps_week</item>
         <item>@string/p_stress</item>
@@ -3548,16 +3551,40 @@
 
     <string-array name="nothing_ear1_audio_mode_names">
         <item>@string/prefs_active_noise_cancelling</item>
+        <item>@string/prefs_active_noise_cancelling_medium</item>
         <item>@string/prefs_active_noise_cancelling_light</item>
+        <item>@string/prefs_active_noise_cancelling_adaptive</item>
         <item>@string/prefs_active_noise_cancelling_transparency</item>
         <item>@string/off</item>
     </string-array>
 
     <string-array name="nothing_ear1_audio_mode_values">
         <item>anc</item>
+        <item>ancmedium</item>
         <item>anclight</item>
+        <item>ancadaptive</item>
         <item>transparency</item>
         <item>off</item>
+    </string-array>
+
+    <string-array name="nothing_ear1_equalizer_names">
+        <item>@string/nothing_equalizer_rock</item>
+        <item>@string/nothing_equalizer_electronic</item>
+        <item>@string/nothing_equalizer_pop</item>
+        <item>@string/nothing_equalizer_enhance_vocals</item>
+        <item>@string/nothing_equalizer_classical</item>
+        <item>@string/nothing_equalizer_custom</item>
+        <item>@string/nothing_equalizer_dirac</item>
+    </string-array>
+
+    <string-array name="nothing_ear1_equalizer_values">
+        <item>ROCK</item>
+        <item>ELECTRONIC</item>
+        <item>POP</item>
+        <item>ENHANCE_VOCALS</item>
+        <item>CLASSICAL</item>
+        <item>CUSTOM</item>
+        <item>DIRAC</item>
     </string-array>
 
     <string-array name="notification_list_is_blacklist_names">
@@ -4144,6 +4171,18 @@
         <item>8</item>
     </string-array>
 
+    <string-array name="earfun_free_pro_3_audio_codec_names">
+        <item>@string/pref_title_stable_connection</item>
+        <item>aptX</item>
+        <item>aptX Adaptive</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_audio_codec_values">
+        <item>0</item>
+        <item>1</item>
+        <item>3</item>
+    </string-array>
+
     <string-array name="earfun_advanced_audio_mode_names">
         <item>Google Fast Pair</item>
         <item>LE Audio</item>
@@ -4209,6 +4248,38 @@
     </string-array>
 
     <string-array name="earfun_air_pro_4_tap_action_values">
+        <item>16</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>4</item>
+        <item>1</item>
+        <item>7</item>
+        <item>6</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
+        <item>11</item>
+        <item>13</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_tap_action_names">
+        <item>@string/none</item>
+        <item>@string/pref_media_volumeup</item>
+        <item>@string/pref_media_volumedown</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_playpause</item>
+        <item>@string/prefs_game_mode</item>
+        <item>@string/pref_title_touch_voice_assistant</item>
+        <item>@string/earfun_tap_action_noise_control_all_modes</item>
+        <item>@string/earfun_tap_action_noise_control_normal_wind</item>
+        <item>@string/earfun_tap_action_noise_control_normal_ambient</item>
+        <item>@string/earfun_tap_action_noise_control_wind_ambient</item>
+        <item>@string/earfun_tap_action_redial</item>
+    </string-array>
+
+    <string-array name="earfun_free_pro_3_tap_action_values">
         <item>16</item>
         <item>2</item>
         <item>3</item>
@@ -4336,44 +4407,6 @@
         <item>custom_2</item>
     </string-array>
 
-    <string-array name="media_source_names">
-        <item>@string/menuitem_bluetooth</item>
-        <item>@string/mp3</item>
-    </string-array>
-    <string-array name="media_source_values">
-        <item>bluetooth</item>
-        <item>mp3</item>
-    </string-array>
-
-    <string-array name="shokz_equalizer_bluetooth_names">
-        <item>@string/equalizer_preset_standard</item>
-        <item>@string/sony_equalizer_preset_vocal</item>
-    </string-array>
-    <string-array name="shokz_equalizer_bluetooth_values">
-        <item>standard</item>
-        <item>vocal</item>
-    </string-array>
-
-    <string-array name="shokz_equalizer_mp3_names">
-        <item>@string/equalizer_preset_standard</item>
-        <item>@string/Swimming</item>
-    </string-array>
-    <string-array name="shokz_equalizer_mp3_values">
-        <item>standard</item>
-        <item>swimming</item>
-    </string-array>
-
-    <string-array name="media_playback_mode_names">
-        <item>@string/media_playback_mode_normal</item>
-        <item>@string/media_playback_mode_shuffle</item>
-        <item>@string/media_playback_mode_repeat</item>
-    </string-array>
-    <string-array name="media_playback_mode_values">
-        <item>normal</item>
-        <item>shuffle</item>
-        <item>repeat</item>
-    </string-array>
-
     <string-array name="shokz_controls_names">
         <item>@string/moondrop_touch_action_assistant</item>
         <item>@string/media_source_switching_bluetooth_mp3</item>
@@ -4473,6 +4506,18 @@
         <item>as_off</item>
     </string-array>
 
+    <string-array name="sony_button_function_nc_ambient_names">
+        <item>@string/sony_button_function_nc_ambient_switch_ambient_sound</item>
+        <item>@string/sony_button_function_nc_ambient_google_assistant</item>
+        <item>@string/sony_button_function_nc_ambient_alexa_assistant</item>
+    </string-array>
+
+    <string-array name="sony_button_function_nc_ambient_values">
+        <item>switch_ambient_sound</item>
+        <item>google_assistant</item>
+        <item>alexa_assistant</item>
+    </string-array>
+
     <string-array name="oppo_touch_tap_names">
         <!-- superset of values, unsupported are hidden by the coordinator -->
         <item>@string/sony_button_mode_off</item>
@@ -4484,6 +4529,7 @@
         <item>@string/pref_title_touch_voice_assistant</item>
         <item>@string/pref_title_touch_voice_assistant</item>
         <item>@string/prefs_game_mode</item>
+        <item>@string/moondrop_touch_action_anc_mode</item>
     </string-array>
 
     <string-array name="oppo_touch_tap_values">
@@ -4497,6 +4543,78 @@
         <item>voice_assistant</item>
         <item>voice_assistant_realme</item>
         <item>game_mode</item>
+        <item>noise_control</item>
+    </string-array>
+
+    <string-array name="cmf_buds_touch_tap_names">
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/pref_media_playpause</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_media_volumeup</item>
+        <item>@string/pref_media_volumedown</item>
+        <item>@string/pref_title_touch_voice_assistant</item>
+        <item>@string/redmi_buds_5_pro_combo_all</item>
+        <item>@string/redmi_buds_5_pro_combo_anc_transparency</item>
+        <item>@string/redmi_buds_5_pro_combo_anc_off</item>
+        <item>@string/redmi_buds_5_pro_combo_transparency_off</item>
+    </string-array>
+    <string-array name="cmf_buds_touch_tap_values">
+        <item>off</item>
+        <item>play_pause</item>
+        <item>previous_track</item>
+        <item>next_track</item>
+        <item>volume_up</item>
+        <item>volume_down</item>
+        <item>voice_assistant</item>
+        <item>anc_mode__anc_transparency_off</item>
+        <item>anc_mode__anc_transparency</item>
+        <item>anc_mode__anc_off</item>
+        <item>anc_mode__transparency_off</item>
+    </string-array>
+
+    <string-array name="soundbrenner_time_sig_entries">
+        <item>4/4</item>
+        <item>2/4</item>
+        <item>3/4</item>
+        <item>5/4</item>
+        <item>6/4</item>
+        <item>3/8</item>
+        <item>4/8</item>
+        <item>5/8</item>
+        <item>6/8</item>
+        <item>9/8</item>
+        <item>12/8</item>
+        <item>2/2</item>
+    </string-array>
+
+    <string-array name="soundbrenner_time_sig_values">
+        <item>4/4</item>
+        <item>2/4</item>
+        <item>3/4</item>
+        <item>5/4</item>
+        <item>6/4</item>
+        <item>3/8</item>
+        <item>4/8</item>
+        <item>5/8</item>
+        <item>6/8</item>
+        <item>9/8</item>
+        <item>12/8</item>
+        <item>2/2</item>
+    </string-array>
+
+    <string-array name="soundbrenner_subdivision_entries">
+        <item>@string/soundbrenner_pref_subdivision_quarter</item>
+        <item>@string/soundbrenner_pref_subdivision_eighth</item>
+        <item>@string/soundbrenner_pref_subdivision_triplet</item>
+        <item>@string/soundbrenner_pref_subdivision_sixteenth</item>
+    </string-array>
+
+    <string-array name="soundbrenner_subdivision_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
     </string-array>
 
     <string-array name="soundcore_anc_mode_names">
@@ -4529,6 +4647,120 @@
         <item>PLAYPAUSE</item>
         <item>VOICE_ASSISTANT</item>
         <item>AMBIENT_SOUND_CONTROL</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_single_tap_function_names">
+        <item>@string/pref_media_volumedown</item>
+        <item>@string/pref_media_volumeup</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_playpause</item>
+        <item>@string/none</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_single_tap_function_values">
+        <item>VOLUME_DOWN</item>
+        <item>VOLUME_UP</item>
+        <item>MEDIA_NEXT</item>
+        <item>MEDIA_PREV</item>
+        <item>PLAYPAUSE</item>
+        <item>NONE</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_double_tap_function_names">
+        <item>@string/pref_media_volumedown</item>
+        <item>@string/pref_media_volumeup</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_playpause</item>
+        <item>@string/pref_title_touch_voice_assistant</item>
+        <item>@string/sony_button_mode_ambient_sound_control</item>
+        <item>@string/none</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_double_tap_function_values">
+        <item>VOLUME_DOWN</item>
+        <item>VOLUME_UP</item>
+        <item>MEDIA_NEXT</item>
+        <item>MEDIA_PREV</item>
+        <item>PLAYPAUSE</item>
+        <item>VOICE_ASSISTANT</item>
+        <item>AMBIENT_SOUND_CONTROL</item>
+        <item>NONE</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_long_press_function_names">
+        <item>@string/pref_media_volumedown</item>
+        <item>@string/pref_media_volumeup</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_playpause</item>
+        <item>@string/pref_title_touch_voice_assistant</item>
+        <item>@string/sony_button_mode_ambient_sound_control</item>
+        <item>@string/none</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_long_press_function_values">
+        <item>VOLUME_DOWN</item>
+        <item>VOLUME_UP</item>
+        <item>MEDIA_NEXT</item>
+        <item>MEDIA_PREV</item>
+        <item>PLAYPAUSE</item>
+        <item>VOICE_ASSISTANT</item>
+        <item>AMBIENT_SOUND_CONTROL</item>
+        <item>NONE</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_equalizer_preset_names">
+        <item>@string/soundcore_equalizer_preset_signature</item>
+        <item>@string/soundcore_equalizer_preset_acoustic</item>
+        <item>@string/sony_equalizer_preset_bass_boost</item>
+        <item>@string/soundcore_equalizer_preset_bass_reducer</item>
+        <item>@string/nothing_equalizer_classical</item>
+        <item>@string/soundcore_equalizer_preset_podcast</item>
+        <item>@string/soundcore_equalizer_preset_dance</item>
+        <item>@string/soundcore_equalizer_preset_deep</item>
+        <item>@string/nothing_equalizer_electronic</item>
+        <item>@string/soundcore_equalizer_preset_flat</item>
+        <item>@string/soundcore_equalizer_preset_hip_hop</item>
+        <item>@string/soundcore_equalizer_preset_jazz</item>
+        <item>@string/soundcore_equalizer_preset_latin</item>
+        <item>@string/soundcore_equalizer_preset_lounge</item>
+        <item>@string/soundcore_equalizer_preset_piano</item>
+        <item>@string/nothing_equalizer_pop</item>
+        <item>@string/soundcore_equalizer_preset_rnb</item>
+        <item>@string/nothing_equalizer_rock</item>
+        <item>@string/soundcore_equalizer_preset_small_speakers</item>
+        <item>@string/soundcore_equalizer_preset_spoken_word</item>
+        <item>@string/sony_equalizer_preset_treble_boost</item>
+        <item>@string/soundcore_equalizer_preset_treble_reducer</item>
+        <item>@string/custom</item>
+    </string-array>
+
+    <string-array name="soundcore_sport_x20_equalizer_preset_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
+        <item>11</item>
+        <item>12</item>
+        <item>13</item>
+        <item>14</item>
+        <item>15</item>
+        <item>16</item>
+        <item>17</item>
+        <item>18</item>
+        <item>19</item>
+        <item>20</item>
+        <item>21</item>
+        <item>254</item>
     </string-array>
 
     <string-array name="soundcore_button_brightness_names">
@@ -4735,6 +4967,18 @@
         <item>0</item>
         <item>1</item>
         <item>2</item>
+    </string-array>
+
+    <string-array name="moondrop_anc_mode_names">
+        <item>@string/prefs_active_noise_cancelling_level_normal</item>
+        <item>@string/prefs_active_noise_cancelling</item>
+        <item>@string/prefs_active_noise_cancelling_transparency</item>
+    </string-array>
+
+    <string-array name="moondrop_anc_mode_values">
+        <item>1</item>
+        <item>2</item>
+        <item>4</item>
     </string-array>
 
     <string-array name="moondrop_touch_earbud_names">
@@ -5027,6 +5271,17 @@
         <item>23</item>
     </string-array>
 
+    <string-array name="sleep_range_entries">
+        <item>@string/pref_chart_sleep_range_rolling_24h</item>
+        <item>@string/pref_chart_sleep_range_noon</item>
+        <item>@string/pref_chart_sleep_range_18h</item>
+    </string-array>
+    <string-array name="sleep_range_values">
+        <item>24h</item>
+        <item>12:00</item>
+        <item>18:00</item>
+    </string-array>
+
     <string-array name="prefs_wena3_button_action_list">
         <item>@string/menuitem_nothing</item>
         <!-- <item>@string/menuitem_alexa</item> -->
@@ -5176,6 +5431,17 @@
         <item>@string/pref_force_connection_type_auto_value</item>
         <item>@string/pref_force_connection_type_ble_value</item>
         <item>@string/pref_force_connection_type_bt_classic_value</item>
+    </string-array>
+
+    <string-array name="pref_force_encryption_names">
+        <item>@string/pref_default</item>
+        <item>@string/preference_force_enabled</item>
+        <item>@string/preference_force_disabled</item>
+    </string-array>
+    <string-array name="pref_force_encryption_values">
+        <item>default</item>
+        <item>force_enabled</item>
+        <item>force_disabled</item>
     </string-array>
 
     <string-array name="pref_dashboard_widgets_order">

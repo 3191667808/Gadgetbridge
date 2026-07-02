@@ -65,7 +65,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -134,17 +133,17 @@ public class NotificationListener extends NotificationListenerService {
     }};
 
     private static final Set<String> PHONE_CALL_APPS = new HashSet<>() {{
-            add("com.android.dialer");
-            add("com.android.incallui");
-            add("com.asus.asusincallui");
-            add("com.google.android.dialer");
-            add("com.samsung.android.incallui");
-            add("org.fossify.phone");
+        add("com.android.dialer");
+        add("com.android.incallui");
+        add("com.asus.asusincallui");
+        add("com.google.android.dialer");
+        add("com.samsung.android.incallui");
+        add("org.fossify.phone");
     }};
 
     private static final Set<String> NOTI_USE_TITLE_APPS = new HashSet<>() {{
-            add("com.whatsapp");
-            add("org.thoughtcrime.securesms");
+        add("com.whatsapp");
+        add("org.thoughtcrime.securesms");
     }};
 
     public static final ArrayList<String> notificationStack = new ArrayList<>();
@@ -211,7 +210,7 @@ public class NotificationListener extends NotificationListenerService {
                     StatusBarNotification[] sbns = NotificationListener.this.getActiveNotifications();
                     Long ts = mNotificationHandleLookup.lookup(handle);
                     if (ts == null) {
-                        LOG.info("could not lookup handle for open action");
+                        LOG.info("could not look up handle for open action");
                         break;
                     }
 
@@ -232,7 +231,7 @@ public class NotificationListener extends NotificationListenerService {
                 case ACTION_MUTE:
                     String packageName = mPackageLookup.lookup(handle);
                     if (packageName == null) {
-                        LOG.info("could not lookup handle for mute action");
+                        LOG.info("could not look up handle for mute action");
                         break;
                     }
                     LOG.info("going to mute {}", packageName);
@@ -246,7 +245,7 @@ public class NotificationListener extends NotificationListenerService {
                     StatusBarNotification[] sbns = NotificationListener.this.getActiveNotifications();
                     Long ts = mNotificationHandleLookup.lookup(handle);
                     if (ts == null) {
-                        LOG.info("could not lookup handle for dismiss action");
+                        LOG.info("could not look up handle for dismiss action");
                         break;
                     }
                     for (StatusBarNotification sbn : sbns) {
@@ -383,6 +382,21 @@ public class NotificationListener extends NotificationListenerService {
             if (rankingMap.getRanking(sbn.getKey(), ranking)) {
                 if (!ranking.matchesInterruptionFilter()) dndSuppressed = 1;
             }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // Digital Wellbeing app pause and similar restrictions can suppress notifications
+                // changing the interruption filter, but the app will be marked as suspended
+                if (ranking.isSuspended()) {
+                    LOG.debug("Ignoring notification - app is suspended");
+                    return;
+                }
+
+                // If importance is none, it should also not even show up
+                if (ranking.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                    LOG.debug("Ignoring notification - importance is NONE");
+                    return;
+                }
+            }
         }
 
         if (prefs.getBoolean("notification_filter", false) && dndSuppressed == 1) {
@@ -430,7 +444,7 @@ public class NotificationListener extends NotificationListenerService {
         // If this notification contains a picture, and we did not yet send a picture inside the timeout interval,
         // we should still send it (eg. notification updates)
         final boolean newPicture = hasPicture &&
-                notification.when - lastPictureNotificationTime  > TimeUnit.SECONDS.toMillis(notificationsTimeoutSeconds);
+                notification.when - lastPictureNotificationTime > TimeUnit.SECONDS.toMillis(notificationsTimeoutSeconds);
 
         if (notificationBurstPreventionValue != null) {
             long diff = curTime - notificationBurstPreventionValue;
@@ -468,9 +482,9 @@ public class NotificationListener extends NotificationListenerService {
         notificationSpec.category = notification.category;
 
         //FIXME: some quirks lookup table would be the minor evil here
-        if (source.startsWith("com.fsck.k9")) {
+        if (source.startsWith("com.fsck.k9") || source.startsWith("net.thunderbird.android")) {
             if (NotificationCompat.isGroupSummary(notification)) {
-                LOG.info("ignore K9 group summary");
+                LOG.info("ignore K9/Thunderbird group summary");
                 return;
             }
         }
@@ -482,7 +496,7 @@ public class NotificationListener extends NotificationListenerService {
         LOG.info(
                 "Processing notification {}, age: {}, source: {}, flags: {}",
                 notificationSpec.getId(),
-                (System.currentTimeMillis() - notification.when) ,
+                (System.currentTimeMillis() - notification.when),
                 source,
                 notification.flags
         );
@@ -723,7 +737,7 @@ public class NotificationListener extends NotificationListenerService {
         }
 
         if (app.equals("com.microsoft.teams")) {
-            // #5525 - microsoft teams spams notifications with slightly increasing timestamps
+            // #5525 - Microsoft Teams spams notifications with slightly increasing timestamps
             // we use a different key for the burst prevention to prevent suppressing notifications
             final String burstPreventionKey = "call:" + app;
             final Long notificationBurstPreventionValue = notificationBurstPrevention.get(burstPreventionKey);
@@ -731,7 +745,7 @@ public class NotificationListener extends NotificationListenerService {
             if (notificationBurstPreventionValue != null) {
                 long diff = curTime - notificationBurstPreventionValue;
                 if (diff < TimeUnit.SECONDS.toNanos(1)) {
-                    LOG.info("Ignoring burst call notification from microsoft teams, last one was {} ms ago", TimeUnit.NANOSECONDS.toMillis(diff));
+                    LOG.info("Ignoring burst call notification from Microsoft Teams, last one was {} ms ago", TimeUnit.NANOSECONDS.toMillis(diff));
                     return;
                 }
             }
@@ -1112,15 +1126,17 @@ public class NotificationListener extends NotificationListenerService {
         this.notificationPictureCacheDirectory = new File(cacheDir, "notification-pictures");
         this.notificationPictureCacheDirectory.mkdir();
     }
+
     private void logNotification(StatusBarNotification sbn, boolean posted) {
         LOG.debug(
-                "Notification {} {}: packageName={}, when={}, priority={}, category={}",
+                "Notification {} {}: packageName={}, when={}, priority={}, category={}, flags={}",
                 sbn.getId(),
                 posted ? "posted" : "removed",
                 sbn.getPackageName(),
                 sbn.getNotification().when,
                 sbn.getNotification().priority,
-                sbn.getNotification().category
+                sbn.getNotification().category,
+                sbn.getNotification().flags
         );
     }
 
@@ -1208,7 +1224,7 @@ public class NotificationListener extends NotificationListenerService {
         return false;
     }
 
-    private boolean shouldIgnoreOngoing(StatusBarNotification sbn, NotificationType type) {
+    private boolean shouldSendOngoing(StatusBarNotification sbn, NotificationType type) {
         if (isFitnessApp(sbn)) {
             return true;
         }
@@ -1219,18 +1235,13 @@ public class NotificationListener extends NotificationListenerService {
     }
 
     private boolean isFitnessApp(StatusBarNotification sbn) {
-        String source = sbn.getPackageName();
-        if (source.equals("de.dennisguse.opentracks")
+        final String source = sbn.getPackageName();
+        return source.equals("de.dennisguse.opentracks")
                 || source.equals("de.dennisguse.opentracks.debug")
                 || source.equals("de.dennisguse.opentracks.nightly")
                 || source.equals("de.dennisguse.opentracks.playstore")
                 || source.equals("de.tadris.fitness")
-                || source.equals("de.tadris.fitness.debug")
-        ) {
-            return true;
-        }
-
-        return false;
+                || source.equals("de.tadris.fitness.debug");
     }
 
     private boolean isWorkProfile(StatusBarNotification sbn) {
@@ -1328,13 +1339,12 @@ public class NotificationListener extends NotificationListenerService {
             return true;
         }
 
-        if (shouldIgnoreOngoing(sbn, type)) {
-            LOG.trace("Ignoring notification, ongoing");
+        if (shouldSendOngoing(sbn, type)) {
+            LOG.trace("Not ignoring ongoing notification");
             return false;
         }
 
-        return (notification.flags & Notification.FLAG_ONGOING_EVENT) == Notification.FLAG_ONGOING_EVENT;
-
+        return (notification.flags & (Notification.FLAG_ONGOING_EVENT | Notification.FLAG_FOREGROUND_SERVICE)) != 0;
     }
 
     private static class NotificationAction {

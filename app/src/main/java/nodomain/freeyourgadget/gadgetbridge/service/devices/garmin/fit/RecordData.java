@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.GarminByteBufferReader;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.baseTypes.BaseType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.MessageWriter;
 import nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GBToStringBuilder;
@@ -60,7 +61,20 @@ public class RecordData {
         if (recordDefinition.getDevFieldDefinitions() != null) {
             for (DevFieldDefinition fieldDef :
                     recordDefinition.getDevFieldDefinitions()) {
-                FieldDefinition temp = new FieldDefinition(fieldDef.getFieldDefinitionNumber(), fieldDef.getSize(), fieldDef.getBaseType(), fieldDef.getName());
+                // DevFieldDefinition.baseType is nullable — populated by populateDevFields
+                // only when a matching field_description message has been parsed before
+                // the dev field's first record. If absent (out-of-order spec, malformed
+                // file), fall back to opaque bytes so the codec can walk past the field
+                // using its declared size.
+                final BaseType devBaseType;
+                if (fieldDef.getBaseType() != null) {
+                    devBaseType = fieldDef.getBaseType();
+                } else {
+                    LOG.warn("Dev field '{}' (#{}) has no base type — no matching field_description was parsed before its first record; falling back to opaque bytes",
+                            fieldDef.getName(), fieldDef.getFieldDefinitionNumber());
+                    devBaseType = BaseType.BASE_TYPE_BYTE;
+                }
+                FieldDefinition temp = new FieldDefinition(fieldDef.getFieldDefinitionNumber(), fieldDef.getSize(), devBaseType, fieldDef.getName());
                 fieldDataList.add(new FieldData(temp, totalSize));
                 totalSize += fieldDef.getSize();
             }
@@ -174,7 +188,16 @@ public class RecordData {
     }
 
     public <T> T getFieldByNumber(int number, final Class<T> clazz) {
-        return safeCast(getFieldByNumber(number), clazz);
+        Object object = getFieldByNumber(number);
+        if (object == null)
+            return null;
+
+        // when CIQ fields are used value arrays instead of single values are sometimes recorded
+        if (!clazz.isArray() && object.getClass().isArray() && 0 < Array.getLength(object)) {
+            object = Array.get(object, 0);
+        }
+
+        return safeCast(object, clazz);
     }
 
     public <T> T[] getArrayFieldByNumber(int number, final Class<T> clazz) {
@@ -213,6 +236,23 @@ public class RecordData {
         }
         if (clazz.isInstance(object)) {
             return clazz.cast(object);
+        }
+
+        if(object instanceof Number number){
+            // some older Garmin devices encoded e.g.
+            // [distance] and [enhanced_speed] as float instead of double
+            // [cadence] as float instead of integer
+            if(clazz.equals(Double.class)){
+                return clazz.cast(number.doubleValue());
+            }
+            if(clazz.equals(Integer.class)){
+                return clazz.cast(number.intValue());
+            }
+
+            // required for common COROS size mismatches like: FitEvent[event] type UINT32 with actual size 1
+            if (Long.class.equals(clazz)) {
+                return clazz.cast(number.longValue());
+            }
         }
 
         LOG.error(

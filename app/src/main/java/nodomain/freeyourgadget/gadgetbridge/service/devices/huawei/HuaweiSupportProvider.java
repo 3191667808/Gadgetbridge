@@ -65,6 +65,8 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventDisplayMessage;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiSleepStageSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCompatTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinator;
@@ -79,17 +81,14 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPdrParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSequenceDataFileParser;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepStatsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiStressParser;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTruSleepParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTrueSleepSequenceDataParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.CameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.GpsAndTime;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Notifications;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.ui.HuaweiStressCalibrationFragment;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
@@ -101,9 +100,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStatsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiStressSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSwimSegmentsSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSwimSegmentsSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.export.AutoFitExporter;
 import nodomain.freeyourgadget.gadgetbridge.export.AutoGpxExporter;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationProviderType;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
@@ -236,6 +233,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public class HuaweiSupportProvider {
     private static final Logger LOG = LoggerFactory.getLogger(HuaweiSupportProvider.class);
@@ -381,7 +379,13 @@ public class HuaweiSupportProvider {
         this.context = context;
         this.huaweiType = getCoordinator().getHuaweiType();
         this.paramsProvider.setAW(getCoordinator().getHuaweiType() == HuaweiDeviceType.AW);
-        this.paramsProvider.setTransactionsCrypted(getCoordinator().isTransactionCrypted());
+        final DevicePrefs devicePrefs = GBApplication.getDevicePrefs(device);
+        final boolean transactionCrypted = switch (devicePrefs.getString("force_encryption", "default")) {
+            case "force_enabled" -> true;
+            case "force_disabled" -> false;
+            default -> getCoordinator().isTransactionCrypted();
+        };
+        this.paramsProvider.setTransactionsCrypted(transactionCrypted);
         mediaManager = new MediaManager(context);
     }
 
@@ -947,12 +951,27 @@ public class HuaweiSupportProvider {
             if (!getDeviceState().supportsChangingAlarm() && firstConnection)
                 initializeAlarms();
 
+            RequestCallback allowFailFinalize = new RequestCallback() {
+                @Override
+                public void handleException(Request request, Request.ResponseParseException e) {
+                    LOG.info("Exception on init request {} allowed", request, e);
+                    request.handleNext();
+                }
+            };
+
             // Queue all the requests
             for (int i = 1; i < initRequestQueue.size(); i++) {
                 initRequestQueue.get(i - 1).setupTimeoutUntilNext(initTimeout);
                 if (initRequestQueue.get(i - 1) instanceof SendSetUpDeviceStatusRequest) {
                     // NOTE: The watch is never answer to this command. To decrease init time timeout for it is 50 ms
                     initRequestQueue.get(i - 1).setupTimeoutUntilNext(50);
+                }
+                if (
+                        initRequestQueue.get(i - 1) instanceof GetEventAlarmList ||
+                        initRequestQueue.get(i - 1) instanceof GetSmartAlarmList
+                ) {
+                    // NOTE: Some watches fail to properly respond to this, but this should still allow the connection to complete
+                    initRequestQueue.get(i - 1).setFinalizeReq(allowFailFinalize);
                 }
                 initRequestQueue.get(i - 1).nextRequest(initRequestQueue.get(i));
             }
@@ -1859,7 +1878,7 @@ public class HuaweiSupportProvider {
                 samples.add(activitySample);
             }
 
-            sampleProvider.addGBActivitySamples(samples.toArray(new HuaweiActivitySample[0]));
+            sampleProvider.addGBActivitySamples(samples);
         } catch (Exception e) {
             LOG.error("Failed to add sleep activity to database", e);
         }
@@ -2712,8 +2731,8 @@ public class HuaweiSupportProvider {
                             }
                             try (DBHandler db = GBApplication.acquireDB()) {
                                 final DaoSession session = db.getDaoSession();
-                                new HuaweiSleepStatsSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, sleepStatsSamples);
-                                new HuaweiSleepStageSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, sleepStageSamples);
+                                new HuaweiSleepStatsSampleProvider(gbDevice, session).persistSamples(sleepStatsSamples, context);
+                                new HuaweiSleepStageSampleProvider(gbDevice, session).persistSamples(sleepStageSamples, context);
                             } catch (Exception e) {
                                 LOG.error("Cannot save sleep, continue");
                             }
@@ -2981,6 +3000,7 @@ public class HuaweiSupportProvider {
                         }
 
                         AutoGpxExporter.doExport(getContext(), getDevice(), null, track);
+                        AutoFitExporter.doExport(getContext(), getDevice(), null, track);
 
                         new HuaweiWorkoutGbParser(getDevice(), getContext()).parseWorkout(databaseId);
 
