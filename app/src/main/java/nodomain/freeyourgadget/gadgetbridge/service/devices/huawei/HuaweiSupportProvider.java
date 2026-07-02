@@ -255,6 +255,16 @@ public class HuaweiSupportProvider {
     private static final long AUTH_FAILURE_ESCALATION_RECONNECT_DELAY_MS = 6000;
     private int consecutiveAuthFailures = 0;
 
+    // Watchdog for a SILENT handshake stall: the device enters AUTHENTICATING but the HiChain
+    // handshake never produces an explicit failure callback (the watch simply stops responding, or
+    // returns a garbled response that is logged and swallowed), so reconnectAfterAuthFailure() is
+    // never reached and the dead-but-open socket sits in AUTHENTICATING indefinitely. Observed
+    // 2026-06-14: an overnight reconnect hung in AUTHENTICATING for ~7 h (watch never answered the
+    // security negotiation while ColorOS had the phone frozen) until a manual disconnect/connect.
+    // If the handshake has not reached the configure phase within this window, treat it as an auth
+    // failure and route into the same recovery path as an explicit failure.
+    private static final long AUTH_WATCHDOG_TIMEOUT_MS = 45000;
+
     private HuaweiBRSupport brSupport;
     private HuaweiLESupport leSupport;
 
@@ -266,6 +276,16 @@ public class HuaweiSupportProvider {
     private final Runnable batteryRunner = () -> {
         LOG.info("Running retrieving battery through runner.");
         getBatteryLevel();
+    };
+    private final Runnable authWatchdogRunnable = () -> {
+        final GBDevice device = getDevice();
+        if (device == null || device.getState() != GBDevice.State.AUTHENTICATING) {
+            // Already past AUTHENTICATING (success or a teardown that didn't cancel us) — nothing to do.
+            return;
+        }
+        LOG.warn("Authentication watchdog: stuck in AUTHENTICATING for {} ms with no handshake progress, "
+                + "treating as an auth failure", AUTH_WATCHDOG_TIMEOUT_MS);
+        reconnectAfterAuthFailure();
     };
 
     private boolean firstConnection = false;
@@ -500,6 +520,9 @@ public class HuaweiSupportProvider {
     }
 
     protected void initializeDevice(final Request linkParamsReq) {
+        // State was just set to AUTHENTICATING by the caller; guard the whole handshake against a
+        // silent stall (watch stops responding, no failure callback) that would otherwise hang here.
+        armAuthWatchdog();
         deviceMac = this.gbDevice.getAddress();
         createRandomMacAddress();
         createAndroidID();
@@ -674,6 +697,10 @@ public class HuaweiSupportProvider {
             return;
         }
 
+        // This connection is being torn down; drop any pending watchdog. The subsequent handshake
+        // (lightweight retry or escalated reconnect) re-arms it via initializeDevice().
+        cancelAuthWatchdog();
+
         consecutiveAuthFailures++;
         if (consecutiveAuthFailures >= AUTH_FAILURE_ESCALATION_THRESHOLD) {
             LOG.warn("Authentication failed {} times in a row, escalating to full disconnect + delayed reconnect",
@@ -762,8 +789,10 @@ public class HuaweiSupportProvider {
     }
 
     protected void initializeDeviceConfigure() {
-        // Authentication succeeded; clear the consecutive-failure escalation counter.
+        // Authentication succeeded; clear the consecutive-failure escalation counter and stop the
+        // AUTHENTICATING watchdog (the later configure phase has its own configureReq.timeout()).
         consecutiveAuthFailures = 0;
+        cancelAuthWatchdog();
         if (isBLE()) {
             nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder leBuilder = createLeTransactionBuilder("Initializing");
             leBuilder.setCallback(leSupport);
@@ -2669,8 +2698,21 @@ public class HuaweiSupportProvider {
         handler.removeCallbacks(batteryRunner);
     }
 
+    // (Re)arm the AUTHENTICATING watchdog. Called when the handshake starts; a fresh handshake
+    // attempt (including each lightweight reconnect retry) re-arms it, so it only fires when the
+    // handshake makes no progress at all for AUTH_WATCHDOG_TIMEOUT_MS.
+    private void armAuthWatchdog() {
+        handler.removeCallbacks(authWatchdogRunnable);
+        handler.postDelayed(authWatchdogRunnable, AUTH_WATCHDOG_TIMEOUT_MS);
+    }
+
+    private void cancelAuthWatchdog() {
+        handler.removeCallbacks(authWatchdogRunnable);
+    }
+
     public void dispose() {
         stopBatteryRunnerDelayed();
+        cancelAuthWatchdog();
         huaweiFileDownloadManager.dispose();
         huaweiP2PManager.unregisterAllService();
         huaweiDataSyncManager.unregisterAll();
