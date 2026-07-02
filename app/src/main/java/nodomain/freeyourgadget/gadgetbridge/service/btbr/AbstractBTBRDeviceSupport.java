@@ -111,6 +111,22 @@ public abstract class AbstractBTBRDeviceSupport extends AbstractDeviceSupport im
     }
 
     /**
+     * Drops the current socket connection but, unlike {@link #disconnect()}, keeps the support
+     * usable so the normal reconnect path can re-establish the connection. See
+     * {@link BtBRQueue#disconnectForReconnect()}.
+     *
+     * @return true if a live read thread will perform the cleanup and state transition
+     */
+    public boolean disconnectForReconnect() {
+        synchronized (ConnectionMonitor) {
+            if (mQueue != null) {
+                return mQueue.disconnectForReconnect();
+            }
+            return false;
+        }
+    }
+
+    /**
      * Subclasses should populate the given builder to initialize the device (if necessary). This
      * function might be called multiple times for the same support instance (eg. in the case of a
      * reconnection), and should ensure that any state is also reset as required.

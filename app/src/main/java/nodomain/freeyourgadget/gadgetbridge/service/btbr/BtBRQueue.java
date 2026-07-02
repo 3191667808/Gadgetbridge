@@ -292,6 +292,36 @@ public final class BtBRQueue {
         mCallback.onConnectionEstablished();
     }
 
+    /**
+     * Abandons the current socket connection so the read thread exits through its normal path,
+     * which closes/clears the socket ({@link #cleanup()}) and sets the device state to
+     * WAITING_FOR_RECONNECT or NOT_CONNECTED depending on the auto-reconnect preference.
+     * <p>
+     * Unlike {@link #disconnect()} the queue stays usable for a subsequent {@link #connect()}
+     * (the write handler thread is kept alive and the queue is not disposed), which is what lets
+     * auto-reconnect re-run the handshake on a fresh socket. This is meant for cases where the
+     * socket is still open but communication can no longer succeed (e.g. an authentication
+     * failure): simply flipping the device state would leave the socket open and the read thread
+     * blocked, so {@link #connect()} would keep refusing with "mBtSocket isn't null".
+     *
+     * @return true if a live read thread will perform the cleanup and state transition
+     */
+    public boolean disconnectForReconnect() {
+        final Thread reader = readThread;
+        final boolean readerAlive = reader != null && reader.isAlive();
+
+        final BluetoothSocket socket = mBtSocket;
+        if (socket != null) {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                LOG.error("IO exception while closing socket in disconnectForReconnect(): ", e);
+            }
+        }
+
+        return readerAlive;
+    }
+
     public void disconnect() {
         if (mWriteHandlerThread.isAlive()) {
             mWriteHandlerThread.quit();

@@ -621,23 +621,42 @@ public class HuaweiSupportProvider {
             LOG.error("Authentication timed out");
             GB.toast(context, R.string.authentication_failed_negotiation, Toast.LENGTH_LONG, GB.ERROR);
             // Reconnect as no communication can succeed after this point
-            final GBDevice device = getDevice();
-            if (device != null) {
-                device.setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
-            }
+            reconnectAfterAuthFailure();
         }
 
         @Override
         public void handleException(Request.ResponseParseException e) {
             LOG.error("Authentication exception", e);
             GB.toast(context, R.string.authentication_failed_negotiation, Toast.LENGTH_LONG, GB.ERROR);
-            // Disconnect as no communication can succeed after this point
-            final GBDevice device = getDevice();
-            if (device != null) {
-                GBApplication.deviceService(device).disconnect();
-            }
+            // Reconnect (like timeout()) instead of disconnecting: an auth failure here can be
+            // transient (e.g. a stale/mismatched HiChain token), and a plain disconnect leaves the
+            // device in NOT_CONNECTED, which stops auto-reconnect entirely until a manual connect.
+            reconnectAfterAuthFailure();
         }
     };
+
+    /**
+     * Recover from an authentication failure by dropping the current connection so the normal
+     * reconnect path re-runs the handshake on a fresh socket.
+     * <p>
+     * Merely setting WAITING_FOR_RECONNECT is not enough on the BR (RFCOMM) transport: the socket
+     * stays open and the read thread stays blocked, so the queue's socket remains non-null and
+     * {@code BtBRQueue.connect()} keeps refusing with "mBtSocket isn't null" — auto-reconnect
+     * then never succeeds until a manual disconnect. So drop the socket and let the transport's
+     * read thread perform the cleanup and state transition; only fall back to a bare state flip if
+     * there is no live BR connection to drop (e.g. the LE transport).
+     */
+    private void reconnectAfterAuthFailure() {
+        final GBDevice device = getDevice();
+        if (device == null) {
+            return;
+        }
+        if (brSupport != null && brSupport.disconnectForReconnect()) {
+            // the read thread will clean up the socket and set WAITING_FOR_RECONNECT / NOT_CONNECTED
+            return;
+        }
+        device.setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
+    }
 
     protected void initializeDeviceHiChainMode() {
         try {
