@@ -506,6 +506,9 @@ public class HuaweiSupportProvider {
         }
         builder.notify(characteristicRead, true);
         builder.setDeviceState(GBDevice.State.AUTHENTICATING);
+        // Arm as a transaction action so the watchdog window starts when the handshake actually
+        // begins on the queue's dispatch thread, not at builder-construction time.
+        builder.run(this::armAuthWatchdog);
         final GetLinkParamsRequest linkParamsReq = new GetLinkParamsRequest(this, builder);
         initializeDevice(linkParamsReq);
         return builder;
@@ -514,15 +517,15 @@ public class HuaweiSupportProvider {
     protected nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder initializeDevice(nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder builder) {
         builder.setCallback(brSupport);
         builder.setDeviceState(GBDevice.State.AUTHENTICATING);
+        // Arm as a transaction action so the watchdog window starts when the handshake actually
+        // begins on the queue's dispatch thread, not at builder-construction time.
+        builder.run(this::armAuthWatchdog);
         final GetLinkParamsRequest linkParamsReq = new GetLinkParamsRequest(this, builder);
         initializeDevice(linkParamsReq);
         return builder;
     }
 
     protected void initializeDevice(final Request linkParamsReq) {
-        // State was just set to AUTHENTICATING by the caller; guard the whole handshake against a
-        // silent stall (watch stops responding, no failure callback) that would otherwise hang here.
-        armAuthWatchdog();
         deviceMac = this.gbDevice.getAddress();
         createRandomMacAddress();
         createAndroidID();
