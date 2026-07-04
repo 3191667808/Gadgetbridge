@@ -618,12 +618,10 @@ class HealthConnectUtils {
                     }
                 }
                 HealthConnectPermissionManager.HealthConnectDataType.SLEEP -> {
-                    if (!activityBasedSamples.isNullOrEmpty()) {
-                        sliceStats.add(SleepSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples, context
-                        ))
-                    }
+                    sliceStats.add(SleepSyncer.sync(
+                        healthConnectClient, gbDevice, metadata, offset,
+                        currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples.orEmpty(), context
+                    ))
                 }
                 HealthConnectPermissionManager.HealthConnectDataType.VO2MAX -> sliceStats.add(Vo2MaxSyncer.sync(
                     healthConnectClient, gbDevice, metadata, offset,

@@ -70,6 +70,8 @@ import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.CorrectedSleepSession;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService;
 import nodomain.freeyourgadget.gadgetbridge.util.Accumulator;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 
@@ -840,22 +842,17 @@ public class HRVStatusFragment extends AbstractChartFragment<HRVStatusFragment.H
         final List<? extends AbstractActivitySample> activitySamples =
                 sampleProvider.getAllActivitySamples(startTs, endTs);
 
-        if (activitySamples.isEmpty()) {
-            return new LastNightData(new ArrayList<>(), searchStart, searchEnd);
-        }
-
-        final SleepAnalysis sleepAnalysis = new SleepAnalysis();
-        final List<SleepAnalysis.SleepSession> sleepSessions =
-                sleepAnalysis.calculateSleepSessions(activitySamples);
+        final List<CorrectedSleepSession> sleepSessions =
+                SleepSessionService.getSessions(db.getDaoSession(), device, activitySamples, startTs, endTs);
         if (sleepSessions.isEmpty()) {
             return new LastNightData(new ArrayList<>(), searchStart, searchEnd);
         }
 
-        final SleepAnalysis.SleepSession lastSession = sleepSessions.get(sleepSessions.size() - 1);
+        final CorrectedSleepSession lastSession = sleepSessions.get(sleepSessions.size() - 1);
         final Calendar sleepStart = Calendar.getInstance();
-        sleepStart.setTime(lastSession.getSleepStart());
+        sleepStart.setTimeInMillis(lastSession.getStartTs() * 1000L);
         final Calendar sleepEnd = Calendar.getInstance();
-        sleepEnd.setTime(lastSession.getSleepEnd());
+        sleepEnd.setTimeInMillis(lastSession.getEndTs() * 1000L);
 
         final List<? extends HrvValueSample> samples = getHrvValueSamples(
                 db,

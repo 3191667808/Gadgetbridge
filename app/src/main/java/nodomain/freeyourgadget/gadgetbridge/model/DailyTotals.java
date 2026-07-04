@@ -38,6 +38,9 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepRange;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService.SleepTotals;
 
 
 public class DailyTotals implements Serializable {
@@ -95,12 +98,21 @@ public class DailyTotals implements Serializable {
     public static DailyTotals getDailyTotalsForDevice(GBDevice device, Calendar day, DBHandler handler) {
         ActivityAnalysis analysis = new ActivityAnalysis();
         ActivityAmounts totalAmounts;
-        ActivityAmounts amountsSleep;
 
         totalAmounts = analysis.calculateActivityAmounts(getSamplesOfDay(handler, day, 0, device));
-        amountsSleep = analysis.calculateActivityAmounts(getSamplesOfDay(handler, day, -12, device));
 
-        long[] sleep = getTotalsSleepForActivityAmounts(amountsSleep);
+        final SleepRange sleepRange = SleepRange.forCalendarDay(day, -12);
+        final SleepTotals sleepTotals = SleepSessionService.getTimeline(
+                handler.getDaoSession(),
+                device,
+                getSamples(handler, device,
+                        sleepRange.getSampleQueryStartTs(),
+                        sleepRange.getSampleQueryEndTs()),
+                sleepRange.getIntervalStartTs(),
+                sleepRange.getIntervalEndTs()
+        ).getTotals();
+
+        long[] sleep = getTotalsSleep(sleepTotals);
 
         long totalSteps = 0;
         long totalDistance = 0;
@@ -117,43 +129,17 @@ public class DailyTotals implements Serializable {
         return new DailyTotals(totalSteps, totalDistance, sleep, totalActiveCalories, totalRestingCalories);
     }
 
-    private static long[] getTotalsSleepForActivityAmounts(ActivityAmounts activityAmounts) {
-        long totalSecondsDeepSleep = 0;
-        long totalSecondsLightSleep = 0;
-        long totalSecondsRemSleep = 0;
-        long totalSecondsAwakeSleep = 0;
-        for (ActivityAmount amount : activityAmounts.getAmounts()) {
-            if (amount.getActivityKind() == ActivityKind.DEEP_SLEEP) {
-                totalSecondsDeepSleep += amount.getTotalSeconds();
-            } else if (amount.getActivityKind() == ActivityKind.LIGHT_SLEEP) {
-                totalSecondsLightSleep += amount.getTotalSeconds();
-            } else if (amount.getActivityKind() == ActivityKind.REM_SLEEP) {
-                totalSecondsRemSleep += amount.getTotalSeconds();
-            } else if (amount.getActivityKind() == ActivityKind.AWAKE_SLEEP) {
-                totalSecondsAwakeSleep += amount.getTotalSeconds();
-            }
-        }
-        long totalMinutesDeepSleep = (totalSecondsDeepSleep / 60);
-        long totalMinutesLightSleep = (totalSecondsLightSleep / 60);
-        long totalMinutesRemSleep = (totalSecondsRemSleep / 60);
-        long totalMinutesAwakeSleep = (totalSecondsAwakeSleep / 60);
+    private static long[] getTotalsSleep(final SleepTotals totals) {
+        long totalMinutesDeepSleep = (totals.getDeepSleepSeconds() / 60);
+        long totalMinutesLightSleep = (totals.getLightSleepSeconds() / 60);
+        long totalMinutesRemSleep = (totals.getRemSleepSeconds() / 60);
+        long totalMinutesAwakeSleep = (totals.getAwakeSleepSeconds() / 60);
         return new long[]{totalMinutesLightSleep, totalMinutesDeepSleep, totalMinutesRemSleep, totalMinutesAwakeSleep};
     }
 
     private static List<? extends ActivitySample> getSamplesOfDay(DBHandler db, Calendar day, int offsetHours, GBDevice device) {
-        int startTs;
-        int endTs;
-
-        day = (Calendar) day.clone(); // do not modify the caller's argument
-        day.set(Calendar.HOUR_OF_DAY, 0);
-        day.set(Calendar.MINUTE, 0);
-        day.set(Calendar.SECOND, 0);
-        day.add(Calendar.HOUR, offsetHours);
-
-        startTs = (int) (day.getTimeInMillis() / 1000);
-        endTs = startTs + 24 * 60 * 60 - 1;
-
-        return getSamples(db, device, startTs, endTs);
+        final SleepRange range = SleepRange.forCalendarDay(day, offsetHours);
+        return getSamples(db, device, range.getSampleQueryStartTs(), range.getSampleQueryEndTs());
     }
 
     private static int getRestingCaloriesOfDay(DBHandler db, Calendar day, GBDevice device) {

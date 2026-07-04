@@ -59,6 +59,8 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySession;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepTimeline;
 import nodomain.freeyourgadget.gadgetbridge.util.DashboardUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
@@ -556,9 +558,19 @@ public class DashboardTodayWidget extends AbstractDashboardWidget {
                 for (GBDevice dev : devices) {
                     if ((dashboardData.showAllDevices || dashboardData.showDeviceList.contains(dev.getAddress())) && dev.getDeviceCoordinator().supportsActivityTracking(dev)) {
                         List<? extends ActivitySample> activitySamples = DashboardUtils.getAllSamples(dbHandler, dev, dashboardData);
-                        allActivitySamples.addAll(activitySamples);
+                        final SleepTimeline sleepTimeline = SleepSessionService.getTimeline(
+                                dbHandler.getDaoSession(),
+                                dev,
+                                activitySamples,
+                                (int) dashboardData.timeFrom,
+                                (int) dashboardData.timeTo
+                        );
+                        allActivitySamples.addAll(sleepTimeline.getActivitySamplesWithEditedSleep());
                         StepAnalysis stepAnalysis = new StepAnalysis();
-                        stepSessions.addAll(stepAnalysis.calculateStepSessions(activitySamples, Collections.emptyList()));
+                        stepSessions.addAll(stepAnalysis.calculateStepSessions(
+                                sleepTimeline.getActivitySamplesWithoutEditedSleep(),
+                                Collections.emptyList()
+                        ));
                         deviceIds.add(DBHelper.getDevice(dev, dbHandler.getDaoSession()).getId());
                     }
                 }

@@ -8,6 +8,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.*
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils
 import org.json.JSONArray
 import org.json.JSONObject
@@ -55,10 +56,11 @@ object GadgetbridgeDataExporter {
                 LOG.error("$TAG Failed to get activity samples", e)
                 emptyList()
             }
+            val sleepSamples = SleepSessionService.getTimeline(db.daoSession, gbDevice, activitySamples, tsFrom, tsTo).sleepSamples
 
             data.put("steps", exportSteps(activitySamples))
             data.put("heart_rate", exportHeartRate(activitySamples))
-            data.put("sleep", exportSleep(activitySamples))
+            data.put("sleep", exportSleep(sleepSamples))
             data.put("spo2", exportTimeSamples(coordinator.getSpo2SampleProvider(gbDevice, db.daoSession), msFrom, msTo) { sample ->
                 val spo2 = (sample as? Spo2Sample)?.spo2 ?: return@exportTimeSamples null
                 if (spo2 <= 0 || spo2 > 100) return@exportTimeSamples null

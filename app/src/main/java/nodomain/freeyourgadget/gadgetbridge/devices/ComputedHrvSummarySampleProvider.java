@@ -27,12 +27,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import nodomain.freeyourgadget.gadgetbridge.activities.charts.SleepAnalysis;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.CorrectedSleepSession;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService;
 
 /**
  * Generic provider that computes HRV summary data from per-minute HRV value samples.
@@ -173,27 +174,23 @@ public class ComputedHrvSummarySampleProvider implements TimeSampleProvider<HrvS
         int lastNightAvg = 0;
         int lastNight5MinHigh = 0;
 
-        // Get activity samples and calculate sleep sessions
+        // Get activity samples and calculate corrected sleep sessions
         final SampleProvider<? extends AbstractActivitySample> sampleProvider =
             device.getDeviceCoordinator().getSampleProvider(device, session);
         final List<? extends AbstractActivitySample> activitySamples =
             sampleProvider.getAllActivitySamples(startTs, endTs);
 
-        if (!activitySamples.isEmpty()) {
-            final SleepAnalysis sleepAnalysis = new SleepAnalysis();
-            final List<SleepAnalysis.SleepSession> sleepSessions =
-                sleepAnalysis.calculateSleepSessions(activitySamples);
+        final List<CorrectedSleepSession> sleepSessions =
+            SleepSessionService.getSessions(session, device, activitySamples, startTs, endTs);
 
-            // Use the last (most recent) sleep session - this should be the previous night
-            // SleepAnalysis returns sessions with their actual start/end times
-            if (!sleepSessions.isEmpty()) {
-                final SleepAnalysis.SleepSession lastSession = sleepSessions.get(sleepSessions.size() - 1);
-                final long sessionStart = lastSession.getSleepStart().getTime();
-                final long sessionEnd = lastSession.getSleepEnd().getTime();
+        // Use the last (most recent) sleep session - this should be the previous night
+        if (!sleepSessions.isEmpty()) {
+            final CorrectedSleepSession lastSession = sleepSessions.get(sleepSessions.size() - 1);
+            final long sessionStart = lastSession.getStartTs() * 1000L;
+            final long sessionEnd = lastSession.getEndTs() * 1000L;
 
-                lastNightAvg = calculateAverageHrv(sessionStart, sessionEnd);
-                lastNight5MinHigh = calculate5MinHighHrv(sessionStart, sessionEnd);
-            }
+            lastNightAvg = calculateAverageHrv(sessionStart, sessionEnd);
+            lastNight5MinHigh = calculate5MinHighHrv(sessionStart, sessionEnd);
         }
 
         // Calculate baseline values (using past 28 overnight averages)
@@ -264,7 +261,6 @@ public class ComputedHrvSummarySampleProvider implements TimeSampleProvider<HrvS
 
         final SampleProvider<? extends AbstractActivitySample> sampleProvider =
             device.getDeviceCoordinator().getSampleProvider(device, session);
-        final SleepAnalysis sleepAnalysis = new SleepAnalysis();
 
         // Collect overnight averages for the past 28 days
         for (int i = 0; i < DAYS_FOR_BASELINE; i++) {
@@ -284,20 +280,18 @@ public class ComputedHrvSummarySampleProvider implements TimeSampleProvider<HrvS
             final List<? extends AbstractActivitySample> activitySamples =
                 sampleProvider.getAllActivitySamples(startTs, endTs);
 
-            if (!activitySamples.isEmpty()) {
-                final List<SleepAnalysis.SleepSession> sleepSessions =
-                    sleepAnalysis.calculateSleepSessions(activitySamples);
+            final List<CorrectedSleepSession> sleepSessions =
+                SleepSessionService.getSessions(session, device, activitySamples, startTs, endTs);
 
-                // Use the last sleep session in the window (should be the previous night)
-                if (!sleepSessions.isEmpty()) {
-                    final SleepAnalysis.SleepSession lastSession = sleepSessions.get(sleepSessions.size() - 1);
-                    final long sessionStart = lastSession.getSleepStart().getTime();
-                    final long sessionEnd = lastSession.getSleepEnd().getTime();
+            // Use the last sleep session in the window (should be the previous night)
+            if (!sleepSessions.isEmpty()) {
+                final CorrectedSleepSession lastSession = sleepSessions.get(sleepSessions.size() - 1);
+                final long sessionStart = lastSession.getStartTs() * 1000L;
+                final long sessionEnd = lastSession.getEndTs() * 1000L;
 
-                    final int nightAvg = calculateAverageHrv(sessionStart, sessionEnd);
-                    if (nightAvg > 0) {
-                        overnightAverages.add(nightAvg);
-                    }
+                final int nightAvg = calculateAverageHrv(sessionStart, sessionEnd);
+                if (nightAvg > 0) {
+                    overnightAverages.add(nightAvg);
                 }
             }
 
