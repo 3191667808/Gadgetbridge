@@ -79,7 +79,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(133, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(134, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 
@@ -243,6 +243,8 @@ public class GBDaoGenerator {
         addNotificationFilterEntry(schema, notificationFilter);
 
         addActivitySummary(schema, user, device);
+        Entity userSleepSession = addUserSleepSession(schema, user, device);
+        addUserSleepStage(schema, userSleepSession);
         addBatteryLevel(schema, device);
 
         sampleProvidersToGenerate.add(addGenericHeartRateSample(schema, user, device));
@@ -1618,6 +1620,46 @@ public class GBDaoGenerator {
         summary.addToOne(user, userId);
         summary.addStringProperty("summaryData").codeBeforeGetter(OVERRIDE);
         summary.addByteArrayProperty("rawSummaryData");
+    }
+
+    private static Entity addUserSleepSession(Schema schema, Entity user, Entity device) {
+        Entity session = addEntity(schema, "UserSleepSession");
+        session.addIdProperty().autoincrement();
+
+        Property deviceId = session.addLongProperty("deviceId").notNull().getProperty();
+        session.addToOne(device, deviceId);
+        Property userId = session.addLongProperty("userId").notNull().getProperty();
+        session.addToOne(user, userId);
+
+        session.addLongProperty("sourceStartTs").notNull();
+        session.addLongProperty("sourceEndTs").notNull();
+        session.addLongProperty("startTs").notNull();
+        session.addLongProperty("endTs").notNull();
+        session.addLongProperty("createdAt").notNull();
+        session.addLongProperty("updatedAt").notNull();
+
+        Index indexByDeviceAndStart = new Index();
+        indexByDeviceAndStart.addProperty(deviceId);
+        indexByDeviceAndStart.addProperty(findProperty(session, "startTs"));
+        session.addIndex(indexByDeviceAndStart);
+
+        return session;
+    }
+
+    private static void addUserSleepStage(Schema schema, Entity userSleepSession) {
+        Entity stage = addEntity(schema, "UserSleepStage");
+        stage.addIdProperty().autoincrement();
+
+        Property sessionId = stage.addLongProperty("sessionId").notNull().getProperty();
+        stage.addToOne(userSleepSession, sessionId);
+        stage.addLongProperty("startTs").notNull();
+        stage.addLongProperty("endTs").notNull();
+        stage.addIntProperty("activityKindCode").notNull();
+
+        Index indexBySessionAndStart = new Index();
+        indexBySessionAndStart.addProperty(sessionId);
+        indexBySessionAndStart.addProperty(findProperty(stage, "startTs"));
+        stage.addIndex(indexBySessionAndStart);
     }
 
     private static Property findProperty(Entity entity, String propertyName) {
