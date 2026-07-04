@@ -22,12 +22,14 @@ import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -41,6 +43,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.LineData;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.Logger;
@@ -50,8 +53,8 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +63,6 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.entries.ActivitySummarySimpleEntry;
-import nodomain.freeyourgadget.gadgetbridge.activities.charts.SleepAnalysis.SleepSession;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.AbstractOverlayData;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.OverlayDataFloat;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.OverlayDataInt;
@@ -68,8 +70,10 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SimpleSleepD
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SleepDetailsOverlay;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SleepDetailsView;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.GaugeDrawer;
+import nodomain.freeyourgadget.gadgetbridge.database.DBAccess;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.databinding.FragmentSleepchartBinding;
+import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -80,10 +84,16 @@ import nodomain.freeyourgadget.gadgetbridge.model.SleepScoreSample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.TimeSample;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.CorrectedSleepSession;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepRange;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepSessionService;
+import nodomain.freeyourgadget.gadgetbridge.model.sleep.SleepTimeline;
 import nodomain.freeyourgadget.gadgetbridge.util.Accumulator;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GridTableBuilder;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.sleep.SleepCorrectionWriter;
 
 
 public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChartsData> {
@@ -95,6 +105,7 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     private final boolean CHARTS_SLEEP_RANGE_24H = prefs.getString("chart_sleep_range_mode", "18:00").equals("24h");
     private final boolean SHOW_CHARTS_AVERAGE = prefs.getBoolean("charts_show_average", true);
     private final int sleepLinesLimit = prefs.getInt("chart_sleep_lines_limit", 6);
+    private MyChartsData latestChartsData;
 
     @Override
     protected boolean isSingleDay() {
@@ -103,60 +114,66 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
 
     @Override
     protected MyChartsData refreshInBackground(ChartsHost chartsHost, DBHandler db, GBDevice device) {
-        List<? extends ActivitySample> samples;
+        List<? extends ActivitySample> rawSamples;
+        final SleepRange sleepRange = CHARTS_SLEEP_RANGE_24H
+                ? SleepRange.fromMatchingSampleAndIntervalEnd(getTSStart(), getTSEnd())
+                : getSleepRange();
         if (CHARTS_SLEEP_RANGE_24H) {
-            samples = getSamples(db, device);
+            rawSamples = getSamples(db, device,
+                    sleepRange.getSampleQueryStartTs(),
+                    sleepRange.getSampleQueryEndTs());
         } else {
-            samples = getSamplesofSleep(db, device);
+            rawSamples = getSleepSamples(db, device, sleepRange);
         }
         List<? extends SleepScoreSample> sleepScoreSamples = new ArrayList<>();
         if (supportsSleepScore()) {
             sleepScoreSamples = getSleepScoreSamples(db, device, getTSStart(), getTSEnd());
         }
-        MySleepChartsData mySleepChartsData = refreshSleepAmounts(samples, sleepScoreSamples);
+        final SleepTimeline sleepTimeline = SleepSessionService.getTimeline(
+                db.getDaoSession(),
+                device,
+                rawSamples,
+                sleepRange.getIntervalStartTs(),
+                sleepRange.getIntervalEndTs()
+        );
+        final List<? extends ActivitySample> displaySamples = getDisplaySamples(sleepTimeline, CHARTS_SLEEP_RANGE_24H);
+        MySleepChartsData mySleepChartsData = refreshSleepAmounts(sleepTimeline, sleepScoreSamples);
 
-        if (!CHARTS_SLEEP_RANGE_24H) {
-            if (!mySleepChartsData.sleepSessions.isEmpty()) {
-                long tstart = mySleepChartsData.sleepSessions.get(0).getSleepStart().getTime() / 1000;
-                long tend = mySleepChartsData.sleepSessions.get(mySleepChartsData.sleepSessions.size() - 1).getSleepEnd().getTime() / 1000;
+        DefaultChartsData<LineData> chartsData = refresh(device, displaySamples);
+        Triple<Float, Integer, Integer> hrData = calculateHrData(displaySamples);
+        Triple<Float, Float, Float> intensityData = calculateIntensityData(displaySamples);
 
-                for (Iterator<? extends ActivitySample> iterator = samples.iterator(); iterator.hasNext(); ) {
-                    ActivitySample sample = iterator.next();
-                    if (sample.getTimestamp() < tstart || sample.getTimestamp() > tend) {
-                        iterator.remove();
-                    }
-                }
-            }
-        }
-        DefaultChartsData<LineData> chartsData = refresh(device, samples);
-        Triple<Float, Integer, Integer> hrData = calculateHrData(samples);
-        Triple<Float, Float, Float> intensityData = calculateIntensityData(samples);
-
-        List<SleepDetailsView.SleepDetail> stages = prepareStages(samples);
+        List<SleepDetailsView.SleepDetail> stages = prepareStages(displaySamples);
 
         AbstractOverlayData overlay = null;
         if (currentOverlay == OverlayType.HEART_RATE) {
             int average = Math.round(hrData.getLeft());
             average = SHOW_CHARTS_AVERAGE && average > 0 ? average : OverlayDataInt.NO_DATA;
-            overlay = new OverlayDataInt(20, 140, prepareHR(samples), average, HEARTRATE_COLOR, Color.RED);
-        } else if (currentOverlay == OverlayType.SPO2) {
-            overlay = new OverlayDataInt(68, 100, prepareSpO2Overlay(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataInt.NO_DATA, ContextCompat.getColor(requireContext(), R.color.spo2_color), Color.RED);
-        } else if (currentOverlay == OverlayType.TEMPERATURE) {
-            overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
-        } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
-            final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
+            overlay = new OverlayDataInt(20, 140, prepareHR(displaySamples), average, HEARTRATE_COLOR, Color.RED);
+        } else if (currentOverlay == OverlayType.SPO2 && !displaySamples.isEmpty()) {
+            overlay = new OverlayDataInt(68, 100, prepareSpO2Overlay(db, device, displaySamples.get(0).getTimestamp() * 1000L, displaySamples.get(displaySamples.size() - 1).getTimestamp() * 1000L), OverlayDataInt.NO_DATA, ContextCompat.getColor(requireContext(), R.color.spo2_color), Color.RED);
+        } else if (currentOverlay == OverlayType.TEMPERATURE && !displaySamples.isEmpty()) {
+            overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, displaySamples.get(0).getTimestamp() * 1000L, displaySamples.get(displaySamples.size() - 1).getTimestamp() * 1000L), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
+        } else if (currentOverlay == OverlayType.RESPIRATORY_RATE && !displaySamples.isEmpty()) {
+            final float[] respiratoryRateData = prepareRespiratoryRate(db, device, displaySamples.get(0).getTimestamp() * 1000L, displaySamples.get(displaySamples.size() - 1).getTimestamp() * 1000L);
             final Accumulator accumulator = new Accumulator();
-            for (float value : respiratoryRateData) {
-                accumulator.add(value);
+            if (respiratoryRateData != null) {
+                for (float value : respiratoryRateData) {
+                    if (value >= 0) {
+                        accumulator.add(value);
+                    }
+                }
             }
-            overlay = new OverlayDataFloat(
-                    (float) (accumulator.getMin() / 2),
-                    (float) (1.5d * accumulator.getMax()),
-                    respiratoryRateData,
-                    OverlayDataFloat.NO_DATA,
-                    ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
-                    Color.RED
-            );
+            if (accumulator.getCount() > 0) {
+                overlay = new OverlayDataFloat(
+                        (float) (accumulator.getMin() / 2),
+                        (float) (1.5d * accumulator.getMax()),
+                        respiratoryRateData,
+                        OverlayDataFloat.NO_DATA,
+                        ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
+                        Color.RED
+                );
+            }
         }
 
         final DeviceChartsProvider chartsProvider = device.getDeviceCoordinator().getChartsProvider();
@@ -175,6 +192,31 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
                 overlay,
                 customStats
         );
+    }
+
+    private SleepRange getSleepRange() {
+        final String chartSleepRangeMode = GBApplication.getPrefs().getString("chart_sleep_range_mode", "18:00");
+        final int sleepHourLimit = "18:00".equals(chartSleepRangeMode) ? 18 : 12;
+
+        return SleepRange.forCutoffWindow(getTSStart(), getTSEnd(), sleepHourLimit);
+    }
+
+    private List<? extends ActivitySample> getSleepSamples(final DBHandler db,
+                                                           final GBDevice device,
+                                                           final SleepRange range) {
+        final List<ActivitySample> samples = (List<ActivitySample>) getSamples(db, device,
+                range.getSampleQueryStartTs(),
+                range.getSampleQueryEndTs());
+        ensureStartAndEndSamples(samples, range.getSampleQueryStartTs(), range.getSampleQueryEndTs());
+        return samples;
+    }
+
+    static List<? extends ActivitySample> getDisplaySamples(@NonNull final SleepTimeline sleepTimeline,
+                                                            final boolean chartsSleepRange24h) {
+        if (chartsSleepRange24h) {
+            return sleepTimeline.getActivitySamplesWithEditedSleep();
+        }
+        return sleepTimeline.getSleepSamples();
     }
 
     private long getSamplesInterval(List<? extends TimeSample> samples) {
@@ -304,54 +346,26 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     }
 
 
-    private MySleepChartsData refreshSleepAmounts(List<? extends ActivitySample> samples, List<? extends SleepScoreSample> sleepScoreSamples) {
-        SleepAnalysis sleepAnalysis = new SleepAnalysis();
-        List<SleepSession> sleepSessions = sleepAnalysis.calculateSleepSessions(samples);
-
-        final long lightSleepDuration = calculateLightSleepDuration(sleepSessions);
-        final long deepSleepDuration = calculateDeepSleepDuration(sleepSessions);
-        final long remSleepDuration = calculateRemSleepDuration(sleepSessions);
-        final long awakeSleepDuration = calculateAwakeSleepDuration(sleepSessions);
-        final long totalSeconds = lightSleepDuration + deepSleepDuration + remSleepDuration;
+    static MySleepChartsData refreshSleepAmounts(@NonNull final SleepTimeline sleepTimeline,
+                                                 @NonNull final List<? extends SleepScoreSample> sleepScoreSamples) {
+        final SleepSessionService.SleepTotals totals = sleepTimeline.getTotals();
 
         int sleepScore = 0;
         if (!sleepScoreSamples.isEmpty()) {
             sleepScore = sleepScoreSamples.get(sleepScoreSamples.size() - 1).getSleepScore();
         }
 
-        return new MySleepChartsData(sleepSessions, totalSeconds, awakeSleepDuration, remSleepDuration, deepSleepDuration, lightSleepDuration, sleepScore);
-    }
-
-    private long calculateLightSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getLightSleepDuration();
-        }
-        return result;
-    }
-
-    private long calculateDeepSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getDeepSleepDuration();
-        }
-        return result;
-    }
-
-    private long calculateRemSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getRemSleepDuration();
-        }
-        return result;
-    }
-
-    private long calculateAwakeSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getAwakeSleepDuration();
-        }
-        return result;
+        return new MySleepChartsData(
+                sleepTimeline.getSessions(),
+                sleepTimeline.getCorrectionRanges(),
+                totals.getTotalSleepSeconds(),
+                totals.getAwakeSleepSeconds(),
+                totals.getRemSleepSeconds(),
+                totals.getDeepSleepSeconds(),
+                totals.getLightSleepSeconds(),
+                sleepScore,
+                sleepTimeline.hasCorrections()
+        );
     }
 
     protected void sleepStagesGaugeUpdate(MySleepChartsData pieData) {
@@ -363,10 +377,10 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         };
         long total = pieData.getTotalSleep() + pieData.getTotalAwake();
         float[] segments = new float[]{
-                pieData.getTotalLight() > 0 ? (float) pieData.getTotalLight() / total : 0,
-                pieData.getTotalDeep() > 0 ? (float) pieData.getTotalDeep() / total : 0,
-                pieData.getTotalRem() > 0 ? (float) pieData.getTotalRem() / total : 0,
-                pieData.getTotalAwake() > 0 ? (float) pieData.getTotalAwake() / total : 0,
+                total > 0 && pieData.getTotalLight() > 0 ? (float) pieData.getTotalLight() / total : 0,
+                total > 0 && pieData.getTotalDeep() > 0 ? (float) pieData.getTotalDeep() / total : 0,
+                total > 0 && pieData.getTotalRem() > 0 ? (float) pieData.getTotalRem() / total : 0,
+                total > 0 && pieData.getTotalAwake() > 0 ? (float) pieData.getTotalAwake() / total : 0,
         };
         final int width = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP,
@@ -395,6 +409,7 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
 
     @Override
     protected void updateChartsnUIThread(MyChartsData mcd) {
+        latestChartsData = mcd;
         MySleepChartsData pieData = mcd.getPieData();
 
         if (mcd.getStages() != null) {
@@ -419,11 +434,21 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
             binding.sleepChartLegendDeepTime.setText("-");
             binding.sleepChartLegendLightTime.setText("-");
         }
-        if (!supportsRemSleep(getChartsHost().getDevice())) {
+        binding.sleepEditedIndicator.setVisibility(shouldShowEditedIndicator(pieData) ? View.VISIBLE : View.GONE);
+        binding.sleepEditButton.setVisibility(shouldShowEditButton(pieData) ? View.VISIBLE : View.GONE);
+        binding.sleepEditButton.setContentDescription(getString(pieData.canResetSourceOnlyCorrections()
+                ? R.string.sleep_edit_reset
+                : R.string.sleep_edit));
+
+        if (!supportsRemSleep(getChartsHost().getDevice()) && pieData.getTotalRem() <= 0) {
             binding.sleepChartLegendRemTimeWrapper.setVisibility(View.GONE);
+        } else {
+            binding.sleepChartLegendRemTimeWrapper.setVisibility(View.VISIBLE);
         }
-        if (!supportsAwakeSleep(getChartsHost().getDevice())) {
+        if (!supportsAwakeSleep(getChartsHost().getDevice()) && pieData.getTotalAwake() <= 0) {
             binding.sleepChartLegendAwakeTimeWrapper.setVisibility(View.GONE);
+        } else {
+            binding.sleepChartLegendAwakeTimeWrapper.setVisibility(View.VISIBLE);
         }
         binding.sleepchartInfo.setText(buildYouSleptText(pieData));
         binding.sleepchartInfo.setMovementMethod(new ScrollingMovementMethod());
@@ -515,7 +540,9 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         for (ActivitySample s : samples) {
             if (s.getKind() == ActivityKind.LIGHT_SLEEP || s.getKind() == ActivityKind.DEEP_SLEEP) {
                 float intensity = s.getIntensity();
-                accumulator.add(intensity);
+                if (intensity != ActivitySample.NOT_MEASURED) {
+                    accumulator.add(intensity);
+                }
             }
         }
         if (accumulator.getCount() == 0) {
@@ -528,16 +555,116 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     private String buildYouSleptText(MySleepChartsData pieData) {
         final StringBuilder result = new StringBuilder();
         if (!pieData.getSleepSessions().isEmpty()) {
-            for (SleepSession sleepSession : pieData.getSleepSessions()) {
+            for (CorrectedSleepSession sleepSession : pieData.getSleepSessions()) {
                 if (result.length() > 0) {
                     result.append("  |  ");
                 }
-                String from = DateTimeUtils.timeToString(sleepSession.getSleepStart());
-                String to = DateTimeUtils.timeToString(sleepSession.getSleepEnd());
-                result.append(String.format("%s - %s", from, to));
+                result.append(formatSessionLabel(sleepSession));
             }
         }
         return result.toString();
+    }
+
+    static boolean shouldShowEditedIndicator(final MySleepChartsData pieData) {
+        return pieData.hasCorrections();
+    }
+
+    static boolean shouldShowEditButton(final MySleepChartsData pieData) {
+        return !pieData.getSleepSessions().isEmpty() || pieData.canResetSourceOnlyCorrections();
+    }
+
+    private String formatSessionLabel(final CorrectedSleepSession sleepSession) {
+        final String from = DateTimeUtils.timeToString(new Date(sleepSession.getStartTs() * 1000L));
+        final String to = DateTimeUtils.timeToString(new Date(sleepSession.getEndTs() * 1000L));
+        if (sleepSession.isEdited()) {
+            return getString(R.string.sleep_session_label_edited, from, to);
+        }
+        return getString(R.string.sleep_session_label, from, to);
+    }
+
+    private void showSessionPickerOrEditor() {
+        if (latestChartsData == null) {
+            GB.toast(requireContext(), R.string.sleep_edit_no_sessions, Toast.LENGTH_SHORT, GB.INFO);
+            return;
+        }
+
+        final MySleepChartsData pieData = latestChartsData.getPieData();
+        final List<CorrectedSleepSession> sessions = pieData.getSleepSessions();
+        if (sessions.isEmpty()) {
+            showSourceOnlyCorrectionReset(pieData);
+            return;
+        }
+
+        if (sessions.size() == 1) {
+            showSleepSessionEditor(sessions.get(0));
+            return;
+        }
+
+        final String[] labels = new String[sessions.size()];
+        for (int i = 0; i < sessions.size(); i++) {
+            labels[i] = formatSessionLabel(sessions.get(i));
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.sleep_edit_title)
+                .setItems(labels, (dialog, which) -> showSleepSessionEditor(sessions.get(which)))
+                .show();
+    }
+
+    private void showSourceOnlyCorrectionReset(final MySleepChartsData pieData) {
+        final List<Long> correctionIds = pieData.getCorrectionSessionIds();
+        if (correctionIds.isEmpty()) {
+            GB.toast(requireContext(), R.string.sleep_edit_no_sessions, Toast.LENGTH_SHORT, GB.INFO);
+            return;
+        }
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.sleep_edit_title)
+                .setMessage(R.string.sleep_edit_source_only_reset_prompt)
+                .setPositiveButton(R.string.sleep_edit_reset, (dialog, which) -> resetSourceOnlyCorrections(correctionIds))
+                .setNegativeButton(R.string.sleep_edit_cancel, null)
+                .show();
+    }
+
+    private void resetSourceOnlyCorrections(final List<Long> correctionIds) {
+        final GBDevice device = getChartsHost().getDevice();
+        new DBAccess(getString(R.string.sleep_edit_reset), requireContext(), true) {
+            @Override
+            protected void doInBackground(final DBHandler handler) {
+                for (Long correctionId : correctionIds) {
+                    SleepCorrectionWriter.deleteCorrection(handler.getDaoSession(), correctionId);
+                }
+            }
+
+            @Override
+            protected void onPostExecute(final Object o) {
+                super.onPostExecute(o);
+                if (getTaskError() == null) {
+                    onSleepCorrectionChanged(device);
+                }
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    private void showSleepSessionEditor(final CorrectedSleepSession session) {
+        final GBDevice device = getChartsHost().getDevice();
+        new SleepSessionEditor(
+                this,
+                device,
+                supportsRemSleep(device),
+                () -> onSleepCorrectionChanged(device)
+        ).show(session);
+    }
+
+    private void onSleepCorrectionChanged(final GBDevice device) {
+        ComputedHrvSummarySampleProvider.clearCache(device.getAddress());
+        clearActivityAmountCache();
+        refresh();
+    }
+
+    private void clearActivityAmountCache() {
+        if (getActivity() instanceof ActivityChartsActivity) {
+            ((ActivityChartsActivity) getActivity()).mActivityAmountCache.clear();
+        }
     }
 
     private enum OverlayType {
@@ -573,6 +700,7 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         View rootView = binding.getRoot();
 
         rootView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> getChartsHost().enableSwipeRefresh(scrollY == 0));
+        binding.sleepEditButton.setOnClickListener(v -> showSessionPickerOrEditor());
 
         ChipGroup chipGroup = binding.sleepChartOverlayGroup;
 
@@ -707,16 +835,28 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         private final long totalDeep;
         private final long totalLight;
         private final int sleepScore;
-        private final List<SleepSession> sleepSessions;
+        private final List<CorrectedSleepSession> sleepSessions;
+        private final List<CorrectedSleepSession> correctionRanges;
+        private final boolean hasCorrections;
 
-        public MySleepChartsData(List<SleepSession> sleepSessions, long totalSleep, long totalAwake, long totalRem, long totalDeep, long totalLight, int sleepScore) {
+        public MySleepChartsData(List<CorrectedSleepSession> sleepSessions,
+                                 List<CorrectedSleepSession> correctionRanges,
+                                 long totalSleep,
+                                 long totalAwake,
+                                 long totalRem,
+                                 long totalDeep,
+                                 long totalLight,
+                                 int sleepScore,
+                                 boolean hasCorrections) {
             this.sleepSessions = sleepSessions;
+            this.correctionRanges = correctionRanges;
             this.totalAwake = totalAwake;
             this.totalSleep = totalSleep;
             this.totalRem = totalRem;
             this.totalDeep = totalDeep;
             this.totalLight = totalLight;
             this.sleepScore = sleepScore;
+            this.hasCorrections = hasCorrections;
         }
 
         public long getTotalSleep() {
@@ -743,8 +883,30 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
             return sleepScore;
         }
 
-        public List<SleepSession> getSleepSessions() {
+        public List<CorrectedSleepSession> getSleepSessions() {
             return sleepSessions;
+        }
+
+        public List<CorrectedSleepSession> getCorrectionRanges() {
+            return correctionRanges;
+        }
+
+        public boolean hasCorrections() {
+            return hasCorrections;
+        }
+
+        public boolean canResetSourceOnlyCorrections() {
+            return sleepSessions.isEmpty() && !getCorrectionSessionIds().isEmpty();
+        }
+
+        public List<Long> getCorrectionSessionIds() {
+            final List<Long> ids = new ArrayList<>();
+            for (CorrectedSleepSession correctionRange : correctionRanges) {
+                if (correctionRange.getId() != null) {
+                    ids.add(correctionRange.getId());
+                }
+            }
+            return ids;
         }
     }
 
@@ -832,4 +994,5 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
             return customStats;
         }
     }
+
 }

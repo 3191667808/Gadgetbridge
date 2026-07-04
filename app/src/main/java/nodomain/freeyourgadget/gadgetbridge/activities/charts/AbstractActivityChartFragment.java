@@ -317,12 +317,12 @@ public abstract class AbstractActivityChartFragment<D extends ChartsData> extend
                 entries.get(getIndexOfActivity(ActivityKind.NOT_WORN)), akNotWorn.color, "Not worn"
         ));
 
-        if (supportsRemSleep(gbDevice)) {
+        if (supportsRemSleep(gbDevice) || hasSamplesOfKind(samples, ActivityKind.REM_SLEEP)) {
             lineDataSets.add(createDataSet(
                     entries.get(getIndexOfActivity(ActivityKind.REM_SLEEP)), akRemSleep.color, "REM Sleep"
             ));
         }
-        if (supportsAwakeSleep(gbDevice)) {
+        if (supportsAwakeSleep(gbDevice) || hasSamplesOfKind(samples, ActivityKind.AWAKE_SLEEP)) {
             lineDataSets.add(createDataSet(
                     entries.get(getIndexOfActivity(ActivityKind.AWAKE_SLEEP)), akAwakeSleep.color, "Awake Sleep"
             ));
@@ -335,6 +335,15 @@ public abstract class AbstractActivityChartFragment<D extends ChartsData> extend
 
         ValueFormatter xValueFormatter = new SampleXLabelFormatter(tsTranslation, "HH:mm");
         return new DefaultChartsData<>(lineData, xValueFormatter);
+    }
+
+    private boolean hasSamplesOfKind(List<? extends ActivitySample> samples, ActivityKind kind) {
+        for (ActivitySample sample : samples) {
+            if (sample.getKind() == kind) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<SleepDetailsView.SleepDetail> prepareStages(List<? extends ActivitySample> samples) {
