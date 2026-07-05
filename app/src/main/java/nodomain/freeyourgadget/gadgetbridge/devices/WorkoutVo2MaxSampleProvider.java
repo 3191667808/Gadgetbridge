@@ -76,7 +76,6 @@ public class WorkoutVo2MaxSampleProvider implements Vo2MaxSampleProvider<Vo2MaxS
         qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.getId()))
                 .where(BaseActivitySummaryDao.Properties.StartTime.gt(new Date(timestampFrom)))
                 .where(BaseActivitySummaryDao.Properties.StartTime.lt(new Date(timestampTo)))
-                .where(BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"))
                 .orderAsc(BaseActivitySummaryDao.Properties.StartTime);
 
         final List<BaseActivitySummary> samples = qb.build().list();
@@ -124,15 +123,17 @@ public class WorkoutVo2MaxSampleProvider implements Vo2MaxSampleProvider<Vo2MaxS
         }
 
         qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.getId()))
-                .where(BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"))
-                .orderDesc(BaseActivitySummaryDao.Properties.StartTime)
-                .limit(1);
+                .orderDesc(BaseActivitySummaryDao.Properties.StartTime);
 
         final List<BaseActivitySummary> samples = qb.build().list();
         summaryDao.detachAll();
         fillSummaryData(coordinator, samples);
 
-        return !samples.isEmpty() ? GarminVo2maxSample.fromActivitySummary(samples.get(0)) : null;
+        return samples.stream()
+                .map(GarminVo2maxSample::fromActivitySummary)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private static void addWhereFilter(final DeviceCoordinator coordinator,
@@ -204,16 +205,20 @@ public class WorkoutVo2MaxSampleProvider implements Vo2MaxSampleProvider<Vo2MaxS
             return null;
         }
 
+        final DeviceCoordinator coordinator = device.getDeviceCoordinator();
         final QueryBuilder<BaseActivitySummary> qb = summaryDao.queryBuilder();
         qb.where(BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.getId()))
-                .where(BaseActivitySummaryDao.Properties.SummaryData.like("%" + ActivitySummaryEntries.MAXIMUM_OXYGEN_UPTAKE + "%"))
-                .orderAsc(BaseActivitySummaryDao.Properties.StartTime)
-                .limit(1);
+                .orderAsc(BaseActivitySummaryDao.Properties.StartTime);
 
         final List<BaseActivitySummary> samples = qb.build().list();
         summaryDao.detachAll();
+        fillSummaryData(coordinator, samples);
 
-        return !samples.isEmpty() ? GarminVo2maxSample.fromActivitySummary(samples.get(0)) : null;
+        return samples.stream()
+                .map(GarminVo2maxSample::fromActivitySummary)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
 
