@@ -4854,6 +4854,11 @@
     <string name="notification_pebble_js_service_text">Running Pebble app/watchface JavaScript</string>
     <string name="internet_helper_banglejs_permission_missing_title">Permission missing</string>
     <string name="internet_helper_banglejs_permission_missing_text">Access to the Bangle.js app loader is currently not allowed by your settings. Please go to the internet helper settings in the external integrations settings to enable it.</string>
+    <!-- Generic internet/connectivity error reasons (shared by any feature that needs the network) -->
+    <string name="internet_helper_error_could_not_reach_server">Could not reach %1$s.</string>
+    <string name="internet_helper_error_server_unreachable">Server unreachable</string>
+    <string name="internet_helper_error_no_internet_access">Install the Internet Helper for this feature.</string>
+    <string name="internet_helper_error_permission">Internet Helper doesn\'t have internet permission</string>
     <string name="eco">Eco</string>
     <string name="prefs_title_offgrid_mode">Off-grid mode</string>
     <string name="solar_panel1_peak_w">Solar panel 1 peak W</string>
@@ -5062,6 +5067,16 @@
     <string name="pref_category_wanderer" translatable="false">Wanderer</string>
     <string name="activity_detail_upload_to_wanderer">Upload GPX to Wanderer</string>
     <string name="select_at_least_option">Please select at least %1$d option</string>
+
+    <!-- Auto-upload to online fitness trackers -->
+    <string name="pref_endurain_auto_upload_title">Auto-upload to Endurain</string>
+    <string name="pref_endurain_auto_upload_summary">Automatically upload newly synced workouts to Endurain</string>
+    <string name="pref_wanderer_auto_upload_title">Auto-upload to Wanderer</string>
+    <string name="pref_wanderer_auto_upload_summary">Automatically upload newly synced workouts with a GPS track to Wanderer</string>
+    <string name="auto_upload_failed_notification_title">Workout upload failed</string>
+    <string name="auto_upload_failed_endurain">Endurain upload failed: %1$s</string>
+    <string name="auto_upload_failed_wanderer">Wanderer upload failed: %1$s</string>
+    <string name="group_upload_result">Uploaded %1$d/%2$d to %3$s</string>
 
     <!-- Workout summary section headers -->
     <string name="goals">Goals</string>

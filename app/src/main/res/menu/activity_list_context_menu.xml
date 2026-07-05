@@ -19,9 +19,30 @@
     <item
         android:id="@+id/activity_action_export"
         android:icon="@drawable/ic_share"
-        android:title="@string/share"
+        android:title="@string/activity_detail_share_gps_label"
         app:iconTint="?attr/actionmenu_icon_color"
         app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/activity_action_share_fit"
+        android:icon="@drawable/ic_share"
+        android:title="@string/activity_detail_export_fit"
+        app:iconTint="?attr/actionmenu_icon_color"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/activity_action_upload_to_endurain"
+        android:icon="@drawable/ic_file_upload"
+        android:title="@string/activity_detail_upload_to_endurain"
+        app:iconTint="?attr/actionmenu_icon_color"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/activity_action_upload_to_wanderer"
+        android:icon="@drawable/ic_file_upload"
+        android:title="@string/activity_detail_upload_to_wanderer"
+        app:iconTint="?attr/actionmenu_icon_color"
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/activity_action_delete"

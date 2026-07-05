@@ -128,6 +128,13 @@ public class GBPrefs extends Prefs {
     public static final String HEALTH_CONNECT_LAST_GRANTED_PERMISSIONS = "health_connect_last_granted_permissions";
     public static final String HEALTH_CONNECT_PROMPT_FOR_FULL_DAO_RESET = "health_connect_prompt_for_full_dao_reset";
 
+    // Online fitness trackers auto-upload (Endurain / Wanderer)
+    public static final String ENDURAIN_AUTO_UPLOAD_ENABLED = "endurain_auto_upload_enabled";
+    public static final String WANDERER_AUTO_UPLOAD_ENABLED = "wanderer_auto_upload_enabled";
+    // Persisted sets of summary IDs already uploaded, to avoid re-uploading on the next sync
+    public static final String ENDURAIN_UPLOADED_IDS = "endurain_uploaded_ids";
+    public static final String WANDERER_UPLOADED_IDS = "wanderer_uploaded_ids";
+
     @Deprecated
     public GBPrefs(Prefs prefs) {
         this(prefs.getPreferences());

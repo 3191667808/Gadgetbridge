@@ -13,16 +13,22 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractListActivity
 import nodomain.freeyourgadget.gadgetbridge.activities.ActivitySummariesFilter
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainTokenManager
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererTokenManager
 import nodomain.freeyourgadget.gadgetbridge.adapter.WorkoutSummariesAdapter
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
@@ -279,6 +285,15 @@ class WorkoutListActivity : AbstractListActivity<BaseActivitySummary>() {
                 mode.title = getString(R.string.number_selected_items, numSelected)
                 menuInflater.inflate(R.menu.activity_list_context_menu, menu)
 
+                // Only show the online-tracker uploads when that service is configured + logged in.
+                val prefs = GBApplication.getPrefs().preferences
+                val endurainReady = prefs.getString("endurain_server", null) != null &&
+                    EndurainTokenManager(this@WorkoutListActivity).isLoggedIn()
+                val wandererReady = prefs.getString("wanderer_server", null) != null &&
+                    WandererTokenManager(this@WorkoutListActivity).isLoggedIn()
+                menu.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainReady
+                menu.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = wandererReady
+
                 // For some reason the icons in the context menu are not tinted
                 // by the theme, so we do it manually here
                 val typedValue = android.util.TypedValue()
@@ -329,7 +344,19 @@ class WorkoutListActivity : AbstractListActivity<BaseActivitySummary>() {
                                 }
                             }
                         }
-                        shareMultiple(paths)
+                        shareMultiple(paths, "application/gpx+xml")
+                        return true
+                    }
+                    R.id.activity_action_share_fit -> {
+                        exportFitMultiple(selectedSummaries())
+                        return true
+                    }
+                    R.id.activity_action_upload_to_endurain -> {
+                        groupUpload(selectedSummaries(), UploadTarget.ENDURAIN)
+                        return true
+                    }
+                    R.id.activity_action_upload_to_wanderer -> {
+                        groupUpload(selectedSummaries(), UploadTarget.WANDERER)
                         return true
                     }
                     R.id.activity_action_select_all -> {
@@ -438,7 +465,7 @@ class WorkoutListActivity : AbstractListActivity<BaseActivitySummary>() {
         }
     }
 
-    private fun shareMultiple(paths: List<String>) {
+    private fun shareMultiple(paths: List<String>, mimeType: String) {
         val uris = paths.map { path ->
             val file = File(path)
             FileProvider.getUriForFile(
@@ -450,12 +477,102 @@ class WorkoutListActivity : AbstractListActivity<BaseActivitySummary>() {
 
         if (uris.isNotEmpty()) {
             val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "application/gpx+xml"
+                type = mimeType
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
             }
             startActivity(Intent.createChooser(intent, "SHARE"))
         } else {
             GB.toast(this, "No selected activity contains a GPX track to share", Toast.LENGTH_SHORT, GB.ERROR)
+        }
+    }
+
+    /** The currently multi-selected summaries, copied so async work is independent of the UI state. */
+    private fun selectedSummaries(): List<BaseActivitySummary> {
+        val result = ArrayList<BaseActivitySummary>()
+        val selected = selectedItems ?: return result
+        for (i in 0 until selected.length()) {
+            if (selected.get(i)) {
+                itemAdapter?.getItem(i)?.let { result.add(it) }
+            }
+        }
+        return result
+    }
+
+    /** Builds a FIT file per selected workout and shares them together via ACTION_SEND_MULTIPLE. */
+    private fun exportFitMultiple(summaries: List<BaseActivitySummary>) {
+        val device = gbDevice ?: return
+        if (summaries.isEmpty()) return
+        lifecycleScope.launch {
+            val paths = withContext(Dispatchers.IO) {
+                summaries.mapNotNull { summary ->
+                    try {
+                        WorkoutUploader.buildFitFile(this@WorkoutListActivity, device, summary).path
+                    } catch (e: Exception) {
+                        LOG.error("Failed to build FIT for summary {}", summary.id, e)
+                        null
+                    }
+                }
+            }
+            if (paths.isEmpty()) {
+                GB.toast(
+                    this@WorkoutListActivity,
+                    getString(R.string.activity_detail_export_fit_failed),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR
+                )
+            } else {
+                shareMultiple(paths, "application/octet-stream")
+            }
+        }
+    }
+
+    private enum class UploadTarget { ENDURAIN, WANDERER }
+
+    /** Uploads each selected workout to the chosen service, then reports an "N/M uploaded" toast. */
+    private fun groupUpload(summaries: List<BaseActivitySummary>, target: UploadTarget) {
+        val device = gbDevice ?: return
+        if (summaries.isEmpty()) return
+        val serviceName = if (target == UploadTarget.ENDURAIN) "Endurain" else "Wanderer"
+        lifecycleScope.launch {
+            var uploaded = 0
+            var considered = 0
+            var lastReason: String? = null
+            withContext(Dispatchers.IO) {
+                val provider = device.deviceCoordinator.getActivityTrackProvider(device, this@WorkoutListActivity)
+                for (summary in summaries) {
+                    when (target) {
+                        UploadTarget.ENDURAIN -> {
+                            considered++
+                            val fit = try {
+                                WorkoutUploader.buildFitFile(this@WorkoutListActivity, device, summary)
+                            } catch (e: Exception) {
+                                lastReason = e.localizedMessage
+                                null
+                            }
+                            if (fit != null) {
+                                val (ok, reason) = WorkoutUploader.uploadToEndurainBlocking(
+                                    this@WorkoutListActivity, summary, fit
+                                )
+                                if (ok) uploaded++ else lastReason = reason
+                            }
+                        }
+                        UploadTarget.WANDERER -> {
+                            // Wanderer needs a GPX track; skip workouts without one.
+                            val gpx = provider?.let { ActivitySummaryUtils.getShareableGpxFile(it, summary) }
+                                ?: continue
+                            considered++
+                            val (ok, reason) = WorkoutUploader.uploadToWandererBlocking(
+                                this@WorkoutListActivity, gpx
+                            )
+                            if (ok) uploaded++ else lastReason = reason
+                        }
+                    }
+                }
+            }
+            val severity = if (uploaded == considered) GB.INFO else GB.WARN
+            val message = getString(R.string.group_upload_result, uploaded, considered, serviceName) +
+                (lastReason?.let { ": $it" } ?: "")
+            GB.toast(this@WorkoutListActivity, message, Toast.LENGTH_LONG, severity)
         }
     }
 
