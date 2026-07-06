@@ -2262,6 +2262,7 @@
     <string name="devicetype_rainbuvvy_t97" translatable="false">Rainbuvvy T97</string>
     <string name="devicetype_advan_watch_se1ai" translatable="false">Advan Watch SE1 AI</string>
     <string name="devicetype_ultrahuma_ring_air" translatable="false">Ultrahuman Ring AIR</string>
+    <string name="devicetype_moyoung_ring" translatable="false">VRing (Da Ring)</string>
     <string name="devicetype_bandw_pseries" translatable="false">Bowers and Wilkins P series</string>
     <string name="devicetype_earfun_air_s" translatable="false">EarFun Air S</string>
     <string name="devicetype_earfun_air_pro_4" translatable="false">EarFun Air Pro 4</string>
@@ -2741,6 +2742,31 @@
     <string name="min_respiration_rate">Min Respiration Rate</string>
     <string name="hrv_sdrr">HRV SDRR</string>
     <string name="hrv_rmssd">HRV RMSSD</string>
+    <string name="hrv_baseline_deviation">HRV Baseline Deviation (est.)</string>
+    <string name="spo2_desaturation_index">SpO₂ Desaturation Index (est.)</string>
+    <string name="vo2max_estimate">VO₂ Max (estimate)</string>
+    <string name="readiness_score">Readiness Score (estimate)</string>
+    <string name="sleep_score_estimate">Sleep Score (estimate)</string>
+    <string name="sleep_efficiency_estimate">Sleep Efficiency (estimate)</string>
+    <string name="met_minutes">MET minutes (est.)</string>
+    <string name="steps_age_percentile">Active vs age group (%)</string>
+    <string name="insights_summary">Daily insights summary</string>
+    <string name="rhr_deviation">Resting HR vs 7-day avg</string>
+    <string name="hrv_deviation_pct">HRV vs 7-day avg</string>
+    <string name="skin_temp_deviation">Skin temperature vs 7-day avg</string>
+    <string name="spo2_deviation">Blood oxygen vs 7-day avg</string>
+    <string name="sleep_duration_deviation">Sleep duration vs 7-day avg</string>
+    <string name="steps_deviation_pct">Steps vs 7-day avg</string>
+    <string name="stress_deviation">Stress vs 7-day avg</string>
+    <string name="resp_deviation">Respiration vs 7-day avg</string>
+    <string name="rhr_insight">Resting HR insight</string>
+    <string name="hrv_insight">HRV insight</string>
+    <string name="skin_temp_insight">Skin temperature insight</string>
+    <string name="spo2_insight">Blood oxygen insight</string>
+    <string name="sleep_duration_insight">Sleep duration insight</string>
+    <string name="steps_insight">Activity insight</string>
+    <string name="stress_insight">Stress insight</string>
+    <string name="resp_insight">Respiration insight</string>
     <string name="breaths_per_min">breaths/min</string>
     <string name="TrainingEffect">Training Effect</string>
     <string name="cycling">Cycling</string>
@@ -2939,6 +2965,7 @@
     <string name="workout_revolutions">Revolutions</string>
     <string name="workout_swings">Swings</string>
     <string name="seconds">sec</string>
+    <string name="minutes_unit">min</string>
     <string name="milliseconds">milliseconds</string>
     <string name="milliseconds_ms">ms</string>
     <string name="swolf_index">swolf index</string>

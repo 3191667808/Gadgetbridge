@@ -61,7 +61,7 @@ public interface MetricSample extends TimeSample {
     int getMetricType();
 
     /// use {@link #setMetric(Metric)} or {@link #setMetric(Metric, Double, Long)} instead
-    void setMetricType(@IntRange(from = 1, to = 12) int type);
+    void setMetricType(@IntRange(from = 1, to = 18) int type);
 
     double getMetricScore();
 
@@ -109,6 +109,24 @@ public interface MetricSample extends TimeSample {
         GENERIC_RESTING_METABOLIC_RATE(11, UNIT_KCAL_PER_DAY),
         /// @see FitPhysiologicalMetrics#getMetMax()
         GENERIC_MAXIMUM_OXYGEN_UPTAKE(12, UNIT_ML_KG_MIN),
+        /// Composite 0-100 sleep-quality score (Watson 2015 + Ohayon 2017).
+        /// metricScore: 0-100. metricExtra: total sleep duration seconds.
+        GENERIC_SLEEP_SCORE(13, UNIT_NONE),
+        /// Composite 0-100 readiness/recovery score (sleep + RHR + HRV deviations).
+        /// metricScore: 0-100. metricExtra: unused.
+        GENERIC_READINESS(14, UNIT_NONE),
+        /// Composite 0-100 daily energy / recovered-capacity score.
+        /// metricScore: 0-100. metricExtra: unused.
+        GENERIC_ENERGY(15, UNIT_NONE),
+        /// Running 0-100 body-battery / energy-reserve metric.
+        /// metricScore: 0-100. metricExtra: unused.
+        GENERIC_BODY_BATTERY(16, UNIT_NONE),
+        /// Edwards Training Impulse (TRIMP) — cumulative cardiac strain.
+        /// metricScore: TRIMP units. metricExtra: unused.
+        GENERIC_CARDIAC_STRAIN(17, UNIT_NONE),
+        /// Sleep Regularity Index (Phillips 2017) — 0-100, higher = more regular.
+        /// metricScore: 0-100. metricExtra: number of nights compared.
+        GENERIC_SLEEP_REGULARITY(18, UNIT_NONE),
         ;
 
         final public int dbId;
@@ -120,6 +138,10 @@ public interface MetricSample extends TimeSample {
         Metric(int dbId, @NonNull String uomKey) {
             this.dbId = dbId;
             this.uomKey = uomKey;
+        }
+
+        public int getDbId() {
+            return dbId;
         }
 
         @Nullable

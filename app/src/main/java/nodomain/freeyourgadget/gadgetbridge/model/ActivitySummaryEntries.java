@@ -145,6 +145,33 @@ public class ActivitySummaryEntries {
     public static final String STRESS_AVG = "menuitem_stress";
     public static final String HRV_SDRR = "hrv_sdrr";
     public static final String HRV_RMSSD = "hrv_rmssd";
+    // Evidence-based derived daily-insight metrics (wellness estimates, non-medical).
+    public static final String HRV_BASELINE_DEVIATION = "hrv_baseline_deviation";
+    public static final String SPO2_DESATURATION_INDEX = "spo2_desaturation_index";
+    public static final String VO2MAX_ESTIMATE = "vo2max_estimate";
+    public static final String READINESS_SCORE = "readiness_score";
+    public static final String SLEEP_SCORE_ESTIMATE = "sleep_score_estimate";
+    public static final String SLEEP_EFFICIENCY_ESTIMATE = "sleep_efficiency_estimate";
+    // Activity-derived daily insights (wellness estimates, non-medical).
+    public static final String MET_MINUTES = "met_minutes";
+    public static final String STEPS_AGE_PERCENTILE = "steps_age_percentile";
+    public static final String INSIGHTS_SUMMARY = "insights_summary";
+    public static final String RHR_DEVIATION = "rhr_deviation";
+    public static final String HRV_DEVIATION_PCT = "hrv_deviation_pct";
+    public static final String SKIN_TEMP_DEVIATION = "skin_temp_deviation";
+    public static final String SPO2_DEVIATION = "spo2_deviation";
+    public static final String SLEEP_DURATION_DEVIATION = "sleep_duration_deviation";
+    public static final String STEPS_DEVIATION_PCT = "steps_deviation_pct";
+    public static final String STRESS_DEVIATION = "stress_deviation";
+    public static final String RESP_DEVIATION = "resp_deviation";
+    public static final String RHR_INSIGHT = "rhr_insight";
+    public static final String HRV_INSIGHT = "hrv_insight";
+    public static final String SKIN_TEMP_INSIGHT = "skin_temp_insight";
+    public static final String SPO2_INSIGHT = "spo2_insight";
+    public static final String SLEEP_DURATION_INSIGHT = "sleep_duration_insight";
+    public static final String STEPS_INSIGHT = "steps_insight";
+    public static final String STRESS_INSIGHT = "stress_insight";
+    public static final String RESP_INSIGHT = "resp_insight";
 
     public static final String LANE_LENGTH = "laneLength";
     public static final String LAPS = "laps";
@@ -224,6 +251,7 @@ public class ActivitySummaryEntries {
     public static final String UNIT_ML_KG_MIN = "ml/kg/min";
     public static final String UNIT_NONE = "";
     public static final String UNIT_HOURS = "hours";
+    public static final String UNIT_MINUTES = "minutes_unit";
     public static final String UNIT_SECONDS = "seconds";
     public static final String UNIT_MILLISECONDS = "milliseconds_ms";
     public static final String UNIT_SECONDS_PER_KM = "seconds_km";
