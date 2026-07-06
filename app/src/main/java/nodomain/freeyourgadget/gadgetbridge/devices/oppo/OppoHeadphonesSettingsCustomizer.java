@@ -44,19 +44,10 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
     private final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions;
-    private final boolean supportsLdac;
-    private final boolean supportsMultipoint;
-    private final boolean supportsGameMode;
-    private final boolean supportsAnc;
 
     public static final Creator<OppoHeadphonesSettingsCustomizer> CREATOR = new Creator<OppoHeadphonesSettingsCustomizer>() {
         @Override
         public OppoHeadphonesSettingsCustomizer createFromParcel(final Parcel in) {
-            final boolean supportsLdac = in.readByte() == 1;
-            final boolean supportsMultipoint = in.readByte() == 1;
-            final boolean supportsGameMode = in.readByte() == 1;
-            final boolean supportsAnc = in.readByte() == 1;
-
             final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions = new LinkedHashMap<>();
             final int numOptions = in.readInt();
             for (int i = 0; i < numOptions; i++) {
@@ -67,8 +58,7 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
                 touchOptions.put(Pair.create(touchConfigSide, touchConfigType), values);
             }
 
-            return new OppoHeadphonesSettingsCustomizer(touchOptions, supportsLdac, supportsMultipoint,
-                    supportsGameMode, supportsAnc);
+            return new OppoHeadphonesSettingsCustomizer(touchOptions);
         }
 
         @Override
@@ -78,14 +68,8 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
     };
 
     public OppoHeadphonesSettingsCustomizer(
-            final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions,
-            final boolean supportsLdac, final boolean supportsMultipoint, final boolean supportsGameMode,
-            final boolean supportsAnc) {
+            final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions) {
         this.touchOptions = touchOptions;
-        this.supportsLdac = supportsLdac;
-        this.supportsMultipoint = supportsMultipoint;
-        this.supportsGameMode = supportsGameMode;
-        this.supportsAnc = supportsAnc;
     }
 
     @Override
@@ -115,11 +99,11 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         final Set<TouchConfigSide> knownSides = new HashSet<>();
         final Set<TouchConfigType> knownTypes = new HashSet<>();
 
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.LDAC, supportsLdac);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.MULTIPOINT, supportsMultipoint);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE, supportsGameMode);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_MODE, supportsAnc);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, supportsAnc);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.LDAC);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.MULTIPOINT);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_MODE);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
 
         for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions
                 .entrySet()) {
@@ -179,13 +163,10 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         }
     }
 
-    private void addPreferenceHandler(DeviceSpecificSettingsHandler handler, String key, boolean isSupported) {
+    private void addPreferenceHandler(DeviceSpecificSettingsHandler handler, String key) {
         Preference pref = handler.findPreference(key);
         if (pref != null) {
-            pref.setVisible(isSupported);
-            if (isSupported) {
-                handler.addPreferenceHandlerFor(key);
-            }
+            handler.addPreferenceHandlerFor(key);
         }
     }
 
@@ -201,11 +182,6 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
 
     @Override
     public void writeToParcel(final Parcel dest, final int flags) {
-        dest.writeByte((byte) (supportsLdac ? 1 : 0));
-        dest.writeByte((byte) (supportsMultipoint ? 1 : 0));
-        dest.writeByte((byte) (supportsGameMode ? 1 : 0));
-        dest.writeByte((byte) (supportsAnc ? 1 : 0));
-
         dest.writeInt(touchOptions.size());
         for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions
                 .entrySet()) {
