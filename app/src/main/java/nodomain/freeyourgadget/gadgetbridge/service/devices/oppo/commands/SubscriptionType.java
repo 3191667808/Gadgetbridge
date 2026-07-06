@@ -21,7 +21,7 @@ import androidx.annotation.Nullable;
 public enum SubscriptionType {
     BATTERY(0x01),
     STATUS(0x02),
-    ANC_SELECTOR(0x03),
+    ANC_MODE(0x03),
     GAME_MODE(0x05),
     ;
 

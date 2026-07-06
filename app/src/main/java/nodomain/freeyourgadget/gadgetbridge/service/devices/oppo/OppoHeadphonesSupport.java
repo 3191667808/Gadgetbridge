@@ -370,7 +370,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 }
                 LOG.debug("Got anc config for MODE = {}", value);
                 evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
-                        OppoHeadphonesPreferences.ANC_SELECTOR,
+                        OppoHeadphonesPreferences.ANC_MODE,
                         value.getPrefId()));
                 break;
             }
@@ -616,7 +616,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void ancModeSet() {
-        final String valuePrefId = getDevicePrefs().getString(OppoHeadphonesPreferences.ANC_SELECTOR, null);
+        final String valuePrefId = getDevicePrefs().getString(OppoHeadphonesPreferences.ANC_MODE, null);
         AncConfigValue value = AncConfigValue.fromPrefId(valuePrefId);
         if (value == null) {
             LOG.warn("Unknown ANC prefId = \"{}\"", valuePrefId);
@@ -626,9 +626,9 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         ancConfigSet(AncConfigType.MODE, value.getCode());
     }
 
-    private void ancTouchCycleModesSet() {
+    private void touchAncCycleModesSet() {
         final Set<String> valuePrefIds = getDevicePrefs().getStringSet(
-                OppoHeadphonesPreferences.ANC_TOUCH_CYCLE_MODES,
+                OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES,
                 Set.of(AncConfigValue.ON.getPrefId(), AncConfigValue.TRANSPARENCY.getPrefId()));
         final EnumSet<AncConfigValue> values = AncConfigValue.fromPrefIds(valuePrefIds);
         if (values.size() < 2) {
@@ -692,7 +692,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 }
 
                 LOG.debug("Got anc config for {} = {}", type, value);
-                event.withPreference(OppoHeadphonesPreferences.ANC_SELECTOR, value.getPrefId());
+                event.withPreference(OppoHeadphonesPreferences.ANC_MODE, value.getPrefId());
                 break;
             }
             case TOUCH_CYCLE_MODES: {
@@ -703,7 +703,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 }
                 final Set<String> valuePrefIds = AncConfigValue.toPrefIds(values);
                 LOG.debug("Got anc config for {} = {}", type, valuePrefIds);
-                event.withPreference(OppoHeadphonesPreferences.ANC_TOUCH_CYCLE_MODES, valuePrefIds);
+                event.withPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, valuePrefIds);
                 break;
             }
             default: {

@@ -99,7 +99,7 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
                     TouchConfigValue.VOLUME_DOWN,
                     TouchConfigValue.VOICE_ASSISTANT_REALME,
                     TouchConfigValue.GAME_MODE,
-                    TouchConfigValue.NOISE_CONTROL
+                    TouchConfigValue.ANC_CYCLE
             );
             put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.TAP_2), options);
             put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.TAP_3), options);

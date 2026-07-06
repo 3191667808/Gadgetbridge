@@ -4400,7 +4400,7 @@
         <item>voice_assistant</item>
         <item>voice_assistant_realme</item>
         <item>game_mode</item>
-        <item>noise_control</item>
+        <item>anc_cycle</item>
     </string-array>
 
     <string-array name="soundbrenner_time_sig_entries">

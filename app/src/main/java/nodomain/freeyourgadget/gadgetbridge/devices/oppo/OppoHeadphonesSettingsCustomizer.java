@@ -67,7 +67,8 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
                 touchOptions.put(Pair.create(touchConfigSide, touchConfigType), values);
             }
 
-            return new OppoHeadphonesSettingsCustomizer(touchOptions, supportsLdac, supportsMultipoint, supportsGameMode, supportsAnc);
+            return new OppoHeadphonesSettingsCustomizer(touchOptions, supportsLdac, supportsMultipoint,
+                    supportsGameMode, supportsAnc);
         }
 
         @Override
@@ -76,7 +77,10 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         }
     };
 
-    public OppoHeadphonesSettingsCustomizer(final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions, final boolean supportsLdac, final boolean supportsMultipoint, final boolean supportsGameMode, final boolean supportsAnc) {
+    public OppoHeadphonesSettingsCustomizer(
+            final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions,
+            final boolean supportsLdac, final boolean supportsMultipoint, final boolean supportsGameMode,
+            final boolean supportsAnc) {
         this.touchOptions = touchOptions;
         this.supportsLdac = supportsLdac;
         this.supportsMultipoint = supportsMultipoint;
@@ -86,36 +90,39 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
 
     @Override
     public void onPreferenceChange(final Preference preference, final DeviceSpecificSettingsHandler handler) {
-        if (OppoHeadphonesPreferences.ANC_TOUCH_CYCLE_MODES.equals(preference.getKey())) {
+        if (OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES.equals(preference.getKey())) {
             if (preference instanceof MultiSelectListPreference) {
                 final MultiSelectListPreference ancCycleModesPref = (MultiSelectListPreference) preference;
                 final Set<String> selectedValues = ancCycleModesPref.getValues();
 
                 if (selectedValues == null || selectedValues.size() < 2) {
                     final Context context = preference.getContext();
-                    final String message = context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.select_at_least_option, 2);
+                    final String message = context
+                            .getString(nodomain.freeyourgadget.gadgetbridge.R.string.select_at_least_option, 2);
                     new MaterialAlertDialogBuilder(context)
-                        .setTitle(nodomain.freeyourgadget.gadgetbridge.R.string.warning)
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show();
+                            .setTitle(nodomain.freeyourgadget.gadgetbridge.R.string.warning)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
                 }
             }
         }
     }
 
     @Override
-    public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs, final String rootKey) {
+    public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs,
+            final String rootKey) {
         final Set<TouchConfigSide> knownSides = new HashSet<>();
         final Set<TouchConfigType> knownTypes = new HashSet<>();
 
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.LDAC, supportsLdac);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.MULTIPOINT, supportsMultipoint);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE, supportsGameMode);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_SELECTOR, supportsAnc);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_TOUCH_CYCLE_MODES, supportsAnc);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_MODE, supportsAnc);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, supportsAnc);
 
-        for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions.entrySet()) {
+        for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions
+                .entrySet()) {
             final TouchConfigSide side = e.getKey().first;
             final TouchConfigType type = e.getKey().second;
             final Set<TouchConfigValue> possibleValues = new HashSet<>(e.getValue());
@@ -135,7 +142,8 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
             final CharSequence[] values = new CharSequence[possibleValues.size()];
             int j = 0;
             for (int i = 0; i < originalValues.length; i++) {
-                if (possibleValues.contains(TouchConfigValue.valueOf(originalValues[i].toString().toUpperCase(Locale.ROOT)))) {
+                if (possibleValues
+                        .contains(TouchConfigValue.valueOf(originalValues[i].toString().toUpperCase(Locale.ROOT)))) {
                     entries[j] = originalEntries[i];
                     values[j] = originalValues[i];
                     j++;
@@ -151,7 +159,8 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         for (final TouchConfigSide side : TouchConfigSide.values()) {
             if (!knownSides.contains(side)) {
                 // Side not configurable, hide it completely
-                final Preference header = handler.findPreference("oppo_touch_header_" + side.name().toLowerCase(Locale.ROOT));
+                final Preference header = handler
+                        .findPreference("oppo_touch_header_" + side.name().toLowerCase(Locale.ROOT));
                 if (header != null) {
                     header.setVisible(false);
                     continue;
@@ -198,7 +207,8 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         dest.writeByte((byte) (supportsAnc ? 1 : 0));
 
         dest.writeInt(touchOptions.size());
-        for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions.entrySet()) {
+        for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions
+                .entrySet()) {
             dest.writeString(e.getKey().first.name());
             dest.writeString(e.getKey().second.name());
             dest.writeList(e.getValue());
