@@ -4605,6 +4605,8 @@
     <string name="pref_huawei_activity_reminder_progress_summary">Get reminders about Activity Ring progress</string>
     <string name="pref_huawei_activity_reminder_goal_reached_title">Goal Reached</string>
     <string name="pref_huawei_activity_reminder_goal_reached_summary">Get a reminder when you complete rings</string>
+    <string name="pref_huawei_aggressive_reconnect_title">Aggressive reconnection</string>
+    <string name="pref_huawei_aggressive_reconnect_summary">Try to recover on reconnection errors. Leads to higher battery usage and increased risk of data loss.\nUSE AT YOUR OWN RISK</string>
     <string name="body_energy_legend_average">30-Day Average</string>
     <string name="pref_even_realities_g1_screen_location_title">Screen Location</string>
     <string name="pref_even_realities_g1_screen_location_summary">Changes the vertical location of the display</string>

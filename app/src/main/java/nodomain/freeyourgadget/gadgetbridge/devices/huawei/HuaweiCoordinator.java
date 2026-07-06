@@ -154,6 +154,14 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
     }
 
     @Override
+    public int[] getSupportedDeviceSpecificConnectionSettings() {
+        return ArrayUtils.add(
+                super.getSupportedDeviceSpecificConnectionSettings(),
+                R.xml.devicesettings_huawei_aggressive_reconnect
+        );
+    }
+
+    @Override
     public int[] getSupportedDeviceSpecificAuthenticationSettings() {
         final List<Integer> settings = new ArrayList<>();
         settings.add(R.xml.devicesettings_huawei_account);

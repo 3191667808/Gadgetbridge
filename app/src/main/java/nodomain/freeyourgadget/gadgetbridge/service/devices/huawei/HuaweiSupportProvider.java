@@ -658,19 +658,44 @@ public class HuaweiSupportProvider {
             LOG.error("Authentication timed out");
             GB.toast(context, R.string.authentication_failed_negotiation, Toast.LENGTH_LONG, GB.ERROR);
             // Reconnect as no communication can succeed after this point
-            reconnectAfterAuthFailure();
+            if (isAggressiveReconnectEnabled()) {
+                reconnectAfterAuthFailure();
+            } else {
+                final GBDevice device = getDevice();
+                if (device != null) {
+                    device.setUpdateState(GBDevice.State.WAITING_FOR_RECONNECT, getContext());
+                }
+            }
         }
 
         @Override
         public void handleException(Request.ResponseParseException e) {
             LOG.error("Authentication exception", e);
             GB.toast(context, R.string.authentication_failed_negotiation, Toast.LENGTH_LONG, GB.ERROR);
-            // Reconnect (like timeout()) instead of disconnecting: an auth failure here can be
-            // transient (e.g. a stale/mismatched HiChain token), and a plain disconnect leaves the
-            // device in NOT_CONNECTED, which stops auto-reconnect entirely until a manual connect.
-            reconnectAfterAuthFailure();
+            if (isAggressiveReconnectEnabled()) {
+                // Reconnect (like timeout()) instead of disconnecting: an auth failure here can be
+                // transient (e.g. a stale/mismatched HiChain token), and a plain disconnect leaves the
+                // device in NOT_CONNECTED, which stops auto-reconnect entirely until a manual connect.
+                reconnectAfterAuthFailure();
+            } else {
+                // Disconnect as no communication can succeed after this point
+                final GBDevice device = getDevice();
+                if (device != null) {
+                    GBApplication.deviceService(device).disconnect();
+                }
+            }
         }
     };
+
+    /**
+     * Whether the opt-in "Aggressive reconnection" setting is enabled for this device. When off,
+     * authentication failures follow the default behavior (no reconnect-on-auth-failure, no
+     * escalation, no AUTHENTICATING watchdog).
+     */
+    private boolean isAggressiveReconnectEnabled() {
+        return GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getBoolean(HuaweiConstants.PREF_HUAWEI_AGGRESSIVE_RECONNECT, false);
+    }
 
     /**
      * Recover from an authentication failure by dropping the current connection so the normal
@@ -2705,6 +2730,9 @@ public class HuaweiSupportProvider {
     // attempt (including each lightweight reconnect retry) re-arms it, so it only fires when the
     // handshake makes no progress at all for AUTH_WATCHDOG_TIMEOUT_MS.
     private void armAuthWatchdog() {
+        if (!isAggressiveReconnectEnabled()) {
+            return;
+        }
         handler.removeCallbacks(authWatchdogRunnable);
         handler.postDelayed(authWatchdogRunnable, AUTH_WATCHDOG_TIMEOUT_MS);
     }
