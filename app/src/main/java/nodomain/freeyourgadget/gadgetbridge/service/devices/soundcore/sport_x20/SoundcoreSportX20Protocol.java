@@ -44,6 +44,14 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     // Offset within CMD_GET_DEVICE_INFO payload for the touch tone boolean (0x01=on, 0x00=off).
     private static final int DEVICE_INFO_TOUCH_TONE_OFFSET = 127;
 
+    // Offsets within CMD_GET_DEVICE_INFO payload for auto power off.
+    // [128] = enabled flag (0x01=on, 0x00=never/disabled)
+    // [129] = duration raw value when enabled: 0x00=10min, 0x01=20min, 0x02=30min, 0x03=60min
+    //         maps to preference integer: duration = raw + 1  (1=10min, 2=20min, 3=30min, 4=60min)
+    //         preference 0 = never (disabled)
+    private static final int DEVICE_INFO_AUTO_POWER_OFF_ENABLED_OFFSET = 128;
+    private static final int DEVICE_INFO_AUTO_POWER_OFF_OFFSET = 129;
+
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
 
@@ -185,6 +193,17 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             LOG.debug("Touch tone from device info: {}", touchTone);
             getDevicePrefs().getPreferences().edit()
                     .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE, touchTone)
+                    .apply();
+        }
+
+        // Auto power off: enabled flag at offset 128, duration at offset 129.
+        // duration=0 means never (disabled); 1=10min, 2=20min, 3=30min, 4=60min.
+        if (payload.length > DEVICE_INFO_AUTO_POWER_OFF_OFFSET) {
+            final boolean autoPowerEnabled = payload[DEVICE_INFO_AUTO_POWER_OFF_ENABLED_OFFSET] == 0x01;
+            final int autoPowerDuration = autoPowerEnabled ? (payload[DEVICE_INFO_AUTO_POWER_OFF_OFFSET] & 0xFF) + 1 : 0;
+            LOG.debug("Auto power off from device info: enabled={} duration={}", autoPowerEnabled, autoPowerDuration);
+            getDevicePrefs().getPreferences().edit()
+                    .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF, String.valueOf(autoPowerDuration))
                     .apply();
         }
     }
