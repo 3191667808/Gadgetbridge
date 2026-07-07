@@ -41,6 +41,8 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final int DEVICE_INFO_AUDIO_OFFSET = 117;
     private static final int DEVICE_INFO_AUDIO_LENGTH = 6;
 
+    // Offset within CMD_GET_DEVICE_INFO payload for the dual connection boolean (0x01=on, 0x00=off).
+    private static final int DEVICE_INFO_DUAL_CONNECTION_OFFSET = 126;
     // Offset within CMD_GET_DEVICE_INFO payload for the touch tone boolean (0x01=on, 0x00=off).
     private static final int DEVICE_INFO_TOUCH_TONE_OFFSET = 127;
 
@@ -185,6 +187,15 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             LOG.debug("Decoding audio state from CMD_GET_DEVICE_INFO mirror: {}",
                     StringUtils.bytesToHex(audioPayload));
             decodeAdvancedAudioMode(audioPayload);
+        }
+
+        // Dual connection boolean at offset 126 (0x01=on, 0x00=off).
+        if (payload.length > DEVICE_INFO_DUAL_CONNECTION_OFFSET) {
+            final boolean dualConnection = payload[DEVICE_INFO_DUAL_CONNECTION_OFFSET] == 0x01;
+            LOG.debug("Dual connection from device info: {}", dualConnection);
+            getDevicePrefs().getPreferences().edit()
+                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION, dualConnection)
+                    .apply();
         }
 
         // Touch tone boolean at offset 127 (0x01=on, 0x00=off).
