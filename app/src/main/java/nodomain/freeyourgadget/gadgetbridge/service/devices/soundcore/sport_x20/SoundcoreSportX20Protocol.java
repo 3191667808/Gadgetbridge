@@ -30,6 +30,13 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final short CMD_NOTIFY_CONNECTION_STATUS = (short) 0x020b;
     private static final short CMD_NOTIFY_DEVICE_STATE = (short) 0x0910;
 
+    // Offsets within CMD_GET_DEVICE_INFO payload for the equalizer preset and band values.
+    // [38]    = preset ID (0x00–0x15 = named preset, 0xfe = custom)
+    // [39]    = 0x00 for named presets, 0xfe for custom
+    // [40..47] = 8 EQ band bytes, encoding: dB = round((raw - 120) / 10), range –6..+6
+    private static final int DEVICE_INFO_EQUALIZER_PRESET_OFFSET = 38;
+    private static final int DEVICE_INFO_BANDS_OFFSET = 40;
+
     // Payload offset (within CMD_GET_DEVICE_INFO response) where the 6 control-function
     // bytes start: L_single, R_single, L_double, R_double, L_long, R_long
     private static final int DEVICE_INFO_CONTROL_OFFSET = 110;
@@ -217,6 +224,24 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
                     .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF, String.valueOf(autoPowerDuration))
                     .apply();
         }
+
+        // Equalizer preset ID at offset 38 and 8 band values at offsets 40–47.
+        if (payload.length >= DEVICE_INFO_BANDS_OFFSET + EQ_BANDS) {
+            final int presetId = payload[DEVICE_INFO_EQUALIZER_PRESET_OFFSET] & 0xFF;
+            if (EQ_PRESET_PAYLOADS.containsKey(presetId) || presetId == CUSTOM_PRESET_ID) {
+                LOG.debug("Equalizer preset from device info: {}", presetId);
+                final SharedPreferences.Editor eqEditor = getDevicePrefs().getPreferences().edit();
+                eqEditor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_PRESET, String.valueOf(presetId));
+                for (int i = 0; i < EQ_BANDS; i++) {
+                    final int rawBand = payload[DEVICE_INFO_BANDS_OFFSET + i] & 0xFF;
+                    final int value = clamp(Math.round((rawBand - 120) / 10f), -6, 6);
+                    eqEditor.putInt(EQUALIZER_PREFS_VALUE[i], value);
+                }
+                eqEditor.apply();
+            } else {
+                LOG.warn("Unknown equalizer preset id in device info: 0x{}", Integer.toHexString(presetId));
+            }
+        }
     }
 
     /**
@@ -372,10 +397,11 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             tailBands[i] = 120 + Math.round((float) (value * EQ_TAIL_SCALE[i]) / EQ_TAIL_DIVISOR);
         }
 
+        // 9th band value is +0dB (0x78)
         final byte[] payload = buildPresetPayload(
             CUSTOM_PRESET_ID,
-            bandsToHex(rawBands),
-            bandsToHex(tailBands)
+            bandsToHex(rawBands) + "78",
+            bandsToHex(tailBands) + "78"
         );
 
         return encodeCommand(CMD_SET_EQUALIZER, payload);
