@@ -14,6 +14,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.SoundcorePacket;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.liberty.SoundcoreLibertyProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
 public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final Logger LOG = LoggerFactory.getLogger(SoundcoreSportX20Protocol.class);
@@ -33,6 +34,12 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     // bytes start: L_single, R_single, L_double, R_double, L_long, R_long
     private static final int DEVICE_INFO_CONTROL_OFFSET = 110;
     private static final int DEVICE_INFO_CONTROL_LENGTH = 6;
+
+    // Offset within CMD_GET_DEVICE_INFO payload where the 6-byte audio-mode state mirror starts.
+    // Bytes [AUDIO_OFFSET .. AUDIO_OFFSET+5] have the same layout as CMD_NOTIFY_AUDIO_MODE payload:
+    //   [0]=transparency_active  [1]=mode_byte  [2]=voice_mode  [3]=adaptive_nc  [4]=wind  [5]=0xff
+    private static final int DEVICE_INFO_AUDIO_OFFSET = 117;
+    private static final int DEVICE_INFO_AUDIO_LENGTH = 6;
 
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
@@ -125,10 +132,13 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
 
     /**
      * Reads the six button-control function bytes from the CMD_GET_DEVICE_INFO response
-     * (payload offsets 110–115) and persists them as preferences.
+     * (payload offsets 110–115) and the six audio-mode state bytes (offsets 117–122),
+     * then persists them all as preferences.
      *
-     * Layout: L_single | R_single | L_double | R_double | L_long | R_long
+     * Control layout: L_single | R_single | L_double | R_double | L_long | R_long
      * Each byte: high-nibble = action prefix (unused here), low-nibble = TapFunction code.
+     *
+     * Audio layout at offset 117 mirrors CMD_NOTIFY_AUDIO_MODE payload exactly.
      */
     private void decodeControlFunctionsFromDeviceInfo(final byte[] payload) {
         if (payload.length < DEVICE_INFO_CONTROL_OFFSET + DEVICE_INFO_CONTROL_LENGTH) {
@@ -154,6 +164,17 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
         editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_LEFT,  lLong.name());
         editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT, rLong.name());
         editor.apply();
+
+        // Audio state is mirrored at offsets 117-122 using the same format as CMD_NOTIFY_AUDIO_MODE.
+        // The device does not always send a separate CMD_NOTIFY_AUDIO_MODE on connection, so this
+        // is the primary source of the current audio mode on connect.
+        if (payload.length >= DEVICE_INFO_AUDIO_OFFSET + DEVICE_INFO_AUDIO_LENGTH) {
+            final byte[] audioPayload = java.util.Arrays.copyOfRange(
+                    payload, DEVICE_INFO_AUDIO_OFFSET, DEVICE_INFO_AUDIO_OFFSET + DEVICE_INFO_AUDIO_LENGTH);
+            LOG.debug("Decoding audio state from CMD_GET_DEVICE_INFO mirror: {}",
+                    StringUtils.bytesToHex(audioPayload));
+            decodeAdvancedAudioMode(audioPayload);
+        }
     }
 
     /**
