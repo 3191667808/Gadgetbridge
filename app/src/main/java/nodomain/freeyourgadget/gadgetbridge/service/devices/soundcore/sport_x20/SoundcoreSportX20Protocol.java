@@ -48,6 +48,8 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final int DEVICE_INFO_AUDIO_OFFSET = 117;
     private static final int DEVICE_INFO_AUDIO_LENGTH = 6;
 
+    // Offset within CMD_GET_DEVICE_INFO payload for the 3D surround sound boolean (0x01=on, 0x00=off).
+    private static final int DEVICE_INFO_3D_SURROUND_OFFSET = 124;
     // Offset within CMD_GET_DEVICE_INFO payload for the dual connection boolean (0x01=on, 0x00=off).
     private static final int DEVICE_INFO_DUAL_CONNECTION_OFFSET = 126;
     // Offset within CMD_GET_DEVICE_INFO payload for the touch tone boolean (0x01=on, 0x00=off).
@@ -194,6 +196,15 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             LOG.debug("Decoding audio state from CMD_GET_DEVICE_INFO mirror: {}",
                     StringUtils.bytesToHex(audioPayload));
             decodeAdvancedAudioMode(audioPayload);
+        }
+
+        // 3D surround sound boolean at offset 124 (0x01=on, 0x00=off).
+        if (payload.length > DEVICE_INFO_3D_SURROUND_OFFSET) {
+            final boolean surround3d = payload[DEVICE_INFO_3D_SURROUND_OFFSET] == 0x01;
+            LOG.debug("3D surround sound from device info: {}", surround3d);
+            getDevicePrefs().getPreferences().edit()
+                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND, surround3d)
+                    .apply();
         }
 
         // Dual connection boolean at offset 126 (0x01=on, 0x00=off).
