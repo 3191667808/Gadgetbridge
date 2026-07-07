@@ -62,6 +62,8 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     //         preference 0 = never (disabled)
     private static final int DEVICE_INFO_AUTO_POWER_OFF_ENABLED_OFFSET = 128;
     private static final int DEVICE_INFO_AUTO_POWER_OFF_OFFSET = 129;
+    // Expected full length of CMD_GET_DEVICE_INFO payload as observed from the device.
+    private static final int DEVICE_INFO_EXPECTED_LENGTH = 143;
 
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
@@ -163,11 +165,28 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
      * Audio layout at offset 117 mirrors CMD_NOTIFY_AUDIO_MODE payload exactly.
      */
     private void decodeControlFunctionsFromDeviceInfo(final byte[] payload) {
-        if (payload.length < DEVICE_INFO_CONTROL_OFFSET + DEVICE_INFO_CONTROL_LENGTH) {
-            LOG.warn("CMD_GET_DEVICE_INFO payload too short to decode controls: {} bytes", payload.length);
+        if (payload.length < DEVICE_INFO_EXPECTED_LENGTH) {
+            LOG.warn("CMD_GET_DEVICE_INFO payload too short: {} bytes (expected {})", payload.length, DEVICE_INFO_EXPECTED_LENGTH);
             return;
         }
 
+        // Equalizer preset ID at offset 38 and 8 band values at offsets 40–47.
+        final int presetId = payload[DEVICE_INFO_EQUALIZER_PRESET_OFFSET] & 0xFF;
+        if (EQ_PRESET_PAYLOADS.containsKey(presetId) || presetId == CUSTOM_PRESET_ID) {
+            LOG.debug("Equalizer preset from device info: {}", presetId);
+            final SharedPreferences.Editor eqEditor = getDevicePrefs().getPreferences().edit();
+            eqEditor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_PRESET, String.valueOf(presetId));
+            for (int i = 0; i < EQ_BANDS; i++) {
+                final int rawBand = payload[DEVICE_INFO_BANDS_OFFSET + i] & 0xFF;
+                final int value = clamp(Math.round((rawBand - 120) / 10f), -6, 6);
+                eqEditor.putInt(EQUALIZER_PREFS_VALUE[i], value);
+            }
+            eqEditor.apply();
+        } else {
+            LOG.warn("Unknown equalizer preset id in device info: 0x{}", Integer.toHexString(presetId));
+        }
+
+        // Button-control functions at offsets 110–115.
         final TapFunction lSingle = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET]     & 0x0f);
         final TapFunction rSingle = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 1] & 0x0f);
         final TapFunction lDouble = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 2] & 0x0f);
@@ -177,82 +196,45 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
 
         LOG.debug("Control functions from device info: L_single={} R_single={} L_double={} R_double={} L_long={} R_long={}",
                 lSingle, rSingle, lDouble, rDouble, lLong, rLong);
+        getDevicePrefs().getPreferences().edit()
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_LEFT,  lSingle.name())
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_RIGHT, rSingle.name())
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_LEFT,  lDouble.name())
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_RIGHT, rDouble.name())
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_LEFT,  lLong.name())
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT, rLong.name())
+                .apply();
 
-        final SharedPreferences.Editor editor = getDevicePrefs().getPreferences().edit();
-        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_LEFT,  lSingle.name());
-        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_RIGHT, rSingle.name());
-        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_LEFT,  lDouble.name());
-        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_RIGHT, rDouble.name());
-        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_LEFT,  lLong.name());
-        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT, rLong.name());
-        editor.apply();
-
-        // Audio state is mirrored at offsets 117-122 using the same format as CMD_NOTIFY_AUDIO_MODE.
-        // The device does not always send a separate CMD_NOTIFY_AUDIO_MODE on connection, so this
-        // is the primary source of the current audio mode on connect.
-        if (payload.length >= DEVICE_INFO_AUDIO_OFFSET + DEVICE_INFO_AUDIO_LENGTH) {
-            final byte[] audioPayload = java.util.Arrays.copyOfRange(
-                    payload, DEVICE_INFO_AUDIO_OFFSET, DEVICE_INFO_AUDIO_OFFSET + DEVICE_INFO_AUDIO_LENGTH);
-            LOG.debug("Decoding audio state from CMD_GET_DEVICE_INFO mirror: {}",
-                    StringUtils.bytesToHex(audioPayload));
-            decodeAdvancedAudioMode(audioPayload);
-        }
+        // Audio state mirror at offsets 117–122, same layout as CMD_NOTIFY_AUDIO_MODE.
+        final byte[] audioPayload = java.util.Arrays.copyOfRange(
+                payload, DEVICE_INFO_AUDIO_OFFSET, DEVICE_INFO_AUDIO_OFFSET + DEVICE_INFO_AUDIO_LENGTH);
+        LOG.debug("Decoding audio state from CMD_GET_DEVICE_INFO mirror: {}", StringUtils.bytesToHex(audioPayload));
+        decodeAdvancedAudioMode(audioPayload);
 
         // 3D surround sound boolean at offset 124 (0x01=on, 0x00=off).
-        if (payload.length > DEVICE_INFO_3D_SURROUND_OFFSET) {
-            final boolean surround3d = payload[DEVICE_INFO_3D_SURROUND_OFFSET] == 0x01;
-            LOG.debug("3D surround sound from device info: {}", surround3d);
-            getDevicePrefs().getPreferences().edit()
-                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND, surround3d)
-                    .apply();
-        }
+        final boolean surround3d = payload[DEVICE_INFO_3D_SURROUND_OFFSET] == 0x01;
+        LOG.debug("3D surround sound from device info: {}", surround3d);
 
         // Dual connection boolean at offset 126 (0x01=on, 0x00=off).
-        if (payload.length > DEVICE_INFO_DUAL_CONNECTION_OFFSET) {
-            final boolean dualConnection = payload[DEVICE_INFO_DUAL_CONNECTION_OFFSET] == 0x01;
-            LOG.debug("Dual connection from device info: {}", dualConnection);
-            getDevicePrefs().getPreferences().edit()
-                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION, dualConnection)
-                    .apply();
-        }
+        final boolean dualConnection = payload[DEVICE_INFO_DUAL_CONNECTION_OFFSET] == 0x01;
+        LOG.debug("Dual connection from device info: {}", dualConnection);
 
         // Touch tone boolean at offset 127 (0x01=on, 0x00=off).
-        if (payload.length > DEVICE_INFO_TOUCH_TONE_OFFSET) {
-            final boolean touchTone = payload[DEVICE_INFO_TOUCH_TONE_OFFSET] == 0x01;
-            LOG.debug("Touch tone from device info: {}", touchTone);
-            getDevicePrefs().getPreferences().edit()
-                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE, touchTone)
-                    .apply();
-        }
+        final boolean touchTone = payload[DEVICE_INFO_TOUCH_TONE_OFFSET] == 0x01;
+        LOG.debug("Touch tone from device info: {}", touchTone);
 
         // Auto power off: enabled flag at offset 128, duration at offset 129.
         // duration=0 means never (disabled); 1=10min, 2=20min, 3=30min, 4=60min.
-        if (payload.length > DEVICE_INFO_AUTO_POWER_OFF_OFFSET) {
-            final boolean autoPowerEnabled = payload[DEVICE_INFO_AUTO_POWER_OFF_ENABLED_OFFSET] == 0x01;
-            final int autoPowerDuration = autoPowerEnabled ? (payload[DEVICE_INFO_AUTO_POWER_OFF_OFFSET] & 0xFF) + 1 : 0;
-            LOG.debug("Auto power off from device info: enabled={} duration={}", autoPowerEnabled, autoPowerDuration);
-            getDevicePrefs().getPreferences().edit()
-                    .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF, String.valueOf(autoPowerDuration))
-                    .apply();
-        }
+        final boolean autoPowerEnabled = payload[DEVICE_INFO_AUTO_POWER_OFF_ENABLED_OFFSET] == 0x01;
+        final int autoPowerDuration = autoPowerEnabled ? (payload[DEVICE_INFO_AUTO_POWER_OFF_OFFSET] & 0xFF) + 1 : 0;
+        LOG.debug("Auto power off from device info: enabled={} duration={}", autoPowerEnabled, autoPowerDuration);
 
-        // Equalizer preset ID at offset 38 and 8 band values at offsets 40–47.
-        if (payload.length >= DEVICE_INFO_BANDS_OFFSET + EQ_BANDS) {
-            final int presetId = payload[DEVICE_INFO_EQUALIZER_PRESET_OFFSET] & 0xFF;
-            if (EQ_PRESET_PAYLOADS.containsKey(presetId) || presetId == CUSTOM_PRESET_ID) {
-                LOG.debug("Equalizer preset from device info: {}", presetId);
-                final SharedPreferences.Editor eqEditor = getDevicePrefs().getPreferences().edit();
-                eqEditor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_PRESET, String.valueOf(presetId));
-                for (int i = 0; i < EQ_BANDS; i++) {
-                    final int rawBand = payload[DEVICE_INFO_BANDS_OFFSET + i] & 0xFF;
-                    final int value = clamp(Math.round((rawBand - 120) / 10f), -6, 6);
-                    eqEditor.putInt(EQUALIZER_PREFS_VALUE[i], value);
-                }
-                eqEditor.apply();
-            } else {
-                LOG.warn("Unknown equalizer preset id in device info: 0x{}", Integer.toHexString(presetId));
-            }
-        }
+        getDevicePrefs().getPreferences().edit()
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND, surround3d)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION, dualConnection)
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE, touchTone)
+                .putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_AUTO_POWER_OFF, String.valueOf(autoPowerDuration))
+                .apply();
     }
 
     /**
