@@ -1,6 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.sport_x20;
 
 import android.content.SharedPreferences;
+import android.widget.Toast;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,11 +9,14 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.SoundcorePacket;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.liberty.SoundcoreLibertyProtocol;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
@@ -121,6 +125,14 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             decodeControlFunctionsFromDeviceInfo(packet.getPayload());
         }
 
+        if (packet != null && packet.getCommand() == CMD_SET_FIT_TEST) {
+            final byte[] payload = packet.getPayload();
+            if (payload.length >= 2) {
+                decodeFitTestResult(payload);
+            }
+            return new GBDeviceEvent[0];
+        }
+
         if (packet != null && packet.getCommand() == CMD_SESSION_INIT) {
             // Empty ACK from the device to our session-init request – nothing to do.
             return new GBDeviceEvent[0];
@@ -152,6 +164,23 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     /** Sent after CMD_GET_DEVICE_INFO to finalise the session with the device. */
     byte[] encodeSessionInitRequest() {
         return encodeRequest(CMD_SESSION_INIT);
+    }
+
+    /**
+     * Decodes a 14-byte fit-test result payload from the device and shows a Toast.
+     * payload[0] = left ear: 0x01 = excellent seal, 0x02 = poor seal
+     * payload[1] = right ear: 0x01 = excellent seal, 0x02 = poor seal
+     */
+    private void decodeFitTestResult(final byte[] payload) {
+        final android.content.Context ctx = GBApplication.getContext();
+        final String excellent = ctx.getString(R.string.pref_soundcore_fit_test_excellent_seal);
+        final String poor      = ctx.getString(R.string.pref_soundcore_fit_test_poor_seal);
+        final String left  = (payload[0] == 0x01) ? excellent : poor;
+        final String right = (payload[1] == 0x01) ? excellent : poor;
+        final int severity = (payload[0] == 0x01 && payload[1] == 0x01) ? GB.INFO : GB.WARN;
+        final String message = ctx.getString(R.string.pref_soundcore_fit_test_result, left, right);
+        LOG.debug("Fit test result: left={} right={}", left, right);
+        GB.toast(message, Toast.LENGTH_LONG, severity);
     }
 
     /**
