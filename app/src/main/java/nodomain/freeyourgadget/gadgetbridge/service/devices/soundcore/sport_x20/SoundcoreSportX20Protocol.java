@@ -63,7 +63,7 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final int DEVICE_INFO_AUTO_POWER_OFF_ENABLED_OFFSET = 128;
     private static final int DEVICE_INFO_AUTO_POWER_OFF_OFFSET = 129;
     // Expected full length of CMD_GET_DEVICE_INFO payload as observed from the device.
-    private static final int DEVICE_INFO_EXPECTED_LENGTH = 143;
+    private static final int DEVICE_INFO_MIN_EXPECTED_LENGTH = 132; // 143
 
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
@@ -155,18 +155,26 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     }
 
     /**
-     * Reads the six button-control function bytes from the CMD_GET_DEVICE_INFO response
-     * (payload offsets 110–115) and the six audio-mode state bytes (offsets 117–122),
-     * then persists them all as preferences.
+     * Reads all the settings embedded in the CMD_GET_DEVICE_INFO response and stores them in preferences.
+     * This includes the equalizer preset and band values, button-control functions, audio-mode mirror,
+     * 3D surround sound, dual connection, touch tone, and auto power off.
      *
-     * Control layout: L_single | R_single | L_double | R_double | L_long | R_long
-     * Each byte: high-nibble = action prefix (unused here), low-nibble = TapFunction code.
-     *
-     * Audio layout at offset 117 mirrors CMD_NOTIFY_AUDIO_MODE payload exactly.
+     * Example 143-byte payload (Bass Boost preset, 3D off, dual-conn on, touch-tone on, APO 10 min):
+     * <pre>
+     * [  0]  01 01 05 05 00 00 30 31 2e 36 35 30 31 2e 36 35   version
+     * [ 16]  30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66   serial
+     * [ 32]  00 00 00 00 00 05 [02] 00 [a0 96 82 78 78 78 78   [38]=preset=0x02, [40..47]=bands
+     * [ 48]  78]00 ff ff ff ff ff ff ff ff ff 6c 02 00 9f a1   [48]=9th band (0x78)
+     * [ 64]  8a 99 8a 80 77 64 3c 3c 9f a1 8a 99 8a 80 77 64   common block
+     * [ 80]  3c 3c 69 d6 4e 6a 00 9f a1 8a 99 8a 80 77 64 3c   common block
+     * [ 96]  3c 9f a1 8a 99 8a 80 77 64 3c 3c 00 00 [08 66 66   [110..115]=controls
+     * [112]  32 33 44] 33 [02 30 01 01 00 ff] 32 [00] 00 [01]   [117..122]=audio, [124]=3D=0x00, [126]=dual
+     * [128]  [01] [01] 00 00 ff ff ff ff ff ff ff ff ff ff ff   [127]=tone=0x01, [128]=APO_en, [129]=APO_dur
+     * </pre>
      */
     private void decodeControlFunctionsFromDeviceInfo(final byte[] payload) {
-        if (payload.length < DEVICE_INFO_EXPECTED_LENGTH) {
-            LOG.warn("CMD_GET_DEVICE_INFO payload too short: {} bytes (expected {})", payload.length, DEVICE_INFO_EXPECTED_LENGTH);
+        if (payload.length < DEVICE_INFO_MIN_EXPECTED_LENGTH) {
+            LOG.warn("CMD_GET_DEVICE_INFO payload too short: {} bytes (expected {})", payload.length, 143);
             return;
         }
 
