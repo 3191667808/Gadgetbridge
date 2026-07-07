@@ -2,6 +2,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.sport_x20
 
 import android.content.SharedPreferences;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,10 +16,23 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.liberty.So
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
+    private static final Logger LOG = LoggerFactory.getLogger(SoundcoreSportX20Protocol.class);
+
     private static final short CMD_SET_EQUALIZER = (short) 0x8703;
     private static final short CMD_SET_3D_SURROUND = (short) 0x8602;
     private static final short CMD_SET_DUAL_CONNECTION = (short) 0x840b;
     private static final short CMD_SET_FIT_TEST = (short) 0x0109;
+    // Session handshake sent after CMD_GET_DEVICE_INFO; device ACKs with empty payload
+    private static final short CMD_SESSION_INIT = (short) 0x8105;
+    // Unsolicited notifications from the device on connection
+    private static final short CMD_NOTIFY_PAIRED_DEVICES = (short) 0x010b;
+    private static final short CMD_NOTIFY_CONNECTION_STATUS = (short) 0x020b;
+    private static final short CMD_NOTIFY_DEVICE_STATE = (short) 0x0910;
+
+    // Payload offset (within CMD_GET_DEVICE_INFO response) where the 6 control-function
+    // bytes start: L_single, R_single, L_double, R_double, L_long, R_long
+    private static final int DEVICE_INFO_CONTROL_OFFSET = 110;
+    private static final int DEVICE_INFO_CONTROL_LENGTH = 6;
 
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
@@ -68,7 +84,117 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             return new GBDeviceEvent[0];
         }
 
+        if (packet != null && packet.getCommand() == CMD_GET_DEVICE_INFO) {
+            // Decode button-control functions embedded in the device-info response,
+            // then fall through so the super class handles battery / firmware / serial.
+            decodeControlFunctionsFromDeviceInfo(packet.getPayload());
+        }
+
+        if (packet != null && packet.getCommand() == CMD_SESSION_INIT) {
+            // Empty ACK from the device to our session-init request – nothing to do.
+            return new GBDeviceEvent[0];
+        }
+
+        if (packet != null && packet.getCommand() == CMD_NOTIFY_PAIRED_DEVICES) {
+            decodePairedDevices(packet.getPayload());
+            return new GBDeviceEvent[0];
+        }
+
+        if (packet != null && packet.getCommand() == CMD_NOTIFY_CONNECTION_STATUS) {
+            LOG.debug("Connection status notification, {} bytes", packet.getPayload().length);
+            return new GBDeviceEvent[0];
+        }
+
+        if (packet != null && packet.getCommand() == CMD_NOTIFY_DEVICE_STATE) {
+            LOG.debug("Device state notification, {} bytes", packet.getPayload().length);
+            return new GBDeviceEvent[0];
+        }
+
         return super.decodeResponse(responseData);
+    }
+
+    /** Requests extended device configuration (firmware details, serial, settings). */
+    byte[] encodeExtendedInfoRequest() {
+        return encodeRequest(CMD_GET_UNKNOWN_DATA_0105);
+    }
+
+    /** Sent after CMD_GET_DEVICE_INFO to finalise the session with the device. */
+    byte[] encodeSessionInitRequest() {
+        return encodeRequest(CMD_SESSION_INIT);
+    }
+
+    /**
+     * Reads the six button-control function bytes from the CMD_GET_DEVICE_INFO response
+     * (payload offsets 110–115) and persists them as preferences.
+     *
+     * Layout: L_single | R_single | L_double | R_double | L_long | R_long
+     * Each byte: high-nibble = action prefix (unused here), low-nibble = TapFunction code.
+     */
+    private void decodeControlFunctionsFromDeviceInfo(final byte[] payload) {
+        if (payload.length < DEVICE_INFO_CONTROL_OFFSET + DEVICE_INFO_CONTROL_LENGTH) {
+            LOG.warn("CMD_GET_DEVICE_INFO payload too short to decode controls: {} bytes", payload.length);
+            return;
+        }
+
+        final TapFunction lSingle = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET]     & 0x0f);
+        final TapFunction rSingle = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 1] & 0x0f);
+        final TapFunction lDouble = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 2] & 0x0f);
+        final TapFunction rDouble = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 3] & 0x0f);
+        final TapFunction lLong   = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 4] & 0x0f);
+        final TapFunction rLong   = functionFromCode(payload[DEVICE_INFO_CONTROL_OFFSET + 5] & 0x0f);
+
+        LOG.debug("Control functions from device info: L_single={} R_single={} L_double={} R_double={} L_long={} R_long={}",
+                lSingle, rSingle, lDouble, rDouble, lLong, rLong);
+
+        final SharedPreferences.Editor editor = getDevicePrefs().getPreferences().edit();
+        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_LEFT,  lSingle.name());
+        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_SINGLE_TAP_ACTION_RIGHT, rSingle.name());
+        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_LEFT,  lDouble.name());
+        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_DOUBLE_TAP_ACTION_RIGHT, rDouble.name());
+        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_LEFT,  lLong.name());
+        editor.putString(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_CONTROL_LONG_PRESS_ACTION_RIGHT, rLong.name());
+        editor.apply();
+    }
+
+    /**
+     * Logs the unsolicited paired-device list sent by the device on connection.
+     * Payload layout: 4-byte header, then per device: 6-byte BT address + 40-byte name (UTF-8, zero-padded).
+     */
+    private void decodePairedDevices(final byte[] payload) {
+        // Header: [0]=connected_count [1]=?? [2]=name_field_len(40) [3]=??
+        if (payload.length < 4) {
+            return;
+        }
+        final int nameLen = Byte.toUnsignedInt(payload[2]);  // 0x28 = 40
+        final int entrySize = 6 + nameLen;
+        int offset = 4;
+        int index = 0;
+        while (offset + entrySize <= payload.length) {
+            final byte[] nameBytes = new byte[nameLen];
+            System.arraycopy(payload, offset + 6, nameBytes, 0, nameLen);
+            // Trim null-padding
+            int nameEnd = 0;
+            while (nameEnd < nameLen && nameBytes[nameEnd] != 0) nameEnd++;
+            final String name = new String(nameBytes, 0, nameEnd, java.nio.charset.StandardCharsets.UTF_8);
+            LOG.debug("Paired device {}: addr={} name='{}'",
+                    index,
+                    String.format("%02x:%02x:%02x:%02x:%02x:%02x",
+                            payload[offset+5], payload[offset+4], payload[offset+3],
+                            payload[offset+2], payload[offset+1], payload[offset]),
+                    name);
+            offset += entrySize;
+            index++;
+        }
+    }
+
+    /** Maps a low-nibble TapFunction code (0–15) back to the TapFunction enum. */
+    private static TapFunction functionFromCode(final int code) {
+        for (final TapFunction f : TapFunction.values()) {
+            if (f.getCode() == code) {
+                return f;
+            }
+        }
+        return TapFunction.NONE;
     }
 
     @Override
