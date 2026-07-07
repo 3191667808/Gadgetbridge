@@ -15,6 +15,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final short CMD_SET_EQUALIZER = (short) 0x8703;
     private static final short CMD_SET_3D_SURROUND = (short) 0x8602;
+    private static final short CMD_SET_DUAL_CONNECTION = (short) 0x840b;
 
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
@@ -114,6 +115,10 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND:
                 final boolean surround3d = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND, false);
                 return encodeBooleanCommand(CMD_SET_3D_SURROUND, surround3d);
+
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION:
+                final boolean dualConnection = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION, false);
+                return encodeBooleanCommand(CMD_SET_DUAL_CONNECTION, dualConnection);
 
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_PRESET:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_BAND1_VALUE:
