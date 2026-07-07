@@ -3989,6 +3989,9 @@
     <string name="dual_device_mode_title">Dual device mode</string>
     <string name="dual_device_mode_summary">Allow connecting headphones to two devices simultaneously</string>
 
+    <string name="pref_soundcore_fit_test_title">Fit test</string>
+    <string name="pref_soundcore_fit_test_summary">Evaluate noise cancelling effectiveness. Perform in a quiet place.</string>
+
     <string name="prefs_wena3_title_screen">Display Settings</string>
     <string name="prefs_wena3_title_activity">Activity Settings</string>
     <string name="prefs_wena3_item_background_sync">Background Activity Data Sync</string>

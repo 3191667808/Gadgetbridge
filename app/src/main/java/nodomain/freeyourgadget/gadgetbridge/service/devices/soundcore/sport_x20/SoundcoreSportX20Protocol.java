@@ -16,6 +16,7 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final short CMD_SET_EQUALIZER = (short) 0x8703;
     private static final short CMD_SET_3D_SURROUND = (short) 0x8602;
     private static final short CMD_SET_DUAL_CONNECTION = (short) 0x840b;
+    private static final short CMD_SET_FIT_TEST = (short) 0x0109;
 
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
@@ -130,6 +131,9 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_BAND7_VALUE:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_BAND8_VALUE:
                 return encodeEqualizer();
+
+            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_FIT_TEST:
+                return encodeCommand(CMD_SET_FIT_TEST, new byte[]{0x0a});
 
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ENABLE_PAIRING_MODE:
                 return encodePairingMode();
