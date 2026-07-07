@@ -41,6 +41,9 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final int DEVICE_INFO_AUDIO_OFFSET = 117;
     private static final int DEVICE_INFO_AUDIO_LENGTH = 6;
 
+    // Offset within CMD_GET_DEVICE_INFO payload for the touch tone boolean (0x01=on, 0x00=off).
+    private static final int DEVICE_INFO_TOUCH_TONE_OFFSET = 127;
+
     private static final int CUSTOM_PRESET_ID = 0xfe;
     private static final int EQ_BANDS = 8;
 
@@ -174,6 +177,15 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
             LOG.debug("Decoding audio state from CMD_GET_DEVICE_INFO mirror: {}",
                     StringUtils.bytesToHex(audioPayload));
             decodeAdvancedAudioMode(audioPayload);
+        }
+
+        // Touch tone boolean at offset 127 (0x01=on, 0x00=off).
+        if (payload.length > DEVICE_INFO_TOUCH_TONE_OFFSET) {
+            final boolean touchTone = payload[DEVICE_INFO_TOUCH_TONE_OFFSET] == 0x01;
+            LOG.debug("Touch tone from device info: {}", touchTone);
+            getDevicePrefs().getPreferences().edit()
+                    .putBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_TOUCH_TONE, touchTone)
+                    .apply();
         }
     }
 
