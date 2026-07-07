@@ -100,7 +100,6 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         final Set<TouchConfigType> knownTypes = new HashSet<>();
 
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.LDAC);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.MULTIPOINT);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_MODE);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);

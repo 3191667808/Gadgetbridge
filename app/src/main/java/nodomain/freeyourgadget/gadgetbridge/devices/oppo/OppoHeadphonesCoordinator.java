@@ -120,7 +120,7 @@ public abstract class OppoHeadphonesCoordinator extends AbstractBLClassicDeviceC
             settings.addRootScreen(DeviceSpecificSettingsScreen.CONNECTION);
             if (this.supportsMultipoint(device)) {
                 settings.addSubScreen(DeviceSpecificSettingsScreen.CONNECTION,
-                        R.xml.devicesettings_oppo_headphones_multipoint);
+                        R.xml.devicesettings_multipoint);
             }
             if (this.supportsGameMode(device)) {
                 settings.addSubScreen(DeviceSpecificSettingsScreen.CONNECTION,

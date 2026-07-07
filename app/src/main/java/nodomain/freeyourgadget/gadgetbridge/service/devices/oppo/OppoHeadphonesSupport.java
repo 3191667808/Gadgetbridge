@@ -19,8 +19,15 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import android.bluetooth.BluetoothAdapter;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +64,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferenc
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 
 public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(OppoHeadphonesSupport.class);
@@ -94,9 +103,20 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     @Override
+    public void setContext(@NonNull GBDevice gbDevice, @NonNull BluetoothAdapter btAdapter, @NonNull Context context) {
+        super.setContext(gbDevice, btAdapter, context);
+        if (getCoordinator().supportsMultipoint(getDevice())) {
+            setupMultipointBroadcastReceiver();
+        }
+    }
+
+    @Override
     public void dispose() {
         synchronized (ConnectionMonitor) {
             super.dispose();
+            if (getCoordinator().supportsMultipoint(getDevice())) {
+                LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(multipointBroadcastReceiver);
+            }
         }
     }
 
@@ -173,7 +193,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case OppoHeadphonesPreferences.GAME_MODE -> gameModeSet();
             case OppoHeadphonesPreferences.ANC_MODE -> ancModeSet();
             case OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES -> touchAncCycleModesSet();
-            case OppoHeadphonesPreferences.MULTIPOINT -> multipointSet();
         }
     }
 
@@ -523,12 +542,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         miscConfigSet(MiscConfigType.GAME_MODE, isEnabled);
     }
 
-    private void multipointSet() {
-        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.MULTIPOINT, false);
-        LOG.debug("Sending MULTIPOINT = {}", isEnabled);
-        miscConfigSet(MiscConfigType.MULTIPOINT, isEnabled);
-    }
-
     private void miscConfigSet(final MiscConfigType type, final boolean isEnabled) {
         final byte[] payload = new byte[] {
                 (byte) type.getCode(),
@@ -541,8 +554,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final EnumSet<MiscConfigType> types = EnumSet.noneOf(MiscConfigType.class);
         if (getCoordinator().supportsLdac(getDevice()))
             types.add(MiscConfigType.LDAC);
-        if (getCoordinator().supportsMultipoint(getDevice()))
-            types.add(MiscConfigType.MULTIPOINT);
         if (getCoordinator().supportsGameMode(getDevice()))
             types.add(MiscConfigType.GAME_MODE);
         if (types.isEmpty())
@@ -714,9 +725,69 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         evaluateGBDeviceEvent(event);
     }
 
+    private void multipointSet(final boolean isEnabled) {
+        LOG.debug("Sending MULTIPOINT = {}", isEnabled);
+        miscConfigSet(MiscConfigType.MULTIPOINT, isEnabled);
+        broadcastMultipointStatus(isEnabled);
+    }
+
+    private void multipointGet() {
+        LOG.info("Requesting multipoint status");
+        final byte[] payload = new byte[] {
+                (byte) 0x01,
+                (byte) MiscConfigType.MULTIPOINT.getCode()
+        };
+        sendCommand(OppoCommand.MISC_CONFIG_REQ, payload);
+    }
+
     @Override
     public void onFindDevice(boolean start) {
         sendCommand(OppoCommand.FIND_DEVICE_REQ, new byte[] { (byte) (start ? 0x01 : 0x00) });
+    }
+
+    private void setupMultipointBroadcastReceiver() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE);
+
+        LocalBroadcastManager.getInstance(getContext()).registerReceiver(multipointBroadcastReceiver, intentFilter);
+    }
+
+    private final BroadcastReceiver multipointBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null) {
+                return;
+            }
+
+            GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+            if (device == null || !device.getAddress().equals(gbDevice.getAddress())) {
+                return;
+            }
+
+            String action = intent.getAction();
+            if (action == null) {
+                return;
+            }
+
+            switch (action) {
+                case MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE -> multipointSet(true);
+                case MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE -> multipointSet(false);
+                case MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS -> multipointGet();
+                default -> LOG.warn("Unknown action {}", action);
+            }
+        }
+    };
+
+    private void broadcastMultipointStatus(boolean isEnabled) {
+        final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_STATUS_UPDATE);
+        intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+        intent.putExtra(MultipointPairingActivity.EXTRA_MULTIPOINT_ENABLED, isEnabled);
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
     private void sendCommand(final TransactionBuilder builder, final OppoCommand command, @Nullable byte[] payload) {
