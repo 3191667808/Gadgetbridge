@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -89,18 +90,12 @@ public class XiaomiTasksService {
         }
 
         if (!dismissedTitles.isEmpty()) {
-            int markedCount = 0;
+            final int titleMaxLength = support.getCoordinator().getMaximumReminderMessageLength();
             for (final OpenTasksManager.Task task : tasksManager.getOpenTasks()) {
-                if (dismissedTitles.contains(task.title)) {
-                    if (tasksManager.markCompleted(task.id)) {
-                        markedCount++;
-                    }
-                }
+                if (dismissedTitles.contains(task.title.substring(0, Math.min(task.title.length(), titleMaxLength)))){
+                    tasksManager.markCompleted(task.id);
+                 }
             }
-            LOG.info("Sync-back: marked {} task(s) completed from {} watch reminder(s) with state=2",
-                    markedCount, dismissedTitles.size());
-        } else {
-            LOG.debug("Sync-back: no watch reminders reported state=2");
         }
 
         if (!pushAfterNextWatchResponse) {
@@ -121,15 +116,27 @@ public class XiaomiTasksService {
             }
         }
 
+        // second fetch intentional, makes content provider more consistent and avoid desync
         final List<OpenTasksManager.Task> openTasks = tasksManager.getOpenTasks();
         LOG.info("Syncing {} OpenTasks task(s) to watch reminders", openTasks.size());
+        final int titleMaxLength = support.getCoordinator().getMaximumReminderMessageLength();
+        Collections.sort(openTasks, (a, b) -> {
+            int cmp = a.due.compareTo(b.due);
+            if (cmp != 0) return cmp;
+            return a.title.compareTo(b.title);
+        });
+
+        final int remSlotCount = support.getCoordinator().getReminderSlotCount(support.getDevice());
+        final int cap = remSlotCount > 0 ? remSlotCount : 20;
+        final List<OpenTasksManager.Task> toPush = openTasks.subList(0, Math.min(openTasks.size(), cap));
 
         final ArrayList<Reminder> reminders = new ArrayList<>();
-        for (final OpenTasksManager.Task task : openTasks) {
+        for (final OpenTasksManager.Task task : toPush) {
             final Reminder r = new Reminder();
-            final String existing = titleToWatchId.get(task.title);
+            final String taskTitle = task.title.substring(0, Math.min(task.title.length(), titleMaxLength));
+            final String existing = titleToWatchId.get(taskTitle);
             r.setReminderId(existing != null ? existing : "task_" + UUID.randomUUID());
-            r.setMessage(task.title);
+            r.setMessage(taskTitle);
             r.setDate(task.due);
             r.setRepetition(nodomain.freeyourgadget.gadgetbridge.model.Reminder.ONCE);
             reminders.add(r);

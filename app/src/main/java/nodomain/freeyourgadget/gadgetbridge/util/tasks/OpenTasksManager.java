@@ -153,11 +153,9 @@ public class OpenTasksManager {
                     LOG.debug("Skipping task id={} uid={} title='{}': non-positive ts", id, uid, title);
                     continue;
                 }
-                // Truncate millis to match Xiaomi reminder precision (seconds).
-                final long tsSec = (ts / 1000) * 1000;
                 LOG.debug("Task id={} uid={} title='{}' due={} created={} -> reminder ts={}",
-                        id, uid, title, dueRaw, createdRaw, new Date(tsSec));
-                result.add(new Task(id, uid, title, new Date(tsSec)));
+                        id, uid, title, dueRaw, createdRaw, new Date(ts));
+                result.add(new Task(id, uid, title, new Date(ts)));
             }
             LOG.debug("OpenTasks: built {} task reminder(s) from {} cursor row(s)", result.size(), c.getCount());
         } catch (final SecurityException e) {
