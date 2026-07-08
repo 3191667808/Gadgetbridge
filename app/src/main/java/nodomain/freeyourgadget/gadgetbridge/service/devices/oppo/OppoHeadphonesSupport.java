@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.Set;
@@ -249,6 +250,14 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             }
             case FIND_DEVICE_ACK ->
                 LOG.debug("Got find device ack, status={}", payload[0]);
+            case MULTIPOINT_DEVICES_ACK ->
+                LOG.debug("Got multipoint devices ack, status={}", payload[0]);
+            case MULTIPOINT_DEVICES_RET -> {
+                if (payload[0] != 0) {
+                    LOG.warn("Unknown multipoint devices ret {}", payload[0]);
+                }
+                parseMultipointDevices(payload);
+            }
             default -> LOG.warn("Unhandled command {}", command);
         }
 
@@ -316,6 +325,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             types.add(SubscriptionType.ANC_MODE);
         if (getCoordinator().supportsGameMode(getDevice()))
             types.add(SubscriptionType.GAME_MODE);
+        if (getCoordinator().supportsMultipoint(getDevice()))
+            types.add(SubscriptionType.MULTIPOINT);
 
         final ByteBuffer buf = ByteBuffer.allocate(1 + types.size());
         buf.put((byte) 0x09);
@@ -391,6 +402,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
                         OppoHeadphonesPreferences.ANC_MODE,
                         value.getPrefId()));
+                break;
+            }
+            case MULTIPOINT: {
+                parseMultipointDevices(payload);
                 break;
             }
             default: {
@@ -740,6 +755,78 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         sendCommand(OppoCommand.MISC_CONFIG_REQ, payload);
     }
 
+    private void parseMultipointDevices(final byte[] payload) {
+        final ByteBuffer buf = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
+        if (buf.remaining() < 2) {
+            LOG.warn("Unexpected multipoint devices ret payload remaining: {}, expected >=2", buf.remaining());
+            return;
+        }
+
+        final byte zero = buf.get();
+        final int devicesCount = buf.get() & 0xFF;
+
+        LOG.debug("Got {} multipoint devices", devicesCount);
+        ArrayList<MultipointDevice> devices = new ArrayList<>();
+
+        for (int i = 0; i < devicesCount; i++) {
+            if (buf.remaining() < 10) {
+                LOG.warn("Unexpected multipoint devices ret payload remaining: {}, expected >=10", buf.remaining());
+                return;
+            }
+
+            byte[] macBytes = new byte[6];
+            buf.get(macBytes);
+            StringBuilder sb = new StringBuilder();
+            for (int b = 0; b < macBytes.length; b++) {
+                sb.append(String.format("%02X", macBytes[b]));
+                if (b < macBytes.length - 1) {
+                    sb.append(":");
+                }
+            }
+            String macAddress = sb.toString();
+
+            final int deviceType = buf.get();
+            final boolean isConnected = (buf.get() == 2);
+            final boolean isSelf = (buf.get() == 1);
+
+            int nameLength = buf.get() & 0xFF;
+            if (buf.remaining() < nameLength) {
+                LOG.warn("Unexpected multipoint devices ret payload remaining: {}, expected >={}", buf.remaining(),
+                        nameLength);
+                return;
+            }
+
+            byte[] nameBytes = new byte[nameLength];
+            buf.get(nameBytes);
+            final String deviceName = new String(nameBytes, StandardCharsets.UTF_8);
+
+            LOG.debug("Device {}: {} ({})", deviceName, macAddress, isConnected);
+            devices.add(new MultipointDevice(macAddress, deviceName, isConnected));
+        }
+        broadcastMultipointList(devices);
+    }
+
+    private void multipointDevicesGet() {
+        LOG.info("Requesting paired devices");
+        sendCommand(OppoCommand.MULTIPOINT_DEVICES_REQ, null);
+    }
+
+    private void multipointDevicesSet(String deviceAddress, boolean isConnect) {
+        LOG.info("Connecting to {}", deviceAddress);
+
+        final byte[] macAddress = StringUtils.hexToBytes(deviceAddress.replace(":", ""));
+        if (macAddress.length != 6) {
+            LOG.warn("Unexpected MAC Address length: {}, expected 6", macAddress.length);
+            return;
+        }
+
+        final ByteBuffer buf = ByteBuffer.allocate(8);
+        buf.put((byte) 0x01);
+        buf.put(macAddress);
+        buf.put((byte) (isConnect ? 0x01 : 0x00));
+        sendCommand(OppoCommand.MULTIPOINT_DEVICES_SET, buf.array());
+    }
+
     @Override
     public void onFindDevice(boolean start) {
         sendCommand(OppoCommand.FIND_DEVICE_REQ, new byte[] { (byte) (start ? 0x01 : 0x00) });
@@ -778,6 +865,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 case MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE -> multipointSet(true);
                 case MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE -> multipointSet(false);
                 case MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS -> multipointGet();
+                case MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES -> multipointDevicesGet();
+                case MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE -> {
+                    final String deviceAddress = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
+                    multipointDevicesSet(deviceAddress, true);
+                }
+                case MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE -> {
+                    final String deviceAddress = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
+                    multipointDevicesSet(deviceAddress, false);
+                }
                 default -> LOG.warn("Unknown action {}", action);
             }
         }
@@ -787,6 +883,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_STATUS_UPDATE);
         intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
         intent.putExtra(MultipointPairingActivity.EXTRA_MULTIPOINT_ENABLED, isEnabled);
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+    }
+
+    private void broadcastMultipointList(List<MultipointDevice> devices) {
+        Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_DEVICE_LIST);
+        intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+        intent.putParcelableArrayListExtra(
+                MultipointPairingActivity.EXTRA_DEVICE_LIST,
+                new ArrayList<>(devices));
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
