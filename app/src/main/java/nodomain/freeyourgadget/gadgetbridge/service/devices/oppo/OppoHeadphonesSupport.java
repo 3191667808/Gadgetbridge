@@ -24,6 +24,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -42,11 +43,13 @@ import java.util.Set;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder;
@@ -654,11 +657,13 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private void touchAncCycleModesSet() {
         final Set<String> valuePrefIds = getDevicePrefs().getStringSet(
-                OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES,
-                Set.of(AncConfigValue.ON.getPrefId(), AncConfigValue.TRANSPARENCY.getPrefId()));
+                OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, Collections.emptySet());
         final EnumSet<AncConfigValue> values = AncConfigValue.fromPrefIds(valuePrefIds);
         if (values.size() < 2) {
             LOG.warn("ANC cycle must contain at least 2 values. Current selection: {}", values);
+            final String message = getContext()
+                    .getString(nodomain.freeyourgadget.gadgetbridge.R.string.select_at_least_option, 2);
+            GB.toast(getContext(), message, Toast.LENGTH_LONG, GB.WARN);
             ancConfigGet();
             return;
         }
