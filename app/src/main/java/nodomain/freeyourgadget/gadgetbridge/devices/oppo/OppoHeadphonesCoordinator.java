@@ -105,15 +105,17 @@ public abstract class OppoHeadphonesCoordinator extends AbstractBLClassicDeviceC
 
         if (this.supportsLdac(device) || this.supportsAnc(device)) {
             settings.addRootScreen(DeviceSpecificSettingsScreen.AUDIO);
-            if (this.supportsLdac(device)) {
+            if (this.supportsLdac(device))
                 settings.addSubScreen(DeviceSpecificSettingsScreen.AUDIO, R.xml.devicesettings_ldac_toggle);
-            }
             if (this.supportsAnc(device)) {
                 settings.addSubScreen(DeviceSpecificSettingsScreen.AUDIO,
                         R.xml.devicesettings_onemore_noise_control_selector);
                 settings.addSubScreen(DeviceSpecificSettingsScreen.TOUCH_OPTIONS,
                         R.xml.devicesettings_oppo_headphones_touch_options_anc);
             }
+            if (this.supportsSpatialAudio(device))
+                settings.addSubScreen(DeviceSpecificSettingsScreen.AUDIO,
+                        R.xml.devicesettings_nothing_spatial_audio);
         }
 
         if (this.supportsMultipoint(device) || this.supportsGameMode(device)) {
@@ -156,6 +158,10 @@ public abstract class OppoHeadphonesCoordinator extends AbstractBLClassicDeviceC
     }
 
     public boolean supportsAnc(@NonNull GBDevice device) {
+        return false;
+    }
+
+    public boolean supportsSpatialAudio(@NonNull GBDevice device) {
         return false;
     }
 }

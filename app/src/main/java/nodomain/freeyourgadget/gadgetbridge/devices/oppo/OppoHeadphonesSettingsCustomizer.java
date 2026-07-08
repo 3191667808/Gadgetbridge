@@ -84,6 +84,7 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_MODE);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
+        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.SPATIAL_AUDIO);
 
         for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions
                 .entrySet()) {

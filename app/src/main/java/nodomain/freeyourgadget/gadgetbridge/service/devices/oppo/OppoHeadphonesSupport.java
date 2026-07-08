@@ -197,6 +197,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case OppoHeadphonesPreferences.GAME_MODE -> gameModeSet();
             case OppoHeadphonesPreferences.ANC_MODE -> ancModeSet();
             case OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES -> touchAncCycleModesSet();
+            case OppoHeadphonesPreferences.SPATIAL_AUDIO -> spatialAudioSet();
         }
     }
 
@@ -560,6 +561,12 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         miscConfigSet(MiscConfigType.GAME_MODE, isEnabled);
     }
 
+    private void spatialAudioSet() {
+        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.SPATIAL_AUDIO, false);
+        LOG.debug("SPATIAL_AUDIO = {}", isEnabled);
+        miscConfigSet(MiscConfigType.SPATIAL_AUDIO, isEnabled);
+    }
+
     private void miscConfigSet(final MiscConfigType type, final boolean isEnabled) {
         final byte[] payload = new byte[] {
                 (byte) type.getCode(),
@@ -574,6 +581,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             types.add(MiscConfigType.LDAC);
         if (getCoordinator().supportsGameMode(getDevice()))
             types.add(MiscConfigType.GAME_MODE);
+        if (getCoordinator().supportsSpatialAudio(getDevice()))
+            types.add(MiscConfigType.SPATIAL_AUDIO);
         if (types.isEmpty())
             return;
 
@@ -636,6 +645,13 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     eventUpdatePreferences
                             .withPreference(
                                     OppoHeadphonesPreferences.GAME_MODE,
+                                    isEnabled);
+                }
+                case SPATIAL_AUDIO -> {
+                    LOG.debug("Got misc config for SPATIAL_AUDIO = {}", isEnabled);
+                    eventUpdatePreferences
+                            .withPreference(
+                                    OppoHeadphonesPreferences.SPATIAL_AUDIO,
                                     isEnabled);
                 }
                 default -> LOG.warn("Unknown misc config type code 0x{}", intToHex(typeCode, 2));
