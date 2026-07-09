@@ -24,6 +24,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiPreferences;
 
 public class MiBand10Coordinator extends XiaomiCoordinator {
     @Override
@@ -44,6 +45,17 @@ public class MiBand10Coordinator extends XiaomiCoordinator {
     @Override
     public ConnectionType getConnectionType() {
         return ConnectionType.BT_CLASSIC;
+    }
+
+    @Override
+    public int getMaximumReminderMessageLength() {
+        return 178;
+    }
+
+    @Override
+    public int getReminderSlotCount(@NonNull final GBDevice device) {
+        // 20 for completed, 20 for not completed
+        return getPrefs(device).getInt(XiaomiPreferences.PREF_REMINDER_SLOTS, 0) / 2;
     }
 
     @Override
