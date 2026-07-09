@@ -5460,6 +5460,16 @@
     <string name="activity_detail_upload_to_wanderer">Upload GPX to Wanderer</string>
     <string name="select_at_least_option">Please select at least %1$d option</string>
 
+    <!-- Auto-upload to online fitness trackers -->
+    <string name="pref_endurain_auto_upload_title">Auto-upload to Endurain</string>
+    <string name="pref_endurain_auto_upload_summary">Automatically upload newly synced workouts to Endurain</string>
+    <string name="pref_wanderer_auto_upload_title">Auto-upload to Wanderer</string>
+    <string name="pref_wanderer_auto_upload_summary">Automatically upload newly synced workouts with a GPS track to Wanderer</string>
+    <string name="auto_upload_failed_notification_title">Workout upload failed</string>
+    <string name="auto_upload_timed_out">Upload timed out</string>
+    <string name="auto_upload_failed_endurain">Endurain upload failed: %1$s</string>
+    <string name="auto_upload_failed_wanderer">Wanderer upload failed: %1$s</string>
+
     <!-- Workout summary section headers -->
     <string name="goals">Goals</string>
     <string name="predictions">Predictions</string>

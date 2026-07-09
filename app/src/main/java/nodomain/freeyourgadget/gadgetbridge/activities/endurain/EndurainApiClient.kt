@@ -300,9 +300,11 @@ class EndurainApiClient(
     }
 
     /**
-     * Upload activity file (GPX)
+     * Upload an activity file. Endurain accepts FIT or GPX; Gadgetbridge currently always sends
+     * FIT (built from the workout). [callback] receives the new activity id on success, or a
+     * null id plus a human-readable [reason] on failure.
      */
-    fun uploadActivity(file: File, callback: (Int?) -> Unit) {
+    fun uploadActivity(file: File, callback: (id: Int?, reason: String?) -> Unit) {
         Thread {
             try {
                 val uri = "$baseUrl/api/v1/activities/create/upload".toUri()
@@ -313,20 +315,20 @@ class EndurainApiClient(
                     file = file,
                     requestHeaders = headers
                 ) { success, statusCode, responseText, reason ->
-                    if (success && responseText != null) {
+                    if (success && statusCode != null && statusCode in 200..299 && responseText != null) {
                         LOG.debug("Response $statusCode from Endurain: $responseText")
                         val jsonArray = JSONArray(responseText)
                         val firstObject = jsonArray.getJSONObject(0)
                         val id = firstObject.getInt("id")
-                        callback(id)
+                        callback(id, null)
                     } else {
                         LOG.error("Activity upload failed (status {}, reason {})", statusCode, reason)
-                        callback(null)
+                        callback(null, reason ?: statusCode?.let { "HTTP $it" })
                     }
                 }
             } catch (e: Exception) {
                 LOG.error("Activity upload error", e)
-                callback(null)
+                callback(null, e.localizedMessage)
             }
         }.start()
     }
@@ -360,7 +362,7 @@ class EndurainApiClient(
     /**
      * Edit uploaded activity
      */
-    fun editActivity(id: Int, activityKind: ActivityKind, name: String): Boolean {
+    fun editActivity(id: Int, activityKind: ActivityKind, name: String?): Boolean {
         try {
             val uri = "$baseUrl/api/v1/activities/edit".toUri()
             val headers = buildHeaders(EndurainAuthType.AUTH_TOKEN)
@@ -374,7 +376,7 @@ class EndurainApiClient(
             val bodyJson = JSONObject().apply {
                 put("id", id)
                 put("activity_type", activityType)
-                put("name", name)
+                if (name != null) put("name", name)
             }
 
             val result = InternetUtils.doStringRequest(

@@ -110,7 +110,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(140, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(141, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
         final List<Entity> batterySampleProvidersToGenerate = new LinkedList<>();
@@ -281,6 +281,7 @@ public class GBDaoGenerator {
         addNotificationFilterEntry(schema, notificationFilter);
 
         addActivitySummary(schema, user, device);
+        addWorkoutUpload(schema);
         // FIXME: BatteryLevel timestamp is in seconds, maybe migrate it once #6177 is merged
         addBatteryLevel(schema, device);
         batterySampleProvidersToGenerate.add(addBatteryVoltageSample(schema, device));
@@ -1779,6 +1780,20 @@ public class GBDaoGenerator {
         summary.addToOne(user, userId);
         summary.addStringProperty("summaryData").codeBeforeGetter(OVERRIDE);
         summary.addByteArrayProperty("rawSummaryData");
+    }
+
+    private static void addWorkoutUpload(Schema schema) {
+        Entity upload = addEntity(schema, "WorkoutUpload");
+        upload.implementsSerializable();
+        upload.setJavaDoc(
+                "Tracks the upload of a workout summary to an external service (Endurain, Wanderer).\n"
+                + "Keyed by (summaryId, service). Stores the remote activity id and status so a workout\n"
+                + "is never uploaded twice and later edits can be re-synced.");
+        upload.addLongProperty("summaryId").primaryKey().notNull();
+        upload.addIntProperty("service").primaryKey().notNull();
+        upload.addStringProperty("remoteActivityId");
+        upload.addIntProperty("status").notNull();
+        upload.addLongProperty("updatedAt").notNull();
     }
 
     private static Property findProperty(Entity entity, String propertyName) {
