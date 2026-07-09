@@ -15,10 +15,10 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.soundcore.q30.SoundcoreQ30DeviceSupport;
 // NOTE: This device base is the same as Soundcore Q30.
 
-public class SoundcoreLifeTuneCoordinator extends AbstractBLClassicDeviceCoordinator {
+public class SoundcoreLifeTuneXRCoordinator extends AbstractBLClassicDeviceCoordinator {
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_soundcore_life_tune;
+        return R.string.devicetype_soundcore_life_tune_xr;
     }
 
     @Override
@@ -33,7 +33,7 @@ public class SoundcoreLifeTuneCoordinator extends AbstractBLClassicDeviceCoordin
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("Soundcore Life Tune");
+        return Pattern.compile("Soundcore Life Tune XR");
     }
 
     @Override
