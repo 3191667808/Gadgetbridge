@@ -239,9 +239,18 @@ public class Request {
 
     protected void processResponse() throws ResponseParseException {}
 
+    /**
+     * Stops the timeout timer, so it can no longer fire.
+     * Must be called when the connection is torn down while this request may still be waiting
+     * for a response, as a timeout firing afterwards would run on a disposed support.
+     */
+    public void stopTimeoutTimer() {
+        this.handler.removeCallbacks(this.timeoutRunner);
+    }
+
     public void handleResponse() {
         // Stop timeout timer
-        this.handler.removeCallbacks(this.timeoutRunner);
+        stopTimeoutTimer();
 
         try {
             this.receivedPacket.parseTlv();
@@ -378,7 +387,7 @@ public class Request {
     @Override
     protected void finalize() throws Throwable {
         // Stop timeout timer
-        this.handler.removeCallbacks(this.timeoutRunner);
+        stopTimeoutTimer();
 
         super.finalize();
     }

@@ -74,6 +74,19 @@ public class ResponseManager {
     }
 
     /**
+     * Remove all requests from the response handler list, stopping their timeout timers.
+     * To be called when the connection is torn down, so a pending timeout cannot fire
+     * afterwards and continue a request chain on a disposed support.
+     */
+    public void removeAllHandlers() {
+        synchronized (handlers) {
+            for (Request handler : handlers)
+                handler.stopTimeoutTimer();
+            handlers.clear();
+        }
+    }
+
+    /**
      * Parses the data into a Huawei Packet.
      * If the packet is complete, it will be handled by the first request that accepts it,
      * or as an asynchronous request otherwise.

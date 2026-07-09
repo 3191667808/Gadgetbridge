@@ -152,6 +152,10 @@ public class TransactionBuilder {
         }
         mQueued = true;
         BtBRQueue queue = mDeviceSupport.getQueue();
+        if (queue == null) {
+            LOG.warn("Unable to queue transaction {}, the device support is disposed", getTaskName());
+            return;
+        }
         queue.add(mTransaction);
     }
 

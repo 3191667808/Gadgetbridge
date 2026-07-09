@@ -2744,6 +2744,7 @@ public class HuaweiSupportProvider {
     public void dispose() {
         stopBatteryRunnerDelayed();
         cancelAuthWatchdog();
+        responseManager.removeAllHandlers();
         huaweiFileDownloadManager.dispose();
         huaweiP2PManager.unregisterAllService();
         huaweiDataSyncManager.unregisterAll();
