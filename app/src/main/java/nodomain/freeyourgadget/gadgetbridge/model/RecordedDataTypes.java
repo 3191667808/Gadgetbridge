@@ -32,6 +32,7 @@ public class RecordedDataTypes {
     public static final int TYPE_SLEEP        = 0x00000800;
     public static final int TYPE_HRV          = 0x00001000;
     public static final int TYPE_AUDIO_REC    = 0x00002000;
+    public static final int TYPE_TASKS        = 0x00004000;
 
     public static final int TYPE_ALL          = (int)0xffffffff;
 
@@ -41,5 +42,5 @@ public class RecordedDataTypes {
             TYPE_TEMPERATURE |
             TYPE_SLEEP |
             TYPE_HRV |
-            TYPE_HEART_RATE | TYPE_PAI | TYPE_SLEEP_RESPIRATORY_RATE;
+            TYPE_HEART_RATE | TYPE_PAI | TYPE_SLEEP_RESPIRATORY_RATE | TYPE_TASKS;
 }

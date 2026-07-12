@@ -374,8 +374,10 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
 
     @Override
     public void onFetchRecordedData(final int dataTypes) {
-        healthService.onFetchRecordedData(dataTypes);
-        if ((dataTypes & RecordedDataTypes.TYPE_SYNC) != 0
+        if ((dataTypes & ~RecordedDataTypes.TYPE_TASKS) != 0) {
+            healthService.onFetchRecordedData(dataTypes);
+        }
+        if ((dataTypes & RecordedDataTypes.TYPE_TASKS) != 0
                 && OpenTasksManager.isSyncEnabled(getDevice())) {
             tasksService.syncTasks();
         }
