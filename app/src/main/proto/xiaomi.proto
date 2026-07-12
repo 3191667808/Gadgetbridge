@@ -31,6 +31,9 @@ message Command {
   // type 22
   optional DataUpload dataUpload = 24;
 
+  // type 16 (GNSS assistance negotiation)
+  optional Gnss gnss = 18;
+
   optional uint32 status = 100; // 0 on success on some
 }
 
@@ -1036,6 +1039,29 @@ message DataUploadAck {
   optional uint32 unknown2 = 2; // 0
   optional uint32 resumePosition = 4;
   optional uint32 chunkSize = 5; // 4096 on Redmi Watch 3 Active, Nonexistent on Mi Band 8
+}
+
+//
+// GNSS (command type 16) - assisted GPS negotiation on bands with onboard GNSS
+//
+
+message Gnss {
+  // 16, 1 - watch->phone: GNSS chip info (carries the chip vendor string)
+  optional GnssChipInfo chipInfo = 2;
+  // 16, 2 - phone->watch: approximate position sent before the assistance upload
+  optional GnssLocation location = 3;
+}
+
+message GnssChipInfo {
+  optional uint32 unknown1 = 1;
+  optional string chip = 2; // e.g. "broadcom"
+}
+
+message GnssLocation {
+  optional uint32 timestamp = 1; // seconds
+  optional double longitude = 2;
+  optional double latitude = 3;
+  optional double altitude = 4;
 }
 
 message ContactInfo {

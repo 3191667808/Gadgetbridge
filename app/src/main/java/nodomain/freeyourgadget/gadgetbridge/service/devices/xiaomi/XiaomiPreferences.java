@@ -33,6 +33,9 @@ import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public final class XiaomiPreferences {
+    public static final String PREF_AGPS_UPDATE_TIME = "xiaomi_agps_update_time"; // epoch millis of last successful AGPS push
+    public static final String PREF_AGPS_UPDATE = "xiaomi_agps_update"; // action: fetch + push now
+    public static final String PREF_AGPS_AUTO = "xiaomi_agps_auto"; // auto-refresh stale AGPS on connect
     public static final String PREF_ALARM_SLOTS = "alarm_slots";
     public static final String PREF_REMINDER_SLOTS = "reminder_slots";
     public static final String PREF_CANNED_MESSAGES_MIN = "canned_messages_min";

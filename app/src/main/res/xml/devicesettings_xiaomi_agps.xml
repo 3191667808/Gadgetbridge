@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:key="xiaomi_agps_category"
+        android:title="@string/pref_xiaomi_agps_title"
+        android:summary="@string/pref_xiaomi_agps_warning" />
+
+    <SwitchPreference
+        android:icon="@drawable/ic_gps_location"
+        android:defaultValue="false"
+        android:key="xiaomi_agps_auto"
+        android:title="@string/pref_xiaomi_agps_auto_title"
+        android:summary="@string/pref_xiaomi_agps_auto_summary" />
+
+    <Preference
+        android:key="xiaomi_agps_update"
+        android:title="@string/pref_xiaomi_agps_update_title"
+        android:summary="@string/pref_xiaomi_agps_update_summary" />
+</androidx.preference.PreferenceScreen>

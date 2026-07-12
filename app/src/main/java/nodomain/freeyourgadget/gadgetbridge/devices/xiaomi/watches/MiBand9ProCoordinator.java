@@ -55,4 +55,11 @@ public class MiBand9ProCoordinator extends XiaomiCoordinator {
     public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
+
+    @Override
+    public boolean supportsAgpsUpdates(@NonNull GBDevice device) {
+        // Onboard Broadcom GNSS: the band asks for assistance data over the GNSS command set and
+        // ingests it as a raw .brm bundle.
+        return true;
+    }
 }

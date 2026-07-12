@@ -47,7 +47,10 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
 import nodomain.freeyourgadget.gadgetbridge.activities.xiaomi.XiaomiVibrationPatternsActivity;
 import nodomain.freeyourgadget.gadgetbridge.devices.huami.HuamiConst;
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiPreferences;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.XiaomiActivityFileFetcher;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.XiaomiActivityFileId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.XiaomiActivityParser;
@@ -79,6 +82,15 @@ public class XiaomiSettingsCustomizer implements DeviceSpecificSettingsCustomize
                 final Intent intent = new Intent(handler.getContext(), XiaomiVibrationPatternsActivity.class);
                 intent.putExtra(GBDevice.EXTRA_DEVICE, handler.getDevice());
                 handler.getContext().startActivity(intent);
+                return true;
+            });
+        }
+
+        final Preference agpsUpdatePref = handler.findPreference(XiaomiPreferences.PREF_AGPS_UPDATE);
+        if (agpsUpdatePref != null) {
+            agpsUpdatePref.setOnPreferenceClickListener(preference -> {
+                GB.toast(handler.getContext(), handler.getContext().getString(R.string.pref_xiaomi_agps_update_summary), Toast.LENGTH_SHORT, GB.INFO);
+                GBApplication.deviceService(handler.getDevice()).onSendConfiguration(XiaomiPreferences.PREF_AGPS_UPDATE);
                 return true;
             });
         }

@@ -39,6 +39,7 @@ import java.util.UUID;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiAgpsInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.XiaomiFWHelper;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -57,6 +58,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.AbstractDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.AbstractXiaomiService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiCalendarService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiDataUploadService;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiGnssService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiHealthService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiMusicService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiNotificationService;
@@ -84,6 +86,7 @@ public class XiaomiSupport extends AbstractDeviceSupport {
     private final XiaomiDataUploadService dataUploadService = new XiaomiDataUploadService(this);
     private final XiaomiPhonebookService phonebookService = new XiaomiPhonebookService(this);
     private final XiaomiRpkService rpkService = new XiaomiRpkService(this);
+    private final XiaomiGnssService gnssService = new XiaomiGnssService(this);
 
 
     private String cachedFirmwareVersion = null;
@@ -102,6 +105,7 @@ public class XiaomiSupport extends AbstractDeviceSupport {
         put(XiaomiDataUploadService.COMMAND_TYPE, dataUploadService);
         put(XiaomiPhonebookService.COMMAND_TYPE, phonebookService);
         put(XiaomiRpkService.COMMAND_TYPE, rpkService);
+        put(XiaomiGnssService.COMMAND_TYPE, gnssService);
     }};
 
     @Override
@@ -310,6 +314,17 @@ public class XiaomiSupport extends AbstractDeviceSupport {
 
     @Override
     public void onInstallApp(final Uri uri, @NonNull final Bundle options) {
+        // GNSS assistance (AGPS) bundle? Recognised separately from firmware/watchface/rpk.
+        final XiaomiAgpsInstallHandler agpsHandler = new XiaomiAgpsInstallHandler(uri, getContext());
+        if (agpsHandler.isValid()) {
+            if (!((XiaomiCoordinator) getDevice().getDeviceCoordinator()).supportsAgpsUpdates(getDevice())) {
+                LOG.warn("Device does not support AGPS updates");
+                return;
+            }
+            gnssService.installAgps(agpsHandler.getFile().getBytes());
+            return;
+        }
+
         final XiaomiFWHelper fwHelper = new XiaomiFWHelper(uri, getContext());
 
         if (!fwHelper.isValid()) {

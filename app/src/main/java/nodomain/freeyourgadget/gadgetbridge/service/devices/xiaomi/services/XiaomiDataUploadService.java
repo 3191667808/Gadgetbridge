@@ -45,6 +45,7 @@ public class XiaomiDataUploadService extends AbstractXiaomiService {
     public static final byte TYPE_FIRMWARE = 32;
     public static final byte TYPE_RPK = 64;
     public static final byte TYPE_NOTIFICATION_ICON = 50;
+    public static final byte TYPE_AGPS = 1;
 
     private Callback callback;
 
@@ -98,6 +99,19 @@ public class XiaomiDataUploadService extends AbstractXiaomiService {
         }
 
         this.callback = callback;
+    }
+
+    /**
+     * Pushes a GNSS assistance (AGPS) bundle to a GPS-equipped band. The bundle rides the same
+     * chunked upload as watchfaces and firmware, under {@link #TYPE_AGPS}.
+     *
+     * Callers must be gated on {@code XiaomiCoordinator#supportsAgpsUpdates} and pass bytes that
+     * have cleared {@code XiaomiAgpsFile} validation: a malformed assistance file can leave the
+     * GNSS chip unresponsive.
+     */
+    public void uploadAgps(final byte[] bytes, final Callback callback) {
+        setCallback(callback);
+        requestUpload(TYPE_AGPS, bytes);
     }
 
     public void requestUpload(final byte type, final byte[] bytes) {

@@ -120,8 +120,22 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     @Nullable
     @Override
     public InstallHandler findInstallHandler(final Uri uri, final Bundle options, final Context context) {
+        final XiaomiAgpsInstallHandler agpsHandler = new XiaomiAgpsInstallHandler(uri, context);
+        if (agpsHandler.isValid()) {
+            return agpsHandler;
+        }
+
         final XiaomiInstallHandler handler = new XiaomiInstallHandler(uri, context);
         return handler.isValid() ? handler : null;
+    }
+
+    /**
+     * Whether the device supports uploading GNSS assistance (AGPS) data to speed up its first
+     * satellite fix. Defaults to false: most models in this family have no onboard GNSS and relay
+     * location from the phone instead. Models with their own receiver override this.
+     */
+    public boolean supportsAgpsUpdates(@NonNull final GBDevice device) {
+        return false;
     }
 
     @Override
@@ -509,6 +523,9 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
         workout.add(R.xml.devicesettings_workout_start_on_phone);
         workout.add(R.xml.devicesettings_workout_send_gps_to_band);
         workout.add(R.xml.devicesettings_workout_send_gps_to_band_timeout);
+        if (supportsAgpsUpdates(device)) {
+            workout.add(R.xml.devicesettings_xiaomi_agps);
+        }
 
         //
         // Notifications

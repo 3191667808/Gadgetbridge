@@ -638,6 +638,12 @@
     <string name="pref_workout_start_on_phone_summary">Start/stop fitness app tracking on phone when a GPS workout is started on the band</string>
     <string name="pref_workout_send_gps_title">Send GPS during workout</string>
     <string name="pref_workout_send_gps_summary">Send the current GPS location to the band during a workout</string>
+    <string name="pref_xiaomi_agps_title">AGPS (assisted GPS)</string>
+    <string name="pref_xiaomi_agps_warning">Downloads GNSS assistance data from a public server for faster GPS fixes on bands with onboard GPS. Requires the Gadgetbridge Internet Helper. You can also install a .brm assistance file manually.</string>
+    <string name="pref_xiaomi_agps_auto_title">Auto-update AGPS</string>
+    <string name="pref_xiaomi_agps_auto_summary">Refresh assistance data automatically on connect when it is out of date</string>
+    <string name="pref_xiaomi_agps_update_title">Update AGPS now</string>
+    <string name="pref_xiaomi_agps_update_summary">Download GPS assistance data and send it to the band</string>
     <string name="pref_workout_send_gps_timeout_title">Send GPS timeout</string>
     <string name="pref_workout_send_gps_timeout_summary">Stop sending GPS when device does not send workout is open (milliseconds)</string>
     <string name="pref_workout_keep_screen_on_title">Keep screen on during a workout</string>
