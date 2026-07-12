@@ -36,6 +36,8 @@ import android.text.InputType;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
@@ -136,6 +138,10 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
     public static class SettingsFragment extends AbstractPreferenceFragment {
         private static final Logger LOG = LoggerFactory.getLogger(SettingsActivity.class);
 
+        private EditText fitnessAppEditText = null;
+        private int fitnessAppSelectionListSpinnerFirstRun = 0;
+        private ActivityResultLauncher<String[]> tasksPermissionLauncher;
+
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
             setPreferencesFromResource(R.xml.preferences, rootKey);
@@ -159,6 +165,24 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
 
             final Preference tasksSyncPref = findPreference(OpenTasksManager.PREF_ENABLED);
             if (tasksSyncPref != null) {
+                tasksPermissionLauncher = registerForActivityResult(
+                        new ActivityResultContracts.RequestMultiplePermissions(),
+                        result -> {
+                            boolean granted = true;
+                            for (final Boolean g : result.values()) {
+                                if (!g) {
+                                    granted = false;
+                                    break;
+                                }
+                            }
+                            if (granted) {
+                                final Preference pref = findPreference(OpenTasksManager.PREF_ENABLED);
+                                if (pref instanceof SwitchPreferenceCompat) {
+                                    ((SwitchPreferenceCompat) pref).setChecked(true);
+                                }
+                            }
+                        });
+
                 tasksSyncPref.setOnPreferenceChangeListener((preference, newValue) -> {
                     if (Boolean.TRUE.equals(newValue)) {
                         final String[] perms = {OpenTasksManager.PERMISSION_READ_TASKS, OpenTasksManager.PERMISSION_WRITE_TASKS};
@@ -170,7 +194,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
                             }
                         }
                         if (!granted) {
-                            ActivityCompat.requestPermissions(requireActivity(), perms, 0);
+                            tasksPermissionLauncher.launch(perms);
                             return false;
                         }
                     }
