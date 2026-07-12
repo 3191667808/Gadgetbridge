@@ -754,6 +754,11 @@
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
             android:exported="false"
+            android:name=".activities.FindDeviceActivity"
+            android:label="@string/controlcenter_find_device"
+            android:parentActivityName=".activities.ControlCenterv2" />
+        <activity
+            android:exported="false"
             android:name=".activities.DeviceDeleteActivity"
             android:label="@string/controlcenter_delete_device"
             android:parentActivityName=".activities.ControlCenterv2" />

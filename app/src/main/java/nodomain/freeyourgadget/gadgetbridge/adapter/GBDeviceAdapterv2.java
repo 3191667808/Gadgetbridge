@@ -111,6 +111,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.ConfigureReminders;
 import nodomain.freeyourgadget.gadgetbridge.activities.ControlCenterv2;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateDialog;
 import nodomain.freeyourgadget.gadgetbridge.activities.OpenFwAppInstallerActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.FindDeviceActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.VibrationActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.ActivityChartsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsActivity;
@@ -603,60 +604,16 @@ public class GBDeviceAdapterv2 extends ListAdapter<GBDevice, GBDeviceAdapterv2.V
         });
 
         holder.findDevice.setVisibility(device.isInitialized() && coordinator.supportsFindDevice(device) ? View.VISIBLE : View.GONE);
-        holder.findDevice.setOnClickListener(new View.OnClickListener() {
-                                                 @Override
-                                                 public void onClick(View v) {
-                                                     new MaterialAlertDialogBuilder(context)
-                                                             .setCancelable(true)
-                                                             .setTitle(context.getString(R.string.controlcenter_find_device))
-                                                             .setMessage(context.getString(R.string.find_lost_device_message, device.getAliasOrName()))
-                                                             .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
-                                                                 @Override
-                                                                 public void onClick(DialogInterface dialog, int which) {
-                                                                     if (device.getType() == DeviceType.VIBRATISSIMO) {
-                                                                         Intent startIntent;
-                                                                         startIntent = new Intent(context, VibrationActivity.class);
-                                                                         startIntent.putExtra(GBDevice.EXTRA_DEVICE, device);
-                                                                         context.startActivity(startIntent);
-                                                                         return;
-                                                                     }
-                                                                     GBApplication.deviceService(device).onFindDevice(true);
-                                                                     Snackbar.make(parent, R.string.control_center_find_lost_device, Snackbar.LENGTH_INDEFINITE).setAction(R.string.find_lost_device_you_found_it, new View.OnClickListener() {
-                                                                         @Override
-                                                                         public void onClick(View v) {
-                                                                             GBApplication.deviceService(device).onFindDevice(false);
-                                                                         }
-                                                                     }).setCallback(new Snackbar.Callback() {
-                                                                         @Override
-                                                                         public void onDismissed(Snackbar snackbar, int event) {
-                                                                             GBApplication.deviceService(device).onFindDevice(false);
-                                                                             super.onDismissed(snackbar, event);
-                                                                         }
-                                                                     }).show();
-
-                                                                 }
-                                                             })
-                                                             .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                                                                 @Override
-                                                                 public void onClick(DialogInterface dialog, int which) {
-                                                                     // do nothing
-                                                                 }
-                                                             })
-                                                             .show();
-//                                                             ProgressDialog.show(
-//                                                             context,
-//                                                             context.getString(R.string.control_center_find_lost_device),
-//                                                             context.getString(R.string.control_center_cancel_to_stop_vibration),
-//                                                             true, true,
-//                                                             new DialogInterface.OnCancelListener() {
-//                                                                 @Override
-//                                                                 public void onCancel(DialogInterface dialog) {
-//                                                                     GBApplication.deviceService().onFindDevice(false);
-//                                                                 }
-//                                                             });
-                                                 }
-                                             }
-        );
+        holder.findDevice.setOnClickListener(v -> {
+            final Intent startIntent;
+            if (device.getType() == DeviceType.VIBRATISSIMO) {
+                startIntent = new Intent(context, VibrationActivity.class);
+            } else {
+                startIntent = new Intent(context, FindDeviceActivity.class);
+            }
+            startIntent.putExtra(GBDevice.EXTRA_DEVICE, device);
+            context.startActivity(startIntent);
+        });
 
         holder.calibrateDevice.setVisibility(device.isInitialized() && (coordinator.getCalibrationActivity() != null) ? View.VISIBLE : View.GONE);
         holder.calibrateDevice.setOnClickListener(new View.OnClickListener() {
