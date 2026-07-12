@@ -218,7 +218,10 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getAlarmSlotCount(@NonNull final GBDevice device) {
-        return getPrefs(device).getInt(XiaomiPreferences.PREF_ALARM_SLOTS, 0);
+        // The real count is reported by the device (maxAlarms) on the first alarms fetch and
+        // overwrites this pref. Default to the common count so the alarm UI has editable slots
+        // on the very first connect, before that fetch completes, instead of showing none.
+        return getPrefs(device).getInt(XiaomiPreferences.PREF_ALARM_SLOTS, 10);
     }
 
     @Override

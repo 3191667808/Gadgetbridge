@@ -61,6 +61,8 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
     private static final int CMD_ALARMS_CREATE = 1;
     private static final int CMD_ALARMS_EDIT = 2;
     private static final int CMD_ALARMS_DELETE = 4;
+    // Reply the watch sends after an edit (create is echoed back on CMD_ALARMS_CREATE instead).
+    private static final int CMD_ALARMS_EDIT_ACK = 5;
     private static final int CMD_SLEEP_MODE_GET = 8;
     private static final int CMD_SLEEP_MODE_SET = 9;
     private static final int CMD_WORLD_CLOCKS_GET = 10;
@@ -96,6 +98,11 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
     private int pendingAlarmAcks = 0;
     private int pendingReminderAcks = 0;
 
+    // Set once the watch's alarm state has been fetched at least once this connection.
+    // Until then we must not push, or an early ConfigureAlarms.onPause would send DB
+    // defaults (6:30) as "creates" and overwrite the watch's real alarms.
+    private boolean receivedInitialAlarms = false;
+
     public XiaomiScheduleService(final XiaomiSupport support) {
         super(support);
     }
@@ -115,6 +122,13 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
                     LOG.debug("Requesting alarms after all acks");
                     requestAlarms();
                 }
+                return;
+            case CMD_ALARMS_EDIT_ACK:
+            case CMD_ALARMS_DELETE:
+                // Edits and deletes only update watchAlarms optimistically; re-fetch to confirm the
+                // watch actually applied the change and to re-learn its state.
+                LOG.debug("Got alarms edit/delete ack (subtype {}), requesting alarms", cmd.getSubtype());
+                requestAlarms();
                 return;
             case CMD_SLEEP_MODE_SET:
                 LOG.debug("Got sleep mode set ack, status={}", cmd.getStatus());
@@ -149,6 +163,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         watchReminders.clear();
         pendingAlarmAcks = 0;
         pendingReminderAcks = 0;
+        receivedInitialAlarms = false;
 
         if (getCoordinator().supportsAlarms()) {
             requestAlarms();
@@ -427,6 +442,14 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
     }
 
     public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
+        if (getCoordinator().supportsAlarms() && !receivedInitialAlarms) {
+            // The initial requestAlarms() fetch has not returned yet. watchAlarms is empty, so
+            // every DB alarm would look like a "create" and we would push the 6:30 defaults,
+            // overwriting the watch. The pending fetch will reconcile DB from the watch anyway.
+            LOG.warn("Ignoring alarm push before initial fetch to avoid overwriting the watch");
+            return;
+        }
+
         final List<Integer> alarmsToDelete = new ArrayList<>();
 
         pendingAlarmAcks = 0;
@@ -472,6 +495,9 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
                     break;
                 default:
                     alarmDetails.setRepeatMode(REPETITION_WEEKLY);
+                    // GB's repetition bitmask and the Xiaomi repeatFlags bitmask are both
+                    // Monday=bit0 .. Sunday=bit6, so the mask is passed through unchanged. If
+                    // either bit order ever diverges, an explicit remap must be added here.
                     alarmDetails.setRepeatFlags(alarm.getRepetition());
                     break;
             }
@@ -554,12 +580,15 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
                     gbAlarm.setRepetition(Alarm.ALARM_DAILY);
                     break;
                 case REPETITION_WEEKLY:
+                    // repeatFlags shares GB's Monday=bit0 .. Sunday=bit6 layout (see onSetAlarms).
                     gbAlarm.setRepetition(alarm.getAlarmDetails().getRepeatFlags());
                     break;
             }
 
             watchAlarms.put(gbAlarm.getPosition(), gbAlarm);
         }
+
+        receivedInitialAlarms = true;
 
         final List<nodomain.freeyourgadget.gadgetbridge.entities.Alarm> dbAlarms = DBHelper.getAlarms(getSupport().getDevice());
         int numUpdatedAlarms = 0;
