@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import androidx.annotation.NonNull;
 
@@ -52,7 +53,12 @@ public class ID115Coordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supports(GBDeviceCandidate candidate) {
-        return candidate.supportsService(ID115Constants.UUID_SERVICE_ID115);
+        return candidate.getName() != null && getSupportedDeviceName().matcher(candidate.getName()).matches();
+    }
+
+    @Override
+    protected Pattern getSupportedDeviceName() {
+        return Pattern.compile("^ID115$");
     }
 
     @Override
