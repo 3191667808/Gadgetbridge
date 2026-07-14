@@ -32,14 +32,14 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.HeartPulseSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepRespiratoryRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepTimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.HeartPulseSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
-import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepRespiratoryRateSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepTimeSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -197,7 +197,7 @@ public class SleepDetailsParser extends XiaomiActivityParser {
 
         final List<XiaomiSleepStageSample> stages = new ArrayList<>();
         final List<HeartPulseSample> heartPulseSamples = new ArrayList<>();
-        final List<XiaomiSleepRespiratoryRateSample> respiratoryRateSamples = new ArrayList<>();
+        final List<GenericRespiratoryRateSample> respiratoryRateSamples = new ArrayList<>();
         LOG.debug("Sleep stage packets from offset {}", Integer.toHexString(buf.position()));
 
         // Do not crash if we face a buffer underflow, as the next parsing is not 100% fool-proof,
@@ -342,9 +342,9 @@ public class SleepDetailsParser extends XiaomiActivityParser {
                             final long recordTs = windowStartMs
                                     + ((long) (i + 1) * windowMs) / (recordCount + 1);
 
-                            final XiaomiSleepRespiratoryRateSample rrSample = new XiaomiSleepRespiratoryRateSample();
+                            final GenericRespiratoryRateSample rrSample = new GenericRespiratoryRateSample();
                             rrSample.setTimestamp(recordTs);
-                            rrSample.setRate(rate);
+                            rrSample.setRespiratoryRate(rate);
                             respiratoryRateSamples.add(rrSample);
                         }
                     }
@@ -443,7 +443,7 @@ public class SleepDetailsParser extends XiaomiActivityParser {
         if (!respiratoryRateSamples.isEmpty()) {
             try (DBHandler handler = GBApplication.acquireDB()) {
                 final DaoSession session = handler.getDaoSession();
-                new XiaomiSleepRespiratoryRateSampleProvider(gbDevice, session)
+                new GenericRespiratoryRateSampleProvider(gbDevice, session)
                         .persistForDevice(context, gbDevice, respiratoryRateSamples);
             } catch (final Exception e) {
                 LOG.error("Error acquiring db for sleep respiratory rate samples", e);

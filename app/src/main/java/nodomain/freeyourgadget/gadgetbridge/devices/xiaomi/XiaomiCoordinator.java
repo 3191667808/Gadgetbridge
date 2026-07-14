@@ -60,7 +60,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiActivityFileDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiDailySummarySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiManualSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.devices.XiaomiSleepRespiratoryRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepStageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepTimeSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -196,7 +196,7 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public TimeSampleProvider<? extends RespiratoryRateSample> getRespiratoryRateSampleProvider(@NonNull final GBDevice device, final DaoSession session) {
-        return new XiaomiSleepRespiratoryRateSampleProvider(device, session);
+        return new GenericRespiratoryRateSampleProvider(device, session);
     }
 
     @Nullable
