@@ -81,11 +81,13 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
         private static final String HEALTH_CONNECT_ONETIME_WORK_NAME = "HealthConnectSyncWorker_OneTime";
         private static final String HC_DEVICE_SELECT_DIALOG_TAG = "HC_DEVICE_SELECT_DIALOG";
         private static final String HC_INITIAL_SYNC_DIALOG_TAG = "HC_INITIAL_SYNC_DIALOG_TAG";
+        private static final String PREF_KEY_MISSING_PERMISSIONS = "health_connect_missing_permissions";
 
         private ActivityResultLauncher<Set<String>> requestPermissionLauncher;
 
         private SwitchPreferenceCompat healthConnectEnabledPref;
         private Preference healthConnectSyncStatus;
+        private Preference healthConnectMissingPermissions;
         private Preference healthConnectDisableNotice;
         private SwitchPreferenceCompat syncOnEventPref;
         private MultiSelectListPreference selectedDevicesPref;
@@ -103,6 +105,7 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
 
             healthConnectEnabledPref = findPreference(GBPrefs.HEALTH_CONNECT_ENABLED);
             healthConnectSyncStatus = findPreference(GBPrefs.HEALTH_CONNECT_SYNC_STATUS);
+            healthConnectMissingPermissions = findPreference(PREF_KEY_MISSING_PERMISSIONS);
             healthConnectDisableNotice = findPreference(GBPrefs.HEALTH_CONNECT_DISABLE_NOTICE);
             syncOnEventPref = findPreference(GBPrefs.HEALTH_CONNECT_SYNC_ON_EVENT);
             selectedDevicesPref = findPreference(GBPrefs.HEALTH_CONNECT_DEVICE_SELECTION);
@@ -133,6 +136,7 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                     });
 
             setupHealthConnectSwitch();
+            setupMissingPermissionsPreference();
             setupManualSettingsLink();
             setupHealthConnectSettingsLink();
             setupDeviceMultiSelectList();
@@ -407,6 +411,7 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                 healthConnectSyncStatus.setVisible(enabled);
             }
             if (healthConnectDisableNotice != null) healthConnectDisableNotice.setVisible(enabled);
+            updateMissingPermissionsPreference(enabled);
 
             // Keep these always enabled to prevent lockout when permission requests are denied
             if (selectedDevicesPref != null) {
@@ -417,6 +422,51 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
             }
         }
 
+
+        private void setupMissingPermissionsPreference() {
+            if (healthConnectMissingPermissions == null) {
+                return;
+            }
+            healthConnectMissingPermissions.setOnPreferenceClickListener(preference -> {
+                if (requestPermissionLauncher != null) {
+                    requestPermissionLauncher.launch(HealthConnectPermissionManager.getRequiredHealthConnectPermissions());
+                }
+                return true;
+            });
+        }
+
+        /**
+         * Names the data types Gadgetbridge is holding but cannot write, because Health Connect
+         * never granted the permission.
+         *
+         * They used to be skipped in silence, which is why users reported sleep stages and HRV as
+         * unsupported when in fact they were merely un-permitted.
+         */
+        private void updateMissingPermissionsPreference(boolean enabled) {
+            if (healthConnectMissingPermissions == null || getContext() == null) {
+                return;
+            }
+
+            List<HealthConnectPermissionManager.HealthConnectDataType> missing =
+                    HealthConnectPermissionManager.getDataTypesMissingPermissions();
+
+            if (!enabled || missing.isEmpty()) {
+                healthConnectMissingPermissions.setVisible(false);
+                return;
+            }
+
+            StringBuilder names = new StringBuilder();
+            for (HealthConnectPermissionManager.HealthConnectDataType dataType : missing) {
+                if (names.length() > 0) {
+                    names.append(", ");
+                }
+                names.append(dataType.name());
+            }
+
+            healthConnectMissingPermissions.setVisible(true);
+            healthConnectMissingPermissions.setSummary(
+                    getContext().getString(R.string.health_connect_permissions_missing, names.toString()));
+        }
 
         private void showSdkStatusMessage(int sdkStatus) {
             if (healthConnectSyncStatus != null && getContext() != null) {

@@ -44,6 +44,12 @@
             android:selectable="false"
             app:iconSpaceReserved="false" />
 
+        <Preference
+            android:icon="@drawable/ic_warning_gray"
+            android:key="health_connect_missing_permissions"
+            android:title="@string/health_connect_grant_missing_permissions"
+            app:iconSpaceReserved="true" />
+
 
         <SwitchPreferenceCompat
             android:defaultValue="false"

@@ -17,6 +17,8 @@
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import androidx.health.connect.client.HealthConnectClient
@@ -110,6 +112,43 @@ object HealthConnectPermissionManager {
             .toSet()
     }
 
+    /**
+     * The permissions Health Connect has actually granted us, out of the ones we ask for.
+     *
+     * On Android 14+ Health Connect permissions are ordinary runtime permissions and
+     * `permissionController.getGrantedPermissions()` under-reports them, so the package manager is
+     * the authority there. Below that, only the permission controller knows.
+     */
+    private suspend fun systemGrantedPermissions(context: Context, client: HealthConnectClient): Set<String> {
+        val required = getRequiredHealthConnectPermissions()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            required.filter {
+                context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+            }.toSet()
+        } else {
+            client.permissionController.getGrantedPermissions().intersect(required)
+        }
+    }
+
+    /**
+     * Data types Gadgetbridge could write but currently cannot, because their Health Connect
+     * permission was never granted.
+     *
+     * Until this was surfaced, a data type with no permission was simply skipped in silence, and
+     * users concluded - reasonably - that Gadgetbridge did not support sleep stages or HRV at all.
+     */
+    @JvmStatic
+    fun getDataTypesMissingPermissions(): List<HealthConnectDataType> {
+        val granted = GBApplication.getPrefs().preferences
+            .getStringSet(PREF_KEY_LAST_GRANTED_HC_PERMISSIONS, emptySet()) ?: emptySet()
+        if (granted.isEmpty()) {
+            return emptyList()
+        }
+        return HealthConnectDataType.entries.filter { dataType ->
+            getRequiredPermissionsForDataType(dataType).none { it in granted }
+        }
+    }
+
     // Helper data class for internal processing
     private data class PermissionChangeAnalysis(
         val finalMessage: String?,
@@ -191,7 +230,19 @@ object HealthConnectPermissionManager {
         }
 
         val oldRelevantPermissions = prefs.getStringSet(PREF_KEY_LAST_GRANTED_HC_PERMISSIONS, emptySet()) ?: emptySet()
-        val newRelevantPermissions = grantedPermissionsFromFlow.intersect(getRequiredHealthConnectPermissions())
+
+        // The contract reports what the dialog granted. On Android 14+ that under-reports what the
+        // system actually holds, so take the union with what the package manager says.
+        val newRelevantPermissions = buildSet {
+            addAll(grantedPermissionsFromFlow.intersect(getRequiredHealthConnectPermissions()))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                addAll(
+                    getRequiredHealthConnectPermissions().filter {
+                        context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+                    }
+                )
+            }
+        }
 
         val analysis = analyzePermissionChange(context, newRelevantPermissions, oldRelevantPermissions)
 
@@ -232,15 +283,14 @@ object HealthConnectPermissionManager {
         if (!isHealthConnectEnabled(context)) return
 
         val client = HealthConnectClientProvider.healthConnectInit(context) ?: return
-        val currentPermissions = try {
-            client.permissionController.getGrantedPermissions()
+        val newPermissions = try {
+            systemGrantedPermissions(context, client)
         } catch (e: Exception) {
             LOG.error("Failed to get current HC permissions", e)
             return
         }
 
         val oldPermissions = GBApplication.getPrefs().preferences.getStringSet(PREF_KEY_LAST_GRANTED_HC_PERMISSIONS, emptySet()) ?: emptySet()
-        val newPermissions = currentPermissions.intersect(getRequiredHealthConnectPermissions())
 
         if (newPermissions != oldPermissions) {
             LOG.info("Health Connect permissions changed outside of app flow. Old: ${oldPermissions.size}, New: ${newPermissions.size}")
@@ -269,8 +319,7 @@ object HealthConnectPermissionManager {
 
             try {
                 val oldRelevantPermissions = prefs.getStringSet(PREF_KEY_LAST_GRANTED_HC_PERMISSIONS, emptySet()) ?: emptySet()
-                val systemGrantedPermissions = healthConnectClient.permissionController.getGrantedPermissions()
-                val newRelevantSystemPermissions = systemGrantedPermissions.intersect(getRequiredHealthConnectPermissions())
+                val newRelevantSystemPermissions = systemGrantedPermissions(context, healthConnectClient)
 
                 val analysis = analyzePermissionChange(context, newRelevantSystemPermissions, oldRelevantPermissions)
 
