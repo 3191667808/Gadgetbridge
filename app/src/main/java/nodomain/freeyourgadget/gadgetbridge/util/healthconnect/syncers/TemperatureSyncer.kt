@@ -24,11 +24,13 @@ import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Temperature
 import androidx.health.connect.client.units.TemperatureDelta
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncException
 import org.slf4j.LoggerFactory
 import java.time.Instant
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 private val LOG = LoggerFactory.getLogger("TemperatureSyncer")
@@ -38,6 +40,17 @@ private const val MAX_PLAUSIBLE_BODY_TEMP_C = 45.0
 private const val MIN_PLAUSIBLE_SKIN_TEMP_C = 15.0
 private const val MAX_PLAUSIBLE_SKIN_TEMP_C = 45.0
 private const val DEFAULT_SKIN_BASELINE_C = 33.0
+
+/**
+ * Wearables that sit against the skin. A sample from one of these that carries no explicit type is
+ * a skin reading; a thermometer or an ambient sensor is not, and must not be guessed at.
+ */
+private val BODY_WORN_DEVICE_KINDS = setOf(
+    DeviceCoordinator.DeviceKind.WATCH,
+    DeviceCoordinator.DeviceKind.RING,
+    DeviceCoordinator.DeviceKind.FITNESS_BAND,
+    DeviceCoordinator.DeviceKind.CHEST_STRAP
+)
 
 internal object TemperatureSyncer : HealthConnectSyncer {
     override suspend fun sync(ctx: SyncContext): SyncerStatistics {
@@ -75,8 +88,15 @@ internal object TemperatureSyncer : HealthConnectSyncer {
         }
 
         val bodySamples = samples.filter { it.temperatureType == TemperatureSample.TYPE_BODY }
-        val skinSamples = samples.filter { it.temperatureType == TemperatureSample.TYPE_SKIN }
+        val skinSamples = samples.filter { isSkinSample(it, gbDevice) }
+        val untypedAsSkin = skinSamples.count { it.temperatureType == TemperatureSample.TYPE_UNKNOWN }
         LOG.info("Found ${samples.size} temperature samples for '$deviceName': ${bodySamples.size} body, ${skinSamples.size} skin, in slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
+        if (untypedAsSkin > 0) {
+            LOG.info(
+                "Treating {} untyped temperature sample(s) from '{}' as skin temperature (device kind {}); the sample source did not record a type.",
+                untypedAsSkin, deviceName, gbDevice.deviceCoordinator.getDeviceKind(gbDevice)
+            )
+        }
 
         val recordsToInsert = mutableListOf<Record>()
 
@@ -127,46 +147,15 @@ internal object TemperatureSyncer : HealthConnectSyncer {
             }.sortedBy { it.timestamp }
 
             if (validSkinSamplesInSlice.isNotEmpty()) {
-                val recordStartTime = Instant.ofEpochMilli(validSkinSamplesInSlice.first().timestamp)
-                val recordEndTime = Instant.ofEpochMilli(validSkinSamplesInSlice.last().timestamp).plusSeconds(1)
-
-                // Calculate deltas as change since last measurement, not from baseline
-                val deltas = mutableListOf<SkinTemperatureRecord.Delta>()
-                var previousTempC: Double? = null
-
-                for (sample in validSkinSamplesInSlice) {
-                    val currentTempC = sample.temperature.toDouble()
-                    val deltaValue = previousTempC?.let { currentTempC - it }
-                        ?: (currentTempC - baselineForCurrentRecord)
-
-                    if (deltaValue !in -30.0..30.0 || !deltaValue.isFinite()) {
-                        LOG.skipOutOfRange(deviceName, "SkinTemperatureDelta", deltaValue, "-30..30 °C")
-                        previousTempC = currentTempC
-                        continue
-                    }
-
-                    deltas.add(
-                        SkinTemperatureRecord.Delta(
-                            time = Instant.ofEpochMilli(sample.timestamp),
-                            delta = TemperatureDelta.celsius(deltaValue)
-                        )
+                recordsToInsert.addAll(
+                    buildSkinTemperatureRecords(
+                        validSkinSamplesInSlice,
+                        baselineForCurrentRecord,
+                        ctx.zoneId,
+                        ctx.metadata,
+                        deviceName
                     )
-                    previousTempC = currentTempC
-                }
-
-                if (deltas.isNotEmpty()) {
-                    recordsToInsert.add(
-                        SkinTemperatureRecord(
-                            startTime = recordStartTime,
-                            startZoneOffset = ctx.zoneId.rules.getOffset(recordStartTime),
-                            endTime = recordEndTime,
-                            endZoneOffset = ctx.zoneId.rules.getOffset(recordEndTime),
-                            deltas = deltas,
-                            baseline = Temperature.celsius(baselineForCurrentRecord),
-                            metadata = ctx.metadata
-                        )
-                    )
-                }
+                )
             } else {
                 LOG.info("No valid skin temperature samples (plausible and within slice) found for '$deviceName' in slice ${ctx.sliceStart} - ${ctx.sliceEnd}.")
             }
@@ -184,6 +173,77 @@ internal object TemperatureSyncer : HealthConnectSyncer {
 
         LOG.info("Temperature sync completed for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}. Total synced: ${recordsToInsert.size}")
         return buildStatistics(recordsToInsert, 0)
+    }
+
+    /**
+     * A sample the device recorded without saying where. Colmi rings (and every coordinator that
+     * falls back to the default GenericTemperatureSampleProvider) stored temperature with
+     * TYPE_UNKNOWN, and the syncer used to drop those on the floor - the reported symptom was a log
+     * line reading "20 temperature samples: 0 body, 0 skin" and nothing reaching Health Connect.
+     * Rows already in the database still carry the old type, so classifying here rather than at the
+     * provider also repairs the history.
+     */
+    internal fun isSkinSample(sample: TemperatureSample, gbDevice: GBDevice): Boolean {
+        if (sample.temperatureType == TemperatureSample.TYPE_SKIN) {
+            return true
+        }
+        if (sample.temperatureType != TemperatureSample.TYPE_UNKNOWN) {
+            return false
+        }
+        return gbDevice.deviceCoordinator.getDeviceKind(gbDevice) in BODY_WORN_DEVICE_KINDS
+    }
+
+    /** One record for the slice, with deltas measured against the previous sample. */
+    internal fun buildSkinTemperatureRecords(
+        samples: List<TemperatureSample>,
+        baseline: Double,
+        zoneId: ZoneId,
+        metadata: Metadata,
+        deviceName: String
+    ): List<SkinTemperatureRecord> {
+        if (samples.isEmpty()) {
+            return emptyList()
+        }
+
+        val deltas = mutableListOf<SkinTemperatureRecord.Delta>()
+        var previousTempC: Double? = null
+
+        for (sample in samples) {
+            val currentTempC = sample.temperature.toDouble()
+            val deltaValue = previousTempC?.let { currentTempC - it } ?: (currentTempC - baseline)
+
+            if (deltaValue !in -30.0..30.0 || !deltaValue.isFinite()) {
+                LOG.skipOutOfRange(deviceName, "SkinTemperatureDelta", deltaValue, "-30..30 °C")
+                previousTempC = currentTempC
+                continue
+            }
+
+            deltas.add(
+                SkinTemperatureRecord.Delta(
+                    time = Instant.ofEpochMilli(sample.timestamp),
+                    delta = TemperatureDelta.celsius(deltaValue)
+                )
+            )
+            previousTempC = currentTempC
+        }
+
+        if (deltas.isEmpty()) {
+            return emptyList()
+        }
+
+        val recordStartTime = deltas.first().time
+        val recordEndTime = deltas.last().time.plusSeconds(1)
+        return listOf(
+            SkinTemperatureRecord(
+                startTime = recordStartTime,
+                startZoneOffset = zoneId.rules.getOffset(recordStartTime),
+                endTime = recordEndTime,
+                endZoneOffset = zoneId.rules.getOffset(recordEndTime),
+                deltas = deltas,
+                baseline = Temperature.celsius(baseline),
+                metadata = metadata
+            )
+        )
     }
 
     // Builds the slice result, including latestRecordTimestamp. The orchestrator only advances the
@@ -236,7 +296,7 @@ internal object TemperatureSyncer : HealthConnectSyncer {
 
                     val skinSamplesForDay = samplesForDay.filter {
                         val tempC = it.temperature.toDouble()
-                        it.temperatureType == TemperatureSample.TYPE_SKIN && tempC >= MIN_PLAUSIBLE_SKIN_TEMP_C && tempC <= MAX_PLAUSIBLE_SKIN_TEMP_C
+                        isSkinSample(it, gbDevice) && tempC >= MIN_PLAUSIBLE_SKIN_TEMP_C && tempC <= MAX_PLAUSIBLE_SKIN_TEMP_C
                     }
 
                     if (skinSamplesForDay.isNotEmpty()) {
