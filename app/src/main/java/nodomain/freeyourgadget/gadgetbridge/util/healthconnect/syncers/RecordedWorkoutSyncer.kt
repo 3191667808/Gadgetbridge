@@ -339,7 +339,7 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
             addDistanceRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
         }
         if (!device.deviceCoordinator.supportsActiveCalories(device)) {
-            addCaloriesRecords(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+            addCaloriesRecords(ctx, summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
         }
         if (!wroteDerivedElevation) {
             addElevationGainedRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
@@ -717,6 +717,7 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
     }
 
     private fun addCaloriesRecords(
+        ctx: SyncContext,
         summaryData: ActivitySummaryData,
         startTime: Instant,
         endTime: Instant,
@@ -748,35 +749,36 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
             }
         }
 
-        // Only sync TotalCaloriesBurnedRecord if we have both active AND resting calories,
-        // otherwise syncing the same value as both active and total would be misleading.
-        if (HealthPermission.getWritePermission(TotalCaloriesBurnedRecord::class) !in grantedPermissions) {
+        if (HealthPermission.getWritePermission(TotalCaloriesBurnedRecord::class) !in grantedPermissions || activeCalories <= 0) {
             return
         }
 
-        val restingCalories = summaryData.getNumber(ActivitySummaryEntries.CALORIES_RESTING, 0.0).toDouble()
-        if (activeCalories > 0 && restingCalories > 0) {
-            val totalCalories = activeCalories + restingCalories
-            recordsToInsert.add(
-                TotalCaloriesBurnedRecord(
-                    startTime = startTime,
-                    startZoneOffset = startOffset,
-                    endTime = endTime,
-                    endZoneOffset = endOffset,
-                    energy = Energy.kilocalories(totalCalories),
-                    metadata = metadata
-                )
-            )
-            LOG.debug(
-                "Added TotalCaloriesBurnedRecord ({} kcal = {} active + {} resting) for workout at {} for device '{}'.",
-                totalCalories, activeCalories, restingCalories, startTime, deviceName
-            )
-        } else {
-            LOG.debug(
-                "Not syncing TotalCaloriesBurnedRecord - need both active and resting calories (have: active={}, resting={}) for device '{}'",
-                activeCalories, restingCalories, deviceName
-            )
+        // Google Health reads only TOTAL_CALORIES_BURNED. Few devices report the resting share of a
+        // workout, so fall back to the same resting rate the app's own Calories chart uses rather
+        // than skip the total entirely.
+        var restingCalories = summaryData.getNumber(ActivitySummaryEntries.CALORIES_RESTING, 0.0).toDouble()
+        if (restingCalories <= 0) {
+            val rate = RestingMetabolicRate.kcalPerDay(ctx.gbDevice, startTime.toEpochMilli())
+            if (rate != null) {
+                restingCalories = RestingMetabolicRate.kcalOver(rate, endTime.epochSecond - startTime.epochSecond)
+            }
         }
+
+        val totalCalories = activeCalories + restingCalories
+        recordsToInsert.add(
+            TotalCaloriesBurnedRecord(
+                startTime = startTime,
+                startZoneOffset = startOffset,
+                endTime = endTime,
+                endZoneOffset = endOffset,
+                energy = Energy.kilocalories(totalCalories),
+                metadata = metadata
+            )
+        )
+        LOG.debug(
+            "Added TotalCaloriesBurnedRecord ({} kcal = {} active + {} resting) for workout at {} for device '{}'.",
+            totalCalories, activeCalories, restingCalories, startTime, deviceName
+        )
     }
 
     /**

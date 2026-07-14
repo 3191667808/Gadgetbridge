@@ -71,6 +71,7 @@ object HealthConnectPermissionManager {
                 HealthPermission.getWritePermission(HeartRateRecord::class),
                 HealthPermission.getWritePermission(ExerciseSessionRecord::class),
                 HealthPermission.getWritePermission(TotalCaloriesBurnedRecord::class),
+                HealthPermission.getWritePermission(ActiveCaloriesBurnedRecord::class),
                 HealthPermission.getWritePermission(DistanceRecord::class)
             )
             HealthConnectDataType.SLEEP -> setOf(HealthPermission.getWritePermission(SleepSessionRecord::class))

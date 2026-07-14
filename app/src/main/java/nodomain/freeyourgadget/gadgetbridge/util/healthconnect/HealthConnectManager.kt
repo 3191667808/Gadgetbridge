@@ -57,6 +57,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.StepsSync
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.SyncContext
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.SyncerStatistics
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.TemperatureSyncer
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.TotalCaloriesSyncer
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.Vo2MaxSyncer
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.WeightSyncer
 import org.slf4j.LoggerFactory
@@ -370,6 +371,11 @@ object HealthConnectManager {
                 add(HeartRateSyncer)
                 if (coordinator.supportsActiveCalories(gbDevice)) {
                     add(ActiveCaloriesSyncer)
+                    // Google Health reads only TOTAL_CALORIES_BURNED and ignores the active figure,
+                    // so writing active alone leaves it showing a flat formula estimate. Write both -
+                    // but only for a device that actually measures calories, rather than inventing a
+                    // basal-rate-only figure for one that does not.
+                    add(TotalCaloriesSyncer)
                 }
                 if (coordinator.supportsActivityDistance(gbDevice)) {
                     add(DistanceSyncer)
