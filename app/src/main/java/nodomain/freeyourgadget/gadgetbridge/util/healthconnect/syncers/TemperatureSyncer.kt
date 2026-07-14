@@ -29,6 +29,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncException
 import org.slf4j.LoggerFactory
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -40,6 +41,9 @@ private const val MAX_PLAUSIBLE_BODY_TEMP_C = 45.0
 private const val MIN_PLAUSIBLE_SKIN_TEMP_C = 15.0
 private const val MAX_PLAUSIBLE_SKIN_TEMP_C = 45.0
 private const val DEFAULT_SKIN_BASELINE_C = 33.0
+
+/** See [MAX_HEART_RATE_RECORD_SPAN]: SkinTemperatureRecord is a series record with the same trap. */
+private val MAX_SKIN_TEMPERATURE_RECORD_SPAN: Duration = Duration.ofHours(1)
 
 /**
  * Wearables that sit against the skin. A sample from one of these that carries no explicit type is
@@ -193,7 +197,19 @@ internal object TemperatureSyncer : HealthConnectSyncer {
         return gbDevice.deviceCoordinator.getDeviceKind(gbDevice) in BODY_WORN_DEVICE_KINDS
     }
 
-    /** One record for the slice, with deltas measured against the previous sample. */
+    /**
+     * Turns skin samples into records, each no longer than [MAX_SKIN_TEMPERATURE_RECORD_SPAN].
+     *
+     * Each delta is the measurement's difference from the record's baseline, which is what Health
+     * Connect defines a delta to be ("if baseline is set, deltas are expected to be relative to
+     * it"). Differencing against the previous measurement instead - as this did - meant a steady
+     * 34 °C skin temperature was written as one sample at 34 °C followed by a run of zero deltas,
+     * so every consumer read the rest of the day back as the baseline.
+     *
+     * The one-hour cap matters for the same reason it does for heart rate: Health Connect matches a
+     * series record by the record's own boundary, so a record spanning the whole slice is invisible
+     * to anything querying a shorter window.
+     */
     internal fun buildSkinTemperatureRecords(
         samples: List<TemperatureSample>,
         baseline: Double,
@@ -201,49 +217,58 @@ internal object TemperatureSyncer : HealthConnectSyncer {
         metadata: Metadata,
         deviceName: String
     ): List<SkinTemperatureRecord> {
-        if (samples.isEmpty()) {
-            return emptyList()
+        val records = mutableListOf<SkinTemperatureRecord>()
+        var deltas = mutableListOf<SkinTemperatureRecord.Delta>()
+        var windowStart: Instant? = null
+
+        fun flush() {
+            if (deltas.isEmpty()) {
+                return
+            }
+            val recordStartTime = deltas.first().time
+            val recordEndTime = deltas.last().time.plusSeconds(1)
+            records.add(
+                SkinTemperatureRecord(
+                    startTime = recordStartTime,
+                    startZoneOffset = zoneId.rules.getOffset(recordStartTime),
+                    endTime = recordEndTime,
+                    endZoneOffset = zoneId.rules.getOffset(recordEndTime),
+                    deltas = deltas,
+                    baseline = Temperature.celsius(baseline),
+                    metadata = metadata
+                )
+            )
+            deltas = mutableListOf()
+            windowStart = null
         }
 
-        val deltas = mutableListOf<SkinTemperatureRecord.Delta>()
-        var previousTempC: Double? = null
-
         for (sample in samples) {
-            val currentTempC = sample.temperature.toDouble()
-            val deltaValue = previousTempC?.let { currentTempC - it } ?: (currentTempC - baseline)
+            val sampleTime = Instant.ofEpochMilli(sample.timestamp)
+            val deltaValue = sample.temperature.toDouble() - baseline
 
             if (deltaValue !in -30.0..30.0 || !deltaValue.isFinite()) {
                 LOG.skipOutOfRange(deviceName, "SkinTemperatureDelta", deltaValue, "-30..30 °C")
-                previousTempC = currentTempC
                 continue
+            }
+
+            val start = windowStart
+            if (start != null && Duration.between(start, sampleTime) >= MAX_SKIN_TEMPERATURE_RECORD_SPAN) {
+                flush()
+            }
+            if (windowStart == null) {
+                windowStart = sampleTime
             }
 
             deltas.add(
                 SkinTemperatureRecord.Delta(
-                    time = Instant.ofEpochMilli(sample.timestamp),
+                    time = sampleTime,
                     delta = TemperatureDelta.celsius(deltaValue)
                 )
             )
-            previousTempC = currentTempC
         }
 
-        if (deltas.isEmpty()) {
-            return emptyList()
-        }
-
-        val recordStartTime = deltas.first().time
-        val recordEndTime = deltas.last().time.plusSeconds(1)
-        return listOf(
-            SkinTemperatureRecord(
-                startTime = recordStartTime,
-                startZoneOffset = zoneId.rules.getOffset(recordStartTime),
-                endTime = recordEndTime,
-                endZoneOffset = zoneId.rules.getOffset(recordEndTime),
-                deltas = deltas,
-                baseline = Temperature.celsius(baseline),
-                metadata = metadata
-            )
-        )
+        flush()
+        return records
     }
 
     // Builds the slice result, including latestRecordTimestamp. The orchestrator only advances the

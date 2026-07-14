@@ -10,6 +10,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Duration
 import java.time.Instant
 
 class HeartRateSyncerTest {
@@ -58,6 +59,31 @@ class HeartRateSyncerTest {
     fun aboveHcLimit_isNotSynced() {
         val bpm = syncBpm(listOf(60, 301, 62))
         assertEquals(listOf(60L, 62L), bpm)
+    }
+
+    /**
+     * Health Connect matches a series record by the record's own boundary, never by the sample
+     * times inside it, so a night in one record is unreadable for anything querying a shorter
+     * window. Issue #5679.
+     */
+    @Test
+    fun longRun_isSplitIntoRecordsOfAtMostOneHour() {
+        // Nine hours of continuous minute-by-minute heart rate: one overnight block, once upon a time.
+        val records = sync(List(9 * 60) { 60 }).recordsOf<HeartRateRecord>()
+
+        assertTrue("expected the run to be split into several records, got ${records.size}", records.size >= 9)
+        for (record in records) {
+            val span = Duration.between(record.startTime, record.endTime)
+            assertTrue(
+                "record spans $span, which exceeds the one-hour cap",
+                span <= MAX_HEART_RATE_RECORD_SPAN
+            )
+        }
+
+        // Splitting must not drop or duplicate a single sample.
+        val samples = records.flatMap { it.samples }
+        assertEquals(9 * 60, samples.size)
+        assertEquals(samples.size, samples.map { it.time }.distinct().size)
     }
 
     /** The gate is enforced inside the write, so nothing reaches Health Connect when it is off. */

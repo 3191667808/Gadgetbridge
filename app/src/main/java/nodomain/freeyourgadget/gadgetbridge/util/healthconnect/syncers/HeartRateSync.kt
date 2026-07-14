@@ -22,11 +22,21 @@ import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectSupport
 import org.slf4j.LoggerFactory
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
 private val LOG = LoggerFactory.getLogger("HeartRateSyncer")
+
+/**
+ * Health Connect matches a series record against a query by the record's own start/end boundary
+ * and never looks at the sample times inside it. A record spanning a whole night is therefore
+ * invisible to any app asking about a shorter window - a workout query for 09:05-09:41 against a
+ * 22:00-07:00 record comes back empty, even though the samples it wants are in there. Capping the
+ * span keeps the data reachable.
+ */
+internal val MAX_HEART_RATE_RECORD_SPAN: Duration = Duration.ofHours(1)
 
 internal object HeartRateSyncer : HealthConnectSyncer {
     override suspend fun sync(ctx: SyncContext): SyncerStatistics {
@@ -115,8 +125,11 @@ internal object HeartRateSyncer : HealthConnectSyncer {
                         ZonedDateTime.ofInstant(currentSampleTimestamp, ctx.zoneId).toLocalDate()
                 val gapTooLong = currentSampleTimestamp.epochSecond - prevTs.epochSecond > 15 * 60 // 15 min gap
                 val samplesFull = currentHcSamples.size >= HealthConnectSupport.MAX_SAMPLES_PER_HEART_RATE_RECORD
+                val spanTooLong = currentHcSamples.firstOrNull()?.let {
+                    Duration.between(it.time, currentSampleTimestamp) >= MAX_HEART_RATE_RECORD_SPAN
+                } == true
 
-                if (newDay || gapTooLong || samplesFull) {
+                if (newDay || gapTooLong || samplesFull || spanTooLong) {
                     flush()
                 }
             }
