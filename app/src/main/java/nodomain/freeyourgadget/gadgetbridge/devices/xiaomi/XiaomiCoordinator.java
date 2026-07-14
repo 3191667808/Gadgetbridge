@@ -341,12 +341,6 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public boolean supportsVO2MultiSport(@NonNull GBDevice device) {
-        // Walking, running, cycling and treadmill workout summaries all carry a VO2 max field.
-        return true;
-    }
-
-    @Override
     public boolean supportsSleepRespiratoryRate(@NonNull GBDevice device) {
         return true;
     }
