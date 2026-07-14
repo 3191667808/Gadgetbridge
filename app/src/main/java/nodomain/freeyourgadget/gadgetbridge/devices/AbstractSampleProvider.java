@@ -279,8 +279,39 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
     protected abstract Property getDeviceIdentifierSampleProperty();
 
     public void convertCumulativeSteps(final List<T> samples, final Property stepsSampleProperty) {
+        convertCumulativeSteps(samples, stepsSampleProperty, false);
+    }
+
+    /**
+     * Converts samples holding a running total into per-sample deltas, in place.
+     *
+     * @param timestampsPreShifted whether the caller has already shifted the in-memory sample
+     *                             timestamps back by one interval (Garmin and Overmax do, because
+     *                             their device reports the total <i>as of</i> each timestamp). When
+     *                             it has, the stored row at sample 0's timestamp is sample 0's
+     *                             predecessor and must be looked up inclusively. When it has not,
+     *                             that row <i>is</i> sample 0, and an inclusive lookup would
+     *                             subtract the sample from itself and zero it.
+     */
+    public void convertCumulativeSteps(final List<T> samples, final Property stepsSampleProperty,
+                                       final boolean timestampsPreShifted) {
+        // The running totals must be the CUMULATIVE values of sample 0, captured before the
+        // turn-of-day correction below rewrites that sample into a delta. Reading them afterwards
+        // makes sample 1 subtract a delta from a cumulative, inflating it by roughly the running
+        // total of the day so far.
+        //
+        // The charts never hit this, because they ask from local midnight, where the sameDay guard
+        // makes the correction a no-op. Any caller asking from an arbitrary instant - Health
+        // Connect syncs from wherever its cursor sits - does.
+        int prevSteps = samples.get(0).getSteps();
+        int prevDistance = samples.get(0).getDistanceCm();
+        int prevActiveCalories = samples.get(0).getActiveCalories();
+
         // Fix over-counting at the turn of day
-        final T lastSample = getLastSampleWithStepsBefore(samples.get(0).getTimestamp(), stepsSampleProperty);
+        final int predecessorTimestamp = timestampsPreShifted
+                ? samples.get(0).getTimestamp()
+                : samples.get(0).getTimestamp() - 1;
+        final T lastSample = getLastSampleWithStepsBefore(predecessorTimestamp, stepsSampleProperty);
         if (lastSample != null && sameDay(lastSample.getTimestamp(), samples.get(0).getTimestamp())) {
             if (samples.get(0).getSteps() > 0) {
                 samples.get(0).setSteps(samples.get(0).getSteps() - lastSample.getSteps());
@@ -297,9 +328,6 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
 
         // This slightly breaks activity recognition, because we don't have per-minute granularity...
         int prevTimestamp = samples.get(0).getTimestamp();
-        int prevSteps = samples.get(0).getSteps();
-        int prevDistance = samples.get(0).getDistanceCm();
-        int prevActiveCalories = samples.get(0).getActiveCalories();
         int lastDecreaseTimestamp = 0;
         // Round timestamp to the nearest minute
         samples.get(0).setTimestamp((samples.get(0).getTimestamp() / 60) * 60);
