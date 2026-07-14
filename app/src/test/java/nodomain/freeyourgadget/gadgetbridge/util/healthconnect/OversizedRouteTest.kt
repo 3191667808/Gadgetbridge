@@ -57,7 +57,7 @@ class OversizedRouteTest {
     fun oversizedRoute_isDecimatedByRatio() {
         val original = 10000
         val records = listOf(session(original))
-        val shrunk = HealthConnectUtils.shrinkOversizedRoute(records, sizeError(1_000_000, 1_700_644))
+        val shrunk = HealthConnectSupport.shrinkOversizedRoute(records, sizeError(1_000_000, 1_700_644))
         assertNotNull(shrunk)
         val newSize = routeOf(shrunk!![0]).size
         // Target is (1000000/1700644)*0.9 ~= 0.529 of the points.
@@ -68,7 +68,7 @@ class OversizedRouteTest {
     @Test
     fun decimatedRoute_preservesEndpointsAndUniqueTimestamps() {
         val records = listOf(session(10000))
-        val shrunk = HealthConnectUtils.shrinkOversizedRoute(records, sizeError(1_000_000, 1_700_644))!!
+        val shrunk = HealthConnectSupport.shrinkOversizedRoute(records, sizeError(1_000_000, 1_700_644))!!
         val pts = routeOf(shrunk[0])
         assertEquals(start, pts.first().time)
         assertEquals(start.plusSeconds(9999), pts.last().time)
@@ -78,7 +78,7 @@ class OversizedRouteTest {
     @Test
     fun unrelatedException_returnsNull() {
         val records = listOf(session(10000))
-        assertNull(HealthConnectUtils.shrinkOversizedRoute(records, IllegalStateException("permission denied")))
+        assertNull(HealthConnectSupport.shrinkOversizedRoute(records, IllegalStateException("permission denied")))
     }
 
     @Test
@@ -91,12 +91,12 @@ class OversizedRouteTest {
             count = 100,
             metadata = Metadata.autoRecorded(Device(type = Device.TYPE_WATCH, manufacturer = "test", model = "test"))
         )
-        assertNull(HealthConnectUtils.shrinkOversizedRoute(listOf(steps), sizeError(1_000_000, 1_700_644)))
+        assertNull(HealthConnectSupport.shrinkOversizedRoute(listOf(steps), sizeError(1_000_000, 1_700_644)))
     }
 
     @Test
     fun sizeWithinLimit_returnsNull() {
         val records = listOf(session(10000))
-        assertNull(HealthConnectUtils.shrinkOversizedRoute(records, sizeError(1_000_000, 900_000)))
+        assertNull(HealthConnectSupport.shrinkOversizedRoute(records, sizeError(1_000_000, 900_000)))
     }
 }

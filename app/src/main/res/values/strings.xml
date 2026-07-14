@@ -4995,6 +4995,8 @@
     <string name="health_connect_exception">Health Connect Data Sync: </string>
     <string name="health_connect_sync_failed">Sync failed.</string>
     <string name="health_connect_sync_failed_retries">Sync failed after multiple attempts. Last error: %1$s</string>
+    <string name="health_connect_rate_limited">Health Connect is rate limiting Gadgetbridge. Sync will resume in about %1$d minute(s); no data was lost.</string>
+    <string name="health_connect_disabled_mid_sync">Sync stopped: Health Connect was turned off.</string>
     <string name="health_connect_syncing_device_datatype">Syncing %1$s %2$s: %3$s to %4$s</string>
     <string name="health_connect_sync_error_for_device">Sync error for %1$s (%2$s): %3$s</string>
     <string name="health_connect_permission_denied">Permission denied: %1$s. Please check Health Connect permissions.</string>

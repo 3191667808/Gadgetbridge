@@ -17,10 +17,10 @@
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
 import android.content.Context
-import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectSupport
 import java.time.Instant
 import java.time.ZoneId
 
@@ -54,55 +54,41 @@ data class SyncerStatistics(
 )
 
 /**
- * Base interface for synchronizing specific data types from Gadgetbridge to Health Connect.
- * This interface defines the common parameters that all syncers need.
+ * Per-night Health Connect record identity, carried across the slices of one data type and
+ * persisted once at the end. [SleepSyncer] reads and rewrites it in place, so it is mutable state
+ * on the context rather than a value threaded through the return type.
  */
-internal sealed interface HealthConnectSyncer {
-    /**
-     * Common parameters for all syncers.
-     */
-    suspend fun sync(
-        healthConnectClient: HealthConnectClient,
-        gbDevice: GBDevice,
-        metadata: Metadata,
-        offset: ZoneId,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
-        grantedPermissions: Set<String>
-    ): SyncerStatistics
+internal class SleepRowRegistry(var rows: List<SleepSessionRow>)
+
+/**
+ * Everything a syncer needs for one slice of one device.
+ *
+ * [support] is the only way to reach Health Connect: a syncer never sees a `HealthConnectClient`,
+ * so the toggle, the quota and the retry policy cannot be bypassed by accident.
+ */
+internal data class SyncContext(
+    val support: HealthConnectSupport,
+    val androidContext: Context,
+    val gbDevice: GBDevice,
+    val metadata: Metadata,
+    val zoneId: ZoneId,
+    val sliceStart: Instant,
+    val sliceEnd: Instant,
+    val grantedPermissions: Set<String>,
+    /** Pre-fetched by the manager for ACTIVITY and SLEEP; empty for every other data type. */
+    val activitySamples: List<ActivitySample> = emptyList(),
+    val sleepRows: SleepRowRegistry = SleepRowRegistry(emptyList())
+) {
+    val deviceName: String get() = gbDevice.aliasOrName
 }
 
 /**
- * Interface for syncers that require pre-fetched ActivitySample data.
- * Used by syncers that process activity-based data like steps and heart rate.
+ * Writes one Gadgetbridge data type to Health Connect for one slice.
+ *
+ * One interface for all of them: the earlier split into activity-sample, contextual and plain
+ * syncers forced the orchestrator to branch per syncer kind, and the two syncers that fitted
+ * none of the three simply grew their own signatures.
  */
-internal interface ActivitySampleSyncer {
-    suspend fun sync(
-        healthConnectClient: HealthConnectClient,
-        gbDevice: GBDevice,
-        metadata: Metadata,
-        offset: ZoneId,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
-        grantedPermissions: Set<String>,
-        deviceSamples: List<ActivitySample>
-    ): SyncerStatistics
-}
-
-/**
- * Interface for syncers that require both ActivitySample data and Android Context.
- * Used by syncers that need localized strings or other context-dependent resources.
- */
-internal interface ContextualActivitySampleSyncer {
-    suspend fun sync(
-        healthConnectClient: HealthConnectClient,
-        gbDevice: GBDevice,
-        metadata: Metadata,
-        offset: ZoneId,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
-        grantedPermissions: Set<String>,
-        deviceSamples: List<ActivitySample>,
-        context: Context
-    ): SyncerStatistics
+internal interface HealthConnectSyncer {
+    suspend fun sync(ctx: SyncContext): SyncerStatistics
 }

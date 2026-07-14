@@ -32,14 +32,10 @@ import androidx.work.WorkManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectSyncGate;
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectSyncWorker;
 
 public class NewDataReceiver extends BroadcastReceiver {
@@ -77,10 +73,9 @@ public class NewDataReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        GBPrefs prefs = GBApplication.getPrefs();
         if (ACTION_NEW_DATA.equals(intent.getAction()) &&
-                prefs.getBoolean(GBPrefs.HEALTH_CONNECT_ENABLED, false) &&
-                prefs.getBoolean(GBPrefs.HEALTH_CONNECT_SYNC_ON_EVENT, false)) {
+                HealthConnectSyncGate.INSTANCE.isEnabled() &&
+                HealthConnectSyncGate.INSTANCE.isSyncOnEventEnabled()) {
 
             // Extract device from the intent
             final GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
@@ -91,8 +86,7 @@ public class NewDataReceiver extends BroadcastReceiver {
                 return;
             }
 
-            final Set<String> hcDevices = prefs.getStringSet(GBPrefs.HEALTH_CONNECT_DEVICE_SELECTION, Collections.emptySet());
-            if (!hcDevices.contains(deviceAddress.toUpperCase(Locale.ROOT))) {
+            if (!HealthConnectSyncGate.isDeviceEnabled(deviceAddress)) {
                 LOG.debug("Ignoring new data for {} - not configured for HC sync", deviceAddress);
                 return;
             }

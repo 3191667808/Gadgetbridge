@@ -36,7 +36,8 @@ internal object DistanceSyncer : AbstractActivitySampleSyncer<DistanceRecord>() 
         offset: ZoneOffset,
         metadata: Metadata,
         deviceName: String,
-        version: Long
+        version: Long,
+        ctx: SyncContext
     ): DistanceRecord? {
         val distanceCm = sample.distanceCm
         if (distanceCm <= 0 || distanceCm == ActivitySample.NOT_MEASURED) {

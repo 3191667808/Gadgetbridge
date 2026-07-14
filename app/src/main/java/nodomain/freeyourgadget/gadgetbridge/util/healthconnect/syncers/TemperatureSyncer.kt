@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
-import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BodyTemperatureRecord
 import androidx.health.connect.client.records.Record
@@ -27,11 +26,9 @@ import androidx.health.connect.client.units.TemperatureDelta
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample
-import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.SyncException
 import org.slf4j.LoggerFactory
 import java.time.Instant
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 private val LOG = LoggerFactory.getLogger("TemperatureSyncer")
@@ -43,23 +40,16 @@ private const val MAX_PLAUSIBLE_SKIN_TEMP_C = 45.0
 private const val DEFAULT_SKIN_BASELINE_C = 33.0
 
 internal object TemperatureSyncer : HealthConnectSyncer {
-    override suspend fun sync(
-        healthConnectClient: HealthConnectClient,
-        gbDevice: GBDevice,
-        metadata: Metadata,
-        offset: ZoneId,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
-        grantedPermissions: Set<String>
-    ): SyncerStatistics {
-        val deviceName = gbDevice.aliasOrName
+    override suspend fun sync(ctx: SyncContext): SyncerStatistics {
+        val gbDevice = ctx.gbDevice
+        val deviceName = ctx.deviceName
         val deviceAddress = gbDevice.address
 
         // Clean up cache for devices that no longer exist
         cleanupStaleBaselines()
 
-        val canWriteBodyTemp = HealthPermission.getWritePermission(BodyTemperatureRecord::class) in grantedPermissions
-        val canWriteSkinTemp = HealthPermission.getWritePermission(SkinTemperatureRecord::class) in grantedPermissions
+        val canWriteBodyTemp = HealthPermission.getWritePermission(BodyTemperatureRecord::class) in ctx.grantedPermissions
+        val canWriteSkinTemp = HealthPermission.getWritePermission(SkinTemperatureRecord::class) in ctx.grantedPermissions
 
         if (!canWriteBodyTemp && !canWriteSkinTemp) {
             LOG.info("Skipping Temperature sync for device '$deviceName'; relevant permissions (Body, Skin) not granted.")
@@ -70,23 +60,23 @@ internal object TemperatureSyncer : HealthConnectSyncer {
             GBApplication.acquireDbReadOnly().use { db ->
                 val provider = gbDevice.deviceCoordinator.getTemperatureSampleProvider(gbDevice, db.daoSession)
                 if (provider == null) {
-                    LOG.warn("TemperatureSampleProvider not found for device '$deviceName'. Skipping Temperature sync for slice $sliceStartBoundary to $sliceEndBoundary.")
+                    LOG.warn("TemperatureSampleProvider not found for device '$deviceName'. Skipping Temperature sync for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
                     return@use emptyList()
                 }
-                provider.getAllSamples(sliceStartBoundary.toEpochMilli(), sliceEndBoundary.toEpochMilli())
+                provider.getAllSamples(ctx.sliceStart.toEpochMilli(), ctx.sliceEnd.toEpochMilli())
             }
         } catch (e: Exception) {
-            throw SyncException("Error fetching temperature samples for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.", e)
+            throw SyncException("Error fetching temperature samples for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.", e)
         }
 
         if (samples.isEmpty()) {
-            LOG.info("No temperature samples found for device '$deviceName' in slice $sliceStartBoundary to $sliceEndBoundary.")
+            LOG.info("No temperature samples found for device '$deviceName' in slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
             return SyncerStatistics(recordsSynced = 0, recordsSkipped = 0, recordType = "Temperature")
         }
 
         val bodySamples = samples.filter { it.temperatureType == TemperatureSample.TYPE_BODY }
         val skinSamples = samples.filter { it.temperatureType == TemperatureSample.TYPE_SKIN }
-        LOG.info("Found ${samples.size} temperature samples for '$deviceName': ${bodySamples.size} body, ${skinSamples.size} skin, in slice $sliceStartBoundary to $sliceEndBoundary.")
+        LOG.info("Found ${samples.size} temperature samples for '$deviceName': ${bodySamples.size} body, ${skinSamples.size} skin, in slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
 
         val recordsToInsert = mutableListOf<Record>()
 
@@ -99,24 +89,20 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     continue
                 }
                 val timestamp = Instant.ofEpochMilli(sample.timestamp)
-                if (!timestamp.isBefore(sliceStartBoundary) && timestamp.isBefore(sliceEndBoundary)) {
+                if (!timestamp.isBefore(ctx.sliceStart) && timestamp.isBefore(ctx.sliceEnd)) {
                     recordsToInsert.add(
                         BodyTemperatureRecord(
                             time = timestamp,
-                            zoneOffset = offset.rules.getOffset(timestamp),
+                            zoneOffset = ctx.zoneId.rules.getOffset(timestamp),
                             temperature = Temperature.celsius(sampleTemp),
                             measurementLocation = sample.temperatureLocation,
-                            metadata = metadata
+                            metadata = ctx.metadata
                         )
                     )
                 } else {
                     LOG.trace(
                         "Skipping Body Temperature sample for device '{}' at {} (value: {}°C) as it's outside slice {} - {}.",
-                        deviceName,
-                        timestamp,
-                        sample.temperature,
-                        sliceStartBoundary,
-                        sliceEndBoundary
+                        deviceName, timestamp, sample.temperature, ctx.sliceStart, ctx.sliceEnd
                     )
                 }
             }
@@ -124,23 +110,20 @@ internal object TemperatureSyncer : HealthConnectSyncer {
             LOG.info("Skipping BodyTemperatureRecord sync for ${bodySamples.size} samples for '$deviceName'; specific permission not granted.")
         }
 
-        var totalRecordsSynced = 0
-        val totalRecordsSkipped = 0
-
         if (canWriteSkinTemp && skinSamples.isNotEmpty()) {
             LOG.info("Processing ${skinSamples.size} skin temperature samples for '$deviceName'.")
-            
+
             val baselineHelper = baselineHelperCachePerDevice.getOrPut(deviceAddress) {
                 LOG.info("Creating new SkinBaselineHelper for device '$deviceName' ($deviceAddress).")
                 SkinBaselineHelper(deviceAddress)
             }
-            val baselineForCurrentRecord = baselineHelper.getBaselineForDay(sliceStartBoundary, gbDevice)
+            val baselineForCurrentRecord = baselineHelper.getBaselineForDay(ctx.sliceStart, gbDevice)
 
             val validSkinSamplesInSlice = skinSamples.filter {
                 val ts = Instant.ofEpochMilli(it.timestamp)
                 val tempC = it.temperature.toDouble()
                 (tempC in MIN_PLAUSIBLE_SKIN_TEMP_C..MAX_PLAUSIBLE_SKIN_TEMP_C) &&
-                        (!ts.isBefore(sliceStartBoundary) && ts.isBefore(sliceEndBoundary))
+                        (!ts.isBefore(ctx.sliceStart) && ts.isBefore(ctx.sliceEnd))
             }.sortedBy { it.timestamp }
 
             if (validSkinSamplesInSlice.isNotEmpty()) {
@@ -153,12 +136,8 @@ internal object TemperatureSyncer : HealthConnectSyncer {
 
                 for (sample in validSkinSamplesInSlice) {
                     val currentTempC = sample.temperature.toDouble()
-                    val deltaValue = if (previousTempC != null) {
-                        currentTempC - previousTempC
-                    } else {
-                        // First measurement: delta from baseline
-                        currentTempC - baselineForCurrentRecord
-                    }
+                    val deltaValue = previousTempC?.let { currentTempC - it }
+                        ?: (currentTempC - baselineForCurrentRecord)
 
                     if (deltaValue !in -30.0..30.0 || !deltaValue.isFinite()) {
                         LOG.skipOutOfRange(deviceName, "SkinTemperatureDelta", deltaValue, "-30..30 °C")
@@ -179,35 +158,32 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     recordsToInsert.add(
                         SkinTemperatureRecord(
                             startTime = recordStartTime,
-                            startZoneOffset = offset.rules.getOffset(recordStartTime),
+                            startZoneOffset = ctx.zoneId.rules.getOffset(recordStartTime),
                             endTime = recordEndTime,
-                            endZoneOffset = offset.rules.getOffset(recordEndTime),
+                            endZoneOffset = ctx.zoneId.rules.getOffset(recordEndTime),
                             deltas = deltas,
                             baseline = Temperature.celsius(baselineForCurrentRecord),
-                            metadata = metadata
+                            metadata = ctx.metadata
                         )
                     )
                 }
             } else {
-                LOG.info("No valid skin temperature samples (plausible and within slice) found for '$deviceName' in slice $sliceStartBoundary - $sliceEndBoundary.")
+                LOG.info("No valid skin temperature samples (plausible and within slice) found for '$deviceName' in slice ${ctx.sliceStart} - ${ctx.sliceEnd}.")
             }
         } else if (skinSamples.isNotEmpty()) {
             LOG.info("Skipping SkinTemperatureRecord sync for ${skinSamples.size} samples for '$deviceName'; specific permission not granted.")
         }
 
         if (recordsToInsert.isEmpty()) {
-            LOG.info("No temperature records (Body/Skin) to insert for '$deviceName' in slice $sliceStartBoundary to $sliceEndBoundary after filtering and permission checks.")
+            LOG.info("No temperature records (Body/Skin) to insert for '$deviceName' in slice ${ctx.sliceStart} to ${ctx.sliceEnd} after filtering and permission checks.")
             return SyncerStatistics(recordsSynced = 0, recordsSkipped = 0, recordType = "Temperature")
         }
 
-        LOG.info("Attempting to insert ${recordsToInsert.size} TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
-        HealthConnectUtils.insertRecords(recordsToInsert, healthConnectClient)
+        LOG.info("Attempting to insert ${recordsToInsert.size} TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
+        ctx.support.insert(recordsToInsert)
 
-        totalRecordsSynced += recordsToInsert.size
-
-        LOG.info("Successfully inserted TemperatureRecord(s) (Body/Skin) for '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
-        LOG.info("Temperature sync completed for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary. Total synced: $totalRecordsSynced")
-        return buildStatistics(recordsToInsert, totalRecordsSkipped)
+        LOG.info("Temperature sync completed for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}. Total synced: ${recordsToInsert.size}")
+        return buildStatistics(recordsToInsert, 0)
     }
 
     // Builds the slice result, including latestRecordTimestamp. The orchestrator only advances the
@@ -246,9 +222,7 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                     val dayEnd = targetDayStart.plus(1, ChronoUnit.DAYS)
                     LOG.debug(
                         "SkinBaselineHelper for '{}': Fetching samples for day {} to {}.",
-                        deviceAddress,
-                        targetDayStart,
-                        dayEnd
+                        deviceAddress, targetDayStart, dayEnd
                     )
 
                     val samplesForDay: List<TemperatureSample> = GBApplication.acquireDbReadOnly().use { db ->
@@ -257,7 +231,6 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                             LOG.warn("SkinBaselineHelper for '$deviceAddress': TemperatureSampleProvider not found. Cannot calculate daily average for $targetDayStart.")
                             return@use emptyList()
                         }
-                        // Assuming getAllSamples returns List<TemperatureSample?> or List<TemperatureSample>
                         tempProvider.getAllSamples(targetDayStart.toEpochMilli(), dayEnd.toEpochMilli())
                     }
 
@@ -271,16 +244,12 @@ internal object TemperatureSyncer : HealthConnectSyncer {
                         dailyAverages[targetDayStart] = avgForDay // Add or update
                         LOG.debug(
                             "SkinBaselineHelper for '{}': Calculated avg for {}: {}°C from {} samples.",
-                            deviceAddress,
-                            targetDayStart,
-                            avgForDay,
-                            skinSamplesForDay.size
+                            deviceAddress, targetDayStart, avgForDay, skinSamplesForDay.size
                         )
                     } else {
                         LOG.debug(
                             "SkinBaselineHelper for '{}': No valid skin samples for {}.",
-                            deviceAddress,
-                            targetDayStart
+                            deviceAddress, targetDayStart
                         )
                     }
                 } catch (e: Exception) {
@@ -291,15 +260,15 @@ internal object TemperatureSyncer : HealthConnectSyncer {
             // 2. Prune dailyAverages to keep only up to the last 3 days ending on or before targetDayStart
             val threeDayWindowStart = targetDayStart.minus(2, ChronoUnit.DAYS)
             val iterator = dailyAverages.entries.iterator()
-            while(iterator.hasNext()){
+            while (iterator.hasNext()) {
                 val entry = iterator.next()
-                if(entry.key.isBefore(threeDayWindowStart) || entry.key.isAfter(targetDayStart)){
+                if (entry.key.isBefore(threeDayWindowStart) || entry.key.isAfter(targetDayStart)) {
                     iterator.remove()
                 }
             }
             val sortedKeys = dailyAverages.keys.sortedDescending().take(3)
             val tempMap = LinkedHashMap<Instant, Double>()
-            for(key in sortedKeys.sorted()){
+            for (key in sortedKeys.sorted()) {
                 dailyAverages[key]?.let { tempMap[key] = it }
             }
             dailyAverages.clear()
@@ -317,11 +286,7 @@ internal object TemperatureSyncer : HealthConnectSyncer {
             }
             LOG.debug(
                 "SkinBaselineHelper for '{}': New baseline for {}: {}°C (based on {} daily avgs: {})",
-                deviceAddress,
-                targetDayStart,
-                currentCalculatedBaseline,
-                actualValues.size,
-                actualValues
+                deviceAddress, targetDayStart, currentCalculatedBaseline, actualValues.size, actualValues
             )
             return currentCalculatedBaseline
         }

@@ -16,7 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
-import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectSupport
 import org.slf4j.Logger
 
 internal fun Logger.skipOutOfRange(
@@ -26,7 +26,7 @@ internal fun Logger.skipOutOfRange(
     rangeDescription: String
 ) {
     info(
-        "${HealthConnectUtils.HC_SYNC_TAG} Skipping {} for device '{}': value {} out of range ({}).",
+        "${HealthConnectSupport.HC_SYNC_TAG} Skipping {} for device '{}': value {} out of range ({}).",
         fieldLabel, deviceName, value, rangeDescription
     )
 }

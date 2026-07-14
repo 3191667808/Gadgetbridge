@@ -30,11 +30,11 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.HealthConnectResetDialogFragment
 import nodomain.freeyourgadget.gadgetbridge.util.GB
+import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import org.slf4j.LoggerFactory
 
 data class PermissionsResultOutcome(
     val success: Boolean,
-    val healthConnectClient: HealthConnectClient?,
     val message: String?, // For toasts/UI feedback
     val messageType: Int = GB.INFO,
     val requiresUiRefresh: Boolean = false, // If UI needs to update based on permission change
@@ -46,8 +46,8 @@ object HealthConnectPermissionManager {
 
     private val LOG = LoggerFactory.getLogger(HealthConnectPermissionManager::class.java)
 
-    const val PREF_KEY_LAST_GRANTED_HC_PERMISSIONS = "health_connect_last_granted_permissions"
-    const val PREF_KEY_HC_PROMPT_FOR_FULL_DAO_RESET = "health_connect_prompt_for_full_dao_reset"
+    const val PREF_KEY_LAST_GRANTED_HC_PERMISSIONS = GBPrefs.HEALTH_CONNECT_LAST_GRANTED_PERMISSIONS
+    const val PREF_KEY_HC_PROMPT_FOR_FULL_DAO_RESET = GBPrefs.HEALTH_CONNECT_PROMPT_FOR_FULL_DAO_RESET
 
     enum class HealthConnectDataType {
         ACTIVITY,
@@ -176,13 +176,11 @@ object HealthConnectPermissionManager {
     @JvmStatic
     fun handlePermissionsResult(context: Context, grantedPermissionsFromFlow: Set<String>): PermissionsResultOutcome {
         val prefs = GBApplication.getPrefs().preferences
-        val healthConnectClient = HealthConnectClientProvider.healthConnectInit(context)
 
-        if (healthConnectClient == null) {
+        if (HealthConnectClientProvider.healthConnectInit(context) == null) {
             LOG.warn("HealthConnectClient init failed during permission handling.")
             return PermissionsResultOutcome(
                 success = false,
-                healthConnectClient = null,
                 message = context.getString(R.string.health_connect_failed_init),
                 messageType = GB.ERROR,
                 requiresUiRefresh = true,
@@ -207,7 +205,6 @@ object HealthConnectPermissionManager {
 
         return PermissionsResultOutcome(
             success = newRelevantPermissions.isNotEmpty(),
-            healthConnectClient = healthConnectClient,
             message = analysis.finalMessage,
             messageType = analysis.finalMessageType,
             requiresUiRefresh = analysis.permissionsActuallyChanged,

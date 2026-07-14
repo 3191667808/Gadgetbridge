@@ -16,22 +16,18 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
-import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.metadata.Metadata
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
-import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
 import org.slf4j.Logger
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import kotlin.reflect.KClass
 
-internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : ActivitySampleSyncer {
+internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : HealthConnectSyncer {
     protected abstract val logger: Logger
     protected abstract val recordClass: KClass<TRecord>
 
@@ -57,36 +53,28 @@ internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : Activit
         offset: ZoneOffset,
         metadata: Metadata,
         deviceName: String,
-        version: Long
+        version: Long,
+        ctx: SyncContext
     ): TRecord?
 
-    override suspend fun sync(
-        healthConnectClient: HealthConnectClient,
-        gbDevice: GBDevice,
-        metadata: Metadata,
-        offset: ZoneId,
-        sliceStartBoundary: Instant,
-        sliceEndBoundary: Instant,
-        grantedPermissions: Set<String>,
-        deviceSamples: List<ActivitySample>
-    ): SyncerStatistics {
-        val deviceName = gbDevice.aliasOrName
+    override suspend fun sync(ctx: SyncContext): SyncerStatistics {
+        val deviceName = ctx.deviceName
         val recordTypeName = recordClass.simpleName ?: "Unknown"
 
         // 1. Permission Check
-        if (HealthPermission.getWritePermission(recordClass) !in grantedPermissions) {
+        if (HealthPermission.getWritePermission(recordClass) !in ctx.grantedPermissions) {
             logger.info("Skipping $recordTypeName sync for device '$deviceName'; $recordTypeName permission not granted.")
             return SyncerStatistics(recordType = recordTypeName)
         }
 
         // 2. Relevant Input Data Check
-        val relevantSamples = deviceSamples.sortedBy { it.timestamp }
+        val relevantSamples = ctx.activitySamples.sortedBy { it.timestamp }
         if (relevantSamples.isEmpty()) {
-            logger.info("No relevant step samples (>0) for device '$deviceName' in the provided deviceSamples for slice $sliceStartBoundary to $sliceEndBoundary.")
+            logger.info("No relevant samples for device '$deviceName' in the provided samples for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
             return SyncerStatistics(recordType = recordTypeName)
         }
 
-        logger.info("Processing ${relevantSamples.size} samples for steps for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        logger.info("Processing ${relevantSamples.size} samples for $recordTypeName for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
 
         // clientRecordVersion: every record in this slice shares the run's wall-clock so a later
         // sync always outranks the value it previously wrote for a minute. HC keeps the highest
@@ -102,7 +90,7 @@ internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : Activit
             val endTs = Instant.ofEpochSecond(currentSample.timestamp.toLong())
             val startTs = endTs.minus(1, ChronoUnit.MINUTES)
 
-            if (!isWithinSlice(endTs, startTs, sliceStartBoundary, sliceEndBoundary)) {
+            if (!isWithinSlice(endTs, startTs, ctx.sliceStart, ctx.sliceEnd)) {
                 logger.trace(
                     "Skipping {} for device '{}' for sample at {} (interval {} to {}) as its interval is outside the slice {} - {}.",
                     recordTypeName,
@@ -110,13 +98,20 @@ internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : Activit
                     endTs,
                     startTs,
                     endTs,
-                    sliceStartBoundary,
-                    sliceEndBoundary
+                    ctx.sliceStart,
+                    ctx.sliceEnd
                 )
                 return@forEach
             }
 
-            val record = convertSample(sample = currentSample, offset.rules.getOffset(endTs), metadata, deviceName, recordVersion)
+            val record = convertSample(
+                sample = currentSample,
+                offset = ctx.zoneId.rules.getOffset(endTs),
+                metadata = ctx.metadata,
+                deviceName = deviceName,
+                version = recordVersion,
+                ctx = ctx
+            )
             if (record == null) {
                 skippedCount++
                 return@forEach
@@ -129,17 +124,15 @@ internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : Activit
 
         // 3. No Valid Records to Insert
         if (recordsToInsert.isEmpty()) {
-            logger.info("No valid $recordTypeName created for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary after processing ${relevantSamples.size} samples.")
+            logger.info("No valid $recordTypeName created for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd} after processing ${relevantSamples.size} samples.")
             return SyncerStatistics(recordsSkipped = skippedCount, recordType = recordTypeName)
         }
 
-        // 4. Insertion (with chunking)
-        logger.info("Attempting to insert ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
-        for (chunk in recordsToInsert.chunked(HealthConnectUtils.CHUNK_SIZE)) {
-            HealthConnectUtils.insertRecords(chunk, healthConnectClient)
-        }
+        // 4. Insertion
+        logger.info("Attempting to insert ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
+        ctx.support.insert(recordsToInsert)
 
-        logger.info("Successfully inserted ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
+        logger.info("Successfully inserted ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice ${ctx.sliceStart} to ${ctx.sliceEnd}.")
         return SyncerStatistics(
             recordsSynced = recordsToInsert.size,
             recordsSkipped = skippedCount,

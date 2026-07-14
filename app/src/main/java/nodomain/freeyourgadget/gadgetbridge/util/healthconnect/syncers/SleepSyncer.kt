@@ -16,19 +16,14 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
-import android.content.Context
-import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.SleepAnalysis
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
-import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
 import org.slf4j.LoggerFactory
 import java.time.Instant
-import java.time.ZoneId
 
 private val LOG = LoggerFactory.getLogger("SleepSyncer")
 
@@ -58,12 +53,7 @@ internal data class SleepSyncPlan(
     val rows: List<SleepSessionRow>
 )
 
-internal data class SleepSyncResult(
-    val statistics: SyncerStatistics,
-    val rows: List<SleepSessionRow>
-)
-
-internal object SleepSyncer {
+internal object SleepSyncer : HealthConnectSyncer {
 
     /**
      * Pure decision core (no HC/DB/Android deps, unit-testable): overlap-match each detection to a
@@ -121,41 +111,33 @@ internal object SleepSyncer {
         return rows.filter { it.endTime.isAfter(pruneBefore) }
     }
 
-    suspend fun sync(
-        healthConnectClient: HealthConnectClient,
-        gbDevice: GBDevice,
-        metadata: Metadata,
-        offset: ZoneId,
-        grantedPermissions: Set<String>,
-        deviceSamples: List<ActivitySample>,
-        context: Context,
-        existingRows: List<SleepSessionRow>
-    ): SleepSyncResult {
+    override suspend fun sync(ctx: SyncContext): SyncerStatistics {
+        val deviceName = ctx.deviceName
+        val metadata = ctx.metadata
+        val existingRows = ctx.sleepRows.rows
 
-        val deviceName = gbDevice.aliasOrName
-
-        if (HealthPermission.getWritePermission(SleepSessionRecord::class) !in grantedPermissions) {
+        if (HealthPermission.getWritePermission(SleepSessionRecord::class) !in ctx.grantedPermissions) {
             LOG.info("Skipping Sleep sync for device '$deviceName'; SleepSessionRecord permission not granted.")
-            return SleepSyncResult(SyncerStatistics(recordType = "Sleep"), existingRows)
+            return SyncerStatistics(recordType = "Sleep")
         }
 
         val device = metadata.device
         if (device == null) {
             LOG.warn("Skipping Sleep sync for device '$deviceName'; no Health Connect device metadata.")
-            return SleepSyncResult(SyncerStatistics(recordType = "Sleep"), existingRows)
+            return SyncerStatistics(recordType = "Sleep")
         }
 
-        if (deviceSamples.isEmpty()) {
+        if (ctx.activitySamples.isEmpty()) {
             LOG.info("No device samples provided for sleep analysis for device '$deviceName'.")
-            return SleepSyncResult(SyncerStatistics(recordType = "Sleep"), existingRows)
+            return SyncerStatistics(recordType = "Sleep")
         }
 
-        val sortedDeviceSamples = deviceSamples.sortedBy { it.timestamp }
+        val sortedDeviceSamples = ctx.activitySamples.sortedBy { it.timestamp }
         val allIdentifiedSessions = SleepAnalysis().calculateSleepSessions(sortedDeviceSamples)
 
         if (allIdentifiedSessions.isEmpty()) {
             LOG.info("No sleep sessions identified by SleepAnalysis for device '$deviceName'.")
-            return SleepSyncResult(SyncerStatistics(recordType = "Sleep"), existingRows)
+            return SyncerStatistics(recordType = "Sleep")
         }
 
         // No slice-ownership filter: the frozen clientRecordId dedups, so look-back re-discovery
@@ -168,7 +150,7 @@ internal object SleepSyncer {
 
         if (candidates.isEmpty()) {
             LOG.info("No valid sleep sessions to sync for device '$deviceName'.")
-            return SleepSyncResult(SyncerStatistics(recordType = "Sleep", recordsSkipped = skippedCount), existingRows)
+            return SyncerStatistics(recordType = "Sleep", recordsSkipped = skippedCount)
         }
 
         val mintId: (Instant) -> String = { start ->
@@ -191,11 +173,11 @@ internal object SleepSyncer {
             LOG.info("Prepared SleepSessionRecord for device '$deviceName' (Session: ${p.start} to ${p.end}, id=${p.clientRecordId}). Stages: ${candidate.stages.size}")
             SleepSessionRecord(
                 startTime = p.start,
-                startZoneOffset = offset.rules.getOffset(p.start),
+                startZoneOffset = ctx.zoneId.rules.getOffset(p.start),
                 endTime = p.end,
-                endZoneOffset = offset.rules.getOffset(p.end),
-                title = context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.health_connect_sleep_session_title, deviceName),
-                notes = context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.health_connect_sleep_session_notes, deviceName),
+                endZoneOffset = ctx.zoneId.rules.getOffset(p.end),
+                title = ctx.androidContext.getString(nodomain.freeyourgadget.gadgetbridge.R.string.health_connect_sleep_session_title, deviceName),
+                notes = ctx.androidContext.getString(nodomain.freeyourgadget.gadgetbridge.R.string.health_connect_sleep_session_notes, deviceName),
                 stages = candidate.stages,
                 metadata = Metadata.autoRecorded(
                     clientRecordId = p.clientRecordId,
@@ -206,21 +188,24 @@ internal object SleepSyncer {
         }
 
         LOG.info("Attempting to insert ${records.size} SleepSessionRecord(s) for device '$deviceName'.")
-        HealthConnectUtils.insertRecords(records, healthConnectClient)
+        ctx.support.insert(records)
         LOG.info("Successfully inserted SleepSessionRecord(s) for device '$deviceName'.")
+
+        // Only publish the grown/minted ids once Health Connect has actually accepted them: a row
+        // persisted for a record that never landed would freeze an id nothing points at.
+        ctx.sleepRows.rows = plan.rows
 
         // Plain forward cursor: latest end synced this slice, null to hold when nothing synced.
         // Safe to advance past an open night: it re-enters the 24h look-back next run and
         // overlap-matches its frozen id.
         val cursor = plan.planned.maxOfOrNull { it.end }
 
-        val stats = SyncerStatistics(
+        return SyncerStatistics(
             recordsSynced = records.size,
             recordsSkipped = skippedCount,
             recordType = "Sleep",
             latestRecordTimestamp = cursor
         )
-        return SleepSyncResult(stats, plan.rows)
     }
 
     private data class SleepCandidate(

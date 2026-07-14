@@ -64,7 +64,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectClientProvider;
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectPermissionManager;
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectSyncWorker;
-import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.PermissionsResultOutcome;
 import nodomain.freeyourgadget.gadgetbridge.activities.HealthConnectInitialSyncDialog;
 
@@ -83,7 +82,6 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
         private static final String HC_DEVICE_SELECT_DIALOG_TAG = "HC_DEVICE_SELECT_DIALOG";
         private static final String HC_INITIAL_SYNC_DIALOG_TAG = "HC_INITIAL_SYNC_DIALOG_TAG";
 
-        private HealthConnectUtils healthConnectUtils;
         private ActivityResultLauncher<Set<String>> requestPermissionLauncher;
 
         private SwitchPreferenceCompat healthConnectEnabledPref;
@@ -102,8 +100,6 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
             setPreferencesFromResource(R.xml.health_connect_preferences, rootKey);
-
-            healthConnectUtils = new HealthConnectUtils();
 
             healthConnectEnabledPref = findPreference(GBPrefs.HEALTH_CONNECT_ENABLED);
             healthConnectSyncStatus = findPreference(GBPrefs.HEALTH_CONNECT_SYNC_STATUS);
@@ -580,7 +576,7 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                 return;
             }
 
-            if (healthConnectUtils != null) {
+            if (requestPermissionLauncher != null) {
                 requestPermissionLauncher.launch(HealthConnectPermissionManager.getRequiredHealthConnectPermissions());
             }
         }
@@ -718,10 +714,10 @@ public class HealthConnectPreferencesActivity extends AbstractSettingsActivityV2
                 return;
             }
 
-            if (healthConnectUtils != null) {
+            if (requestPermissionLauncher != null) {
                 requestPermissionLauncher.launch(HealthConnectPermissionManager.getRequiredHealthConnectPermissions());
             } else {
-                LOG.error("healthConnectUtils is null, cannot launch permissions.");
+                LOG.error("permission launcher is not registered, cannot launch permissions.");
             }
         }
 
