@@ -42,6 +42,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectPermissionManager.HealthConnectDataType
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.ActiveCaloriesSyncer
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.BloodGlucoseSyncer
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.DEFAULT_LATE_SAMPLE_LOOKBACK
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.DistanceSyncer
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.HealthConnectSyncer
 import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers.HeartRateSyncer
@@ -398,8 +399,29 @@ object HealthConnectManager {
 
     // ------------------------------------------------------------------------------------ slices
 
+    /**
+     * Activity slices end at local midnight; everything else takes a flat 24 hours from wherever
+     * the cursor happens to sit.
+     *
+     * The distinction matters because several sample providers store steps, distance and calories
+     * cumulatively and convert them to per-minute deltas *relative to the window they are asked
+     * for* (see AbstractSampleProvider.convertCumulativeSteps). Gadgetbridge's own charts always
+     * ask from local midnight, so they get it right; a window starting at an arbitrary cursor and
+     * straddling midnight differently on every run does not. Asking the same question the charts
+     * ask is what makes Health Connect agree with them.
+     */
     private fun nextSliceEnd(dataType: HealthConnectDataType, sliceStart: Instant, zoneId: ZoneId): Instant =
-        sliceStart.plusSeconds(DEFAULT_SLICE_SECONDS)
+        if (dataType == HealthConnectDataType.ACTIVITY) {
+            startOfNextLocalDay(sliceStart, zoneId)
+        } else {
+            sliceStart.plusSeconds(DEFAULT_SLICE_SECONDS)
+        }
+
+    private fun startOfLocalDay(instant: Instant, zoneId: ZoneId): Instant =
+        ZonedDateTime.ofInstant(instant, zoneId).toLocalDate().atStartOfDay(zoneId).toInstant()
+
+    private fun startOfNextLocalDay(instant: Instant, zoneId: ZoneId): Instant =
+        ZonedDateTime.ofInstant(instant, zoneId).toLocalDate().plusDays(1).atStartOfDay(zoneId).toInstant()
 
     private fun fetchActivitySamples(
         dataType: HealthConnectDataType,
@@ -419,7 +441,13 @@ object HealthConnectManager {
             queryStart = sliceStart.minusSeconds(LOOK_BACK_SECONDS)
             queryEnd = sliceEnd.plusSeconds(SLEEP_LOOK_FORWARD_SECONDS)
         } else {
-            queryStart = sliceStart.minusSeconds(LOOK_BACK_SECONDS)
+            // From local midnight, so the cumulative-to-delta conversion sees the same window the
+            // charts do; never less than the syncers' late-sample look-back, or there would be
+            // nothing for that look-back to recover.
+            queryStart = minOf(
+                startOfLocalDay(sliceStart, zoneId),
+                sliceStart.minus(DEFAULT_LATE_SAMPLE_LOOKBACK)
+            )
             queryEnd = sliceEnd
         }
 
@@ -428,9 +456,38 @@ object HealthConnectManager {
             gbDevice.aliasOrName, dataType.name, queryStart, queryEnd
         )
 
-        return GBApplication.acquireDbReadOnly().use { db ->
+        val samples = GBApplication.acquireDbReadOnly().use { db ->
             getActivitySamples(db, gbDevice, queryStart.epochSecond.toInt(), queryEnd.epochSecond.toInt())
         }
+
+        if (dataType == HealthConnectDataType.ACTIVITY) {
+            logStepTotal(gbDevice, samples, sliceStart, sliceEnd)
+        }
+
+        return samples
+    }
+
+    /**
+     * The number Gadgetbridge itself would show for this window. Step counts reaching Health
+     * Connect have diverged from the app's own charts before; logging the source total makes the
+     * next such report answerable from a log file instead of a debugging session.
+     */
+    private fun logStepTotal(
+        gbDevice: GBDevice,
+        samples: List<ActivitySample>,
+        sliceStart: Instant,
+        sliceEnd: Instant
+    ) {
+        val steps = samples
+            .filter {
+                val ts = it.timestamp.toLong()
+                ts >= sliceStart.epochSecond && ts <= sliceEnd.epochSecond
+            }
+            .sumOf { if (it.steps > 0) it.steps else 0 }
+        LOG.info(
+            "$HC_SYNC_TAG Gadgetbridge reports {} step(s) for {} between {} and {}; Health Connect should show the same.",
+            steps, gbDevice.aliasOrName, sliceStart, sliceEnd
+        )
     }
 
     // -------------------------------------------------------------------------------- persistence

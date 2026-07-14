@@ -27,16 +27,23 @@ import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import kotlin.reflect.KClass
 
+/**
+ * Re-emit samples this far before the slice start. The ACTIVITY cursor is shared across
+ * steps/calories/distance and advances to the furthest delivered; when step or distance detail
+ * trails the calorie summary, those minutes would be clipped and lost. The per-minute
+ * clientRecordId makes the re-emitted overlap an upsert. Heart rate is a series keyed on its start
+ * time, does not extend this base, and keeps strict boundaries.
+ *
+ * The orchestrator has to read the database at least this far back, or there is nothing for the
+ * look-back to recover.
+ */
+internal val DEFAULT_LATE_SAMPLE_LOOKBACK: Duration = Duration.ofHours(1)
+
 internal abstract class AbstractActivitySampleSyncer<TRecord : Record> : HealthConnectSyncer {
     protected abstract val logger: Logger
     protected abstract val recordClass: KClass<TRecord>
 
-    // Re-emit samples this far before the slice start. The ACTIVITY cursor is shared across
-    // steps/calories/distance and advances to the furthest delivered; when step or distance detail
-    // trails the calorie summary, those minutes would be clipped and lost. The per-minute
-    // clientRecordId makes the re-emitted overlap an upsert. Heart rate is a series keyed on its
-    // start time, does not extend this base, and keeps strict boundaries.
-    protected open val lateSampleLookback: Duration = Duration.ofHours(1)
+    protected open val lateSampleLookback: Duration = DEFAULT_LATE_SAMPLE_LOOKBACK
 
     internal fun isWithinSlice(
         endTs: Instant,
