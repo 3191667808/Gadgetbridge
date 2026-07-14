@@ -131,9 +131,17 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
 
                 if (activityPoints != null && activityPoints.isNotEmpty()) {
                     LOG.info("Using detailed sync with ${activityPoints.size} activity points for workout (Type: ${activityKind}, Start: $workoutStartInstant).")
-                    processDetailedWorkout(
-                        ctx, workout, activityPoints, workoutStartInstant, workoutEndInstant,
-                        startOffset, endOffset, recordsToInsert, activityKind, exerciseType
+                    processWorkout(
+                        ctx = ctx,
+                        workout = workout,
+                        activityPoints = activityPoints,
+                        workoutStartInstant = workoutStartInstant,
+                        workoutEndInstant = workoutEndInstant,
+                        startOffset = startOffset,
+                        endOffset = endOffset,
+                        recordsToInsert = recordsToInsert,
+                        activityKind = activityKind,
+                        exerciseType = exerciseType
                     )
                 } else {
                     if (useDetailedSync) {
@@ -143,9 +151,17 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
                             LOG.info("Track file contains no activity points, falling back to aggregate data.")
                         }
                     }
-                    processAggregateWorkout(
-                        ctx, workout, workoutStartInstant, workoutEndInstant,
-                        startOffset, endOffset, recordsToInsert, activityKind, exerciseType
+                    processWorkout(
+                        ctx = ctx,
+                        workout = workout,
+                        activityPoints = emptyList(),
+                        workoutStartInstant = workoutStartInstant,
+                        workoutEndInstant = workoutEndInstant,
+                        startOffset = startOffset,
+                        endOffset = endOffset,
+                        recordsToInsert = recordsToInsert,
+                        activityKind = activityKind,
+                        exerciseType = exerciseType
                     )
                 }
 
@@ -258,7 +274,16 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
         return points
     }
 
-    private fun processDetailedWorkout(
+    /**
+     * Builds every record for one workout.
+     *
+     * Detailed and aggregate used to be separate paths, and the detailed one quietly omitted the
+     * aggregate fallbacks: a track whose points carried no speed produced no speed record at all,
+     * even when the summary held an average, and per-point cadence was never read. Metric by
+     * metric, take the best source available - per-sample if the track has it, derived from the
+     * track if it can be, and the summary average otherwise.
+     */
+    private fun processWorkout(
         ctx: SyncContext,
         workout: BaseActivitySummary,
         activityPoints: List<ActivityPoint>,
@@ -275,7 +300,7 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
         val metadata = ctx.metadata
         val grantedPermissions = ctx.grantedPermissions
 
-        val exerciseRoute = if (PERMISSION_WRITE_EXERCISE_ROUTE in grantedPermissions) {
+        val exerciseRoute = if (activityPoints.isNotEmpty() && PERMISSION_WRITE_EXERCISE_ROUTE in grantedPermissions) {
             buildSanitisedRoute(activityPoints, workoutStartInstant, workoutEndInstant, deviceName)
         } else {
             null
@@ -294,64 +319,36 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
             )
         )
 
+        val summaryData = parseSummaryData(workout.summaryData)
+
         addDetailedHeartRateRecords(activityPoints, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-        addDetailedSpeedRecords(activityPoints, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
         addDetailedPowerRecords(activityPoints, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
 
-        val summaryData = parseSummaryData(workout.summaryData)
-        if (summaryData != null) {
-            if (!device.deviceCoordinator.supportsActivityDistance(device)) {
-                addDistanceRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            }
-            if (!device.deviceCoordinator.supportsActiveCalories(device)) {
-                addCaloriesRecords(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            }
-            addElevationGainedRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            addCadenceRecords(summaryData, activityKind, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-        }
-    }
+        val wroteDetailedSpeed = addDetailedSpeedRecords(activityPoints, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+        val wroteDetailedCadence = addDetailedCadenceRecords(activityPoints, activityKind, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+        val wroteDerivedElevation = addDerivedElevationRecord(activityPoints, summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
 
-    private fun processAggregateWorkout(
-        ctx: SyncContext,
-        workout: BaseActivitySummary,
-        workoutStartInstant: Instant,
-        workoutEndInstant: Instant,
-        startOffset: ZoneOffset,
-        endOffset: ZoneOffset,
-        recordsToInsert: MutableList<Record>,
-        activityKind: ActivityKind,
-        exerciseType: Int
-    ) {
-        val gbDevice = ctx.gbDevice
-        val deviceName = ctx.deviceName
-        val metadata = ctx.metadata
-        val grantedPermissions = ctx.grantedPermissions
-
-        recordsToInsert.add(
-            ExerciseSessionRecord(
-                startTime = workoutStartInstant,
-                startZoneOffset = startOffset,
-                endTime = workoutEndInstant,
-                endZoneOffset = endOffset,
-                exerciseType = exerciseType,
-                title = workout.name ?: activityKind.getLabel(ctx.androidContext),
-                metadata = metadata
-            )
-        )
-
-        val summaryData = parseSummaryData(workout.summaryData)
-        if (summaryData != null) {
-            if (!gbDevice.deviceCoordinator.supportsActivityDistance(gbDevice)) {
-                addDistanceRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            }
-            addSpeedRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            if (!gbDevice.deviceCoordinator.supportsActiveCalories(gbDevice)) {
-                addCaloriesRecords(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            }
-            addElevationGainedRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-            addCadenceRecords(summaryData, activityKind, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
-        } else {
+        if (summaryData == null) {
             LOG.warn("No summary data available for workout on device '{}' at {}", deviceName, workoutStartInstant)
+            return
+        }
+
+        // Distance and calories are already carried by the daily activity syncers on devices that
+        // report them per minute; emitting the workout aggregate too would double-count the day.
+        if (!device.deviceCoordinator.supportsActivityDistance(device)) {
+            addDistanceRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+        }
+        if (!device.deviceCoordinator.supportsActiveCalories(device)) {
+            addCaloriesRecords(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+        }
+        if (!wroteDerivedElevation) {
+            addElevationGainedRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+        }
+        if (!wroteDetailedSpeed) {
+            addSpeedRecord(summaryData, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
+        }
+        if (!wroteDetailedCadence) {
+            addCadenceRecords(summaryData, activityKind, workoutStartInstant, workoutEndInstant, startOffset, endOffset, metadata, grantedPermissions, recordsToInsert, deviceName)
         }
     }
 
@@ -473,6 +470,13 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
         }
     }
 
+    /**
+     * Per-sample speed. Returns true if a record was written.
+     *
+     * Not every device fills [ActivityPoint.speed] - Huawei watches leave it unset on hikes and
+     * treadmill runs even though Gadgetbridge draws a speed graph for them - so where the point has
+     * no speed of its own it is derived from the ground covered since the previous point.
+     */
     private fun addDetailedSpeedRecords(
         activityPoints: List<ActivityPoint>,
         startTime: Instant,
@@ -483,37 +487,108 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
         grantedPermissions: Set<String>,
         recordsToInsert: MutableList<Record>,
         deviceName: String
-    ) {
-        if (HealthPermission.getWritePermission(SpeedRecord::class) !in grantedPermissions) {
-            return
+    ): Boolean {
+        if (activityPoints.isEmpty() || HealthPermission.getWritePermission(SpeedRecord::class) !in grantedPermissions) {
+            return false
         }
 
-        val speedSamples = activityPoints
-            .filter { it.speed > 0 && it.time != null }
-            .mapNotNull { point ->
-                val pointInstant = point.time.toInstant()
-                if (pointInstant.isBefore(startTime) || pointInstant.isAfter(endTime)) {
-                    null
-                } else {
-                    SpeedRecord.Sample(
-                        time = pointInstant,
-                        speed = Velocity.metersPerSecond(point.speed.toDouble())
-                    )
-                }
+        val speedSamples = WorkoutMetricDerivation.speedSamples(activityPoints)
+            .filter { !it.time.isBefore(startTime) && !it.time.isAfter(endTime) }
+            .map {
+                SpeedRecord.Sample(
+                    time = it.time,
+                    speed = Velocity.metersPerSecond(it.value)
+                )
             }
 
-        if (speedSamples.isNotEmpty()) {
-            recordsToInsert.add(
-                SpeedRecord(
-                    startTime = startTime,
-                    startZoneOffset = startOffset,
-                    endTime = endTime,
-                    endZoneOffset = endOffset,
-                    samples = speedSamples,
-                    metadata = metadata
-                )
+        if (speedSamples.isEmpty()) {
+            return false
+        }
+
+        recordsToInsert.add(
+            SpeedRecord(
+                startTime = startTime,
+                startZoneOffset = startOffset,
+                endTime = endTime,
+                endZoneOffset = endOffset,
+                samples = speedSamples,
+                metadata = metadata
             )
-            LOG.debug("Added detailed SpeedRecord with ${speedSamples.size} samples for workout on device '$deviceName'.")
+        )
+        LOG.debug("Added detailed SpeedRecord with ${speedSamples.size} samples for workout on device '$deviceName'.")
+        return true
+    }
+
+    /**
+     * Per-sample cadence. Returns true if a record was written.
+     *
+     * [ActivityPoint.cadence] has always been populated by the FIT parser and was simply never read
+     * here: cadence reached Health Connect only as the summary average, and not at all for devices
+     * whose summary omits it.
+     */
+    private fun addDetailedCadenceRecords(
+        activityPoints: List<ActivityPoint>,
+        activityKind: ActivityKind,
+        startTime: Instant,
+        endTime: Instant,
+        startOffset: ZoneOffset,
+        endOffset: ZoneOffset,
+        metadata: Metadata,
+        grantedPermissions: Set<String>,
+        recordsToInsert: MutableList<Record>,
+        deviceName: String
+    ): Boolean {
+        if (activityPoints.isEmpty()) {
+            return false
+        }
+
+        val samples = WorkoutMetricDerivation.cadenceSamples(activityPoints)
+            .filter { !it.time.isBefore(startTime) && !it.time.isAfter(endTime) }
+        if (samples.isEmpty()) {
+            return false
+        }
+
+        return when (ActivityKind.getCycleUnit(activityKind)) {
+            ActivityKind.CycleUnit.STEPS -> {
+                if (HealthPermission.getWritePermission(StepsCadenceRecord::class) !in grantedPermissions) {
+                    return false
+                }
+                recordsToInsert.add(
+                    StepsCadenceRecord(
+                        startTime = startTime,
+                        startZoneOffset = startOffset,
+                        endTime = endTime,
+                        endZoneOffset = endOffset,
+                        samples = samples.map { StepsCadenceRecord.Sample(time = it.time, rate = it.value) },
+                        metadata = metadata
+                    )
+                )
+                LOG.debug("Added detailed StepsCadenceRecord with ${samples.size} samples for workout on device '$deviceName'.")
+                true
+            }
+
+            ActivityKind.CycleUnit.REVOLUTIONS -> {
+                if (HealthPermission.getWritePermission(CyclingPedalingCadenceRecord::class) !in grantedPermissions) {
+                    return false
+                }
+                recordsToInsert.add(
+                    CyclingPedalingCadenceRecord(
+                        startTime = startTime,
+                        startZoneOffset = startOffset,
+                        endTime = endTime,
+                        endZoneOffset = endOffset,
+                        samples = samples.map {
+                            CyclingPedalingCadenceRecord.Sample(time = it.time, revolutionsPerMinute = it.value)
+                        },
+                        metadata = metadata
+                    )
+                )
+                LOG.debug("Added detailed CyclingPedalingCadenceRecord with ${samples.size} samples for workout on device '$deviceName'.")
+                true
+            }
+
+            // Strokes, jumps, reps, swings: Health Connect has no cadence record for these.
+            else -> false
         }
     }
 
@@ -704,6 +779,64 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
         }
     }
 
+    /**
+     * Elevation gain computed from the track's own altitudes. Returns true if a record was written.
+     *
+     * Only used when the summary has no ascent figure of its own: a Huawei hike carries altitude on
+     * every track point (Gadgetbridge plots it) but reports no ascent in the summary, so the
+     * summary-only lookup wrote nothing.
+     */
+    private fun addDerivedElevationRecord(
+        activityPoints: List<ActivityPoint>,
+        summaryData: ActivitySummaryData?,
+        startTime: Instant,
+        endTime: Instant,
+        startOffset: ZoneOffset,
+        endOffset: ZoneOffset,
+        metadata: Metadata,
+        grantedPermissions: Set<String>,
+        recordsToInsert: MutableList<Record>,
+        deviceName: String
+    ): Boolean {
+        if (activityPoints.isEmpty() ||
+            HealthPermission.getWritePermission(ElevationGainedRecord::class) !in grantedPermissions
+        ) {
+            return false
+        }
+        if (summaryData != null && summaryElevationGain(summaryData) > 0) {
+            return false
+        }
+
+        val gain = WorkoutMetricDerivation.elevationGainMeters(activityPoints)
+        if (gain <= 0) {
+            return false
+        }
+
+        recordsToInsert.add(
+            ElevationGainedRecord(
+                startTime = startTime,
+                startZoneOffset = startOffset,
+                endTime = endTime,
+                endZoneOffset = endOffset,
+                elevation = Length.meters(gain),
+                metadata = metadata
+            )
+        )
+        LOG.debug("Added ElevationGainedRecord ({} m, derived from track altitudes) for workout at {} for device '{}'.", gain, startTime, deviceName)
+        return true
+    }
+
+    private fun summaryElevationGain(summaryData: ActivitySummaryData): Double {
+        var elevationGain = summaryData.getNumber(ActivitySummaryEntries.ELEVATION_GAIN, 0.0).toDouble()
+        if (elevationGain == 0.0) {
+            elevationGain = summaryData.getNumber(ActivitySummaryEntries.TOTAL_ASCENT, 0.0).toDouble()
+        }
+        if (elevationGain == 0.0) {
+            elevationGain = summaryData.getNumber(ActivitySummaryEntries.ASCENT_METERS, 0.0).toDouble()
+        }
+        return elevationGain
+    }
+
     private fun addElevationGainedRecord(
         summaryData: ActivitySummaryData,
         startTime: Instant,
@@ -719,14 +852,7 @@ internal object RecordedWorkoutSyncer : HealthConnectSyncer {
             return
         }
 
-        var elevationGain = summaryData.getNumber(ActivitySummaryEntries.ELEVATION_GAIN, 0.0).toDouble()
-        if (elevationGain == 0.0) {
-            elevationGain = summaryData.getNumber(ActivitySummaryEntries.TOTAL_ASCENT, 0.0).toDouble()
-        }
-        if (elevationGain == 0.0) {
-            elevationGain = summaryData.getNumber(ActivitySummaryEntries.ASCENT_METERS, 0.0).toDouble()
-        }
-
+        val elevationGain = summaryElevationGain(summaryData)
         if (elevationGain > 0) {
             recordsToInsert.add(
                 ElevationGainedRecord(
