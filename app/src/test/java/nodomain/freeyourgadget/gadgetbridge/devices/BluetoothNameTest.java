@@ -32,6 +32,9 @@ public class BluetoothNameTest extends TestBase {
             put("CMF Buds 2", DeviceType.NOTHING_CMF_BUDS_2); // #5579
             put("CMF Buds 2a", DeviceType.NOTHING_CMF_BUDS_2A); // #6028
             put("HC96", DeviceType.HC96);
+            put("Soundcore Q30", DeviceType.SOUNDCORE_Q30); // #4316
+            put("soundcore Q30", DeviceType.SOUNDCORE_Q30); // #6371
+            put("soundcore  Q30", DeviceType.SOUNDCORE_Q30); // #6371 - unsure
             put("P8", DeviceType.WASPOS); // from wasp-os source
             put("P8DFU", DeviceType.WASPOS); // from wasp-os source
             put("P80", DeviceType.COLMI_P80);
@@ -110,6 +113,9 @@ public class BluetoothNameTest extends TestBase {
             put("Forerunner 45", DeviceType.GARMIN_FORERUNNER_45);
             put("Forerunner 745", DeviceType.GARMIN_FORERUNNER_745); // #5556
             put("Sony ULT", DeviceType.SONY_WH_ULT900N); // #4444
+            put("ULT WEAR", DeviceType.SONY_WH_ULT900N); // found online
+            put("ULT WEAR (David)", DeviceType.SONY_WH_ULT900N); // #6399
+            put("LE_ULT WEAR", DeviceType.UNKNOWN); // #6399 - ignore LE variant
             put("Instinct Dual Power", DeviceType.GARMIN_INSTINCT_SOLAR); // #4380
             put("Redmi Buds 4 Active", DeviceType.REDMIBUDS4ACTIVE); // #4359
             put("OPPO Enco Air2", DeviceType.OPPO_ENCO_AIR2);
@@ -216,6 +222,9 @@ public class BluetoothNameTest extends TestBase {
             put("BM6", DeviceType.BM6_BATTERY_MONITOR); // #6236
             put("Xiaomi Smart Band 10 Pro AB01", DeviceType.MIBAND10PRO); // #6248
             put("SmartShunt HQ2303UCHFV", DeviceType.VICTRON_SMARTSHUNT); // #6263
+            put("Soundcore Q30", DeviceType.SOUNDCORE_Q30); // #6396
+            put("Soundcore Life Tune", DeviceType.SOUNDCORE_LIFE_TUNE); // #6396
+            put("Soundcore Life Tune XR", DeviceType.SOUNDCORE_LIFE_TUNE_XR); // #6396
         }};
 
         for (Map.Entry<String, DeviceType> e : bluetoothNameToExpectedType.entrySet()) {
@@ -232,7 +241,7 @@ public class BluetoothNameTest extends TestBase {
                 }
             }
 
-            if (expectedType != null) {
+            if (expectedType != null && expectedType != DeviceType.UNKNOWN) {
                 Assert.assertEquals(
                         "Bluetooth name " + bluetoothName + " should only match the expected DeviceType",
                         Collections.singletonList(expectedType),

@@ -20,6 +20,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
@@ -115,7 +116,7 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        workoutEditor = WorkoutEditor(requireContext())
+        workoutEditor = WorkoutEditor(requireContext(), this)
         arguments?.let {
             workoutId = it.getLong(ARG_WORKOUT_ID, -1)
         }
@@ -176,6 +177,7 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                         dbHandler.daoSession.baseActivitySummaryDao.load(workoutId)
                     }
                     gbDevice = getGBDevice(summary.device)
+                    workoutEditor.gbDevice = gbDevice
                     val parsedWorkout = try {
                         gbDevice.deviceCoordinator.getActivitySummaryParser(gbDevice, requireContext())
                             .parseWorkout(summary, true)
@@ -257,6 +259,14 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         )
 
         view?.let {
+            // Header photo
+            if (summary.headerPhoto == null) {
+                binding.headerphoto.setImageDrawable(null)
+            } else {
+                binding.headerphoto.setImageURI(Uri.fromFile(File(summary.headerPhoto)))
+            }
+
+            // Activity icon
             binding.itemImage.setImageResource(
                 ActivityKind.fromCode(summary.activityKind).icon
             )
@@ -599,6 +609,32 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 true
             }
 
+            R.id.activity_summary_detail_action_add_photo -> {
+                currentWorkout?.let {
+                    workoutEditor.setHeaderPhoto(it, object : WorkoutEditor.Callback {
+                        override fun onWorkoutUpdated() {
+                            notifyWorkoutChanged()
+                            // Reload only the workout header
+                            updateWorkoutHeader(it.summary)
+                        }
+                    })
+                }
+                true
+            }
+
+            R.id.activity_summary_detail_action_remove_photo -> {
+                currentWorkout?.let {
+                    workoutEditor.removeHeaderPhoto(it, object : WorkoutEditor.Callback {
+                        override fun onWorkoutUpdated() {
+                            notifyWorkoutChanged()
+                            // Reload only the workout header
+                            updateWorkoutHeader(it.summary)
+                        }
+                    })
+                }
+                true
+            }
+
             R.id.activity_summary_detail_action_edit_gps -> {
                 currentWorkout?.let {
                     workoutEditor.editGpsTrack(it, object : WorkoutEditor.Callback {
@@ -648,6 +684,10 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             val devToolsSubMenu = devToolsMenu?.subMenu
             devToolsMenu?.isVisible = devToolsSubMenu != null && devToolsSubMenu.hasVisibleItems()
         }
+
+        val overflowMenu2 = menu.findItem(R.id.activity_detail_overflowMenu2)?.subMenu
+        overflowMenu2?.findItem(R.id.activity_summary_detail_action_add_photo)?.isVisible = workout.summary.headerPhoto == null
+        overflowMenu2?.findItem(R.id.activity_summary_detail_action_remove_photo)?.isVisible = workout.summary.headerPhoto != null
 
         // Endurain accepts FIT (built from the summary alone if needed), so it is offered
         // for any workout. Wanderer only supports GPX uploads, so it requires a GPS track.
@@ -764,8 +804,8 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
 
     private fun uploadToEndurain() {
         val workout = currentWorkout ?: return
-        val workoutName = workout.summary.name
         val activityKind = ActivityKind.fromCode(workout.summary.activityKind)
+        val workoutName = workout.summary.name ?: activityKind.getLabel(requireContext())
 
         lifecycleScope.launch {
             val activityFile = try {
@@ -787,10 +827,19 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 val apiClient = EndurainApiClient(serverUrl!!, endurainVm.endurainTokenManager)
                 endurainVm.endurainTokenManager.performTokenRefresh(serverUrl) {
                     LOG.info("Uploading workout '{}' (type {}) to Endurain", workoutName, activityKind)
+                    GB.toast(
+                        getString(R.string.endurain_uploading_started),
+                        Toast.LENGTH_SHORT,
+                        GB.INFO
+                    )
                     apiClient.uploadActivity(activityFile) { newId ->
                         if (newId != null) {
                             // Update activity type on the server
                             apiClient.editActivity(newId, activityKind, workoutName)
+                            // Upload workout photo to the new activity
+                            if (workout.summary.headerPhoto != null) {
+                                apiClient.uploadActivityPhoto(newId, File(workout.summary.headerPhoto))
+                            }
                         }
                         activity?.runOnUiThread {
                             if (newId != null)

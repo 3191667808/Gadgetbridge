@@ -79,7 +79,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(134, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(137, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
 
@@ -89,6 +89,7 @@ public class GBDaoGenerator {
         Entity deviceAttributes = addDeviceAttributes(schema);
         Entity device = addDevice(schema, deviceAttributes);
         addHealthConnectSyncState(schema, device);
+        addHealthConnectSleepSession(schema, device);
         addInternetFirewallRule(schema, device);
 
         // yeah deep shit, has to be here (after device) for db upgrade and column order
@@ -100,6 +101,7 @@ public class GBDaoGenerator {
 
         addMakibesHR3ActivitySample(schema, user, device);
         addOVTouch26ActivitySample(schema, user, device);
+        addAk102ActivitySample(schema, user, device);
         addMiBandActivitySample(schema, user, device);
         addHuamiExtendedActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addHuamiStressSample(schema, user, device));
@@ -453,6 +455,18 @@ public class GBDaoGenerator {
         return activitySample;
     }
 
+    private static Entity addAk102ActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "Ak102ActivitySample");
+        activitySample.implementsSerializable();
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("distanceCm").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty("activeCalories").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        addHeartRateProperties(activitySample);
+        return activitySample;
+    }
+
     private static Entity addOVTouch26ActivitySample(Schema schema, Entity user, Entity device) {
         Entity activitySample = addEntity(schema, "OVTouch26ActivitySample");
         activitySample.implementsSerializable();
@@ -685,6 +699,8 @@ public class GBDaoGenerator {
         sample.addIntProperty("vitalityIncreaseModerate");
         sample.addIntProperty("vitalityIncreaseHigh");
         sample.addIntProperty("vitalityCurrent");
+        sample.addIntProperty("activeCalories");
+        sample.addIntProperty("recoveryHours");
         return sample;
     }
 
@@ -1440,6 +1456,21 @@ public class GBDaoGenerator {
         healthConnectSyncState.addLongProperty("lastSyncTimestamp").notNull();
     }
 
+    private static void addHealthConnectSleepSession(Schema schema, Entity device) {
+        Entity healthConnectSleepSession = addEntity(schema, "HealthConnectSleepSession");
+        healthConnectSleepSession.addIdProperty().autoincrement();
+        Property deviceId = healthConnectSleepSession.addLongProperty("deviceId").notNull().getProperty();
+        Property clientRecordId = healthConnectSleepSession.addStringProperty("clientRecordId").notNull().getProperty();
+        healthConnectSleepSession.addLongProperty("startTime").notNull();
+        healthConnectSleepSession.addLongProperty("endTime").notNull();
+        healthConnectSleepSession.addToOne(device, deviceId);
+        Index indexUnique = new Index();
+        indexUnique.addProperty(deviceId);
+        indexUnique.addProperty(clientRecordId);
+        indexUnique.makeUnique();
+        healthConnectSleepSession.addIndex(indexUnique);
+    }
+
     private static void addInternetFirewallRule(Schema schema, Entity device) {
         Entity firewall = addEntity(schema, "InternetFirewallRule");
         firewall.addIdProperty().autoincrement();
@@ -1627,6 +1658,7 @@ public class GBDaoGenerator {
 
         summary.addStringProperty("gpxTrack").codeBeforeGetter(OVERRIDE);
         summary.addStringProperty("rawDetailsPath");
+        summary.addStringProperty("headerPhoto");
 
         Property deviceId = summary.addLongProperty("deviceId").notNull().codeBeforeGetter(OVERRIDE).getProperty();
         summary.addToOne(device, deviceId);

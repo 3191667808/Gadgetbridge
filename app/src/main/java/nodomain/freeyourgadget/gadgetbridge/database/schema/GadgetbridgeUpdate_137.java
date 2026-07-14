@@ -24,7 +24,7 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
 import nodomain.freeyourgadget.gadgetbridge.entities.XiaomiSleepTimeSampleDao;
 
-public class GadgetbridgeUpdate_134 implements DBUpdateScript {
+public class GadgetbridgeUpdate_137 implements DBUpdateScript {
     @Override
     public void upgradeSchema(final SQLiteDatabase db) {
         final String column = XiaomiSleepTimeSampleDao.Properties.IntoBedTime.columnName;

@@ -38,6 +38,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GlucoseSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao
+import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSleepSession
+import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSleepSessionDao
 import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSyncState
 import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSyncStateDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
@@ -340,6 +342,13 @@ class HealthConnectUtils {
 
                 var currentSliceStartTs = currentDataTypeStartTsFromDb
 
+                // Sleep carries a per-night registry (frozen clientRecordId + grown span) across
+                // slices, persisted once at the end, to decouple HC record identity from the
+                // unstable session start.
+                val isSleep = dataType == HealthConnectPermissionManager.HealthConnectDataType.SLEEP
+                var sleepRows: List<SleepSessionRow> =
+                    if (isSleep) loadSleepRows(gbDevice) else emptyList()
+
                 while (currentSliceStartTs.isBefore(currentDataTypeEndTsFromDb)) {
                     var currentSliceEndTs = currentSliceStartTs.plusSeconds(syncIntervalInSeconds)
                     if (currentSliceEndTs.isAfter(currentDataTypeEndTsFromDb)) {
@@ -389,18 +398,33 @@ class HealthConnectUtils {
                         }
 
                     try {
-                        val sliceStats = syncDataTypeSlice(
-                            dataType = dataType,
-                            healthConnectClient = healthConnectClient,
-                            gbDevice = gbDevice,
-                            metadata = metadata,
-                            offset = zoneId,
-                            currentSliceStartTs = currentSliceStartTs,
-                            currentSliceEndTs = currentSliceEndTs,
-                            grantedPermissions = grantedPermissions,
-                            activityBasedSamples = activityBasedSamples,
-                            context = context
-                        )
+                        val sliceStats: List<SyncerStatistics>
+                        if (isSleep) {
+                            if (activityBasedSamples.isNullOrEmpty()) {
+                                sliceStats = emptyList()
+                            } else {
+                                val result = SleepSyncer.sync(
+                                    healthConnectClient, gbDevice, metadata, zoneId,
+                                    grantedPermissions, activityBasedSamples, context,
+                                    sleepRows
+                                )
+                                sleepRows = result.rows
+                                sliceStats = listOf(result.statistics)
+                            }
+                        } else {
+                            sliceStats = syncDataTypeSlice(
+                                dataType = dataType,
+                                healthConnectClient = healthConnectClient,
+                                gbDevice = gbDevice,
+                                metadata = metadata,
+                                offset = zoneId,
+                                currentSliceStartTs = currentSliceStartTs,
+                                currentSliceEndTs = currentSliceEndTs,
+                                grantedPermissions = grantedPermissions,
+                                activityBasedSamples = activityBasedSamples,
+                                context = context
+                            )
+                        }
 
                         for (stat in sliceStats) {
                             val key = stat.recordType
@@ -453,7 +477,7 @@ class HealthConnectUtils {
                         val deviceFromDb = DBHelper.getDevice(gbDevice, db.daoSession)
                         val syncStateDao = db.daoSession.healthConnectSyncStateDao
                         val syncState = HealthConnectSyncState(
-                            deviceFromDb.id,
+                            deviceFromDb.id!!,
                             dataType.name,
                             timestampToPersistForThisDataType.epochSecond
                         )
@@ -464,6 +488,18 @@ class HealthConnectUtils {
                 } catch (e: Exception) {
                     LOG.error("$HC_SYNC_TAG Error updating Health Connect sync state for device {}, data type {}: {}", gbDevice.aliasOrName, dataType.name, e.localizedMessage, e)
                     dataTypesWithErrors.add(dataType.name)
+                }
+
+                if (isSleep) {
+                    // Prune rows unreachable by the next run's scan (end < cursor - lookBack), persist.
+                    val pruneBefore = timestampToPersistForThisDataType.minusSeconds(lookBackInSeconds)
+                    val prunedRows = SleepSyncer.pruneSleepRows(sleepRows, pruneBefore)
+                    try {
+                        persistSleepRows(gbDevice, prunedRows)
+                    } catch (e: Exception) {
+                        LOG.error("$HC_SYNC_TAG Error persisting Health Connect sleep sessions for device {}: {}", gbDevice.aliasOrName, e.localizedMessage, e)
+                        dataTypesWithErrors.add(dataType.name)
+                    }
                 }
             } // End dataTypeLoop
         } // End device loop
@@ -618,12 +654,7 @@ class HealthConnectUtils {
                     }
                 }
                 HealthConnectPermissionManager.HealthConnectDataType.SLEEP -> {
-                    if (!activityBasedSamples.isNullOrEmpty()) {
-                        sliceStats.add(SleepSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples, context
-                        ))
-                    }
+                    // Handled statefully in the slice loop; identity carried across slices.
                 }
                 HealthConnectPermissionManager.HealthConnectDataType.VO2MAX -> sliceStats.add(Vo2MaxSyncer.sync(
                     healthConnectClient, gbDevice, metadata, offset,
@@ -680,6 +711,47 @@ class HealthConnectUtils {
                 return emptyList() // Return empty list on error
             }
             return provider.getAllActivitySamples(tsFrom, tsTo)
+        }
+
+        private fun loadSleepRows(gbDevice: GBDevice): List<SleepSessionRow> {
+            return GBApplication.acquireDbReadOnly().use { db ->
+                val deviceFromDb = DBHelper.getDevice(gbDevice, db.daoSession) ?: return@use emptyList()
+                db.daoSession.healthConnectSleepSessionDao.queryBuilder()
+                    .where(HealthConnectSleepSessionDao.Properties.DeviceId.eq(deviceFromDb.id))
+                    .list()
+                    .map {
+                        SleepSessionRow(
+                            clientRecordId = it.clientRecordId,
+                            startTime = Instant.ofEpochSecond(it.startTime),
+                            endTime = Instant.ofEpochSecond(it.endTime)
+                        )
+                    }
+            }
+        }
+
+        private fun persistSleepRows(gbDevice: GBDevice, rows: List<SleepSessionRow>) {
+            GBApplication.acquireDB().use { db ->
+                val deviceFromDb = DBHelper.getDevice(gbDevice, db.daoSession) ?: return@use
+                val dao = db.daoSession.healthConnectSleepSessionDao
+                val entities = rows.map {
+                    HealthConnectSleepSession(
+                        null,
+                        deviceFromDb.id!!,
+                        it.clientRecordId,
+                        it.startTime.epochSecond,
+                        it.endTime.epochSecond
+                    )
+                }
+                // Atomic replace: a failed insert must not leave the delete committed, else ids
+                // re-mint next run and duplicate HC records.
+                db.daoSession.runInTx {
+                    dao.queryBuilder()
+                        .where(HealthConnectSleepSessionDao.Properties.DeviceId.eq(deviceFromDb.id))
+                        .buildDelete()
+                        .executeDeleteWithoutDetachingEntities()
+                    dao.insertInTx(entities)
+                }
+            }
         }
 
         private fun getFirstSampleTimestamp(
@@ -769,11 +841,12 @@ class HealthConnectUtils {
                 return
             }
 
+            var currentRecords = records
             var lastException: Exception? = null
             for (i in 0..MAX_RETRIES) {
                 try {
-                    healthConnectClient.insertRecords(records)
-                    CompanionLogger.debug("Successfully inserted {} records into Health Connect.", records.size)
+                    healthConnectClient.insertRecords(currentRecords)
+                    CompanionLogger.debug("Successfully inserted {} records into Health Connect.", currentRecords.size)
                     return // Success
                 } catch (e: SecurityException) {
                     // Permission error - don't retry, abort immediately
@@ -787,6 +860,15 @@ class HealthConnectUtils {
                     )
                 } catch (e: Exception) {
                     lastException = e
+                    // The HC platform enforces a 1MB per-record limit (RateLimiter) not exposed by
+                    // any API. An oversized record fails deterministically, so plain retries just
+                    // burn all attempts. The only variable-size record we build is the GPS route
+                    // embedded in ExerciseSessionRecord; shrink it by the limit/was ratio and retry.
+                    val shrunk = shrinkOversizedRoute(currentRecords, e)
+                    if (shrunk != null) {
+                        currentRecords = shrunk
+                        continue
+                    }
                     if (i < MAX_RETRIES) {
                         val delayMillis = INITIAL_DELAY_MS * 2.0.pow(i).toLong()
                         CompanionLogger.warn(
@@ -805,6 +887,80 @@ class HealthConnectUtils {
                 ),
                 lastException
             )
+        }
+
+        // Matches "...single record size limit: 1000000, was: 1700644" from the HC platform.
+        private val RECORD_SIZE_REGEX =
+            Regex("single record size limit:\\s*(\\d+),\\s*was:\\s*(\\d+)")
+
+        /**
+         * If [e] is a "record size exceeded" error and [records] contains a downsizable
+         * ExerciseSessionRecord route, returns a copy of the list with every route decimated by
+         * the limit/was ratio (with margin). Returns null when the error is unrelated or nothing
+         * can be shrunk, so the caller falls back to normal retry/abort.
+         */
+        internal fun shrinkOversizedRoute(records: List<Record>, e: Exception): List<Record>? {
+            val match = RECORD_SIZE_REGEX.find(e.message ?: "") ?: return null
+            val limit = match.groupValues[1].toLongOrNull() ?: return null
+            val was = match.groupValues[2].toLongOrNull() ?: return null
+            if (limit <= 0 || was <= limit) {
+                return null
+            }
+
+            // Aim for 90% of the limit to leave room for per-point overhead we don't model.
+            val keepRatio = (limit.toDouble() / was.toDouble()) * 0.9
+            var shrankAny = false
+            val result = records.map { record ->
+                if (record !is ExerciseSessionRecord) {
+                    return@map record
+                }
+                val route = (record.exerciseRouteResult as? ExerciseRouteResult.Data)?.exerciseRoute
+                    ?: return@map record
+                val points = route.route
+                val target = (points.size * keepRatio).toInt()
+                if (points.size < 2 || target >= points.size) {
+                    return@map record
+                }
+                shrankAny = true
+                val decimated = decimateRoute(points, target.coerceAtLeast(2))
+                CompanionLogger.warn(
+                    "$HC_SYNC_TAG ExerciseSessionRecord route too large ({} bytes > {} limit); decimated route from {} to {} points and retrying.",
+                    was, limit, points.size, decimated.size
+                )
+                ExerciseSessionRecord(
+                    startTime = record.startTime,
+                    startZoneOffset = record.startZoneOffset,
+                    endTime = record.endTime,
+                    endZoneOffset = record.endZoneOffset,
+                    exerciseType = record.exerciseType,
+                    title = record.title,
+                    notes = record.notes,
+                    segments = record.segments,
+                    laps = record.laps,
+                    exerciseRoute = ExerciseRoute(decimated),
+                    metadata = record.metadata
+                )
+            }
+            return if (shrankAny) result else null
+        }
+
+        /** Uniformly decimates [points] down to [target] points, preserving first and last. */
+        private fun decimateRoute(
+            points: List<ExerciseRoute.Location>,
+            target: Int
+        ): List<ExerciseRoute.Location> {
+            val kept = ArrayList<ExerciseRoute.Location>(target)
+            val lastIndex = points.size - 1
+            val step = lastIndex.toDouble() / (target - 1).toDouble()
+            var idx = 0.0
+            repeat(target - 1) {
+                // Clamp below lastIndex so the explicit last point is never duplicated
+                // (HC rejects routes with duplicate timestamps).
+                kept.add(points[idx.toInt().coerceAtMost(lastIndex - 1)])
+                idx += step
+            }
+            kept.add(points.last())
+            return kept
         }
     }
 }

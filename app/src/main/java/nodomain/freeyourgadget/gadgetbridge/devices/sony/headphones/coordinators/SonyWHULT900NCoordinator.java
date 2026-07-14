@@ -32,12 +32,17 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 public class SonyWHULT900NCoordinator extends SonyHeadphonesCoordinator {
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("^Sony ULT|ULT WEAR$");
+        return Pattern.compile("^Sony ULT|ULT WEAR.*$");
     }
 
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_sony_wh_ult900n;
+    }
+
+    @Override
+    public boolean preferServiceV2() {
+        return true;
     }
 
     @NonNull
@@ -46,10 +51,20 @@ public class SonyWHULT900NCoordinator extends SonyHeadphonesCoordinator {
         return new HashSet<>(Arrays.asList(
                 SonyHeadphonesCapabilities.BatterySingle,
                 SonyHeadphonesCapabilities.AmbientSoundControl2,
+                SonyHeadphonesCapabilities.AmbientSoundControlButtonMode,
+                SonyHeadphonesCapabilities.EqualizerWithCustomBands, // Not changing
+                SonyHeadphonesCapabilities.AudioUpsampling,
+                SonyHeadphonesCapabilities.AudioLDAC,
                 SonyHeadphonesCapabilities.PowerOffFromPhone,
                 SonyHeadphonesCapabilities.PauseWhenTakenOff,
+                SonyHeadphonesCapabilities.AutomaticPowerOffWhenTakenOff,
                 SonyHeadphonesCapabilities.QuickAccess,
-                SonyHeadphonesCapabilities.VoiceNotifications
+                SonyHeadphonesCapabilities.VoiceNotifications,
+                SonyHeadphonesCapabilities.VoiceAssistantFunction,
+                SonyHeadphonesCapabilities.TouchSensorSingle,
+                SonyHeadphonesCapabilities.ConnectTwoDevices,
+                SonyHeadphonesCapabilities.CaptureVoiceDuringCall,
+                SonyHeadphonesCapabilities.ServiceLink
         ));
     }
 

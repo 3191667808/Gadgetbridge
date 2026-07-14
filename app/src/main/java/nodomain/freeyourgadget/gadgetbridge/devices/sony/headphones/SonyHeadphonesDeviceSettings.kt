@@ -17,6 +17,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.Button
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerPreset
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.QuickAccess
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SoundPosition
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.VoiceAssistant
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakToChatConfig
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SurroundMode
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
@@ -394,6 +395,16 @@ fun sonyHeadphonesDeviceSettings(
     //
 
     category(key = "pref_header_system", title = R.string.pref_header_system) {
+        if (capabilities.contains(SonyHeadphonesCapabilities.ConnectTwoDevices)) {
+            switchSetting(
+                key = DeviceSettingsPreferenceConst.PREF_SONY_CONNECT_TWO_DEVICES,
+                title = R.string.dual_device_mode_title,
+                summary = R.string.dual_device_mode_summary,
+                icon = R.drawable.ic_devices_other,
+                defaultValue = false,
+            )
+        }
+
         if (capabilities.contains(SonyHeadphonesCapabilities.WideAreaTap)) {
             switchSetting(
                 key = DeviceSettingsPreferenceConst.PREF_SONY_WIDE_AREA_TAP,
@@ -522,6 +533,15 @@ fun sonyHeadphonesDeviceSettings(
             )
         }
 
+        if (capabilities.contains(SonyHeadphonesCapabilities.VoiceAssistantFunction)) {
+            enumList<VoiceAssistant.Mode>(
+                key = DeviceSettingsPreferenceConst.PREF_SONY_VOICE_ASSISTANT_FUNCTION,
+                title = R.string.sony_voice_assistant_function,
+                icon = R.drawable.ic_voice,
+                defaultValue = VoiceAssistant.Mode.DO_NOT_USE,
+            )
+        }
+
         if (capabilities.contains(SonyHeadphonesCapabilities.ButtonFunctionNcAmbient)) {
             enumList<ButtonFunctionNcAmbient.Mode>(
                 key = DeviceSettingsPreferenceConst.PREF_SONY_BUTTON_FUNCTION_NC_AMBIENT,
@@ -574,6 +594,34 @@ fun sonyHeadphonesDeviceSettings(
                 title = R.string.sony_notification_voice_guide,
                 icon = R.drawable.ic_notifications,
                 defaultValue = true,
+            )
+            seekbar(
+                key = DeviceSettingsPreferenceConst.PREF_SONY_NOTIFICATION_VOICE_GUIDE_VOLUME,
+                title = R.string.sony_voice_notifications_volume,
+                icon = R.drawable.ic_volume_up,
+                max = 4,
+                defaultValue = 2,
+                visibleWhen = { prefs -> prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SONY_NOTIFICATION_VOICE_GUIDE, true) },
+            )
+        }
+
+        if (capabilities.contains(SonyHeadphonesCapabilities.CaptureVoiceDuringCall)) {
+            switchSetting(
+                key = DeviceSettingsPreferenceConst.PREF_SONY_CAPTURE_VOICE_DURING_CALL,
+                title = R.string.sony_capture_voice_during_call,
+                summary = R.string.sony_capture_voice_during_call_summary,
+                icon = R.drawable.ic_voice,
+                defaultValue = false,
+            )
+        }
+
+        if (capabilities.contains(SonyHeadphonesCapabilities.ServiceLink)) {
+            switchSetting(
+                key = DeviceSettingsPreferenceConst.PREF_SONY_SERVICE_LINK,
+                title = R.string.sony_service_link,
+                summary = R.string.sony_service_link_summary,
+                icon = R.drawable.ic_devices_other,
+                defaultValue = false,
             )
         }
     }

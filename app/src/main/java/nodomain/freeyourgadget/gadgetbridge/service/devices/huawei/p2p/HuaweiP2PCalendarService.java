@@ -293,7 +293,7 @@ public class HuaweiP2PCalendarService extends HuaweiBaseP2PService {
         }
 
         List<CalendarEvent> removedEvents = new ArrayList<>(lastEventsIds.values());
-        
+
         JsonArray events = new JsonArray();
 
         for (final CalendarEvent calendarEvent : updatedEvents) {
@@ -416,7 +416,7 @@ public class HuaweiP2PCalendarService extends HuaweiBaseP2PService {
 
         fileInfo.setFileType((byte) 7);
         fileInfo.setFileName(getFileCalendarName());
-        fileInfo.setBytes(data);
+        fileInfo.setUploadData(new HuaweiUploadManager.UploadDataBuffer(data));
         fileInfo.setSrcPackage(this.getModule());
         fileInfo.setDstPackage(this.getPackage());
         fileInfo.setSrcFingerprint(this.getLocalFingerprint());

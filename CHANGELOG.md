@@ -1,5 +1,37 @@
 ### Changelog
 
+#### Next release (WIP)
+
+* Initial support for HUAWEI FreeClip 2
+* Initial support for Garmin Forerunner 170 Music
+* Experimental support for BM6 Battery Monitor
+* Add cumulative calories daily chart
+* Add Quick Settings tiles for some device
+* Garmin HRM Pro+: Improved connection support
+* Garmin: Add point winds support
+* Huawei: GPS track uploading
+* Huawei: Offline maps basic support
+* Huawei: Improved calendar sync
+* Sony WH-ULT900N: Enable more features
+* Xiaomi-protobuf: Improve workout summary parsing
+* Xiaomi-protobuf: Parse workout details
+
+#### 0.92.2
+
+* Charts: Avoid empty charts if no charts are enabled
+* Garmin: Fix regression in ExploreSync historical-catalog sync
+* Health Connect: Fix some workouts mapping
+* Huawei: Fix deadlock on activity listing
+* Improve connection to low power devices
+* Mi Band 6: Hide some invalid workout summary values
+* Shokz: Fix reading language from device
+* Soundcore Q30: Add some other device names
+
+#### 0.92.1
+
+* iGPSPORT: Fix activity track reprocessing
+* Fix sleep time mismatch on some devices
+
 #### 0.92.0
 
 * Add activity upload to Endurain / Wanderer

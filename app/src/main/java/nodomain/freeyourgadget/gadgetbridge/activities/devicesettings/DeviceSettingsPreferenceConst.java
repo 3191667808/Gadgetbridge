@@ -526,7 +526,9 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SOUNDCORE_BUTTON_BRIGHTNESS = "pref_soundcore_button_brightness";
     public static final String PREF_SOUNDCORE_AUTO_POWER_OFF = "pref_soundcore_auto_power_off";
     public static final String PREF_SOUNDCORE_3D_SURROUND = "pref_soundcore_3d_surround";
+    public static final String PREF_SOUNDCORE_DUAL_CONNECTION = "pref_soundcore_dual_connection";
     public static final String PREF_SOUNDCORE_ENABLE_PAIRING_MODE = "pref_soundcore_enable_pairing_mode";
+    public static final String PREF_SOUNDCORE_FIT_TEST = "pref_soundcore_fit_test";
     public static final String PREF_SOUNDCORE_LDAC_MODE = "pref_soundcore_ldac_mode";
     public static final String PREF_SOUNDCORE_GAMING_MODE = "pref_soundcore_gaming_mode";
     public static final String PREF_SOUNDCORE_ADAPTIVE_DIRECTION = "pref_soundcore_adaptive_direction";
@@ -552,6 +554,13 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SOUNDCORE_EQUALIZER_BAND8_VALUE = "pref_soundcore_equalizer_band8_value";
     public static final String PREF_SOUNDCORE_EQUALIZER_BAND9_FREQ = "pref_soundcore_equalizer_band9_freq";
     public static final String PREF_SOUNDCORE_EQUALIZER_BAND9_VALUE = "pref_soundcore_equalizer_band9_value";
+
+    public static final String PREF_HAYLOU_S35_ANC_AUDIO_MODE = "pref_haylou_s35_anc_audio_mode";
+    public static final String PREF_HAYLOU_S35_ANC_GAME_MODE = "pref_haylou_s35_anc_game_mode";
+    public static final String PREF_HAYLOU_S35_ANC_LDAC_MODE = "pref_haylou_s35_anc_ldac_mode";
+    public static final String PREF_HAYLOU_S35_ANC_MULTIPOINT = "pref_haylou_s35_anc_multipoint";
+    public static final String PREF_HAYLOU_S35_ANC_EQ_PRESET = "pref_haylou_s35_anc_eq_preset";
+
     public static final String PREF_SONY_AMBIENT_SOUND_CONTROL_BUTTON_MODE = "pref_sony_ambient_sound_control_button_mode";
     public static final String PREF_SONY_FOCUS_VOICE = "pref_sony_focus_voice";
     public static final String PREF_SONY_AMBIENT_SOUND_LEVEL = "pref_sony_ambient_sound_level";
@@ -578,8 +587,10 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SONY_BUTTON_MODE_RIGHT = "pref_sony_button_mode_right";
     public static final String PREF_SONY_QUICK_ACCESS_DOUBLE_TAP = "pref_sony_quick_access_double_tap";
     public static final String PREF_SONY_QUICK_ACCESS_TRIPLE_TAP = "pref_sony_quick_access_triple_tap";
+    public static final String PREF_SONY_VOICE_ASSISTANT_FUNCTION = "pref_sony_voice_assistant_function";
     public static final String PREF_SONY_AUTOMATIC_POWER_OFF = "pref_sony_automatic_power_off";
     public static final String PREF_SONY_NOTIFICATION_VOICE_GUIDE = "pref_sony_notification_voice_guide";
+    public static final String PREF_SONY_NOTIFICATION_VOICE_GUIDE_VOLUME = "pref_sony_notification_voice_guide_volume";
     public static final String PREF_SONY_SPEAK_TO_CHAT = "pref_sony_speak_to_chat";
     public static final String PREF_SONY_SPEAK_TO_CHAT_SENSITIVITY = "pref_sony_speak_to_chat_sensitivity";
     public static final String PREF_SONY_SPEAK_TO_CHAT_FOCUS_ON_VOICE = "pref_sony_speak_to_chat_focus_on_voice";
@@ -587,6 +598,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SONY_CONNECT_TWO_DEVICES = "pref_sony_connect_two_devices";
     public static final String PREF_SONY_ADAPTIVE_VOLUME_CONTROL = "pref_adaptive_volume_control";
     public static final String PREF_SONY_WIDE_AREA_TAP = "pref_wide_area_tap";
+    public static final String PREF_SONY_CAPTURE_VOICE_DURING_CALL = "pref_sony_capture_voice_during_call";
+    public static final String PREF_SONY_SERVICE_LINK = "pref_sony_service_link";
 
     public static final String PREF_GYMLINK_ENABLED = "gymlink_enabled";
     public static final String PREF_ANTPLUS_ENABLED = "antplus_enabled";
