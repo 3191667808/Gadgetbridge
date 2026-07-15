@@ -657,7 +657,9 @@ object HealthConnectManager {
             }
 
             else -> {
-                LOG.error("$HC_SYNC_TAG No provider for first-sample lookup, dataType {}, device {}", dataType, device.name)
+                // No provider means the device does not produce this data type at all (a Garmin
+                // watch has no scale or body thermometer, say). Routine, not an error.
+                LOG.debug("$HC_SYNC_TAG {} not supported by device {}, nothing to sync.", dataType, device.name)
                 null
             }
         }
@@ -688,7 +690,8 @@ object HealthConnectManager {
             }
 
             else -> {
-                LOG.error("$HC_SYNC_TAG No provider for last-sample lookup, dataType {}, device {}", dataType, device.name)
+                // As above: an unsupported data type, not a failure.
+                LOG.debug("$HC_SYNC_TAG {} not supported by device {}, nothing to sync.", dataType, device.name)
                 null
             }
         }
