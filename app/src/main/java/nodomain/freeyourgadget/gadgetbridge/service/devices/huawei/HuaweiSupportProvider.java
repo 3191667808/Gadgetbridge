@@ -52,7 +52,6 @@ import java.util.Random;
 import java.util.UUID;
 
 import de.greenrobot.dao.Property;
-import de.greenrobot.dao.query.DeleteQuery;
 import de.greenrobot.dao.query.QueryBuilder;
 import kotlin.Triple;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -61,6 +60,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.database.repository.EcgRepository;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
@@ -94,10 +94,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.ui.HuaweiStressCalibrationFragment;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStatsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiStressSample;
@@ -114,6 +110,8 @@ import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.EcgRecord;
+import nodomain.freeyourgadget.gadgetbridge.model.EcgSample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
@@ -1528,22 +1526,7 @@ public class HuaweiSupportProvider {
                 int sleepStart2 = (int) (sleepStatsSampleProvider.getLastSleepFetchTimestamp() / 1000L);
                 sleepStart = Math.max(sleepStart, sleepStart2);
 
-                QueryBuilder<HuaweiEcgSummarySample> qb = db.getDaoSession().getHuaweiEcgSummarySampleDao().queryBuilder();
-                Device dbDevice = DBHelper.findDevice(gbDevice, db.getDaoSession());
-                if (dbDevice != null) {
-                    final Property deviceProperty = HuaweiEcgSummarySampleDao.Properties.DeviceId;
-                    final Property timestampProperty = HuaweiEcgSummarySampleDao.Properties.EndTimestamp;
-
-                    qb.where(deviceProperty.eq(dbDevice.getId()))
-                            .orderDesc(timestampProperty)
-                            .limit(1);
-
-                    List<HuaweiEcgSummarySample> samples = qb.build().list();
-                    if (!samples.isEmpty()) {
-                        HuaweiEcgSummarySample sample = samples.get(0);
-                        ecgStart = (int) (sample.getEndTimestamp() / 1000);
-                    }
-                }
+                ecgStart = (int) (EcgRepository.getLatestEndTimestamp(gbDevice) / 1000);
 
             } catch (Exception e) {
                 LOG.warn("Exception for getting start times, using 01/01/2000 - 00:00:00.");
@@ -1927,19 +1910,8 @@ public class HuaweiSupportProvider {
             Long userId = DBHelper.getUser(db.getDaoSession()).getId();
             Long deviceId = DBHelper.getDevice(gbDevice, db.getDaoSession()).getId();
 
-            // Avoid duplicates
-            QueryBuilder<HuaweiEcgSummarySample> qb = db.getDaoSession().getHuaweiEcgSummarySampleDao().queryBuilder().where(
-                    HuaweiEcgSummarySampleDao.Properties.UserId.eq(userId),
-                    HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId),
-                    HuaweiEcgSummarySampleDao.Properties.StartTimestamp.eq(data.getStartTime())
-            );
-            List<HuaweiEcgSummarySample> results = qb.build().list();
-            Long ecgId = null;
-            if (!results.isEmpty())
-                ecgId = results.get(0).getEcgId();
-
-            HuaweiEcgSummarySample summarySample = new HuaweiEcgSummarySample(
-                    ecgId,
+            final EcgRecord summarySample = new EcgRecord(
+                    EcgRepository.findSessionId(db.getDaoSession(), userId, deviceId, data.getStartTime()),
                     deviceId,
                     userId,
                     data.getStartTime(),
@@ -1950,23 +1922,15 @@ public class HuaweiSupportProvider {
                     data.getUserSymptoms()
             );
 
-            db.getDaoSession().getHuaweiEcgSummarySampleDao().insertOrReplace(summarySample);
-
-            // We should completely replace values. Delete all and insert again.
-            final DeleteQuery<HuaweiEcgDataSample> tableDeleteQuery = db.getDaoSession().getHuaweiEcgDataSampleDao().queryBuilder()
-                    .where(HuaweiEcgDataSampleDao.Properties.EcgId.eq(summarySample.getEcgId()))
-                    .buildDelete();
-            tableDeleteQuery.executeDeleteWithoutDetachingEntities();
-
             int sampleRate = (int) (data.getEcgData().size() / ((data.getEndTime() - data.getStartTime()) / 1000));
             int delta = 0;
-            List<HuaweiEcgDataSample> res = new ArrayList<>();
+            List<EcgSample> res = new ArrayList<>();
             for (Float d : data.getEcgData()) {
-                HuaweiEcgDataSample dataSample = new HuaweiEcgDataSample(summarySample.getEcgId(), delta, d);
+                EcgSample dataSample = new EcgSample(delta, d);
                 res.add(dataSample);
                 delta += sampleRate;
             }
-            db.getDaoSession().getHuaweiEcgDataSampleDao().insertInTx(res);
+            EcgRepository.upsertSession(db.getDaoSession(), summarySample, res);
 
         } catch (Exception e) {
             LOG.error("Failed to add ECG data to database", e);

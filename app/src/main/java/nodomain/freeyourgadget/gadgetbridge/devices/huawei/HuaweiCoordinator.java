@@ -52,9 +52,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiDictData;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiDictDataDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiDictDataValuesDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgSummarySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.database.repository.EcgRepository;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEmotionsSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiHrvValueSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSampleDao;
@@ -202,12 +200,7 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
 
         deleteBy(session.getHuaweiDictDataDao(), HuaweiDictDataDao.Properties.DeviceId, deviceId);
 
-        final QueryBuilder<HuaweiEcgSummarySample> qbEcgSummary = session.getHuaweiEcgSummarySampleDao().queryBuilder();
-        final List<HuaweiEcgSummarySample> ecgSummary = qbEcgSummary.where(HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId)).build().list();
-        for (HuaweiEcgSummarySample sample : ecgSummary) {
-            deleteBy(session.getHuaweiEcgDataSampleDao(), HuaweiEcgDataSampleDao.Properties.EcgId, sample.getEcgId());
-        }
-        deleteBy(session.getHuaweiEcgSummarySampleDao(), HuaweiEcgSummarySampleDao.Properties.DeviceId, deviceId);
+        EcgRepository.deleteForDevice(session, deviceId);
     }
 
     @Override
