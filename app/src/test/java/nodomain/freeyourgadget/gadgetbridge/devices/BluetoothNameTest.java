@@ -23,6 +23,7 @@ public class BluetoothNameTest extends TestBase {
             put("Active 2 NFC (Round)", DeviceType.AMAZFITACTIVE2NFC);
             put("Amazfit Band 7", DeviceType.AMAZFITBAND7); // #2945
             put("ScanWatch CA", DeviceType.WITHINGS_SCANWATCH);
+            put("ScanWatch Light", DeviceType.WITHINGS_SCANWATCH_LIGHT);
             put("Amazfit GTR 3 Pro", DeviceType.AMAZFITGTR3PRO); // #2442
             put("Amazfit GTS", DeviceType.AMAZFITGTS); // #5391
             put("Amazfit GTS 3", DeviceType.AMAZFITGTS3); // #2442

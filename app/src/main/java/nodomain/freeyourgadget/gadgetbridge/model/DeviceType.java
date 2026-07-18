@@ -567,6 +567,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.victron.VictronSmartShuntCoo
 import nodomain.freeyourgadget.gadgetbridge.devices.waspos.WaspOSCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.withingssteelhr.WithingsSteelHRDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch.WithingsScanwatchDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch.WithingsScanwatchLightDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.watches.MiBand10Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.watches.MiBand10ProCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.xiaomi.watches.MiBand4CCoordinator;
@@ -1140,6 +1141,7 @@ public enum DeviceType {
     XIAOMI_SCOOTER_5_MAX(XiaomiScooter5MaxCoordinator.class),
     WITHINGS_STEEL_HR(WithingsSteelHRDeviceCoordinator.class),
     WITHINGS_SCANWATCH(WithingsScanwatchDeviceCoordinator.class),
+    WITHINGS_SCANWATCH_LIGHT(WithingsScanwatchLightDeviceCoordinator.class),
     SONY_WENA_3(SonyWena3Coordinator.class),
     FEMOMETER_VINCA2(FemometerVinca2DeviceCoordinator.class),
     PIXOO(PixooCoordinator.class),

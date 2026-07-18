@@ -95,7 +95,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     @Override
     protected Collection<WithingsUUIDs> getWithingsUUIDCandidates() {
-        return Arrays.asList(WithingsUUIDs.SCANWATCH, WithingsUUIDs.SCANWATCH_2);
+        return Arrays.asList(WithingsUUIDs.SCANWATCH, WithingsUUIDs.SCANWATCH_2, WithingsUUIDs.SCANWATCH_LIGHT);
     }
 
     @Override
@@ -242,15 +242,15 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     protected boolean supportsEcgFeature() {
-        return true;
+        return getActiveWithingsUUIDs() != WithingsUUIDs.SCANWATCH_LIGHT;
     }
 
     protected boolean supportsSpo2Feature() {
-        return true;
+        return getActiveWithingsUUIDs() != WithingsUUIDs.SCANWATCH_LIGHT;
     }
 
     protected boolean supportsRespiratoryFeature() {
-        return true;
+        return getActiveWithingsUUIDs() != WithingsUUIDs.SCANWATCH_LIGHT;
     }
 
     @Override
