@@ -19,57 +19,174 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsSteelHRDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 
+/**
+ * ANCS notification provider for Withings ScanWatch / Steel HR.
+ *
+ * Based on HCI snoop capture analysis of the official Withings app:
+ *
+ * <ul>
+ *   <li><b>Immediate ADDED delivery:</b> ADDED events are forwarded to the watch
+ *       immediately, matching the official app's behavior. DataSource responses
+ *       are chunked to 20 bytes (BLE 4.0 default ATT MTU), with an empty
+ *       terminating packet when the payload size is an exact multiple of 20.</li>
+ *   <li><b>Immediate REMOVED delivery:</b> REMOVED events are forwarded to the
+ *       watch immediately, matching the official app behavior observed in HCI
+ *       captures.</li>
+ *   <li><b>BLE Notifications (not indications):</b> Both NotificationSource and
+ *       DataSource use BLE Notifications (ATT opcode 0x1b, confirm=false),
+ *       matching the official app. The watch subscribes for notifications
+ *       (CCC=0x0001) and expects this format.</li>
+ *   <li><b>Attribute format:</b> attr0=app bundle ID, attr1=sender/title,
+ *       attr2=empty string (always), attr3=message body. The watch displays
+ *       as "{attr1} - {attr3}".</li>
+ * </ul>
+ */
 public class NotificationProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProvider.class);
-    private final WithingsSteelHRDeviceSupport support;
-    private final Map<Integer, NotificationSpec> pendingNotifications = new HashMap<>();
-    private static NotificationProvider instance;
+    private static final Pattern WITHINGS_SOURCE_APP_SUFFIX = Pattern.compile("-(msg|ringing|missed)$", Pattern.CASE_INSENSITIVE);
+    private static final String WITHINGS_DIALER_APP_ID = "dialerApp";
+    private static final String UNKNOWN_DEVICE_KEY = "unknown-withings-device";
+    private static final Map<String, NotificationState> NOTIFICATION_STATES = new ConcurrentHashMap<>();
+    private final WithingsBaseDeviceSupport support;
+    private static final int RECENT_NOTIFICATION_CACHE_SIZE = 256;
+    private volatile Integer activeIncomingCallUid;
 
-    public static NotificationProvider getInstance(WithingsSteelHRDeviceSupport support) {
-        if (instance == null) {
-            instance = new NotificationProvider(support);
-        }
+    /**
+     * How long a pending notification can sit without the watch requesting its
+     * attributes before we consider it stale and remove it. The watch normally
+     * fetches PHASE1 within ~200ms and PHASE2 within ~500ms, but may skip
+     * PHASE2 entirely (~14% of the time based on official app captures).
+     * 60 seconds is generous enough to avoid false positives.
+     */
+    private static final long STALE_PENDING_TIMEOUT_MS = 60_000;
 
-        return instance;
-    }
-
-    private NotificationProvider(WithingsSteelHRDeviceSupport support) {
+    public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
     }
 
+    /**
+     * Send an ANCS ADDED event for the given notification spec.
+     */
     public void notifyClient(NotificationSpec spec) {
+        final NotificationState state = getState();
+
+        if (spec.sourceAppId != null) {
+            state.latestNotificationByApp.put(normalizeSourceAppId(spec.sourceAppId), spec);
+            state.latestNotificationByApp.put(normalizeSourceAppId(getWithingsSourceAppId(spec)), spec);
+        }
+
+        // Clean up stale pending notifications (watch skipped PHASE2)
+        evictStalePending(state);
+
         NotificationSource notificationSource = new NotificationSource(spec.getId(),
                                                                         AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
                                                                         AncsConstants.EVENT_FLAGS_IMPORTANT,
                                                                         mapNotificationType(spec.getType()),
                                                                         (byte)1);
-        pendingNotifications.put(notificationSource.getNotificationUID(), spec);
+
+        final int uid = notificationSource.getNotificationUID();
+
+        if (spec.type == NotificationType.GENERIC_PHONE) {
+            activeIncomingCallUid = uid;
+        }
+
+        state.pendingNotifications.put(uid, new PendingNotification(spec, System.currentTimeMillis()));
+
+        logger.info("Withings sending ADDED id={}, source={}, type={}, pendingCount={}, deviceKey={}",
+                spec.getId(),
+                spec.sourceAppId,
+                spec.type,
+                state.pendingNotifications.size(),
+                getDeviceKey());
         support.sendAncsNotificationSourceNotification(notificationSource);
     }
 
-    public void handleNotificationAttributeRequest(GetNotificationAttributes request) {
-        logger.debug("Request has ID: " + request.getNotificationUID());
-        NotificationSpec spec = pendingNotifications.get(request.getNotificationUID());
-        if (spec == null) {
-            logger.info("No pending notification with notificationUID " + request.getNotificationUID());
-            NotificationSource notificationSource = new NotificationSource(request.getNotificationUID(),
-                                                                            AncsConstants.EVENT_ID_NOTIFICATION_REMOVED,
-                                                                            AncsConstants.EVENT_FLAGS_IMPORTANT,
-                                                                            (byte)0,
-                                                                            (byte)1);
-            support.sendAncsNotificationSourceNotification(notificationSource);
+    /**
+     * Called when the user dismisses a notification on the phone.
+     */
+    public void onDeleteNotification(final int notificationUID) {
+        final NotificationState state = getState();
+
+        if (activeIncomingCallUid != null && activeIncomingCallUid == notificationUID) {
+            activeIncomingCallUid = null;
+        }
+
+        state.pendingNotifications.remove(notificationUID);
+        synchronized (state.recentlyCompletedNotifications) {
+            state.recentlyCompletedNotifications.remove(notificationUID);
+        }
+        logger.info("Withings sending REMOVED for UID={}", notificationUID);
+        sendNotificationRemoved(notificationUID);
+    }
+
+    public void clearActiveIncomingCall() {
+        final Integer uid = activeIncomingCallUid;
+        if (uid == null) {
+            logger.debug("No active incoming call notification to clear");
             return;
         }
+
+        logger.info("Clearing active incoming call notification UID={}", uid);
+        onDeleteNotification(uid);
+    }
+
+    /**
+     * Handle an ANCS Control Point write from the watch requesting notification
+     * attributes. The watch sends two requests per notification:
+     * <ol>
+     *   <li>PHASE1: requests attr0 (app bundle ID)</li>
+     *   <li>PHASE2: requests attr1 (title), attr2 (subtitle), attr3 (message)</li>
+     * </ol>
+     *
+     * The watch may interleave requests for different notification UIDs.
+     * We respond immediately for each request.
+     */
+    public void handleNotificationAttributeRequest(GetNotificationAttributes request) {
+        logger.debug("Request has ID: " + request.getNotificationUID());
+        final NotificationState state = getState();
+
+        NotificationSpec spec = null;
+        PendingNotification pending = state.pendingNotifications.get(request.getNotificationUID());
+        if (pending != null) {
+            spec = pending.spec;
+        }
+        if (spec == null) {
+            synchronized (state.recentlyCompletedNotifications) {
+                spec = state.recentlyCompletedNotifications.get(request.getNotificationUID());
+            }
+        }
+        if (spec == null) {
+            logger.info("No pending notification with notificationUID " + request.getNotificationUID());
+
+            // Reply on the Data Source to unblock the watch's ANCS state machine
+            GetNotificationAttributesResponse emptyResponse = new GetNotificationAttributesResponse(request.getNotificationUID());
+            for (RequestedNotificationAttribute requestedAttribute : request.getAttributes()) {
+                NotificationAttribute attr = new NotificationAttribute();
+                attr.setAttributeID(requestedAttribute.getAttributeID());
+                attr.setAttributeMaxLength(requestedAttribute.getAttributeMaxLength());
+                attr.setValue("");
+                emptyResponse.addAttribute(attr);
+            }
+            support.sendAncsDataSourceNotification(emptyResponse);
+            return;
+        }
+
+        logger.info("Handling notification attribute request id={}, attrs={}, pendingNow={}",
+                request.getNotificationUID(),
+                request.getAttributes().size(),
+                state.pendingNotifications.size());
 
         GetNotificationAttributesResponse response = new GetNotificationAttributesResponse(request.getNotificationUID());
         List<RequestedNotificationAttribute> requestedAttributes = request.getAttributes();
@@ -84,19 +201,45 @@ public class NotificationProvider {
             logger.debug("Handling attribute " + attribute.getAttributeID() + " with maxLength " + attribute.getAttributeLength());
             String value = "";
             if (requestedAttribute.getAttributeID() == 0) {
-                value = spec.getSourceAppId();
+                // attr0 = app bundle ID (e.g. "com.whatsapp", "im.molly.app-msg")
+                value = getWithingsSourceAppId(spec);
             }
             if (requestedAttribute.getAttributeID() == 1) {
+                // attr1 = sender/title line (displayed before the dash on the watch)
+                // For messaging apps: sender name (e.g., "~ Bogo", "~ Carlos Mora")
+                // For other apps (Gotify, etc.): title if available, otherwise app name
                 complete = true;
-                value = spec.getSender() != null? spec.getSender() : (spec.getPhoneNumber() != null? spec.getPhoneNumber() : (spec.getSourceName() != null? spec.getSourceName() : "Unknown"));
+                if (spec.sender != null) {
+                    value = spec.sender;
+                } else if (spec.phoneNumber != null) {
+                    value = spec.phoneNumber;
+                } else if (spec.title != null) {
+                    value = spec.title;
+                } else if (spec.sourceName != null) {
+                    value = spec.sourceName;
+                } else {
+                    value = "Unknown";
+                }
             }
             if (requestedAttribute.getAttributeID() == 2) {
+                // attr2 = subtitle -- official app always sends empty string here.
+                // The watch displays "{attr1} - {attr3}", so attr2 is unused.
                 complete = true;
-                value = spec.getTitle() != null? spec.getTitle() : (spec.getSubject() != null? spec.getSubject() : " ");
+                value = "";
             }
             if (requestedAttribute.getAttributeID() == 3) {
+                // attr3 = message body (displayed after the dash on the watch)
+                // For messaging apps: message content
+                // For other apps: body text, or title if body is absent
                 complete = true;
-                value = (spec.getBody() != null? spec.getBody() : " ");
+                if (spec.body != null) {
+                    value = spec.body;
+                } else if (spec.title != null && spec.sender != null) {
+                    // If we used sender in attr1 and have a title but no body, show title
+                    value = spec.title;
+                } else {
+                    value = " ";
+                }
             }
 
             if (value != null) {
@@ -117,18 +260,117 @@ public class NotificationProvider {
         support.sendAncsDataSourceNotification(response);
 
         if (complete) {
-            pendingNotifications.remove(request.getNotificationUID());
+            // PHASE2 complete -- move notification from pending to recently-completed cache
+            PendingNotification completedPending = state.pendingNotifications.remove(request.getNotificationUID());
+            if (completedPending != null) {
+                logger.info("Completed notification id={}, moving to recent cache, pendingAfter={}",
+                        request.getNotificationUID(),
+                        state.pendingNotifications.size());
+                cacheCompletedNotification(state, request.getNotificationUID(), completedPending.spec);
+            }
+        }
+    }
+
+    private void sendNotificationRemoved(final int notificationUID) {
+        NotificationSource notificationSource = new NotificationSource(notificationUID,
+                                                                        AncsConstants.EVENT_ID_NOTIFICATION_REMOVED,
+                                                                        AncsConstants.EVENT_FLAGS_IMPORTANT,
+                                                                        (byte)0,
+                                                                        (byte)0);
+        support.sendAncsNotificationSourceNotification(notificationSource);
+    }
+
+    /**
+     * Remove pending notifications that the watch never fetched attributes for.
+     *
+     * The watch normally fetches PHASE1 (attr0) within ~200ms and PHASE2 (attrs 1+2+3)
+     * within ~500ms total. However, it skips PHASE2 entirely in ~14% of cases (normal
+     * behaviour based on official app captures). This method evicts notifications older
+     * than 60 seconds to prevent unbounded growth of the pending map while still being
+     * generous enough to avoid false positives for slow watches.
+     */
+    private void evictStalePending(final NotificationState state) {
+        final long now = System.currentTimeMillis();
+        final Iterator<Map.Entry<Integer, PendingNotification>> it = state.pendingNotifications.entrySet().iterator();
+        int evicted = 0;
+        while (it.hasNext()) {
+            final Map.Entry<Integer, PendingNotification> entry = it.next();
+            if (now - entry.getValue().timestampMs > STALE_PENDING_TIMEOUT_MS) {
+                it.remove();
+                evicted++;
+            }
+        }
+        if (evicted > 0) {
+            logger.info("Withings evicted {} stale pending notifications, remaining={}", evicted, state.pendingNotifications.size());
+        }
+    }
+
+    private void cacheCompletedNotification(final NotificationState state, final int notificationUID, final NotificationSpec completedSpec) {
+        synchronized (state.recentlyCompletedNotifications) {
+            state.recentlyCompletedNotifications.put(notificationUID, completedSpec);
+            while (state.recentlyCompletedNotifications.size() > RECENT_NOTIFICATION_CACHE_SIZE) {
+                final Integer eldestKey = state.recentlyCompletedNotifications.keySet().iterator().next();
+                state.recentlyCompletedNotifications.remove(eldestKey);
+            }
         }
     }
 
     public NotificationSpec getNotificationSpecForSourceAppId(String sourceAppId) {
-        for (NotificationSpec notificationSpec : pendingNotifications.values()) {
-            if (notificationSpec.getSourceAppId() != null && notificationSpec.getSourceAppId().equalsIgnoreCase(sourceAppId)) {
-                return notificationSpec;
+        final String normalizedSourceAppId = normalizeSourceAppId(sourceAppId);
+        final NotificationState state = getState();
+
+        // First try finding it in pending notifications (if still active)
+        for (PendingNotification pending : state.pendingNotifications.values()) {
+            if (matchesSourceAppId(pending.spec, normalizedSourceAppId)) {
+                return pending.spec;
             }
         }
 
-        return null;
+        // Fallback to the latest known notification spec for this app
+        return state.latestNotificationByApp.get(normalizedSourceAppId);
+    }
+
+    private NotificationState getState() {
+        return NOTIFICATION_STATES.computeIfAbsent(getDeviceKey(), ignored -> new NotificationState());
+    }
+
+    private String getDeviceKey() {
+        if (support.getDevice() != null && support.getDevice().getAddress() != null) {
+            return support.getDevice().getAddress();
+        }
+        return UNKNOWN_DEVICE_KEY;
+    }
+
+    private String normalizeSourceAppId(final String sourceAppId) {
+        if (sourceAppId == null) {
+            return null;
+        }
+        return WITHINGS_SOURCE_APP_SUFFIX.matcher(sourceAppId).replaceFirst("");
+    }
+
+    static String getWithingsSourceAppId(final NotificationSpec spec) {
+        if (spec == null || spec.sourceAppId == null) {
+            return null;
+        }
+
+        if (WITHINGS_SOURCE_APP_SUFFIX.matcher(spec.sourceAppId).find()) {
+            return spec.sourceAppId;
+        }
+
+        if (spec.type == NotificationType.GENERIC_PHONE) {
+            return WITHINGS_DIALER_APP_ID + "-ringing";
+        }
+
+        return spec.sourceAppId;
+    }
+
+    private boolean matchesSourceAppId(final NotificationSpec notificationSpec, final String normalizedSourceAppId) {
+        if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(normalizedSourceAppId)) {
+            return true;
+        }
+
+        final String withingsSourceAppId = normalizeSourceAppId(getWithingsSourceAppId(notificationSpec));
+        return withingsSourceAppId != null && withingsSourceAppId.equalsIgnoreCase(normalizedSourceAppId);
     }
 
     private byte mapNotificationType(NotificationType type) {
@@ -177,6 +419,32 @@ public class NotificationProvider {
                 return AncsConstants.CATEGORY_ID_SOCIAL;
             default:
                 return AncsConstants.CATEGORY_ID_OTHER;
+        }
+    }
+
+    /**
+     * Per-device notification state. Keyed by device address so multiple
+     * watches can each have independent notification tracking.
+     */
+    private static final class NotificationState {
+        /** Notifications that have been sent as ADDED but haven't completed PHASE2 yet. */
+        private final Map<Integer, PendingNotification> pendingNotifications = new ConcurrentHashMap<>();
+        /** Latest notification per app, for icon-tap lookup on the watch. */
+        private final Map<String, NotificationSpec> latestNotificationByApp = new ConcurrentHashMap<>();
+        /** Recently completed notifications, kept for re-fetch requests from the watch. */
+        private final LinkedHashMap<Integer, NotificationSpec> recentlyCompletedNotifications = new LinkedHashMap<>(RECENT_NOTIFICATION_CACHE_SIZE + 1, 0.75f, true);
+    }
+
+    /**
+     * Wraps a {@link NotificationSpec} with a timestamp for stale eviction.
+     */
+    private static final class PendingNotification {
+        final NotificationSpec spec;
+        final long timestampMs;
+
+        PendingNotification(NotificationSpec spec, long timestampMs) {
+            this.spec = spec;
+            this.timestampMs = timestampMs;
         }
     }
     
