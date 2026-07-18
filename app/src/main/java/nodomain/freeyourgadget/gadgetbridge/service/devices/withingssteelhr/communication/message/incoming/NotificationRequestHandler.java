@@ -54,6 +54,7 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         try {
             SourceAppId appId = message.getStructureByType(SourceAppId.class);
             ImageMetaData imageMetaData = message.getStructureByType(ImageMetaData.class);
+            normalizeImageMetaData(imageMetaData);
             Message reply = new WithingsMessage((short) (WithingsMessageType.GET_NOTIFICATION | 0x4000));
             reply.addDataStructure(appId);
             reply.addDataStructure(imageMetaData);
@@ -83,15 +84,6 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         int height = imageMetaData.getHeight() & 0xFF;
         logger.info("Icon size is width='{}', height='{}'", width, height);
 
-        // The scanwatch only has a very small screen, and can't display large images.
-        // If you send it an icon above a certain size, the watch will crash, and the
-        // connection to the watch will be lost.
-        // So let's shrink the icon down to a more appropriate size.
-        // Or, if the size isn't defined, set it to a sensible value.
-        if (width == 0 || height == 0 || width > 22 || height > 24) {
-            width = 22;
-            height = 24;
-        }
         String cacheKey = sourceAppId + "_" + width + "x" + height;
         byte[] imageData = appIconCache.get(cacheKey);
         if (imageData == null) {
@@ -160,4 +152,17 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         return imageData;
     }
 
+    static void normalizeImageMetaData(final ImageMetaData imageMetaData) {
+        final int width = imageMetaData.getWidth() & 0xFF;
+        final int height = imageMetaData.getHeight() & 0xFF;
+        // The scanwatch only has a very small screen, and can't display large images.
+        // If you send it an icon above a certain size, the watch will crash, and the
+        // connection to the watch will be lost.
+        // So let's shrink the icon down to a more appropriate size.
+        // Or, if the size isn't defined, set it to a sensible value.
+        if (width == 0 || height == 0 || width > 22 || height > 24) {
+            imageMetaData.setWidth((byte) 22);
+            imageMetaData.setHeight((byte) 24);
+        }
+    }
 }

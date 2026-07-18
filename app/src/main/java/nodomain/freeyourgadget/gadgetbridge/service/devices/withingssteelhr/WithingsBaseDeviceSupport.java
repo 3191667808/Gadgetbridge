@@ -910,28 +910,37 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     /**
      * Send an ANCS DataSource response to the watch, chunked to 20-byte BLE packets.
-     *
-     * <p>The official Withings app sends DataSource payload as plain 20-byte chunks
-     * (or a final short chunk), matching BLE 4.0 ATT payload size. It does not append
-     * an extra empty notification as a terminator for exact-multiple-of-20 payloads.
+     * Exact multiples need an empty final packet so the watch can distinguish the
+     * final full packet from a continuation.
      */
     public void sendAncsDataSourceNotification(GetNotificationAttributesResponse response) {
         try {
             ServerTransactionBuilder builder = performServer("dataSourceNotification");
             byte[] data = response.serialize();
-            int chunkSize = 20;
-            for (int i = 0; i < data.length; i += chunkSize) {
-                int length = Math.min(chunkSize, data.length - i);
-                byte[] chunk = new byte[length];
-                System.arraycopy(data, i, chunk, 0, length);
-                logger.debug("Sending ANCS DataSource chunk offset={}, length={}, total={}", i, length, data.length);
+            int offset = 0;
+            for (byte[] chunk : chunkAncsDataSourcePayload(data)) {
+                logger.debug("Sending ANCS DataSource chunk offset={}, length={}, total={}", offset, chunk.length, data.length);
                 builder.notifyCharacteristicChanged(getServerDevice(), dataSourceCharacteristic, chunk);
+                offset += chunk.length;
             }
             builder.queue(getQueue());
         } catch (IOException e) {
             logger.error("Could not send notification.", e);
             GB.toast("Could not send notification.", Toast.LENGTH_LONG, GB.ERROR, e);
         }
+    }
+
+    static List<byte[]> chunkAncsDataSourcePayload(final byte[] data) {
+        final int chunkSize = 20;
+        final List<byte[]> chunks = new ArrayList<>((data.length / chunkSize) + 1);
+        for (int offset = 0; offset < data.length; offset += chunkSize) {
+            final int length = Math.min(chunkSize, data.length - offset);
+            chunks.add(Arrays.copyOfRange(data, offset, offset + length));
+        }
+        if (data.length % chunkSize == 0) {
+            chunks.add(new byte[0]);
+        }
+        return chunks;
     }
 
     public NotificationProvider getNotificationProvider() {

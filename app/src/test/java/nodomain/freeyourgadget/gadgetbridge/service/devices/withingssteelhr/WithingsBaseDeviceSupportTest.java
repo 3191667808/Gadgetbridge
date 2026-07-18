@@ -20,6 +20,8 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import java.util.List;
+
 public class WithingsBaseDeviceSupportTest {
     @Test
     public void smartWakeupIntervalIsClampedToDeviceLimit() {
@@ -31,5 +33,33 @@ public class WithingsBaseDeviceSupportTest {
     public void smartWakeupIntervalDefaultsToTwentyMinutes() {
         assertEquals(20, WithingsBaseDeviceSupport.clampSmartWakeupInterval(null, 60));
         assertEquals(20, WithingsBaseDeviceSupport.clampSmartWakeupInterval(0, 60));
+    }
+
+    @Test
+    public void ancsDataSourceExactChunkHasEmptyTerminator() {
+        final List<byte[]> chunks = WithingsBaseDeviceSupport.chunkAncsDataSourcePayload(new byte[20]);
+
+        assertEquals(2, chunks.size());
+        assertEquals(20, chunks.get(0).length);
+        assertEquals(0, chunks.get(1).length);
+    }
+
+    @Test
+    public void ancsDataSourceShortFinalChunkNeedsNoTerminator() {
+        final List<byte[]> chunks = WithingsBaseDeviceSupport.chunkAncsDataSourcePayload(new byte[21]);
+
+        assertEquals(2, chunks.size());
+        assertEquals(20, chunks.get(0).length);
+        assertEquals(1, chunks.get(1).length);
+    }
+
+    @Test
+    public void ancsDataSourceMultipleFullChunksHaveEmptyTerminator() {
+        final List<byte[]> chunks = WithingsBaseDeviceSupport.chunkAncsDataSourcePayload(new byte[40]);
+
+        assertEquals(3, chunks.size());
+        assertEquals(20, chunks.get(0).length);
+        assertEquals(20, chunks.get(1).length);
+        assertEquals(0, chunks.get(2).length);
     }
 }
