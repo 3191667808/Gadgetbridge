@@ -318,13 +318,15 @@ public class FitExporter {
         // on every record. HR is already gated on >0 inside buildRecord.
         boolean trackHasCadence = false;
         boolean trackHasPower = false;
+        boolean trackHasSpeed = false;
         for (final List<ActivityPoint> seg : segments) {
             for (final ActivityPoint p : seg) {
                 if (!trackHasCadence && p.getCadence() > 0) trackHasCadence = true;
                 if (!trackHasPower && Float.isFinite(p.getPower()) && p.getPower() > 0f) trackHasPower = true;
-                if (trackHasCadence && trackHasPower) break;
+                if (!trackHasSpeed && Float.isFinite(p.getSpeed()) && p.getSpeed() > 0f) trackHasSpeed = true;
+                if (trackHasCadence && trackHasPower && trackHasSpeed) break;
             }
-            if (trackHasCadence && trackHasPower) break;
+            if (trackHasCadence && trackHasPower && trackHasSpeed) break;
         }
 
         final List<RecordData> records = new ArrayList<>();
@@ -400,7 +402,7 @@ public class FitExporter {
                 // (same ts, same fields). Keeps multi-record-per-second sources intact.
                 final long sig = pointSignature(p);
                 if (haveLastSig && sig == lastEmittedSig) continue;
-                final RecordData rec = buildRecord(p, trackHasCadence, trackHasPower,
+                final RecordData rec = buildRecord(p, trackHasCadence, trackHasPower, trackHasSpeed,
                         locomotion ? gpsDistanceForPoint : null);
                 if (rec != null) {
                     records.add(rec);
@@ -667,6 +669,7 @@ public class FitExporter {
     private RecordData buildRecord(@NonNull final ActivityPoint p,
                                    final boolean trackHasCadence,
                                    final boolean trackHasPower,
+                                   final boolean trackHasSpeed,
                                    @Nullable final Double gpsCumulativeDistance) {
         if (p.getTime() == null) {
             return null;
@@ -701,16 +704,23 @@ public class FitExporter {
             b.setHeartRate(p.getHeartRate());
         }
 
-        // Cadence: emit only when the track has at least one non-zero sample; a
-        // track-wide stream of zeros means the device has no cadence sensor and the
-        // zeros are sentinels, not measurements.
-        if (trackHasCadence && p.getCadence() >= 0) {
-            b.setCadence(p.getCadence());
+        // Cadence: only when the track has a cadence sensor (at least one non-zero sample),
+        // since a track-wide stream of zeros means no sensor and the zeros are sentinels
+        // rather than measurements. With the sensor present, always emit a value: the reading
+        // when there is one, else 0 for the unset (-1) sentinel parsers leave during rest.
+        // An explicit 0 keeps a pause distinguishable from a data gap downstream.
+        if (trackHasCadence) {
+            b.setCadence(Math.max(0, p.getCadence()));
         }
 
         final float speed = p.getSpeed();
         if (Float.isFinite(speed) && speed >= 0f) {
             b.setEnhancedSpeed((double) speed);
+        } else if (trackHasSpeed) {
+            // As for cadence above: on a speed-bearing track (treadmill), rest samples leave
+            // the -1 sentinel, so emit 0. Sports with no speed stream (e.g. rowing) never set
+            // trackHasSpeed, so speed stays omitted there.
+            b.setEnhancedSpeed(0.0);
         }
 
         final double distance = p.getDistance();
@@ -930,7 +940,19 @@ public class FitExporter {
             b.setMaxSpeed(maxSpeed);
             b.setEnhancedMaxSpeed(maxSpeed.doubleValue());
         }
-        final Integer avgCadence = readInt(data, ActivitySummaryEntries.CADENCE_AVG, agg.getAvgCadence());
+        // avg_cadence: prefer the device summary. Otherwise, when the lap carries a stroke
+        // count (total_cycles, e.g. rowing), derive avg_cadence = strokes / (timer/60) so it
+        // agrees with the total_cycles reported in the same message; the point-stream average
+        // skips zero and paused samples, so it disagrees on a mostly stationary rest lap.
+        // Fall back to the point average only when there is no stroke count.
+        Integer avgCadence = readInt(data, ActivitySummaryEntries.CADENCE_AVG, null);
+        if (avgCadence == null) {
+            if (overrides.strokes != null && overrides.strokes >= 0L && elapsedSeconds > 0L) {
+                avgCadence = (int) Math.round(overrides.strokes / (elapsedSeconds / 60.0));
+            } else {
+                avgCadence = agg.getAvgCadence();
+            }
+        }
         if (avgCadence != null) {
             b.setAvgCadence(avgCadence);
         }
@@ -1095,6 +1117,9 @@ public class FitExporter {
             distance = agg.getGpsDistance();
         }
         boolean totalCyclesSet = false;
+        // Stroke count behind total_cycles for rowing and paddle sports, kept to derive the
+        // session avg_cadence below. Left null for the steps branch.
+        Long sessionStrokes = null;
         // Rowing-only synth: when no measured distance is available, derive from total
         // strokes × default stroke length. Strokes prefer summary STROKES (single
         // authoritative figure parsed from device), fall back to sum of per-lap strokes.
@@ -1109,6 +1134,7 @@ public class FitExporter {
                 b.setTotalCycles(totalStrokes);
                 b.setAvgStrokeDistance((float) strokeLen);
                 totalCyclesSet = true;
+                sessionStrokes = totalStrokes;
             }
         }
         if (distance != null) {
@@ -1128,6 +1154,7 @@ public class FitExporter {
             final Long strokeCount = readLong(data, ActivitySummaryEntries.STROKES, lapStrokesFallback);
             if (strokeCount != null) {
                 b.setTotalCycles(strokeCount);
+                sessionStrokes = strokeCount;
             }
         }
         // Ascent/descent: prefer the source summary, fall back to GPS-derived elevation
@@ -1167,7 +1194,16 @@ public class FitExporter {
             b.setMaxSpeed(maxSpeed);
             b.setEnhancedMaxSpeed(maxSpeed.doubleValue());
         }
-        final Integer avgCadence = readInt(data, ActivitySummaryEntries.CADENCE_AVG, agg.getAvgCadence());
+        // avg_cadence: as for the lap above, but from sessionStrokes. The steps branch leaves
+        // sessionStrokes null, so running and walking cadence is untouched.
+        Integer avgCadence = readInt(data, ActivitySummaryEntries.CADENCE_AVG, null);
+        if (avgCadence == null) {
+            if (sessionStrokes != null && sessionStrokes >= 0L && elapsedSeconds > 0L) {
+                avgCadence = (int) Math.round(sessionStrokes / (elapsedSeconds / 60.0));
+            } else {
+                avgCadence = agg.getAvgCadence();
+            }
+        }
         if (avgCadence != null) {
             b.setAvgCadence(avgCadence);
         }
