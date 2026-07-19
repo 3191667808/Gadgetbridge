@@ -908,11 +908,28 @@ public class NotificationListener extends NotificationListenerService {
 
         NotificationCompat.MessagingStyle messagingStyle = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification);
         if (messagingStyle != null) {
+            final CharSequence conversationTitle = messagingStyle.getConversationTitle();
+            if (conversationTitle != null) {
+                final String sanitizedConversationTitle = sanitizeUnicode(conversationTitle.toString());
+                if (!StringUtils.isBlank(sanitizedConversationTitle)) {
+                    notificationSpec.conversationTitle = sanitizedConversationTitle;
+                }
+            }
             List<NotificationCompat.MessagingStyle.Message> messages = messagingStyle.getMessages();
             if (!messages.isEmpty()) {
                 // Get the last message (assumed to be the most recent)
                 NotificationCompat.MessagingStyle.Message lastMessage = messages.get(messages.size() - 1);
 
+                final androidx.core.app.Person senderPerson = lastMessage.getPerson();
+                if (senderPerson != null && !StringUtils.isBlank(senderPerson.getName())) {
+                    final String senderName = sanitizeUnicode(senderPerson.getName().toString());
+                    notificationSpec.conversationSender = senderName;
+                }
+
+                final CharSequence messageText = lastMessage.getText();
+                if (!StringUtils.isBlank(messageText)) {
+                    notificationSpec.conversationBody = sanitizeUnicode(messageText.toString());
+                }
                 if (supportedPictureMimeTypes.contains(lastMessage.getDataMimeType()) && lastMessage.getDataUri() != null) {
                     ContentResolver contentResolver = getContentResolver();
 

@@ -209,17 +209,7 @@ public class NotificationProvider {
                 // For messaging apps: sender name (e.g., "~ Bogo", "~ Carlos Mora")
                 // For other apps (Gotify, etc.): title if available, otherwise app name
                 complete = true;
-                if (spec.sender != null) {
-                    value = spec.sender;
-                } else if (spec.phoneNumber != null) {
-                    value = spec.phoneNumber;
-                } else if (spec.title != null) {
-                    value = spec.title;
-                } else if (spec.sourceName != null) {
-                    value = spec.sourceName;
-                } else {
-                    value = "Unknown";
-                }
+                value = getWithingsTitle(spec, support.prefersLatestConversationNotification());
             }
             if (requestedAttribute.getAttributeID() == 2) {
                 // attr2 = subtitle -- official app always sends empty string here.
@@ -232,14 +222,7 @@ public class NotificationProvider {
                 // For messaging apps: message content
                 // For other apps: body text, or title if body is absent
                 complete = true;
-                if (spec.body != null) {
-                    value = spec.body;
-                } else if (spec.title != null && spec.sender != null) {
-                    // If we used sender in attr1 and have a title but no body, show title
-                    value = spec.title;
-                } else {
-                    value = " ";
-                }
+                value = getWithingsBody(spec, support.prefersLatestConversationNotification());
             }
 
             if (value != null) {
@@ -269,6 +252,38 @@ public class NotificationProvider {
                 cacheCompletedNotification(state, request.getNotificationUID(), completedPending.spec);
             }
         }
+    }
+
+    static String getWithingsTitle(final NotificationSpec spec, final boolean preferLatestConversation) {
+        if (preferLatestConversation && spec.conversationSender != null) {
+            return spec.conversationSender;
+        }
+        if (spec.sender != null) {
+            return spec.sender;
+        }
+        if (spec.phoneNumber != null) {
+            return spec.phoneNumber;
+        }
+        if (spec.title != null) {
+            return spec.title;
+        }
+        if (spec.sourceName != null) {
+            return spec.sourceName;
+        }
+        return "Unknown";
+    }
+
+    static String getWithingsBody(final NotificationSpec spec, final boolean preferLatestConversation) {
+        if (preferLatestConversation && spec.conversationBody != null) {
+            return spec.conversationBody;
+        }
+        if (spec.body != null) {
+            return spec.body;
+        }
+        if (spec.title != null && spec.sender != null) {
+            return spec.title;
+        }
+        return " ";
     }
 
     private void sendNotificationRemoved(final int notificationUID) {

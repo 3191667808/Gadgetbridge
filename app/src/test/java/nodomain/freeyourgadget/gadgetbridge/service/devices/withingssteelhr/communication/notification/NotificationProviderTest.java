@@ -79,6 +79,30 @@ public class NotificationProviderTest extends TestBase {
     }
 
     @Test
+    public void testScanWatchUsesLatestConversationMessage() {
+        NotificationSpec spec = new NotificationSpec();
+        spec.title = "Family Group (9 messages): Alice";
+        spec.body = "Standard body";
+        spec.conversationSender = "Alice";
+        spec.conversationBody = "Latest message";
+
+        assertEquals("Alice", NotificationProvider.getWithingsTitle(spec, true));
+        assertEquals("Latest message", NotificationProvider.getWithingsBody(spec, true));
+    }
+
+    @Test
+    public void testOtherWithingsDevicesKeepStandardNotificationFields() {
+        NotificationSpec spec = new NotificationSpec();
+        spec.title = "Family Group (9 messages): Alice";
+        spec.body = "Standard body";
+        spec.conversationSender = "Alice";
+        spec.conversationBody = "Latest message";
+
+        assertEquals("Family Group (9 messages): Alice", NotificationProvider.getWithingsTitle(spec, false));
+        assertEquals("Standard body", NotificationProvider.getWithingsBody(spec, false));
+    }
+
+    @Test
     public void testIconRenderingCentersTallDrawable() {
         final Bitmap bitmap = Bitmap.createBitmap(40, 80, Bitmap.Config.ARGB_8888);
         for (int y = 0; y < 80; y++) {

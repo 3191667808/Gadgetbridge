@@ -254,6 +254,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     @Override
+    public boolean prefersLatestConversationNotification() {
+        return true;
+    }
+
+    @Override
     protected boolean supportsStoredMeasureSync() {
         return supportsSpo2Feature() || supportsEcgFeature();
     }

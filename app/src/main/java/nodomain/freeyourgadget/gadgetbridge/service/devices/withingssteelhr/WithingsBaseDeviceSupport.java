@@ -949,6 +949,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         return notificationProvider;
     }
 
+    public boolean prefersLatestConversationNotification() {
+        return false;
+    }
+
     public void finishInitialization() {
         TransactionBuilder builder = createTransactionBuilder("setupFinished");
         builder.setDeviceState(GBDevice.State.INITIALIZED);
