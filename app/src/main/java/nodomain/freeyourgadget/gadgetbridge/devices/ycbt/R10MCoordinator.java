@@ -16,9 +16,11 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.ycbt;
 
+import android.app.Activity;
 import android.bluetooth.le.ScanFilter;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -73,6 +75,12 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getBondingStyle() {
         return BONDING_STYLE_NONE;
+    }
+
+    @Nullable
+    @Override
+    public Class<? extends Activity> getPairingActivity() {
+        return YcbtPairingActivity.class;
     }
 
     @Override

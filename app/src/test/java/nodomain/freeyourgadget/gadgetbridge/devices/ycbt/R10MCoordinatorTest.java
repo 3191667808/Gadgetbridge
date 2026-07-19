@@ -67,6 +67,7 @@ public class R10MCoordinatorTest extends TestBase {
         assertTrue(coordinator.isExperimental());
         assertTrue(coordinator.isConnectable());
         assertEquals(DeviceCoordinator.BONDING_STYLE_NONE, coordinator.getBondingStyle());
+        assertEquals(YcbtPairingActivity.class, coordinator.getPairingActivity());
         assertEquals(DeviceCoordinator.DeviceKind.RING, coordinator.getDeviceKind(null));
         assertEquals(0, coordinator.getBatteryCount(null));
     }

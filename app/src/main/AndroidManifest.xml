@@ -812,6 +812,11 @@
             android:label="@string/devicetype_gree_ac"
             android:parentActivityName=".activities.discovery.DiscoveryActivityV2" />
         <activity
+            android:name=".devices.ycbt.YcbtPairingActivity"
+            android:exported="false"
+            android:label="@string/title_activity_ycbt_pairing"
+            android:parentActivityName=".activities.discovery.DiscoveryActivityV2" />
+        <activity
             android:name=".devices.lenovo.watch9.Watch9PairingActivity"
             android:label="@string/title_activity_watch9_pairing" />
         <activity
