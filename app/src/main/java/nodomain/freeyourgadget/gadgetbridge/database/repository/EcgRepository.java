@@ -94,7 +94,7 @@ public class EcgRepository {
     }
 
     public static long getLatestEndTimestamp(@NonNull final GBDevice gbDevice) {
-        try (DBHandler db = GBApplication.acquireDB()) {
+        try (DBHandler db = GBApplication.acquireDbReadOnly()) {
             final Device dbDevice = DBHelper.findDevice(gbDevice, db.getDaoSession());
             if (dbDevice == null) {
                 return 0;
@@ -127,7 +127,9 @@ public class EcgRepository {
                         HuaweiEcgSummarySampleDao.Properties.DeviceId.eq(deviceId),
                         HuaweiEcgSummarySampleDao.Properties.StartTimestamp.eq(startTimestamp)
                 )
-                .count() > 0;
+                .limit(1)
+                .build()
+                .unique() != null;
     }
 
     public static boolean hasCompleteSession(final DaoSession daoSession,
