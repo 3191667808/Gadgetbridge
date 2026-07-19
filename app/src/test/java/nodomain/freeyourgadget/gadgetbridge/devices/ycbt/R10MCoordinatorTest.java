@@ -63,9 +63,9 @@ public class R10MCoordinatorTest extends TestBase {
     }
 
     @Test
-    public void remainsAnExperimentalNonConnectableRing() {
+    public void isAnExperimentalConnectableRing() {
         assertTrue(coordinator.isExperimental());
-        assertFalse(coordinator.isConnectable());
+        assertTrue(coordinator.isConnectable());
         assertEquals(DeviceCoordinator.BONDING_STYLE_NONE, coordinator.getBondingStyle());
         assertEquals(DeviceCoordinator.DeviceKind.RING, coordinator.getDeviceKind(null));
         assertEquals(0, coordinator.getBatteryCount(null));

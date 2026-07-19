@@ -14,19 +14,22 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.devices.ycbt;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.ycbt;
 
-import java.util.UUID;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
-public final class YcbtConstants {
-    public static final String R10M_DEVICE_NAME = "R10M FCF4";
-    public static final byte[] OBSERVED_MANUFACTURER_BYTES = new byte[]{0x10, 0x78};
+import android.bluetooth.BluetoothGattCharacteristic;
 
-    public static final UUID SERVICE_UUID = UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb");
-    public static final UUID FFE1_CHARACTERISTIC_UUID = UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb");
-    public static final UUID FFE2_CHARACTERISTIC_UUID = UUID.fromString("0000ffe2-0000-1000-8000-00805f9b34fb");
-    public static final UUID WRITE_CHARACTERISTIC_UUID = FFE1_CHARACTERISTIC_UUID;
+import org.junit.Test;
 
-    private YcbtConstants() {
+public class YcbtDeviceSupportTest {
+    @Test
+    public void requiresIndicateButAllowsNotifyAndIndicate() {
+        assertTrue(YcbtDeviceSupport.supportsIndications(BluetoothGattCharacteristic.PROPERTY_INDICATE));
+        assertTrue(YcbtDeviceSupport.supportsIndications(
+                BluetoothGattCharacteristic.PROPERTY_NOTIFY | BluetoothGattCharacteristic.PROPERTY_INDICATE
+        ));
+        assertFalse(YcbtDeviceSupport.supportsIndications(BluetoothGattCharacteristic.PROPERTY_NOTIFY));
     }
 }

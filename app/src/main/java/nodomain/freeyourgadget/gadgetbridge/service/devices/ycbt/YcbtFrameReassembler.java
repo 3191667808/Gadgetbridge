@@ -28,8 +28,15 @@ public final class YcbtFrameReassembler {
         if (fragment == null) {
             throw new IllegalArgumentException("Fragment must not be null");
         }
+        return acceptWithDiagnostics(fragment).getFrames();
+    }
+
+    public AcceptResult acceptWithDiagnostics(final byte[] fragment) {
+        if (fragment == null) {
+            return new AcceptResult(Collections.emptyList(), "Fragment must not be null");
+        }
         if (fragment.length == 0) {
-            return Collections.emptyList();
+            return new AcceptResult(Collections.emptyList(), null);
         }
 
         final byte[] combined = Arrays.copyOf(buffered, buffered.length + fragment.length);
@@ -37,9 +44,11 @@ public final class YcbtFrameReassembler {
         buffered = combined;
 
         final List<YcbtFrameCodec.Frame> frames = new ArrayList<>();
+        String malformedReason = null;
         while (buffered.length >= YcbtFrameCodec.HEADER_LENGTH) {
             final int declaredLength = YcbtFrameCodec.readLittleEndianUnsignedShort(buffered, 2);
             if (declaredLength < YcbtFrameCodec.MINIMUM_FRAME_LENGTH) {
+                malformedReason = "Declared frame length is shorter than the minimum length";
                 buffered = new byte[0];
                 break;
             }
@@ -51,6 +60,7 @@ public final class YcbtFrameReassembler {
             try {
                 frames.add(YcbtFrameCodec.decode(encodedFrame));
             } catch (final IllegalArgumentException e) {
+                malformedReason = e.getMessage();
                 buffered = new byte[0];
                 break;
             }
@@ -58,6 +68,24 @@ public final class YcbtFrameReassembler {
             buffered = Arrays.copyOfRange(buffered, declaredLength, buffered.length);
         }
 
-        return frames;
+        return new AcceptResult(frames, malformedReason);
+    }
+
+    public static final class AcceptResult {
+        private final List<YcbtFrameCodec.Frame> frames;
+        private final String malformedReason;
+
+        private AcceptResult(final List<YcbtFrameCodec.Frame> frames, final String malformedReason) {
+            this.frames = Collections.unmodifiableList(new ArrayList<>(frames));
+            this.malformedReason = malformedReason;
+        }
+
+        public List<YcbtFrameCodec.Frame> getFrames() {
+            return frames;
+        }
+
+        public String getMalformedReason() {
+            return malformedReason;
+        }
     }
 }

@@ -46,7 +46,7 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean isConnectable() {
-        return false;
+        return true;
     }
 
     @Override
