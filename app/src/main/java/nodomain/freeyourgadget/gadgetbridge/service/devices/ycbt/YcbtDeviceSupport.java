@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.ycbt;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 
 import androidx.annotation.NonNull;
@@ -35,6 +36,7 @@ import java.util.UUID;
 import nodomain.freeyourgadget.gadgetbridge.devices.ycbt.YcbtConstants;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.BleNamesResolver;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattDescriptor;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -47,6 +49,62 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     public YcbtDeviceSupport() {
         super(LOG);
         addSupportedService(YcbtConstants.SERVICE_UUID);
+    }
+
+    @Override
+    public void onServicesDiscovered(final BluetoothGatt gatt) {
+        final List<BluetoothGattService> services = gatt.getServices();
+        final List<YcbtGattInventory.Service> serviceMetadata = new ArrayList<>();
+        final int shownServiceCount = Math.min(services.size(), YcbtGattInventory.MAX_SERVICES);
+        for (int serviceIndex = 0; serviceIndex < shownServiceCount; serviceIndex++) {
+            final BluetoothGattService service = services.get(serviceIndex);
+            final List<BluetoothGattCharacteristic> characteristics = service.getCharacteristics();
+            final List<YcbtGattInventory.Characteristic> characteristicMetadata = new ArrayList<>();
+            final int shownCharacteristicCount = Math.min(
+                    characteristics.size(),
+                    YcbtGattInventory.MAX_CHARACTERISTICS_PER_SERVICE
+            );
+            for (int characteristicIndex = 0; characteristicIndex < shownCharacteristicCount; characteristicIndex++) {
+                final BluetoothGattCharacteristic characteristic = characteristics.get(characteristicIndex);
+                final List<BluetoothGattDescriptor> descriptors = characteristic.getDescriptors();
+                final List<UUID> descriptorUuids = new ArrayList<>();
+                final int shownDescriptorCount = Math.min(
+                        descriptors.size(),
+                        YcbtGattInventory.MAX_DESCRIPTORS_PER_CHARACTERISTIC
+                );
+                for (int descriptorIndex = 0; descriptorIndex < shownDescriptorCount; descriptorIndex++) {
+                    descriptorUuids.add(descriptors.get(descriptorIndex).getUuid());
+                }
+                characteristicMetadata.add(new YcbtGattInventory.Characteristic(
+                        characteristic.getUuid(),
+                        characteristic.getProperties(),
+                        BleNamesResolver.getCharacteristicPropertyString(characteristic.getProperties()),
+                        descriptors.size(),
+                        descriptorUuids
+                ));
+            }
+            serviceMetadata.add(new YcbtGattInventory.Service(
+                    service.getUuid(),
+                    serviceType(service.getType()),
+                    characteristics.size(),
+                    characteristicMetadata
+            ));
+        }
+
+        final BluetoothGattService assumedService = gatt.getService(YcbtConstants.SERVICE_UUID);
+        final Integer assumedServiceCharacteristicCount = assumedService == null
+                ? null
+                : assumedService.getCharacteristics().size();
+        final YcbtGattInventory.Inventory inventory = new YcbtGattInventory.Inventory(
+                services.size(),
+                serviceMetadata,
+                assumedServiceCharacteristicCount
+        );
+        for (final String event : YcbtGattInventory.format(inventory, YcbtConstants.SERVICE_UUID)) {
+            diagnostic(YcbtDiagnostics.TYPE_STAGE, event);
+        }
+
+        super.onServicesDiscovered(gatt);
     }
 
     @Override
@@ -263,6 +321,16 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             return "FFE2";
         }
         return characteristicUuid.toString();
+    }
+
+    private static String serviceType(final int type) {
+        if (type == BluetoothGattService.SERVICE_TYPE_PRIMARY) {
+            return "primary(" + type + ")";
+        }
+        if (type == BluetoothGattService.SERVICE_TYPE_SECONDARY) {
+            return "secondary(" + type + ")";
+        }
+        return "unknown(" + type + ")";
     }
 
     @Override
