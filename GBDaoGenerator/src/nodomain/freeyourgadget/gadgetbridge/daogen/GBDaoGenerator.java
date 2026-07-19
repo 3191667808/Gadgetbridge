@@ -185,6 +185,7 @@ public class GBDaoGenerator {
         addPolarH10ActivitySample(schema, user, device);
         addWithingsSteelHRActivitySample(schema, user, device);
         addWithingsScanwatchActivitySample(schema, user, device);
+        addWithingsBreathingDisturbanceSample(schema, user, device);
         sampleProvidersToGenerate.add(addGenericBloodPressureSample(schema, user, device));
         addHybridHRActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addHybridHRSpo2Sample(schema, user, device));
@@ -1932,6 +1933,15 @@ public class GBDaoGenerator {
         addHeartRateProperties(activitySample);
         activitySample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         return activitySample;
+    }
+
+    private static Entity addWithingsBreathingDisturbanceSample(Schema schema, Entity user, Entity device) {
+        final Entity sample = addEntity(schema, "WithingsBreathingDisturbanceSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
+        sample.addIntProperty("duration").notNull();
+        sample.addIntProperty("apneaHypopneaIndex").notNull();
+        sample.addIntProperty("breathingEventProbability").notNull();
+        return sample;
     }
 
     private static Entity addWena3BehaviorSample(Schema schema, Entity user, Entity device) {

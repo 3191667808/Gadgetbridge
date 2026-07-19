@@ -411,7 +411,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             getDevice().setBusyTask(R.string.busy_task_syncing, getContext());
             getDevice().sendDeviceUpdateIntent(getContext());
             syncInProgress = true;
-            final boolean shouldSync = shouldSync();
+            final boolean shouldSync = shouldSync(triggerSource);
             logger.info("Starting Withings sync, trigger={}, shouldSync={}", triggerSource, shouldSync);
             if (withingsEcgHandler == null) {
                 withingsEcgHandler = createEcgHandler();
@@ -454,7 +454,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 c.setTimeInMillis(getActivitySyncStartTimestamp());
 
                 // Mimic official app's request sequence for GET_ACTIVITY_SAMPLES with different Vasistas types.
-                // If these specific modifiers (Vasistas types 6, 5, 9, 8) and TypeVersion/VasistasType modifiers
+                // If these specific modifiers and TypeVersion/VasistasType modifiers
                 // for GET_MOVEMENT_SAMPLES are omitted, the watch sends a default payload that is missing the
                 // explicit WORKOUT_TYPE TLV (0x0969/2409). By mimicking the official app's exact requests,
                 // the watch includes the correct workout type (e.g., Weightlifting, Cycling, Running) during
@@ -469,14 +469,16 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new VasistasType(5));
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
-                message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
-                message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
-                message.addDataStructure(new VasistasType(9));
-                addSimpleConversationToQueue(message, activitySampleHandler);
+                if (supportsSleepBreathingSync()) {
+                    message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
+                    message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                    message.addDataStructure(new VasistasType(VasistasType.TYPE_AHI));
+                    addSimpleConversationToQueue(message, activitySampleHandler);
+                }
 
                 message = new WithingsMessage(WithingsMessageType.GET_ACTIVITY_SAMPLES, ExpectedResponse.EOT);
                 message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
-                message.addDataStructure(new VasistasType(8));
+                message.addDataStructure(new VasistasType(VasistasType.TYPE_SPO2));
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
                 // Mimic GET_MOVEMENT_SAMPLES with TypeVersion 3
@@ -1438,10 +1440,14 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         return Math.max(0, getLastSyncTimestamp() - ACTIVITY_SYNC_OVERLAP_MILLIS);
     }
 
-    private boolean shouldSync() {
-        long lastSynced = getLastSyncTimestamp();
-        int minuteInMillis = 60 * 1000;
-        return new Date().getTime() - lastSynced > minuteInMillis;
+    private boolean shouldSync(final String triggerSource) {
+        return shouldRunFullSync(triggerSource, System.currentTimeMillis(), getLastSyncTimestamp());
+    }
+
+    static boolean shouldRunFullSync(final String triggerSource, final long now, final long lastSynced) {
+        // A user pressing Refresh expects newly recorded health data to be queried immediately.
+        // The freshness shortcut is only appropriate for automatic and watch-originated triggers.
+        return "manual-fetch".equals(triggerSource) || now - lastSynced > 60_000L;
     }
 
     private User getUser() {
@@ -1496,6 +1502,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     protected boolean supportsStoredMeasureSync() {
         return true;
+    }
+
+    protected boolean supportsSleepBreathingSync() {
+        return false;
     }
 
     /**

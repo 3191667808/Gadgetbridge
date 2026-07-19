@@ -258,6 +258,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         return supportsSpo2Feature() || supportsEcgFeature();
     }
 
+    @Override
+    protected boolean supportsSleepBreathingSync() {
+        return supportsRespiratoryFeature();
+    }
+
     /**
      * Keep notification feature tags separate from ScanWatch health tags.
      *

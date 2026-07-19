@@ -20,6 +20,8 @@ import java.nio.ByteBuffer;
 
 public class VasistasType extends WithingsStructure {
     public static final int TYPE_SPO2 = 8;
+    public static final int TYPE_AHI = 9;
+    public static final int TYPE_RESPIRATORY_RATE = 12;
 
     private int value;
 

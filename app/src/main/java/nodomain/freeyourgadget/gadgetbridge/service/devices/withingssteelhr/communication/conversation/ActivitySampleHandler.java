@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
+import nodomain.freeyourgadget.gadgetbridge.entities.WithingsBreathingDisturbanceSample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.activity.ActivityEntry;
@@ -46,6 +47,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.comm
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivitySampleWalk;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ActivityHeartrate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasSpo2;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasAhi;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.VasistasRespiratoryRate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.WithingsStructureType;
@@ -61,6 +63,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     private List<ActivityEntry> heartrateEntries = new ArrayList<>();
     private final List<long[]> spo2Entries = new ArrayList<>();
     private final List<long[]> respiratoryRateEntries = new ArrayList<>();
+    private final List<long[]> breathingDisturbanceEntries = new ArrayList<>();
 
     public ActivitySampleHandler(WithingsBaseDeviceSupport support) {
         super(support);
@@ -75,7 +78,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     }
 
     public void onSyncFinished() {
-        mergeHeartrateSamplesIntoActivitySammples();
+        heartrateEntries = mergeHeartrateSamplesIntoActivitySamples(activityEntries, heartrateEntries);
         saveData();
     }
 
@@ -118,6 +121,9 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                 case WithingsStructureType.VASISTAS_SPO2:
                     handleSpo2(data);
                     break;
+                case WithingsStructureType.VASISTAS_AHI:
+                    handleAhi(data);
+                    break;
                 case WithingsStructureType.VASISTAS_RESPIRATORY_RATE:
                     handleRespiratoryRate(data);
                     break;
@@ -128,6 +134,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
 
         if (activityEntry != null) {
             addToList(activityEntry);
+            activityEntry = null;
         }
 
     }
@@ -145,6 +152,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     private void handleWorkoutType(WithingsStructure data) {
         WithingsActivityType activityType = WithingsActivityType.fromCode(((WorkoutType) data).getActivityType());
         activityEntry.setRawKind(activityType.toActivityKind().getCode());
+        activityEntry.setHasActivityData(true);
     }
 
     private void handleDuration(WithingsStructure data) {
@@ -201,57 +209,101 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                 timestampMs, rate);
     }
 
+    private void handleAhi(final WithingsStructure data) {
+        if (activityEntry == null) {
+            logger.info("Received Withings breathing-disturbance vasistas without timestamp context: {}", GB.hexdump(data.getRawData()));
+            return;
+        }
+
+        final VasistasAhi vasistasAhi = (VasistasAhi) data;
+        if (!vasistasAhi.isValid()) {
+            logger.info("Skipping Withings breathing-disturbance vasistas with invalid probability: ts={} ahi={} probability={}",
+                    activityEntry.getTimestamp(),
+                    vasistasAhi.getApneaHypopneaIndex(),
+                    vasistasAhi.getBreathingEventProbability());
+            return;
+        }
+
+        breathingDisturbanceEntries.add(new long[]{
+                activityEntry.getTimestamp() * 1000L,
+                activityEntry.getDuration(),
+                vasistasAhi.getApneaHypopneaIndex(),
+                vasistasAhi.getBreathingEventProbability()
+        });
+    }
+
     private void handleMovement(WithingsStructure data) {
         if (activityEntry.getRawKind() == ActivityKind.NOT_MEASURED.getCode()) {
             activityEntry.setRawKind(ActivityKind.UNKNOWN.getCode());
         }
         activityEntry.setSteps(((ActivitySampleMovement) data).getSteps());
         activityEntry.setDistance(((ActivitySampleMovement) data).getDistance());
+        activityEntry.setHasActivityData(true);
     }
 
     private void handleWalk(WithingsStructure data) {
         activityEntry.setRawKind(ActivityKind.WALKING.getCode());
+        activityEntry.setHasActivityData(true);
     }
 
     private void handleRun(WithingsStructure data) {
         activityEntry.setRawKind(ActivityKind.RUNNING.getCode());
+        activityEntry.setHasActivityData(true);
     }
 
     private void handleSwim(WithingsStructure data) {
         activityEntry.setRawKind(ActivityKind.SWIMMING.getCode());
+        activityEntry.setHasActivityData(true);
     }
 
     private void handleSleep(WithingsStructure data) {
-        ActivityKind sleepType;
-        switch (((ActivitySampleSleep) data).getSleepType()) {
+        final int sleepTypeValue = ((ActivitySampleSleep) data).getSleepType();
+        final ActivityKind sleepType = getSleepActivityKind(sleepTypeValue);
+        switch (sleepTypeValue) {
             case 0:
-                sleepType = ActivityKind.LIGHT_SLEEP;
-                activityEntry.setRawIntensity(10);
+                activityEntry.setRawIntensity(0);
+                break;
+            case 1:
+                activityEntry.setRawIntensity(50);
                 break;
             case 2:
-                sleepType = ActivityKind.DEEP_SLEEP;
                 activityEntry.setRawIntensity(70);
                 break;
             case 3:
-                sleepType = ActivityKind.REM_SLEEP;
                 activityEntry.setRawIntensity(80);
                 break;
             default:
-                sleepType = ActivityKind.LIGHT_SLEEP;
                 activityEntry.setRawIntensity(50);
         }
 
         activityEntry.setRawKind(sleepType.getCode());
+        activityEntry.setHasActivityData(true);
+    }
+
+    static ActivityKind getSleepActivityKind(final int sleepType) {
+        switch (sleepType) {
+            case 0:
+                return ActivityKind.AWAKE_SLEEP;
+            case 2:
+                return ActivityKind.DEEP_SLEEP;
+            case 3:
+                return ActivityKind.REM_SLEEP;
+            case 1:
+            default:
+                return ActivityKind.LIGHT_SLEEP;
+        }
     }
 
     private void handleCalories1(WithingsStructure data) {
         activityEntry.setRawIntensity(((ActivitySampleCalories) data).getMet());
         activityEntry.setCalories(((ActivitySampleCalories) data).getCalories());
+        activityEntry.setHasActivityData(true);
     }
 
     private void handleCalories2(WithingsStructure data) {
         activityEntry.setRawIntensity(((ActivitySampleCalories2) data).getMet());
         activityEntry.setCalories(((ActivitySampleCalories2) data).getCalories());
+        activityEntry.setHasActivityData(true);
 
     }
 
@@ -273,7 +325,7 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
     private void addToList(ActivityEntry activityEntry) {
         if (activityEntry.isHeartrate()) {
             heartrateEntries.add(activityEntry);
-        } else {
+        } else if (activityEntry.hasActivityData()) {
             activityEntries.add(activityEntry);
         }
     }
@@ -310,6 +362,22 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
                 rrProvider.addSamples(rrSamples);
                 logger.info("Stored {} Withings respiratory rate sample(s)", rrSamples.size());
             }
+
+            if (!breathingDisturbanceEntries.isEmpty()) {
+                final List<WithingsBreathingDisturbanceSample> samples = new ArrayList<>(breathingDisturbanceEntries.size());
+                for (final long[] entry : breathingDisturbanceEntries) {
+                    final WithingsBreathingDisturbanceSample sample = new WithingsBreathingDisturbanceSample();
+                    sample.setTimestamp(entry[0]);
+                    sample.setDeviceId(deviceId);
+                    sample.setUserId(userId);
+                    sample.setDuration((int) entry[1]);
+                    sample.setApneaHypopneaIndex((int) entry[2]);
+                    sample.setBreathingEventProbability((int) entry[3]);
+                    samples.add(sample);
+                }
+                dbHandler.getDaoSession().getWithingsBreathingDisturbanceSampleDao().insertOrReplaceInTx(samples);
+                logger.info("Stored {} Withings breathing-disturbance sample(s)", samples.size());
+            }
         } catch (Exception ex) {
             logger.warn("Error saving activity data: " + ex.getLocalizedMessage());
         }
@@ -344,31 +412,38 @@ public class ActivitySampleHandler extends AbstractResponseHandler {
         return sample;
     }
 
-    private void mergeHeartrateSamplesIntoActivitySammples() {
+    static List<ActivityEntry> mergeHeartrateSamplesIntoActivitySamples(
+            final List<ActivityEntry> activityEntries, final List<ActivityEntry> heartrateEntries) {
+        final List<ActivityEntry> retainedHeartrateEntries = new ArrayList<>(heartrateEntries.size());
         for (ActivityEntry heartrateEntry : heartrateEntries) {
+            ActivityEntry bestActivityEntry = null;
             for (ActivityEntry activityEntry : activityEntries) {
-                if (doActivitiesOverlap(heartrateEntry, activityEntry)) {
-                    updateHeartrateEntry(heartrateEntry, activityEntry);
+                if (doActivitiesOverlap(heartrateEntry, activityEntry)
+                        && (bestActivityEntry == null || activityEntry.getTimestamp() > bestActivityEntry.getTimestamp())) {
+                    bestActivityEntry = activityEntry;
                 }
             }
+
+            if (bestActivityEntry == null) {
+                retainedHeartrateEntries.add(heartrateEntry);
+            } else if (heartrateEntry.getTimestamp() == bestActivityEntry.getTimestamp()) {
+                bestActivityEntry.setIsHeartrate(heartrateEntry.getHeartrate());
+            } else {
+                updateHeartrateEntry(heartrateEntry, bestActivityEntry);
+                retainedHeartrateEntries.add(heartrateEntry);
+            }
         }
+        return retainedHeartrateEntries;
     }
 
-    private boolean doActivitiesOverlap(ActivityEntry heartrateEntry, ActivityEntry activityEntry) {
+    private static boolean doActivitiesOverlap(ActivityEntry heartrateEntry, ActivityEntry activityEntry) {
         return activityEntry.getTimestamp() <= heartrateEntry.getTimestamp()
-                && (activityEntry.getTimestamp() + activityEntry.getDuration()) >= heartrateEntry.getTimestamp();
+                && (activityEntry.getTimestamp() + activityEntry.getDuration()) > heartrateEntry.getTimestamp();
     }
 
-    private void updateHeartrateEntry(ActivityEntry heartRateEntry, ActivityEntry activityEntry) {
+    private static void updateHeartrateEntry(ActivityEntry heartRateEntry, ActivityEntry activityEntry) {
         heartRateEntry.setRawKind(activityEntry.getRawKind());
         heartRateEntry.setRawIntensity(activityEntry.getRawIntensity());
         heartRateEntry.setDuration(activityEntry.getDuration() - (heartRateEntry.getTimestamp() - activityEntry.getTimestamp()));
-        // If timestamps are exactly the same and only then, the heartrate entry would overwrite the activity entry in the DB, so we set more values.
-        // If we would do so everytime, steps and so on would be multiplicated.
-        if (heartRateEntry.getTimestamp() == activityEntry.getTimestamp()) {
-            heartRateEntry.setSteps(activityEntry.getSteps());
-            heartRateEntry.setDistance(activityEntry.getDistance());
-            heartRateEntry.setCalories(activityEntry.getCalories());
-        }
     }
 }

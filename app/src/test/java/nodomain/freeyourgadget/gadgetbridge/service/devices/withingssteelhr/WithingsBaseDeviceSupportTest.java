@@ -17,6 +17,8 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -61,5 +63,16 @@ public class WithingsBaseDeviceSupportTest {
         assertEquals(20, chunks.get(0).length);
         assertEquals(20, chunks.get(1).length);
         assertEquals(0, chunks.get(2).length);
+    }
+
+    @Test
+    public void manualFetchAlwaysRunsFullSync() {
+        assertTrue(WithingsBaseDeviceSupport.shouldRunFullSync("manual-fetch", 100_000L, 99_999L));
+    }
+
+    @Test
+    public void automaticTriggerUsesLastSyncFreshness() {
+        assertFalse(WithingsBaseDeviceSupport.shouldRunFullSync("watch-sync-request", 100_000L, 50_000L));
+        assertTrue(WithingsBaseDeviceSupport.shouldRunFullSync("watch-sync-request", 110_001L, 50_000L));
     }
 }

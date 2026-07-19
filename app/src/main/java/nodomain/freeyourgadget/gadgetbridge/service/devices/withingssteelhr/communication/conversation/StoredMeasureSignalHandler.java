@@ -42,6 +42,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
     private static final Logger logger = LoggerFactory.getLogger(StoredMeasureSignalHandler.class);
     private static final int MEASUREMENT_TYPE_SPO2 = 54;
     private static final int MEASUREMENT_TYPE_HEART_RATE = 11;
+    private static final int MEASUREMENT_TYPE_SIGNAL_QUALITY = 89;
     private static final int ECG_MEASUREMENT_TYPE = 0x0103;
     private static final int ECG_WAVEFORM_SIGNAL_TYPE = 0x0001;
     private static final int MAX_DELETE_ATTEMPTS = 256;
@@ -120,7 +121,7 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                 sawAnyStoredData = true;
                 logger.info("  StoredMeasureMeta: measurementType=0x{} ({}) timestampMs={}",
                         Integer.toHexString(currentMeta.getMeasurementType()), currentMeta.getMeasurementType(), currentMeta.getTimestampMs());
-                if (currentMeta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
+                if (isEcgMeasurement(signalType, currentMeta.getMeasurementType())) {
                     pendingEcgMeta = currentMeta;
                 }
                 continue;
@@ -170,6 +171,12 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
                     } else {
                         sawUndecodableData = true;
                     }
+                    continue;
+                }
+
+                if (isKnownAuxiliaryMeasurement(data.getMeasurementType())) {
+                    logger.debug("Ignoring known stored-measure auxiliary value: metaType={} dataType={} rawValue={}",
+                            currentMeta.getMeasurementType(), data.getMeasurementType(), data.getRawValue());
                     continue;
                 }
 
@@ -401,5 +408,17 @@ public class StoredMeasureSignalHandler implements ResponseHandler {
         }
 
         return meta.getMeasurementType() == MEASUREMENT_TYPE_HEART_RATE;
+    }
+
+    static boolean isEcgMeasurement(final int signalType, final int measurementType) {
+        // 0x0103 also identifies on-demand SpO2 records on signal queue 0x0004.
+        // It is an ECG key only on the dedicated ECG waveform queue.
+        return signalType == ECG_WAVEFORM_SIGNAL_TYPE && measurementType == ECG_MEASUREMENT_TYPE;
+    }
+
+    static boolean isKnownAuxiliaryMeasurement(final int measurementType) {
+        // Present alongside the SpO2 value in official-app captures. The official app stores the
+        // measurement and deletes the page, so this must not make an otherwise valid page unsafe.
+        return measurementType == MEASUREMENT_TYPE_SIGNAL_QUALITY;
     }
 }

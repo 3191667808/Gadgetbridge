@@ -72,6 +72,14 @@ public class IncomingMessageHandlerFactory {
                     handlers.put(message.getType(), new SyncRequestHandler(support));
                 }
                 break;
+            case WithingsMessageType.MEASURE_START:
+            case WithingsMessageType.MEASURE_STOP:
+                if (handler == null) {
+                    final MeasurementRequestHandler measurementHandler = new MeasurementRequestHandler(support);
+                    handlers.put(WithingsMessageType.MEASURE_START, measurementHandler);
+                    handlers.put(WithingsMessageType.MEASURE_STOP, measurementHandler);
+                }
+                break;
             default:
                 logger.warn("Unhandled incoming message type: " + message.getType());
         }

@@ -1,4 +1,4 @@
-/*  Copyright (C) 2026 Gadgetbridge contributors
+/*  Copyright (C) 2026 d3vv3
 
     This file is part of Gadgetbridge.
 
@@ -18,27 +18,21 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 
 import java.nio.ByteBuffer;
 
-/**
- * Vasistas respiratory rate data structure (TLV type 0x09D9).
- *
- * Wire format: a 32-bit respiratory rate in breaths per minute.
- */
-public class VasistasRespiratoryRate extends WithingsStructure {
-    private int respiratoryRate;
+/** Minute-level sleep breathing-disturbance data (TLV type 0x09A0). */
+public class VasistasAhi extends WithingsStructure {
+    private int apneaHypopneaIndex;
+    private int breathingEventProbability;
 
-    /**
-     * Returns the respiratory rate in breaths per minute.
-     * Values >= 1000 indicate invalid/no-data and should be filtered.
-     */
-    public int getRespiratoryRate() {
-        return respiratoryRate;
+    public int getApneaHypopneaIndex() {
+        return apneaHypopneaIndex;
     }
 
-    /**
-     * Returns true if this sample contains a valid respiratory rate measurement.
-     */
+    public int getBreathingEventProbability() {
+        return breathingEventProbability;
+    }
+
     public boolean isValid() {
-        return respiratoryRate > 0 && respiratoryRate < 200;
+        return breathingEventProbability >= 0 && breathingEventProbability <= 127;
     }
 
     @Override
@@ -48,20 +42,20 @@ public class VasistasRespiratoryRate extends WithingsStructure {
 
     @Override
     protected void fillinTypeSpecificData(final ByteBuffer buffer) {
-        buffer.putInt(respiratoryRate);
+        buffer.putShort((short) apneaHypopneaIndex);
+        buffer.putShort((short) breathingEventProbability);
     }
 
     @Override
     protected void fillFromRawDataAsBuffer(final ByteBuffer rawDataBuffer) {
         if (rawDataBuffer.remaining() >= 4) {
-            respiratoryRate = rawDataBuffer.getInt();
-        } else if (rawDataBuffer.remaining() >= 2) {
-            respiratoryRate = rawDataBuffer.getShort() & 0xFFFF;
+            apneaHypopneaIndex = rawDataBuffer.getShort();
+            breathingEventProbability = rawDataBuffer.getShort();
         }
     }
 
     @Override
     public short getType() {
-        return WithingsStructureType.VASISTAS_RESPIRATORY_RATE;
+        return WithingsStructureType.VASISTAS_AHI;
     }
 }

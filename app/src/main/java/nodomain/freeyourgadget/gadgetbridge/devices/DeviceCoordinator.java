@@ -402,6 +402,12 @@ public interface DeviceCoordinator {
     boolean supportsSleepRespiratoryRate(@NonNull final GBDevice device);
 
     /**
+     * Returns true if the device provides a sleep breathing-quality assessment independently
+     * of respiratory-rate samples.
+     */
+    boolean supportsSleepBreathingQuality(@NonNull final GBDevice device);
+
+    /**
      * Returns true if measurement and fetching of body weight is supported by the device
      * (with this coordinator).
      */

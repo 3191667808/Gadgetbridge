@@ -68,7 +68,8 @@ public class WithingsStructureType {
     public static final short VASISTAS_TYPE = 1301;
     public static final short STORED_SIGNAL_META_EXTEND = 326;
     public static final short VASISTAS_SPO2 = (short) 0x0995;
-    public static final short VASISTAS_RESPIRATORY_RATE = (short) 0x09A0;
+    public static final short VASISTAS_AHI = (short) 0x09A0;
+    public static final short VASISTAS_RESPIRATORY_RATE = (short) 0x09D9;
     public static final short WORKOUT_TYPE = 2409;
     public static final short LIVE_WORKOUT_START = 2418;
     public static final short LIVE_WORKOUT_END = 2419;

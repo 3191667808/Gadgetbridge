@@ -1,4 +1,4 @@
-/*  Copyright (C) 2026 José Rebelo
+/*  Copyright (C) 2026 d3vv3
 
     This file is part of Gadgetbridge.
 
@@ -19,22 +19,14 @@ package nodomain.freeyourgadget.gadgetbridge.database.schema;
 import android.database.sqlite.SQLiteDatabase;
 
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
+import nodomain.freeyourgadget.gadgetbridge.entities.WithingsScanwatchActivitySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.WithingsBreathingDisturbanceSampleDao;
 
-public class GadgetbridgeUpdate_139 implements DBUpdateScript {
+public class GadgetbridgeUpdate_141 implements DBUpdateScript {
     @Override
     public void upgradeSchema(final SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS \"WITHINGS_SCANWATCH_ACTIVITY_SAMPLE\" (" +
-                "\"TIMESTAMP\" INTEGER NOT NULL," +
-                "\"DEVICE_ID\" INTEGER NOT NULL," +
-                "\"USER_ID\" INTEGER NOT NULL," +
-                "\"DURATION\" INTEGER NOT NULL DEFAULT -1," +
-                "\"RAW_KIND\" INTEGER NOT NULL DEFAULT -1," +
-                "\"STEPS\" INTEGER NOT NULL DEFAULT -1," +
-                "\"DISTANCE\" INTEGER NOT NULL DEFAULT -1," +
-                "\"CALORIES\" INTEGER NOT NULL DEFAULT -1," +
-                "\"HEART_RATE\" INTEGER NOT NULL DEFAULT -1," +
-                "\"RAW_INTENSITY\" INTEGER NOT NULL DEFAULT -1," +
-                "PRIMARY KEY (\"TIMESTAMP\", \"DEVICE_ID\"));");
+        WithingsScanwatchActivitySampleDao.createTable(db, true);
+        WithingsBreathingDisturbanceSampleDao.createTable(db, true);
     }
 
     @Override

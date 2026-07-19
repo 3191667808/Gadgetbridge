@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -106,18 +107,16 @@ public class RespiratoryRateDailyFragment extends RespiratoryRateFragment<Respir
         final List<ILineDataSet> lineDataSets = new ArrayList<>();
         List<Entry> lineEntries = new ArrayList<>();
         final TimestampTranslation tsTranslation = new TimestampTranslation();
-        int lastTsShorten = 0;
-        for (final RespiratoryRateSample sample : respiratoryRateDay.respiratoryRateSamples) {
+        int lastTsShorten = Integer.MIN_VALUE;
+        final List<RespiratoryRateSample> sortedSamples = new ArrayList<>(respiratoryRateDay.respiratoryRateSamples);
+        sortedSamples.sort(Comparator.comparingLong(RespiratoryRateSample::getTimestamp));
+        for (final RespiratoryRateSample sample : sortedSamples) {
             int ts = (int) (sample.getTimestamp() / 1000L);
             int tsShorten = tsTranslation.shorten(ts);
-            if (lastTsShorten == 0 || (tsShorten - lastTsShorten) <= 300) {
-                lineEntries.add(new Entry(tsShorten, (int) sample.getRespiratoryRate()));
-            } else {
+            if (lastTsShorten != Integer.MIN_VALUE && (tsShorten - lastTsShorten) > 300) {
                 if (!lineEntries.isEmpty()) {
-                    List<Entry> clone = new ArrayList<>(lineEntries.size());
-                    clone.addAll(lineEntries);
-                    lineDataSets.add(createDataSet(clone));
-                    lineEntries.clear();
+                    lineDataSets.add(createDataSet(lineEntries));
+                    lineEntries = new ArrayList<>();
                 }
             }
             lastTsShorten = tsShorten;
@@ -134,20 +133,24 @@ public class RespiratoryRateDailyFragment extends RespiratoryRateFragment<Respir
             yAxisLeft.setAxisMaximum(Math.max(respiratoryRateDay.rateHighest + 3, 20));
         }
 
-        final LineDataSet lineDataSet = new LineDataSet(lineEntries, getString(R.string.respiratoryrate));
-        lineDataSet.setColor(ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color));
-        lineDataSet.setDrawCircles(false);
-        lineDataSet.setLineWidth(2f);
-        lineDataSet.setFillAlpha(255);
-        lineDataSet.setDrawCircles(false);
-        lineDataSet.setCircleColor(ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color));
-        lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-        lineDataSet.setDrawValues(false);
-        lineDataSet.setMode(LineDataSet.Mode.HORIZONTAL_BEZIER);
-
-        lineDataSets.add(lineDataSet);
         final LineData lineData = new LineData(lineDataSets);
+        final float[] axisBounds = getAxisBounds(lineData);
+        respiratoryRateChart.getXAxis().setAxisMinimum(axisBounds[0]);
+        respiratoryRateChart.getXAxis().setAxisMaximum(axisBounds[1]);
         respiratoryRateChart.setData(lineData);
+    }
+
+    static float[] getAxisBounds(final LineData lineData) {
+        if (lineData == null || lineData.getEntryCount() == 0) {
+            return new float[]{0f, 86400f};
+        }
+
+        final float minimum = lineData.getXMin();
+        final float maximum = lineData.getXMax();
+        if (minimum == maximum) {
+            return new float[]{minimum - 1f, maximum + 1f};
+        }
+        return new float[]{minimum, maximum};
     }
 
     protected LineDataSet createDataSet(final List<Entry> values) {

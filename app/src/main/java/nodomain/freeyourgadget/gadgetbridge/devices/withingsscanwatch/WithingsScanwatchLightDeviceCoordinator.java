@@ -61,6 +61,11 @@ public class WithingsScanwatchLightDeviceCoordinator extends WithingsScanwatchDe
     }
 
     @Override
+    public boolean supportsSleepBreathingQuality(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
     public DeviceChartsProvider getChartsProvider() {
         return DefaultChartsProvider.INSTANCE;
     }

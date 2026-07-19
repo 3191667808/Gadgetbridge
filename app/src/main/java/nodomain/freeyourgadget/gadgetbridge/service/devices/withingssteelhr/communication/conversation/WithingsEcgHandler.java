@@ -33,8 +33,6 @@ import nodomain.freeyourgadget.gadgetbridge.model.EcgRecord;
 import nodomain.freeyourgadget.gadgetbridge.model.EcgSample;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.EndOfTransmission;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.MeasureCategory;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.MeasureLiveAppStatus;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.RawWithingsStructure;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.StoredMeasureDataExtend;
@@ -108,7 +106,7 @@ public class WithingsEcgHandler implements ResponseHandler {
         deletedEcgCount = 0;
         logger.info("Starting Withings ECG discovery");
         updateEcgProgress("Scanning for ECG records", 0, true);
-        queueDiscoveryProbe(true);
+        queueStoredEcgHead();
     }
 
     public boolean hasDiscoveredRecord(final StoredMeasureMeta recordKey) {
@@ -195,18 +193,18 @@ public class WithingsEcgHandler implements ResponseHandler {
         return false;
     }
 
-    private void queueDiscoveryProbe(final boolean initial) {
-        // Some watches reply to the discovery probe with only the first 0x0973 page and never send
-        // an EOT/MEASURE_STOP follow-up. Waiting for EOT here can therefore block the whole sync and
-        // prevent the queued SYNC_OK from ever being sent. Keep the queue moving after the first
-        // response and rely on maybeHandleMeasurementMessage() to consume any later ECG follow-up
-        // packets out-of-band.
-        logger.debug("Queueing Withings ECG discovery probe, initial={}, discoveryPagesSeen={}, waveformFetchQueued={}",
-                initial, discoveryPagesSeen, waveformFetchQueued);
-        final WithingsMessage message = new WithingsMessage(WithingsMessageType.MEASURE_START, ExpectedResponse.SIMPLE);
-        message.addDataStructure(new MeasureCategory(MeasureCategory.ECG));
-        message.addDataStructure(new MeasureLiveAppStatus(initial ? 1 : 0));
-        support.addSimpleConversationFirst(message, this);
+    private void queueStoredEcgHead() {
+        logger.debug("Queueing Withings stored ECG head probe, discoveryPagesSeen={}, waveformFetchQueued={}",
+                discoveryPagesSeen, waveformFetchQueued);
+        waveformFetchQueued = true;
+        activeWaveformHandler = new EcgWaveformHandler(null, true, true, false, false, -1);
+        support.addSimpleConversationFirst(createStoredEcgHeadProbe(), activeWaveformHandler);
+    }
+
+    static WithingsMessage createStoredEcgHeadProbe() {
+        final WithingsMessage message = new WithingsMessage(WithingsMessageType.GET_STORED_MEASURE_SIGNAL, ExpectedResponse.EOT);
+        message.addDataStructure(new StoredSignalMeta(ECG_WAVEFORM_SIGNAL_TYPE, 0));
+        return message;
     }
 
     private void handleDiscoveryResponse(final Message response) {
@@ -265,7 +263,7 @@ public class WithingsEcgHandler implements ResponseHandler {
                 updateEcgProgress("No ECG records to sync", 100, false);
             }
             if (!waveformFetchQueued && hasEcgMarkers && discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
-                queueDiscoveryProbe(false);
+                queueStoredEcgHead();
             } else if (!waveformFetchQueued && hasEcgMarkers) {
                 logger.warn("Withings ECG discovery stopped after {} pages without queueing waveform fetch", discoveryPagesSeen);
             }
@@ -383,7 +381,7 @@ public class WithingsEcgHandler implements ResponseHandler {
     }
 
     private final class EcgWaveformHandler implements ResponseHandler {
-        private final StoredMeasureMeta requestedRecordKey;
+        private StoredMeasureMeta requestedRecordKey;
         private final boolean countTowardsProgress;
         private final boolean storeWaveformAfterFetch;
         private final boolean verifyDeletion;
@@ -422,6 +420,19 @@ public class WithingsEcgHandler implements ResponseHandler {
                 if (structure instanceof StoredMeasureMeta) {
                     final StoredMeasureMeta meta = (StoredMeasureMeta) structure;
                     if (meta.getMeasurementType() == ECG_MEASUREMENT_TYPE) {
+                        if (requestedRecordKey == null) {
+                            requestedRecordKey = meta;
+                            if (isNewRecordKey(meta)) {
+                                seenRecordKeys.add(meta.getRawPayload());
+                                final long timestampMs = meta.getTimestampMs();
+                                if (timestampMs > 0 && !seenRecordTimestamps.contains(timestampMs)) {
+                                    seenRecordTimestamps.add(timestampMs);
+                                }
+                                discoveredEcgCount++;
+                                logger.info("Discovered Withings ECG record from stored signal queue ts={} type={}",
+                                        timestampMs, meta.getMeasurementType());
+                            }
+                        }
                         startTimestampMs = meta.getTimestampMs();
                     }
                 } else if (structure instanceof StoredMeasureData) {
@@ -469,20 +480,35 @@ public class WithingsEcgHandler implements ResponseHandler {
 
             if (!support.hasEndOfTransmission(response)) {
                 logger.debug("Withings ECG waveform response awaiting more packets for ts={} structures={}",
-                        startTimestampMs > 0 ? startTimestampMs : requestedRecordKey.getTimestampMs(),
+                        getRecordTimestampMs(),
                         describeStructures(structures));
                 return;
             }
 
             logger.debug("Withings ECG waveform response reached EOT for ts={} deleteKeyPresent={} verifyDeletion={} samples={} structures={}",
-                    startTimestampMs > 0 ? startTimestampMs : requestedRecordKey.getTimestampMs(),
+                    getRecordTimestampMs(),
                     deleteKey != null,
                     verifyDeletion,
                     waveform.size(),
                     describeStructures(structures));
 
             if (startTimestampMs <= 0) {
-                startTimestampMs = requestedRecordKey.getTimestampMs();
+                startTimestampMs = getRecordTimestampMs();
+            }
+
+            if (requestedRecordKey == null && waveform.isEmpty() && deleteKey == null) {
+                logger.info("No stored Withings ECG records available");
+                updateEcgProgress("No ECG records to sync", 100, false);
+                activeWaveformHandler = null;
+                waveformFetchQueued = false;
+                return;
+            }
+
+            if (requestedRecordKey == null) {
+                logger.warn("Keeping stored ECG data on watch because its exact 0x0116 record key was missing");
+                activeWaveformHandler = null;
+                waveformFetchQueued = false;
+                return;
             }
 
             if (verifyDeletion) {
@@ -508,7 +534,7 @@ public class WithingsEcgHandler implements ResponseHandler {
                     }
                     support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
                 } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
-                    queueDiscoveryProbe(false);
+                    queueStoredEcgHead();
                 }
                 return;
             }
@@ -562,8 +588,15 @@ public class WithingsEcgHandler implements ResponseHandler {
                     support.queueGetStoredMeasureSignal(originatingSignalType, 0, new StoredMeasureSignalHandler(support, device, originatingSignalType));
                 }
             } else if (discoveryPagesSeen < MAX_DISCOVERY_PAGES) {
-                queueDiscoveryProbe(false);
+                queueStoredEcgHead();
             }
+        }
+
+        private long getRecordTimestampMs() {
+            if (startTimestampMs > 0) {
+                return startTimestampMs;
+            }
+            return requestedRecordKey == null ? 0 : requestedRecordKey.getTimestampMs();
         }
 
     }

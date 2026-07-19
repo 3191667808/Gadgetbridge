@@ -70,10 +70,13 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SleepDetails
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SleepDetailsView;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.GaugeDrawer;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.databinding.FragmentSleepchartBinding;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.WithingsBreathingDisturbanceSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.WithingsBreathingDisturbanceSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -197,58 +200,61 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     private SleepBreathingQualityAssessment assessSleepBreathingQuality(final DBHandler db,
                                                                         final GBDevice device,
                                                                         final List<SleepSession> sleepSessions) {
-        if (!supportsSleepRespiratoryRate(device) || sleepSessions.isEmpty()) {
+        if (!supportsSleepBreathingQuality(device) || sleepSessions.isEmpty()) {
             return null;
         }
 
-        final DeviceCoordinator coordinator = device.getDeviceCoordinator();
-        final TimeSampleProvider<? extends RespiratoryRateSample> provider = coordinator.getRespiratoryRateSampleProvider(device, db.getDaoSession());
-        if (provider == null) {
+        final long deviceId;
+        try {
+            deviceId = DBHelper.getDevice(device, db.getDaoSession()).getId();
+        } catch (final Exception e) {
+            LOG.warn("Failed to resolve device for breathing-quality assessment", e);
             return null;
         }
 
         final long tsStart = sleepSessions.get(0).getSleepStart().getTime();
         final long tsEnd = sleepSessions.get(sleepSessions.size() - 1).getSleepEnd().getTime();
-        final List<? extends RespiratoryRateSample> samples = provider.getAllSamples(tsStart, tsEnd);
+        final List<WithingsBreathingDisturbanceSample> samples = db.getDaoSession()
+                .getWithingsBreathingDisturbanceSampleDao()
+                .queryBuilder()
+                .where(
+                        WithingsBreathingDisturbanceSampleDao.Properties.DeviceId.eq(deviceId),
+                        WithingsBreathingDisturbanceSampleDao.Properties.Timestamp.ge(tsStart),
+                        WithingsBreathingDisturbanceSampleDao.Properties.Timestamp.le(tsEnd)
+                )
+                .orderAsc(WithingsBreathingDisturbanceSampleDao.Properties.Timestamp)
+                .list();
         if (samples.isEmpty()) {
             return null;
         }
 
-        final Accumulator accumulator = new Accumulator();
-        int calmSamples = 0;
-        int acceptableSamples = 0;
-        for (final RespiratoryRateSample sample : samples) {
-            final float respiratoryRate = sample.getRespiratoryRate();
-            if (respiratoryRate <= 0 || respiratoryRate >= 200) {
+        double weightedProbability = 0;
+        long totalDurationMs = 0;
+        for (final WithingsBreathingDisturbanceSample sample : samples) {
+            final int probability = sample.getBreathingEventProbability();
+            if (probability < 0 || probability > 127) {
                 continue;
             }
 
-            accumulator.add(respiratoryRate);
-            if (respiratoryRate >= 9 && respiratoryRate <= 22) {
-                calmSamples++;
-            }
-            if (respiratoryRate >= 8 && respiratoryRate <= 26) {
-                acceptableSamples++;
+            final long sampleStart = sample.getTimestamp();
+            final long sampleDurationMs = Math.max(1, sample.getDuration()) * 1000L;
+            final long sampleEnd = sampleStart + sampleDurationMs;
+            for (final SleepSession session : sleepSessions) {
+                final long overlapStart = Math.max(sampleStart, session.getSleepStart().getTime());
+                final long overlapEnd = Math.min(sampleEnd, session.getSleepEnd().getTime());
+                if (overlapEnd > overlapStart) {
+                    final long overlapDuration = overlapEnd - overlapStart;
+                    weightedProbability += probability * (double) overlapDuration;
+                    totalDurationMs += overlapDuration;
+                }
             }
         }
 
-        if (accumulator.getCount() == 0) {
+        if (totalDurationMs == 0) {
             return null;
         }
 
-        final double calmRatio = calmSamples / (double) accumulator.getCount();
-        final double acceptableRatio = acceptableSamples / (double) accumulator.getCount();
-        final double average = accumulator.getAverage();
-
-        if (average >= 9 && average <= 22 && calmRatio >= 0.45d) {
-            return SleepBreathingQualityAssessment.OPTIMAL;
-        }
-
-        if (average >= 8 && average <= 26 && acceptableRatio >= 0.35d) {
-            return SleepBreathingQualityAssessment.FAIR;
-        }
-
-        return SleepBreathingQualityAssessment.NEEDS_IMPROVEMENT;
+        return SleepBreathingQualityAssessment.fromAverageProbability(weightedProbability / totalDurationMs);
     }
 
     private long getSamplesInterval(List<? extends TimeSample> samples) {
@@ -560,8 +566,12 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
             binding.sleepBreathingQualityCard.setVisibility(View.GONE);
         } else {
             binding.sleepBreathingQualityCard.setVisibility(View.VISIBLE);
-            binding.sleepBreathingQualityValue.setText(breathingQualityAssessment.titleRes);
+            binding.sleepBreathingQualityValue.setText(getString(
+                    R.string.withings_sleep_breathing_quality_estimated_value,
+                    getString(breathingQualityAssessment.titleRes),
+                    breathingQualityAssessment.score));
             binding.sleepBreathingQualityDescription.setText(breathingQualityAssessment.descriptionRes);
+            binding.sleepBreathingQualityRange.setScore(breathingQualityAssessment.score);
             binding.sleepBreathingQualityDisclaimer.setText(R.string.withings_sleep_breathing_quality_disclaimer);
         }
 
@@ -706,6 +716,11 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     public boolean supportsSleepRespiratoryRate(GBDevice device) {
         DeviceCoordinator coordinator = device.getDeviceCoordinator();
         return coordinator.supportsSleepRespiratoryRate(device);
+    }
+
+    public boolean supportsSleepBreathingQuality(final GBDevice device) {
+        final DeviceCoordinator coordinator = device.getDeviceCoordinator();
+        return coordinator.supportsSleepBreathingQuality(device);
     }
 
     @Override
@@ -991,17 +1006,38 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         }
     }
 
-    private enum SleepBreathingQualityAssessment {
-        OPTIMAL(R.string.optimal, R.string.withings_sleep_breathing_quality_optimal_description),
-        FAIR(R.string.fair, R.string.withings_sleep_breathing_quality_fair_description),
-        NEEDS_IMPROVEMENT(R.string.withings_sleep_breathing_quality_needs_improvement, R.string.withings_sleep_breathing_quality_needs_improvement_description);
+    static final class SleepBreathingQualityAssessment {
+        private static final int MAX_EVENT_PROBABILITY = 127;
 
+        private final int score;
         private final int titleRes;
         private final int descriptionRes;
 
-        SleepBreathingQualityAssessment(final int titleRes, final int descriptionRes) {
+        private SleepBreathingQualityAssessment(final int score, final int titleRes, final int descriptionRes) {
+            this.score = score;
             this.titleRes = titleRes;
             this.descriptionRes = descriptionRes;
+        }
+
+        static SleepBreathingQualityAssessment fromAverageProbability(final double averageProbability) {
+            final int score = Math.max(0, Math.min(100,
+                    (int) Math.round(100d * (1d - averageProbability / MAX_EVENT_PROBABILITY))));
+            if (score >= 61) {
+                return new SleepBreathingQualityAssessment(
+                        score, R.string.optimal, R.string.withings_sleep_breathing_quality_optimal_description);
+            }
+            if (score >= 31) {
+                return new SleepBreathingQualityAssessment(
+                        score, R.string.fair, R.string.withings_sleep_breathing_quality_fair_description);
+            }
+            return new SleepBreathingQualityAssessment(
+                    score,
+                    R.string.withings_sleep_breathing_quality_needs_improvement,
+                    R.string.withings_sleep_breathing_quality_needs_improvement_description);
+        }
+
+        int getScore() {
+            return score;
         }
     }
 }

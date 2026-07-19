@@ -45,6 +45,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.WithingsScanwatchActivitySampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.WithingsBreathingDisturbanceSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -80,10 +81,11 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
-        final Map<AbstractDao<?, ?>, Property> map = new HashMap<>(3);
+        final Map<AbstractDao<?, ?>, Property> map = new HashMap<>(4);
         map.put(session.getWithingsScanwatchActivitySampleDao(), WithingsScanwatchActivitySampleDao.Properties.DeviceId);
         map.put(session.getGenericSpo2SampleDao(), GenericSpo2SampleDao.Properties.DeviceId);
         map.put(session.getGenericRespiratoryRateSampleDao(), GenericRespiratoryRateSampleDao.Properties.DeviceId);
+        map.put(session.getWithingsBreathingDisturbanceSampleDao(), WithingsBreathingDisturbanceSampleDao.Properties.DeviceId);
         return map;
     }
 
@@ -146,11 +148,16 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
 
     @Override
     public boolean supportsRespiratoryRate(@NonNull GBDevice device) {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsSleepRespiratoryRate(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsSleepBreathingQuality(@NonNull final GBDevice device) {
         return true;
     }
 
