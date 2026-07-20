@@ -282,9 +282,7 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
     }
 
     @Override
-    protected void queueNotificationConfiguration(final boolean enabled) {
-        super.queueNotificationConfiguration(enabled);
-
+    protected void addPostNotificationConfigurationCommands(final boolean enabled) {
         if (!enabled) {
             return;
         }

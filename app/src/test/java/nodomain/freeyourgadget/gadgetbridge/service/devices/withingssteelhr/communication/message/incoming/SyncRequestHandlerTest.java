@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 Frank Ertl
+/*  Copyright (C) 2026 d3vv3
 
     This file is part of Gadgetbridge.
 
@@ -16,23 +16,29 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.incoming;
 
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+
+import org.junit.Test;
+import org.mockito.InOrder;
+
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.ExpectedResponse;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.Message;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.message.WithingsMessageType;
 
-public class SyncRequestHandler implements IncomingMessageHandler {
+public class SyncRequestHandlerTest {
+    @Test
+    public void watchSyncRequestRespondsBeforeStartingSync() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final Message request = mock(Message.class);
 
-    private final WithingsBaseDeviceSupport support;
+        new SyncRequestHandler(support).handleMessage(request);
 
-    public SyncRequestHandler(WithingsBaseDeviceSupport support) {
-        this.support = support;
-    }
-
-    @Override
-    public void handleMessage(Message message) {
-        support.sendToDevice(new WithingsMessage(WithingsMessageType.SYNC_RESPONSE));
-        support.doSync("watch-sync-request");
+        final InOrder inOrder = inOrder(support);
+        inOrder.verify(support).sendToDevice(argThat(
+                response -> response.getType() == WithingsMessageType.SYNC_RESPONSE
+        ));
+        inOrder.verify(support).doSync("watch-sync-request");
     }
 }

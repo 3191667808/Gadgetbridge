@@ -788,11 +788,19 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private void queueNotificationConfiguration(final boolean enabled, @Nullable final Runnable onConfigured) {
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(enabled)));
         addFeatureTagsMessage();
+        addPostNotificationConfigurationCommands(enabled);
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS), response -> {
             if (onConfigured != null) {
                 onConfigured.run();
             }
         });
+    }
+
+    /**
+     * Allows device families to restore feature tags that a notification-only feature-tag
+     * update would otherwise replace.
+     */
+    protected void addPostNotificationConfigurationCommands(final boolean enabled) {
     }
 
     /**
