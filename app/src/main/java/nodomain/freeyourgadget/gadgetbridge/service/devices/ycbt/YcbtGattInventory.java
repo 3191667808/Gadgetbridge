@@ -31,7 +31,7 @@ final class YcbtGattInventory {
     private YcbtGattInventory() {
     }
 
-    static List<String> format(final Inventory inventory, final UUID assumedServiceUuid) {
+    static List<String> format(final Inventory inventory, final UUID configuredServiceUuid) {
         final EventCollector events = new EventCollector(MAX_EVENTS - 2);
         events.add("GATT service count=" + inventory.totalServiceCount);
 
@@ -125,14 +125,14 @@ final class YcbtGattInventory {
             events.addReserved("GATT inventory truncated: event limit=" + MAX_EVENTS);
         }
 
-        if (inventory.assumedServiceCharacteristicCount == null) {
-            events.addReserved("GATT assumed service FFE0 " + assumedServiceUuid + " present=false");
+        if (inventory.configuredServiceCharacteristicCount == null) {
+            events.addReserved("GATT configured service " + configuredServiceUuid + " present=false");
         } else {
             events.addReserved(String.format(
                     Locale.ROOT,
-                    "GATT assumed service FFE0 %s present=true characteristicCount=%d",
-                    assumedServiceUuid,
-                    inventory.assumedServiceCharacteristicCount
+                    "GATT configured service %s present=true characteristicCount=%d",
+                    configuredServiceUuid,
+                    inventory.configuredServiceCharacteristicCount
             ));
         }
         return events.getEvents();
@@ -141,14 +141,14 @@ final class YcbtGattInventory {
     static final class Inventory {
         private final int totalServiceCount;
         private final List<Service> services;
-        private final Integer assumedServiceCharacteristicCount;
+        private final Integer configuredServiceCharacteristicCount;
 
         Inventory(final int totalServiceCount,
                   final List<Service> services,
-                  final Integer assumedServiceCharacteristicCount) {
+                  final Integer configuredServiceCharacteristicCount) {
             this.totalServiceCount = totalServiceCount;
             this.services = new ArrayList<>(services);
-            this.assumedServiceCharacteristicCount = assumedServiceCharacteristicCount;
+            this.configuredServiceCharacteristicCount = configuredServiceCharacteristicCount;
         }
     }
 

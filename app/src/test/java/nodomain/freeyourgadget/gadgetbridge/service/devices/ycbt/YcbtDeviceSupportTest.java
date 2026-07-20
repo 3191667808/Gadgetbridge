@@ -32,4 +32,16 @@ public class YcbtDeviceSupportTest {
         ));
         assertFalse(YcbtDeviceSupport.supportsIndications(BluetoothGattCharacteristic.PROPERTY_NOTIFY));
     }
+
+    @Test
+    public void acceptsBothWriteModesButNotIndicateOnly() {
+        assertTrue(YcbtDeviceSupport.supportsWrites(BluetoothGattCharacteristic.PROPERTY_WRITE));
+        assertTrue(YcbtDeviceSupport.supportsWrites(BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE));
+        assertTrue(YcbtDeviceSupport.supportsWrites(
+                BluetoothGattCharacteristic.PROPERTY_WRITE
+                        | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+                        | BluetoothGattCharacteristic.PROPERTY_INDICATE
+        ));
+        assertFalse(YcbtDeviceSupport.supportsWrites(BluetoothGattCharacteristic.PROPERTY_INDICATE));
+    }
 }

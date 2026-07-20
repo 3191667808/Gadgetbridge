@@ -35,7 +35,7 @@ public class YcbtGattInventoryTest {
     private static final UUID DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     @Test
-    public void formatsOnlyGattMetadataAndAssumedServiceResult() {
+    public void formatsOnlyGattMetadataAndConfiguredServiceResult() {
         final YcbtGattInventory.Characteristic characteristic = new YcbtGattInventory.Characteristic(
                 CHARACTERISTIC_UUID,
                 0x00000022,
@@ -60,7 +60,7 @@ public class YcbtGattInventoryTest {
                 "GATT service[0] uuid=12345678-0000-1000-8000-00805f9b34fb type=primary(0) characteristicCount=1",
                 "GATT characteristic[0.0] uuid=12345678-0001-1000-8000-00805f9b34fb properties=0x00000022 flags=[read,indicate] descriptorCount=1",
                 "GATT descriptor[0.0.0] uuid=00002902-0000-1000-8000-00805f9b34fb",
-                "GATT assumed service FFE0 0000ffe0-0000-1000-8000-00805f9b34fb present=true characteristicCount=2"
+                "GATT configured service be940000-7333-be46-b7ae-689e71722bd5 present=true characteristicCount=2"
         ), events);
     }
 
@@ -135,7 +135,7 @@ public class YcbtGattInventoryTest {
     }
 
     @Test
-    public void capsEventsAndKeepsAssumedServiceResultLast() {
+    public void capsEventsAndKeepsConfiguredServiceResultLast() {
         final List<UUID> descriptors = repeatedUuids(
                 DESCRIPTOR_UUID,
                 YcbtGattInventory.MAX_DESCRIPTORS_PER_CHARACTERISTIC
@@ -173,7 +173,7 @@ public class YcbtGattInventoryTest {
                 events.get(events.size() - 2)
         );
         assertEquals(
-                "GATT assumed service FFE0 0000ffe0-0000-1000-8000-00805f9b34fb present=false",
+                "GATT configured service be940000-7333-be46-b7ae-689e71722bd5 present=false",
                 events.get(events.size() - 1)
         );
     }

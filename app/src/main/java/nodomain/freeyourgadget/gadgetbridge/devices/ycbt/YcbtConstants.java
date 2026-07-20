@@ -22,10 +22,12 @@ public final class YcbtConstants {
     public static final String R10M_DEVICE_NAME = "R10M FCF4";
     public static final byte[] OBSERVED_MANUFACTURER_BYTES = new byte[]{0x10, 0x78};
 
-    public static final UUID SERVICE_UUID = UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb");
-    public static final UUID FFE1_CHARACTERISTIC_UUID = UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb");
-    public static final UUID FFE2_CHARACTERISTIC_UUID = UUID.fromString("0000ffe2-0000-1000-8000-00805f9b34fb");
-    public static final UUID WRITE_CHARACTERISTIC_UUID = FFE1_CHARACTERISTIC_UUID;
+    public static final UUID SERVICE_UUID = UUID.fromString("be940000-7333-be46-b7ae-689e71722bd5");
+    public static final UUID COMMAND_REPLY_CHARACTERISTIC_UUID =
+            UUID.fromString("be940001-7333-be46-b7ae-689e71722bd5");
+    public static final UUID STREAM_HISTORY_CHARACTERISTIC_UUID =
+            UUID.fromString("be940003-7333-be46-b7ae-689e71722bd5");
+    public static final UUID WRITE_CHARACTERISTIC_UUID = COMMAND_REPLY_CHARACTERISTIC_UUID;
 
     private YcbtConstants() {
     }

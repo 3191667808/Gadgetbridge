@@ -27,10 +27,10 @@ public class YcbtPairingTraceTest {
 
         trace.beginAttempt();
         trace.append("initialize entered", "12:34:56.789");
-        trace.append("FFE1 found", "12:34:57.001");
+        trace.append("command/reply found", "12:34:57.001");
 
         assertEquals(
-                "YCBT pairing diagnostics\n\nAttempt 1\n01. 12:34:56.789 initialize entered\n02. 12:34:57.001 FFE1 found",
+                "YCBT pairing diagnostics\n\nAttempt 1\n01. 12:34:56.789 initialize entered\n02. 12:34:57.001 command/reply found",
                 trace.format()
         );
     }
@@ -56,17 +56,17 @@ public class YcbtPairingTraceTest {
     public void restoredTraceContinuesCurrentAttempt() {
         final YcbtPairingTrace original = new YcbtPairingTrace();
         original.beginAttempt();
-        original.append("FFE2 properties=0x00000020", "12:37:00.000");
+        original.append("stream/history properties=0x00000020", "12:37:00.000");
 
         final YcbtPairingTrace restored = new YcbtPairingTrace(
                 original.getAttemptNumber(),
                 original.getEventNumber(),
                 original.getLines()
         );
-        restored.append("FFE2 CCCD present", "12:37:00.100");
+        restored.append("stream/history CCCD present", "12:37:00.100");
 
         assertEquals(
-                "YCBT pairing diagnostics\n\nAttempt 1\n01. 12:37:00.000 FFE2 properties=0x00000020\n02. 12:37:00.100 FFE2 CCCD present",
+                "YCBT pairing diagnostics\n\nAttempt 1\n01. 12:37:00.000 stream/history properties=0x00000020\n02. 12:37:00.100 stream/history CCCD present",
                 restored.format()
         );
     }

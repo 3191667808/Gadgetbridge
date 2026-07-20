@@ -36,13 +36,22 @@ public class YcbtInboundRouterTest {
     };
 
     @Test
-    public void usesVerifiedGattUuidsAndDeterministicIndicationOrder() {
-        assertEquals(UUID.fromString("0000ffe0-0000-1000-8000-00805f9b34fb"), YcbtConstants.SERVICE_UUID);
-        assertEquals(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"), YcbtConstants.FFE1_CHARACTERISTIC_UUID);
-        assertEquals(UUID.fromString("0000ffe2-0000-1000-8000-00805f9b34fb"), YcbtConstants.FFE2_CHARACTERISTIC_UUID);
-        assertEquals(YcbtConstants.FFE1_CHARACTERISTIC_UUID, YcbtConstants.WRITE_CHARACTERISTIC_UUID);
+    public void usesCapturedGattUuidsAndDeterministicIndicationOrder() {
+        assertEquals(UUID.fromString("be940000-7333-be46-b7ae-689e71722bd5"), YcbtConstants.SERVICE_UUID);
         assertEquals(
-                Arrays.asList(YcbtConstants.FFE1_CHARACTERISTIC_UUID, YcbtConstants.FFE2_CHARACTERISTIC_UUID),
+                UUID.fromString("be940001-7333-be46-b7ae-689e71722bd5"),
+                YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID
+        );
+        assertEquals(
+                UUID.fromString("be940003-7333-be46-b7ae-689e71722bd5"),
+                YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID
+        );
+        assertEquals(YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID, YcbtConstants.WRITE_CHARACTERISTIC_UUID);
+        assertEquals(
+                Arrays.asList(
+                        YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
+                        YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID
+                ),
                 YcbtInboundRouter.getInboundCharacteristicUuids()
         );
     }
@@ -51,10 +60,10 @@ public class YcbtInboundRouterTest {
     public void acceptsOnlyBothVerifiedInboundCharacteristics() {
         final YcbtInboundRouter router = new YcbtInboundRouter();
 
-        assertTrue(router.accepts(YcbtConstants.FFE1_CHARACTERISTIC_UUID));
-        assertTrue(router.accepts(YcbtConstants.FFE2_CHARACTERISTIC_UUID));
+        assertTrue(router.accepts(YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID));
+        assertTrue(router.accepts(YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID));
         assertFalse(router.accepts(YcbtConstants.SERVICE_UUID));
-        assertFalse(router.accepts(UUID.fromString("0000ffe3-0000-1000-8000-00805f9b34fb")));
+        assertFalse(router.accepts(UUID.fromString("be940002-7333-be46-b7ae-689e71722bd5")));
         assertFalse(router.accepts(null));
     }
 
@@ -63,11 +72,11 @@ public class YcbtInboundRouterTest {
         final YcbtInboundRouter router = new YcbtInboundRouter();
 
         final YcbtInboundRouter.RouteResult first = router.accept(
-                YcbtConstants.FFE1_CHARACTERISTIC_UUID,
+                YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
                 Arrays.copyOfRange(CAPTURED_FRAME, 0, 3)
         );
         final YcbtInboundRouter.RouteResult second = router.accept(
-                YcbtConstants.FFE2_CHARACTERISTIC_UUID,
+                YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID,
                 Arrays.copyOfRange(CAPTURED_FRAME, 3, CAPTURED_FRAME.length)
         );
 
@@ -85,11 +94,11 @@ public class YcbtInboundRouterTest {
         final YcbtInboundRouter router = new YcbtInboundRouter();
 
         final YcbtInboundRouter.RouteResult rejected = router.accept(
-                UUID.fromString("0000ffe3-0000-1000-8000-00805f9b34fb"),
+                UUID.fromString("be940002-7333-be46-b7ae-689e71722bd5"),
                 CAPTURED_FRAME
         );
         final YcbtInboundRouter.RouteResult accepted = router.accept(
-                YcbtConstants.FFE1_CHARACTERISTIC_UUID,
+                YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
                 CAPTURED_FRAME
         );
 
@@ -106,11 +115,11 @@ public class YcbtInboundRouterTest {
         corrupted[6] ^= 0x01;
 
         final YcbtInboundRouter.RouteResult malformed = router.accept(
-                YcbtConstants.FFE2_CHARACTERISTIC_UUID,
+                YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID,
                 corrupted
         );
         final YcbtInboundRouter.RouteResult recovered = router.accept(
-                YcbtConstants.FFE1_CHARACTERISTIC_UUID,
+                YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
                 CAPTURED_FRAME
         );
 
@@ -124,7 +133,7 @@ public class YcbtInboundRouterTest {
     @Test
     public void reportsNullChunkWithoutThrowing() {
         final YcbtInboundRouter.RouteResult result = new YcbtInboundRouter().accept(
-                YcbtConstants.FFE1_CHARACTERISTIC_UUID,
+                YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
                 null
         );
 

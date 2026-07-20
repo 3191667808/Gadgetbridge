@@ -26,8 +26,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.ycbt.YcbtConstants;
 
 public final class YcbtInboundRouter {
     private static final List<UUID> INBOUND_CHARACTERISTIC_UUIDS = Collections.unmodifiableList(Arrays.asList(
-            YcbtConstants.FFE1_CHARACTERISTIC_UUID,
-            YcbtConstants.FFE2_CHARACTERISTIC_UUID
+            YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
+            YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID
     ));
 
     private final YcbtFrameReassembler reassembler = new YcbtFrameReassembler();

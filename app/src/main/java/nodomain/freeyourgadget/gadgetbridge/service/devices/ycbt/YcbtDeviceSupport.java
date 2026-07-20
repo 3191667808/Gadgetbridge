@@ -91,14 +91,14 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             ));
         }
 
-        final BluetoothGattService assumedService = gatt.getService(YcbtConstants.SERVICE_UUID);
-        final Integer assumedServiceCharacteristicCount = assumedService == null
+        final BluetoothGattService configuredService = gatt.getService(YcbtConstants.SERVICE_UUID);
+        final Integer configuredServiceCharacteristicCount = configuredService == null
                 ? null
-                : assumedService.getCharacteristics().size();
+                : configuredService.getCharacteristics().size();
         final YcbtGattInventory.Inventory inventory = new YcbtGattInventory.Inventory(
                 services.size(),
                 serviceMetadata,
-                assumedServiceCharacteristicCount
+                configuredServiceCharacteristicCount
         );
         for (final String event : YcbtGattInventory.format(inventory, YcbtConstants.SERVICE_UUID)) {
             diagnostic(YcbtDiagnostics.TYPE_STAGE, event);
@@ -117,14 +117,14 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         boolean allCharacteristicsUsable = true;
         for (final UUID characteristicUuid : YcbtInboundRouter.getInboundCharacteristicUuids()) {
             final BluetoothGattCharacteristic characteristic = getCharacteristic(characteristicUuid);
-            if (!isUsableIndicationCharacteristic(characteristic, characteristicUuid)) {
+            if (!isUsableInboundCharacteristic(characteristic, characteristicUuid)) {
                 allCharacteristicsUsable = false;
             } else {
                 indicationCharacteristics.add(characteristic);
             }
         }
         if (!allCharacteristicsUsable) {
-            LOG.error("YCBT initialization failed: service {} or required indication characteristics are missing or invalid",
+            LOG.error("YCBT initialization failed: service {} or required transport characteristics are missing or invalid",
                     YcbtConstants.SERVICE_UUID);
             builder.setDeviceState(GBDevice.State.NOT_CONNECTED);
             builder.run(this::disconnect);
@@ -142,8 +142,8 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return builder;
     }
 
-    private boolean isUsableIndicationCharacteristic(final BluetoothGattCharacteristic characteristic,
-                                                       final UUID expectedUuid) {
+    private boolean isUsableInboundCharacteristic(final BluetoothGattCharacteristic characteristic,
+                                                   final UUID expectedUuid) {
         final String characteristicName = characteristicName(expectedUuid);
         if (characteristic == null) {
             LOG.error("YCBT characteristic {} was not discovered under service {}", expectedUuid, YcbtConstants.SERVICE_UUID);
@@ -165,6 +165,12 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             diagnostic(YcbtDiagnostics.TYPE_FAILURE, characteristicName + " indication property missing");
             return false;
         }
+        if (YcbtConstants.WRITE_CHARACTERISTIC_UUID.equals(expectedUuid) && !supportsWrites(properties)) {
+            LOG.error("YCBT command characteristic {} does not advertise write support; properties=0x{}",
+                    expectedUuid, Integer.toHexString(properties));
+            diagnostic(YcbtDiagnostics.TYPE_FAILURE, characteristicName + " write property missing");
+            return false;
+        }
 
         final BluetoothGattDescriptor cccd = characteristic.getDescriptor(
                 GattDescriptor.UUID_DESCRIPTOR_GATT_CLIENT_CHARACTERISTIC_CONFIGURATION
@@ -180,6 +186,11 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     static boolean supportsIndications(final int properties) {
         return (properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0;
+    }
+
+    static boolean supportsWrites(final int properties) {
+        return (properties & (BluetoothGattCharacteristic.PROPERTY_WRITE
+                | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) != 0;
     }
 
     private final class YcbtIndicateAction extends BtLEAction {
@@ -314,11 +325,11 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private static String characteristicName(final UUID characteristicUuid) {
-        if (YcbtConstants.FFE1_CHARACTERISTIC_UUID.equals(characteristicUuid)) {
-            return "FFE1";
+        if (YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID.equals(characteristicUuid)) {
+            return "command/reply";
         }
-        if (YcbtConstants.FFE2_CHARACTERISTIC_UUID.equals(characteristicUuid)) {
-            return "FFE2";
+        if (YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID.equals(characteristicUuid)) {
+            return "stream/history";
         }
         return characteristicUuid.toString();
     }
