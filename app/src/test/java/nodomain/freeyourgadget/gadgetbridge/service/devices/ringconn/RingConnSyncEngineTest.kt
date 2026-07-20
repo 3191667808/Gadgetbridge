@@ -54,11 +54,12 @@ class RingConnSyncEngineTest {
         assertTrue(actions.bucketsToPersist.isEmpty())
     }
 
-    @Test fun activity_frame_persists_and_never_acks() {
+    @Test fun activity_frame_persists_and_acks_last_batch() {
         // Vector B: 1-record 4c, remaining=0, sleepFlagged, steps=0.
         val frame = hexDecode("4c00000c3be1d34d130a7f610a010101010100000000000000040c")
         val actions = engine().onNotification(frame)
-        assertTrue(actions.commandsToWrite.isEmpty())   // NEVER ack 4c
+        assertEquals(1, actions.commandsToWrite.size)   // ack 4c to advance the cursor -> cc
+        assertArrayEquals(byteArrayOf(0xcc.toByte(), 0x00, 0x00), actions.commandsToWrite[0])
         assertEquals(1, actions.bucketsToPersist.size)
         assertEquals(1783059027L, actions.bucketsToPersist[0].unixSeconds)
         assertEquals(0, actions.bucketsToPersist[0].steps)
@@ -66,11 +67,12 @@ class RingConnSyncEngineTest {
         assertTrue(actions.activityDrained)             // remaining == 0
     }
 
-    @Test fun activity_frame_with_remaining_not_drained() {
+    @Test fun activity_frame_with_remaining_acks_and_not_drained() {
         // Vector C: 6-record 4c, remaining=43.
         val frame = hexDecode("4c002b0c3c075342210a7d5c0a010101010100000000000000040c3c07e9411f0a7f120a010101010100000000000000000c3c087f471f09805d0a010101010100000000000000040c3c091542170a87120a010101010100000000000000000c3c09ab45180a875e0a010101010100000000000000040c3c0a4142150a78120a01010101010000000000000000d5")
         val actions = engine().onNotification(frame)
-        assertTrue(actions.commandsToWrite.isEmpty())
+        assertEquals(1, actions.commandsToWrite.size)   // ack 4c -> cc, to pull the next batch
+        assertArrayEquals(byteArrayOf(0xcc.toByte(), 0x00, 0x00), actions.commandsToWrite[0])
         assertEquals(6, actions.bucketsToPersist.size)
         assertEquals(false, actions.activityDrained)
     }

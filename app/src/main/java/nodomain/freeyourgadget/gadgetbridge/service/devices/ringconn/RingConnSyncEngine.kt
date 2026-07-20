@@ -65,11 +65,12 @@ class RingConnSyncEngine @JvmOverloads constructor(
 
     private fun onRecordFrame(frame: RingConnRecordFrame, id: Int): Actions {
         val buckets = frame.activityRecords.map { Bucket(it.unixSeconds, it.steps, it.sleepFlagged) }
-        return if (id == RingConnRecordParser.FRAME_ID_ACTIVITY) {
-            Actions(emptyList(), buckets, frame.remaining == 0)   // NEVER ack 4c
-        } else {
-            Actions(listOf(RingConnRecordParser.ackCommand(id)), buckets, false)
-        }
+        // Ack every record frame, including `4c` activity: the ack advances the ring's shared
+        // replay cursor, which is the only way to drain a multi-batch backlog. (Not acking leaves
+        // the cursor pinned to the oldest batch, so GB would perpetually re-read the same records
+        // and under-count. GB thus becomes the primary consumer for this ring.)
+        val drained = id == RingConnRecordParser.FRAME_ID_ACTIVITY && frame.remaining == 0
+        return Actions(listOf(RingConnRecordParser.ackCommand(id)), buckets, drained)
     }
 
     /** `02 00 <ringTs:u32-be> 00 01 00`: time-sync as the official app sends each session. */
