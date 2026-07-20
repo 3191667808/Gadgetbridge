@@ -265,10 +265,6 @@ public class YcbtPairingActivity extends AbstractGBActivity implements BondingIn
 
     private void continueToControlCenter() {
         setResult(RESULT_OK);
-        if (getCallingActivity() != null) {
-            finish();
-            return;
-        }
         startActivity(new Intent(this, ControlCenterv2.class).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
         finish();
     }
