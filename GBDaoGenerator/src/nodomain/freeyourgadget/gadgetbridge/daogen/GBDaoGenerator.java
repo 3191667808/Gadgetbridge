@@ -215,6 +215,7 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addMijiaLywsdHistoricSample(schema, user, device));
         sampleProvidersToGenerate.add(addMiScaleWeightSample(schema, user, device));
         addColmiActivitySample(schema, user, device);
+        addRingConnActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addColmiHeartRateSample(schema, user, device));
         sampleProvidersToGenerate.add(addColmiSpo2Sample(schema, user, device));
         sampleProvidersToGenerate.add(addColmiStressSample(schema, user, device));
@@ -840,6 +841,16 @@ public class GBDaoGenerator {
         addHeartRateProperties(activitySample);
         activitySample.addIntProperty("distance").notNull();
         activitySample.addIntProperty("calories").notNull().codeBeforeGetter(OVERRIDE);
+        return activitySample;
+    }
+
+    private static Entity addRingConnActivitySample(Schema schema, Entity user, Entity device) {
+        Entity activitySample = addEntity(schema, "RingConnActivitySample");
+        activitySample.implementsSerializable();
+        addCommonActivitySampleProperties("AbstractActivitySample", activitySample, user, device);
+        activitySample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        activitySample.addIntProperty(SAMPLE_RAW_KIND).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         return activitySample;
     }
 
