@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.ringconn.RingConnSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -70,16 +71,35 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
+        builder.notify(NOTIFY_CHAR, true);
+        builder.setDeviceState(GBDevice.State.INITIALIZED);
+        // The ring is single-central: sync on connect and disconnect when done (finishSync) so
+        // the official RingConn app can still reach it. onFetchRecordedData does the same on the
+        // manual "fetch activity data" trigger.
+        beginSync(builder);
+        return builder;
+    }
+
+    @Override
+    public void onFetchRecordedData(final int dataTypes) {
+        if (getDevice().isBusy()) {
+            return;
+        }
+        final TransactionBuilder builder = createTransactionBuilder("ringconn-sync");
+        beginSync(builder);
+        builder.queue();
+    }
+
+    /** Reset state, mark the device busy, and kick the auth+replay handshake on {@code builder}. */
+    private void beginSync(final TransactionBuilder builder) {
         engine = new RingConnSyncEngine(macBytes(getDevice().getAddress()));
         sawRecords = false;
         completed = false;
-        builder.notify(NOTIFY_CHAR, true);
+        builder.setBusyTask(R.string.busy_task_fetch_activity_data);
         for (final byte[] cmd : engine.start()) {
             builder.write(WRITE_CHAR, cmd);
         }
-        builder.setDeviceState(GBDevice.State.INITIALIZED);
         armQuietTimer(READ_TIMEOUT_MS);
-        return builder;
     }
 
     @Override
@@ -119,7 +139,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         completed = true;
         LOG.info("RingConn sync complete (sawRecords={}), disconnecting", sawRecords);
-        GBApplication.deviceService(getDevice()).disconnect();
+        if (getDevice().isBusy()) {
+            getDevice().unsetBusyTask();
+            getDevice().sendDeviceUpdateIntent(getContext());
+        }
+        disconnect();
     }
 
     private void persist(final List<RingConnSyncEngine.Bucket> buckets) {
