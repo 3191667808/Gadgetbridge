@@ -112,6 +112,11 @@ public class DefaultWorkoutCharts {
         final Accumulator cadenceAccumulator = new Accumulator();
         final Accumulator temperatureAccumulator = new Accumulator();
 
+        // Distance is not carried by every source (Xiaomi/Bangle GPS tracks expose position but no
+        // distance field). When no point provides one, derive a running distance from the GPS fixes
+        // so the distance chart still renders. Null for sources that already carry native distance.
+        final double[] derivedDistances = deriveCumulativeDistances(activityPoints);
+
         for (int i = 0; i <= activityPoints.size() - 1; i++) {
             final ActivityPoint point = activityPoints.get(i);
             final long tsShorten = tsTranslation.shorten((int) point.getTime().getTime());
@@ -172,7 +177,10 @@ public class DefaultWorkoutCharts {
             }
 
             // Distance
-            final double distance = point.getDistance();
+            double distance = point.getDistance();
+            if (distance < 0.0 && derivedDistances != null) {
+                distance = derivedDistances[i];
+            }
             if (distance >= 0.0) {
                 distancePoints.add(new Entry(tsShorten, (float) distance));
                 hasDistanceValues = hasDistanceValues || (distance > 0);
@@ -334,6 +342,45 @@ public class DefaultWorkoutCharts {
         }
 
         return charts;
+    }
+
+    /**
+     * Derive a per-point cumulative distance (metres) from the GPS fixes when the source carries no
+     * distance of its own. Returns {@code null} when any point already provides a distance (honour
+     * the device value) or when there are no usable fixes to derive from, so the caller falls back to
+     * {@link ActivityPoint#getDistance()}. Entries for points without a location — including Null
+     * Island (0,0) no-fix placeholders — are {@link Double#NaN}, so a dropout neither gets a distance
+     * nor injects a spurious hop. Uses the pure-Java {@link GPSCoordinate#distanceHaversine} so it
+     * stays off {@code android.location.Location} and unit-testable.
+     */
+    static double[] deriveCumulativeDistances(final List<? extends ActivityPoint> points) {
+        for (final ActivityPoint p : points) {
+            if (p.getDistance() >= 0.0) {
+                return null; // source already carries distance — do not override it
+            }
+        }
+        final double[] distances = new double[points.size()];
+        double cumulativeMeters = 0.0;
+        GPSCoordinate previous = null;
+        boolean anyFix = false;
+        for (int i = 0; i < points.size(); i++) {
+            final GPSCoordinate location = points.get(i).getLocation();
+            if (location == null || isNullIsland(location)) {
+                distances[i] = Double.NaN;
+                continue;
+            }
+            if (previous != null) {
+                cumulativeMeters += GPSCoordinate.distanceHaversine(previous, location);
+            }
+            distances[i] = cumulativeMeters;
+            previous = location;
+            anyFix = true;
+        }
+        return anyFix ? distances : null;
+    }
+
+    private static boolean isNullIsland(final GPSCoordinate location) {
+        return location.getLatitude() == 0.0 && location.getLongitude() == 0.0;
     }
 
     private static WorkoutChart createElevationChart(final Context context,
