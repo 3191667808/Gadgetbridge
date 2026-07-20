@@ -19,6 +19,8 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,9 +70,10 @@ public class NotificationProvider {
      * attributes before we consider it stale and remove it. The watch normally
      * fetches PHASE1 within ~200ms and PHASE2 within ~500ms, but may skip
      * PHASE2 entirely (~14% of the time based on official app captures).
-     * 60 seconds is generous enough to avoid false positives.
+     * Ten minutes keeps notifications available across watchdog reconnects while
+     * still bounding state when the watch intentionally skips PHASE2.
      */
-    private static final long STALE_PENDING_TIMEOUT_MS = 60_000;
+    private static final long STALE_PENDING_TIMEOUT_MS = 10 * 60_000;
 
     public NotificationProvider(WithingsBaseDeviceSupport support) {
         this.support = support;
@@ -102,7 +105,7 @@ public class NotificationProvider {
             activeIncomingCallUid = uid;
         }
 
-        state.pendingNotifications.put(uid, new PendingNotification(spec, System.currentTimeMillis()));
+        state.pendingNotifications.put(uid, new PendingNotification(spec, nextPendingTimestamp(state)));
 
         logger.info("Withings sending ADDED id={}, source={}, type={}, pendingCount={}, deviceKey={}",
                 spec.getId(),
@@ -111,6 +114,49 @@ public class NotificationProvider {
                 state.pendingNotifications.size(),
                 getDeviceKey());
         support.sendAncsNotificationSourceNotification(notificationSource);
+    }
+
+    /**
+     * Replay notifications that were sent before a stale ANCS connection was
+     * replaced. Entries removed on the phone or completed by the watch are no
+     * longer pending and are therefore not replayed.
+     */
+    public int replayPendingNotifications() {
+        final NotificationState state = getState();
+        evictStalePending(state);
+
+        final List<Map.Entry<Integer, PendingNotification>> pending = new ArrayList<>(state.pendingNotifications.entrySet());
+        pending.sort(Comparator.comparingLong(entry -> entry.getValue().timestampMs));
+
+        int replayed = 0;
+        for (Map.Entry<Integer, PendingNotification> entry : pending) {
+            final int uid = entry.getKey();
+            final PendingNotification current = state.pendingNotifications.get(uid);
+            if (current == null || current.replayedAfterRecovery) {
+                continue;
+            }
+
+            // A recovered watch can request the app ID immediately after CCC
+            // subscription, then abandon phase 2 while WPP initialization runs.
+            // Re-announce every entry that is still pending once initialization
+            // and ANCS configuration are complete. Phase-2-completed entries have
+            // already been removed from this map.
+            current.attributesRequested = false;
+            current.replayedAfterRecovery = true;
+            current.timestampMs = nextPendingTimestamp(state);
+            support.sendAncsNotificationSourceNotification(createAddedNotificationSource(uid, current.spec));
+            replayed++;
+        }
+
+        return replayed;
+    }
+
+    private NotificationSource createAddedNotificationSource(final int uid, final NotificationSpec spec) {
+        return new NotificationSource(uid,
+                AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
+                AncsConstants.EVENT_FLAGS_IMPORTANT,
+                mapNotificationType(spec.type),
+                (byte) 1);
     }
 
     /**
@@ -153,14 +199,18 @@ public class NotificationProvider {
      * The watch may interleave requests for different notification UIDs.
      * We respond immediately for each request.
      */
-    public void handleNotificationAttributeRequest(GetNotificationAttributes request) {
+    public long handleNotificationAttributeRequest(GetNotificationAttributes request) {
         logger.debug("Request has ID: " + request.getNotificationUID());
         final NotificationState state = getState();
+        final long requestTimestampMs = System.currentTimeMillis();
 
         NotificationSpec spec = null;
         PendingNotification pending = state.pendingNotifications.get(request.getNotificationUID());
+        long acknowledgedNotificationMs = requestTimestampMs;
         if (pending != null) {
+            pending.attributesRequested = true;
             spec = pending.spec;
+            acknowledgedNotificationMs = pending.timestampMs;
         }
         if (spec == null) {
             synchronized (state.recentlyCompletedNotifications) {
@@ -180,7 +230,11 @@ public class NotificationProvider {
                 emptyResponse.addAttribute(attr);
             }
             support.sendAncsDataSourceNotification(emptyResponse);
-            return;
+            // The watch can retain an ADDED event across a stale ANCS session even
+            // after Android has removed it. Complete the request first, then repeat
+            // REMOVED so the recovered session clears the stale notification.
+            sendNotificationRemoved(request.getNotificationUID());
+            return acknowledgedNotificationMs;
         }
 
         logger.info("Handling notification attribute request id={}, attrs={}, pendingNow={}",
@@ -252,6 +306,33 @@ public class NotificationProvider {
                 cacheCompletedNotification(state, request.getNotificationUID(), completedPending.spec);
             }
         }
+        return acknowledgedNotificationMs;
+    }
+
+    /**
+     * Return the oldest ADDED event that the watch has not requested and that was
+     * sent after the latest acknowledged notification generation.
+     */
+    public long getOldestUnrequestedTimestampAfter(final long acknowledgedNotificationMs) {
+        final NotificationState state = getState();
+        long oldestTimestampMs = Long.MAX_VALUE;
+        for (PendingNotification pending : state.pendingNotifications.values()) {
+            if (!pending.attributesRequested
+                    && !pending.replayedAfterRecovery
+                    && pending.timestampMs > acknowledgedNotificationMs) {
+                oldestTimestampMs = Math.min(oldestTimestampMs, pending.timestampMs);
+            }
+        }
+        return oldestTimestampMs == Long.MAX_VALUE ? 0 : oldestTimestampMs;
+    }
+
+    private static long nextPendingTimestamp(final NotificationState state) {
+        synchronized (state) {
+            state.lastAssignedPendingTimestampMs = Math.max(
+                    System.currentTimeMillis(),
+                    state.lastAssignedPendingTimestampMs + 1);
+            return state.lastAssignedPendingTimestampMs;
+        }
     }
 
     static String getWithingsTitle(final NotificationSpec spec, final boolean preferLatestConversation) {
@@ -301,8 +382,8 @@ public class NotificationProvider {
      * The watch normally fetches PHASE1 (attr0) within ~200ms and PHASE2 (attrs 1+2+3)
      * within ~500ms total. However, it skips PHASE2 entirely in ~14% of cases (normal
      * behaviour based on official app captures). This method evicts notifications older
-     * than 60 seconds to prevent unbounded growth of the pending map while still being
-     * generous enough to avoid false positives for slow watches.
+     * than ten minutes to prevent unbounded growth of the pending map while allowing
+     * a stalled ANCS session to reconnect and replay them.
      */
     private void evictStalePending(final NotificationState state) {
         final long now = System.currentTimeMillis();
@@ -448,6 +529,8 @@ public class NotificationProvider {
         private final Map<String, NotificationSpec> latestNotificationByApp = new ConcurrentHashMap<>();
         /** Recently completed notifications, kept for re-fetch requests from the watch. */
         private final LinkedHashMap<Integer, NotificationSpec> recentlyCompletedNotifications = new LinkedHashMap<>(RECENT_NOTIFICATION_CACHE_SIZE + 1, 0.75f, true);
+        /** Strictly monotonic wall-clock timestamp used as the watchdog acknowledgment watermark. */
+        private long lastAssignedPendingTimestampMs;
     }
 
     /**
@@ -455,7 +538,9 @@ public class NotificationProvider {
      */
     private static final class PendingNotification {
         final NotificationSpec spec;
-        final long timestampMs;
+        volatile long timestampMs;
+        volatile boolean attributesRequested;
+        volatile boolean replayedAfterRecovery;
 
         PendingNotification(NotificationSpec spec, long timestampMs) {
             this.spec = spec;

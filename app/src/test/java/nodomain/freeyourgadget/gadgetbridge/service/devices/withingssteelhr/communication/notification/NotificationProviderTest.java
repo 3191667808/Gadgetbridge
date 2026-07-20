@@ -18,16 +18,28 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.com
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import android.graphics.Bitmap;
 import android.graphics.Color;
 
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+
+import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.model.AppNotificationType;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.IconHelper;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.WithingsBaseDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
 
 public class NotificationProviderTest extends TestBase {
@@ -100,6 +112,152 @@ public class NotificationProviderTest extends TestBase {
 
         assertEquals("Family Group (9 messages): Alice", NotificationProvider.getWithingsTitle(spec, false));
         assertEquals("Standard body", NotificationProvider.getWithingsBody(spec, false));
+    }
+
+    @Test
+    public void testPendingNotificationsAreReplayedAfterReconnect() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final GBDevice device = mock(GBDevice.class);
+        when(device.getAddress()).thenReturn("00:11:22:33:44:55");
+        when(support.getDevice()).thenReturn(device);
+        final NotificationProvider provider = new NotificationProvider(support);
+
+        final NotificationSpec first = new NotificationSpec(101);
+        first.type = NotificationType.GENERIC_EMAIL;
+        final NotificationSpec second = new NotificationSpec(102);
+        second.type = NotificationType.TELEGRAM;
+        provider.notifyClient(first);
+        provider.notifyClient(second);
+
+        assertEquals(2, provider.replayPendingNotifications());
+        final ArgumentCaptor<NotificationSource> sourceCaptor = ArgumentCaptor.forClass(NotificationSource.class);
+        verify(support, times(4)).sendAncsNotificationSourceNotification(sourceCaptor.capture());
+        final List<NotificationSource> sentSources = sourceCaptor.getAllValues();
+        assertEquals(101, sentSources.get(0).getNotificationUID());
+        assertEquals(102, sentSources.get(1).getNotificationUID());
+        assertEquals(101, sentSources.get(2).getNotificationUID());
+        assertEquals(102, sentSources.get(3).getNotificationUID());
+
+        provider.onDeleteNotification(first.getId());
+        assertEquals(0, provider.replayPendingNotifications());
+    }
+
+    @Test
+    public void testPhaseOneRequestedNotificationIsReplayedAfterReconnect() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final GBDevice device = mock(GBDevice.class);
+        when(device.getAddress()).thenReturn("00:11:22:33:44:66");
+        when(support.getDevice()).thenReturn(device);
+        final NotificationProvider provider = new NotificationProvider(support);
+
+        final NotificationSpec spec = new NotificationSpec(201);
+        spec.type = NotificationType.TELEGRAM;
+        provider.notifyClient(spec);
+
+        final GetNotificationAttributes request = new GetNotificationAttributes();
+        request.setNotificationUID(spec.getId());
+        final RequestedNotificationAttribute appIdentifier = new RequestedNotificationAttribute();
+        appIdentifier.setAttributeID((byte) 0);
+        request.addAttribute(appIdentifier);
+        final long acknowledgedTimestamp = provider.handleNotificationAttributeRequest(request);
+
+        assertEquals(1, provider.replayPendingNotifications());
+        assertEquals(0, provider.getOldestUnrequestedTimestampAfter(acknowledgedTimestamp));
+        verify(support, times(2)).sendAncsNotificationSourceNotification(any(NotificationSource.class));
+    }
+
+    @Test
+    public void testPhaseTwoCompletedNotificationIsNotReplayed() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final GBDevice device = mock(GBDevice.class);
+        when(device.getAddress()).thenReturn("00:11:22:33:44:67");
+        when(support.getDevice()).thenReturn(device);
+        final NotificationProvider provider = new NotificationProvider(support);
+
+        final NotificationSpec spec = new NotificationSpec(202);
+        spec.type = NotificationType.TELEGRAM;
+        provider.notifyClient(spec);
+
+        final GetNotificationAttributes request = new GetNotificationAttributes();
+        request.setNotificationUID(spec.getId());
+        final RequestedNotificationAttribute title = new RequestedNotificationAttribute();
+        title.setAttributeID((byte) 1);
+        request.addAttribute(title);
+        provider.handleNotificationAttributeRequest(request);
+
+        assertEquals(0, provider.replayPendingNotifications());
+        verify(support, times(1)).sendAncsNotificationSourceNotification(any(NotificationSource.class));
+    }
+
+    @Test
+    public void testLaterRequestAcknowledgesEarlierSkippedNotification() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final GBDevice device = mock(GBDevice.class);
+        when(device.getAddress()).thenReturn("00:11:22:33:44:88");
+        when(support.getDevice()).thenReturn(device);
+        final NotificationProvider provider = new NotificationProvider(support);
+
+        final NotificationSpec skipped = new NotificationSpec(401);
+        skipped.type = NotificationType.TELEGRAM;
+        final NotificationSpec requested = new NotificationSpec(402);
+        requested.type = NotificationType.GENERIC_EMAIL;
+        provider.notifyClient(skipped);
+        provider.notifyClient(requested);
+
+        assertTrue(provider.getOldestUnrequestedTimestampAfter(0) > 0);
+
+        final GetNotificationAttributes request = new GetNotificationAttributes();
+        request.setNotificationUID(requested.getId());
+        final long acknowledgedTimestamp = provider.handleNotificationAttributeRequest(request);
+
+        assertEquals(0, provider.getOldestUnrequestedTimestampAfter(acknowledgedTimestamp));
+    }
+
+    @Test
+    public void testEarlierRequestDoesNotAcknowledgeLaterNotification() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final GBDevice device = mock(GBDevice.class);
+        when(device.getAddress()).thenReturn("00:11:22:33:44:99");
+        when(support.getDevice()).thenReturn(device);
+        final NotificationProvider provider = new NotificationProvider(support);
+
+        final NotificationSpec requested = new NotificationSpec(501);
+        requested.type = NotificationType.GENERIC_EMAIL;
+        final NotificationSpec later = new NotificationSpec(502);
+        later.type = NotificationType.TELEGRAM;
+        provider.notifyClient(requested);
+        provider.notifyClient(later);
+
+        final GetNotificationAttributes request = new GetNotificationAttributes();
+        request.setNotificationUID(requested.getId());
+        final long acknowledgedTimestamp = provider.handleNotificationAttributeRequest(request);
+
+        assertTrue(provider.getOldestUnrequestedTimestampAfter(acknowledgedTimestamp) > acknowledgedTimestamp);
+    }
+
+    @Test
+    public void testMissingNotificationIsRemovedAfterEmptyResponse() {
+        final WithingsBaseDeviceSupport support = mock(WithingsBaseDeviceSupport.class);
+        final GBDevice device = mock(GBDevice.class);
+        when(device.getAddress()).thenReturn("00:11:22:33:44:77");
+        when(support.getDevice()).thenReturn(device);
+        final NotificationProvider provider = new NotificationProvider(support);
+
+        final GetNotificationAttributes request = new GetNotificationAttributes();
+        request.setNotificationUID(301);
+        final RequestedNotificationAttribute title = new RequestedNotificationAttribute();
+        title.setAttributeID((byte) 1);
+        title.setAttributeMaxLength((short) 60);
+        request.addAttribute(title);
+
+        provider.handleNotificationAttributeRequest(request);
+
+        final InOrder inOrder = inOrder(support);
+        inOrder.verify(support).sendAncsDataSourceNotification(any(GetNotificationAttributesResponse.class));
+        final ArgumentCaptor<NotificationSource> sourceCaptor = ArgumentCaptor.forClass(NotificationSource.class);
+        inOrder.verify(support).sendAncsNotificationSourceNotification(sourceCaptor.capture());
+        assertEquals(301, sourceCaptor.getValue().getNotificationUID());
+        assertEquals(AncsConstants.EVENT_ID_NOTIFICATION_REMOVED, sourceCaptor.getValue().getEventID());
     }
 
     @Test

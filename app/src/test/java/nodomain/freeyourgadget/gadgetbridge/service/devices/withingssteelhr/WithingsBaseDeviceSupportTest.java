@@ -75,4 +75,28 @@ public class WithingsBaseDeviceSupportTest {
         assertFalse(WithingsBaseDeviceSupport.shouldRunFullSync("watch-sync-request", 100_000L, 50_000L));
         assertTrue(WithingsBaseDeviceSupport.shouldRunFullSync("watch-sync-request", 110_001L, 50_000L));
     }
+
+    @Test
+    public void ancsStallCheckUsesOldestPendingDeadline() {
+        assertEquals(20_000L, WithingsBaseDeviceSupport.calculateAncsStallCheckDelay(
+                20_000L,
+                10_000L,
+                0L));
+    }
+
+    @Test
+    public void ancsStallCheckWaitsUntilRecoveryCooldownExpires() {
+        assertEquals(150_000L, WithingsBaseDeviceSupport.calculateAncsStallCheckDelay(
+                50_000L,
+                10_000L,
+                20_000L));
+    }
+
+    @Test
+    public void overdueAncsStallRunsImmediately() {
+        assertEquals(0L, WithingsBaseDeviceSupport.calculateAncsStallCheckDelay(
+                400_000L,
+                10_000L,
+                20_000L));
+    }
 }

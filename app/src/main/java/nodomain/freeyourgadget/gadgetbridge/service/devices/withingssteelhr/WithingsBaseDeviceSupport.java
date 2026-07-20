@@ -140,7 +140,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public static final String LAST_ACTIVITY_SYNC = "lastActivitySync";
     private static final long ACTIVITY_SYNC_OVERLAP_MILLIS = 6L * 60L * 60L * 1000L;
     private static final long MIN_SYNC_TRIGGER_INTERVAL_MS = 15_000L;
-    private static final long POST_SYNC_ANCS_REENABLE_DELAY_MS = 1_000L;
     public static final String HANDS_CALIBRATION_CMD = "withings_hands_calibration";
     public static final String START_HANDS_CALIBRATION_CMD = "start_withings_hands_calibration";
     public static final String STOP_HANDS_CALIBRATION_CMD = "stop_withings_hands_calibration";
@@ -154,10 +153,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private ActivitySampleHandler activitySampleHandler;
     private final ConversationQueue conversationQueue;
     private boolean firstTimeConnect;
-    private boolean ancsNeedsPostSyncReenable;
     private boolean ancsAwaitingCccReadyEnable;
     private boolean ancsNotificationSourceSubscribed;
     private boolean ancsDataSourceSubscribed;
+    private boolean withingsProtocolReady;
     private BluetoothGattCharacteristic notificationSourceCharacteristic;
     private BluetoothGattCharacteristic dataSourceCharacteristic;
 
@@ -197,51 +196,24 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     private final NotificationProvider notificationProvider;
     private final IncomingMessageHandlerFactory incomingMessageHandlerFactory;
     private final Handler backgroundTasksHandler = new Handler(Looper.getMainLooper());
-    private final Runnable postSyncAncsReenableRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!ancsNeedsPostSyncReenable) {
-                return;
-            }
-
-            if (!isConnected()) {
-                logger.debug("Skipping post-sync ANCS re-enable because device is disconnected");
-                return;
-            }
-
-            if (syncInProgress) {
-                logger.debug("Deferring post-sync ANCS GATT refresh because another sync is running");
-                backgroundTasksHandler.postDelayed(this, POST_SYNC_ANCS_REENABLE_DELAY_MS);
-                return;
-            }
-
-            logger.info("Refreshing ANCS GATT services after first sync and waiting for fresh CCC subscriptions");
-            ancsNeedsPostSyncReenable = false;
-            ancsAwaitingCccReadyEnable = true;
-            refreshAncsServerServices();
-        }
-    };
-
     // --- ANCS stall watchdog ---
-    // Track the last time we received a Control Point write from the watch, and the
-    // last time we sent a NotificationSource ADDED.  If ADDEDs keep going out but no
-    // CP arrives within the threshold, the watch's ANCS client is stalled and we need
-    // to attempt recovery.
+    // Track the latest pending event generation acknowledged by a Control Point
+    // request. If a newer pending event remains unrequested past the threshold, the
+    // watch's ANCS client is stalled and the connection needs recovery.
     private volatile long lastControlPointWriteMs;
-    private volatile long lastNotificationAddedSentMs;
+    private volatile long lastAcknowledgedNotificationMs;
     /**
      * How long (ms) after sending an ADDED event to wait for a Control Point request
      * before declaring an ANCS stall.  The watch normally issues CP within ~200ms.
-     * 2 minutes is very generous and avoids false positives during periods where no
-     * notifications are sent.
+     * Thirty seconds is far above the normal sub-second response while limiting how
+     * long notifications remain blocked behind a stale ANCS session.
      */
-    private static final long ANCS_STALL_THRESHOLD_MS = 120_000;
+    private static final long ANCS_STALL_THRESHOLD_MS = 30_000;
     /**
      * Minimum interval between ANCS recovery attempts to avoid hammering.
      */
     private static final long ANCS_RECOVERY_COOLDOWN_MS = 180_000;
     private volatile long lastAncsRecoveryAttemptMs;
-    private volatile int ancsRecoveryAttemptCount;
     private final Runnable ancsStallCheckRunnable = this::checkAncsStall;
 
     public WithingsBaseDeviceSupport() {
@@ -291,7 +263,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     @Override
     public void dispose() {
         synchronized (ConnectionMonitor) {
-            ancsNeedsPostSyncReenable = false;
             ancsAwaitingCccReadyEnable = false;
             resetAncsSubscriptionState("dispose");
             backgroundTasksHandler.removeCallbacksAndMessages(null);
@@ -307,10 +278,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
         logger.debug("Starting initialization...");
         conversationQueue.clear();
-        backgroundTasksHandler.removeCallbacks(postSyncAncsReenableRunnable);
-        ancsNeedsPostSyncReenable = true;
-        ancsAwaitingCccReadyEnable = false;
-        resetAncsSubscriptionState("new connection");
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         getDevice().setFirmwareVersion("N/A");
         getDevice().setFirmwareVersion2("N/A");
@@ -623,11 +590,13 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
         if (newState == BluetoothGatt.STATE_CONNECTED) {
             clearStaleSyncState("connect");
-            // Reset ANCS stall watchdog state on new connection
+            resetAncsSubscriptionState("new connection");
+            ancsAwaitingCccReadyEnable = true;
+            withingsProtocolReady = false;
+            // Reset connection-local ANCS watchdog state. Keep the recovery
+            // timestamp so reconnecting cannot bypass the recovery cooldown.
             lastControlPointWriteMs = 0;
-            lastNotificationAddedSentMs = 0;
-            lastAncsRecoveryAttemptMs = 0;
-            ancsRecoveryAttemptCount = 0;
+            lastAcknowledgedNotificationMs = 0;
             backgroundTasksHandler.removeCallbacks(ancsStallCheckRunnable);
         } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
             clearStaleSyncState("disconnect");
@@ -711,10 +680,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     public boolean onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
         if (characteristic.getUuid().equals(getActiveWithingsUUIDs().CONTROL_POINT_CHARACTERISTIC_UUID)) {
             logger.debug("ANCS Control Point write: {}", GB.hexdump(value));
-            onControlPointWriteReceived();
             GetNotificationAttributes request = new GetNotificationAttributes();
             request.deserialize(value);
-            notificationProvider.handleNotificationAttributeRequest(request);
+            final long acknowledgedNotificationMs = notificationProvider.handleNotificationAttributeRequest(request);
+            onControlPointWriteReceived(acknowledgedNotificationMs);
         }
 
         return true;
@@ -798,7 +767,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     private void scheduleNotificationReconnect() {
         logger.info("Controlled reconnect requested after enabling notifications to force fresh ANCS discovery");
-        ancsNeedsPostSyncReenable = true;
         ancsAwaitingCccReadyEnable = false;
         resetAncsSubscriptionState("notification toggle enabled");
         backgroundTasksHandler.postDelayed(() -> {
@@ -814,9 +782,17 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     protected void queueNotificationConfiguration(final boolean enabled) {
+        queueNotificationConfiguration(enabled, null);
+    }
+
+    private void queueNotificationConfiguration(final boolean enabled, @Nullable final Runnable onConfigured) {
         addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.SET_ANCS_STATUS, new AncsStatus(enabled)));
         addFeatureTagsMessage();
-        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS));
+        addSimpleConversationToQueue(new WithingsMessage(WithingsMessageType.GET_ANCS_STATUS), response -> {
+            if (onConfigured != null) {
+                onConfigured.run();
+            }
+        });
     }
 
     /**
@@ -899,9 +875,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             builder.notifyCharacteristicChanged(getServerDevice(), notificationSourceCharacteristic, data);
             builder.queue(getQueue());
 
-            // Track ADDED events for stall detection
+            // Track ADDED events for stall detection.
             if (notificationSource.getEventID() == AncsConstants.EVENT_ID_NOTIFICATION_ADDED) {
-                lastNotificationAddedSentMs = System.currentTimeMillis();
                 scheduleAncsStallCheck();
             }
         } catch (IOException e) {
@@ -957,6 +932,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         TransactionBuilder builder = createTransactionBuilder("setupFinished");
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         builder.queue();
+        withingsProtocolReady = true;
+        // Authentication immediately starts a sync, while first-time setup does not.
+        // Delay this check so the sync can claim the conversation queue first; its
+        // completion will perform the same check again.
+        backgroundTasksHandler.postDelayed(this::maybeHandleAncsSubscriptionsReady, 250);
         if (firstTimeConnect) {
             logger.debug("First-time setup completed; future reconnects will use post-auth sync flow");
             firstTimeConnect = false;
@@ -998,10 +978,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         GB.signalActivityDataFinish(getDevice());
         saveLastSyncTimestamp(new Date().getTime());
 
-        if (ancsNeedsPostSyncReenable) {
-            backgroundTasksHandler.removeCallbacks(postSyncAncsReenableRunnable);
-            backgroundTasksHandler.postDelayed(postSyncAncsReenableRunnable, POST_SYNC_ANCS_REENABLE_DELAY_MS);
-        }
+        maybeHandleAncsSubscriptionsReady();
     }
 
     public boolean isSyncInProgress() {
@@ -1118,31 +1095,6 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         addSupportedServerService(withingsGATTService);
     }
 
-    /**
-     * Refresh the GATT server services so the watch re-discovers them and
-     * subscribes to the ANCS CCC descriptors.
-     * <p>
-     * IMPORTANT: This must ONLY be called during initial connection setup, NOT
-     * during periodic sync cycles. The clearServices()+addService() call causes
-     * Android to tear down and rebuild the BLE advertising set, which corrupts the
-     * watch's GATT server view on the still-active ANCS connection. This was the
-     * root cause of the long-session ANCS stall: every ~8 min sync cycle called
-     * refreshServerServices(), eventually causing the watch to stop issuing Control
-     * Point requests while NotificationSource kept working.
-     * <p>
-     * The official Withings app does CCC subscription only once at initial setup and
-     * keeps the ANCS connection stable for 12+ hours without any server service
-     * cycling.
-     */
-    private void refreshAncsServerServices() {
-        resetAncsSubscriptionState("refreshing GATT server services");
-        try {
-            getQueue().refreshServerServices();
-        } catch (Exception e) {
-            logger.warn("refreshServerServices() failed, continuing anyway", e);
-        }
-    }
-
     private void resetAncsSubscriptionState(final String reason) {
         logger.debug("Resetting ANCS CCC subscription state ({})", reason);
         ancsNotificationSourceSubscribed = false;
@@ -1176,6 +1128,11 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
             return;
         }
 
+        if (!withingsProtocolReady) {
+            logger.debug("ANCS CCC subscriptions became ready during initialization; ANCS enable will be sent after sync");
+            return;
+        }
+
         ancsAwaitingCccReadyEnable = false;
 
         if (!isNotificationEnabledPreferenceOn()) {
@@ -1184,8 +1141,15 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
         }
 
         logger.info("Fresh ANCS CCC subscriptions observed; applying enabled notification toggle state");
-        queueNotificationConfiguration(true);
+        queueNotificationConfiguration(true, this::replayPendingNotificationsAfterSubscriptionsRestore);
         conversationQueue.send();
+    }
+
+    private void replayPendingNotificationsAfterSubscriptionsRestore() {
+        final int replayed = notificationProvider.replayPendingNotifications();
+        if (replayed > 0) {
+            logger.info("Replayed {} unrequested notification(s) after ANCS subscriptions were restored", replayed);
+        }
     }
 
     /**
@@ -1225,91 +1189,71 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     /**
-     * Attempt to recover ANCS by re-sending the current notification toggle state.
-     * Called by NotificationProvider when consecutive unacknowledged notifications
-     * indicate the watch has stopped responding to ANCS events.
-     */
-    public void resetAncsState() {
-        if (!isNotificationEnabledPreferenceOn()) {
-            logger.info("Skipping ANCS state reset because notification toggle is disabled");
-            return;
-        }
-
-        logger.info("Resetting ANCS state: re-sending current notification toggle state");
-        queueNotificationConfiguration(true);
-        conversationQueue.send();
-    }
-
-    /**
-     * Schedule a delayed ANCS stall check. Called after sending a NotificationSource
-     * ADDED event. After the threshold, we check whether a Control Point write arrived.
+     * Schedule a check for the oldest pending event that has not been acknowledged by
+     * a later Control Point request. Newer ADDED events cannot postpone this deadline.
      */
     private void scheduleAncsStallCheck() {
         backgroundTasksHandler.removeCallbacks(ancsStallCheckRunnable);
-        backgroundTasksHandler.postDelayed(ancsStallCheckRunnable, ANCS_STALL_THRESHOLD_MS);
+        final long now = System.currentTimeMillis();
+        final long oldestPendingMs = notificationProvider.getOldestUnrequestedTimestampAfter(lastAcknowledgedNotificationMs);
+        if (oldestPendingMs == 0) {
+            return;
+        }
+
+        final long delayMs = calculateAncsStallCheckDelay(now, oldestPendingMs, lastAncsRecoveryAttemptMs);
+        backgroundTasksHandler.postDelayed(ancsStallCheckRunnable, delayMs);
+    }
+
+    static long calculateAncsStallCheckDelay(final long now,
+                                             final long oldestPendingMs,
+                                             final long lastRecoveryMs) {
+        final long stallDueMs = oldestPendingMs + ANCS_STALL_THRESHOLD_MS;
+        final long recoveryAllowedMs = lastRecoveryMs > 0
+                ? lastRecoveryMs + ANCS_RECOVERY_COOLDOWN_MS
+                : stallDueMs;
+        return Math.max(0, Math.max(stallDueMs, recoveryAllowedMs) - now);
     }
 
     /**
      * Check for an ANCS stall: if we have sent ADDED notifications recently but the
      * watch has not issued any Control Point writes within the threshold, attempt
-     * recovery.
-     * <p>
-     * Recovery strategy (escalating):
-     * <ol>
-     *   <li>First attempt: soft recovery -- re-send SET_ANCS_STATUS + feature tags
-     *       via WPP. This is cheap and doesn't touch the GATT server.</li>
-     *   <li>Second attempt: hard recovery -- refresh GATT server services (triggers
-     *       Service Changed indication) + re-send SET_ANCS_STATUS. This is the
-     *       nuclear option because it can itself cause the advertising set rebuild
-     *       that originally caused the stall, but if we're already stalled it's
-     *       worth trying.</li>
-     * </ol>
+     * recovery. A clean reconnect is required because re-sending the WPP ANCS
+     * configuration does not restore Control Point writes on a stale session.
      */
     private void checkAncsStall() {
         final long now = System.currentTimeMillis();
 
-        // Only check if we actually sent an ADDED recently
-        if (lastNotificationAddedSentMs == 0) {
+        final long oldestPendingMs = notificationProvider.getOldestUnrequestedTimestampAfter(lastAcknowledgedNotificationMs);
+        if (oldestPendingMs == 0) {
             return;
         }
 
-        // If we received a CP write after the last ADDED, everything is fine
-        if (lastControlPointWriteMs >= lastNotificationAddedSentMs) {
-            return;
-        }
-
-        // Check if enough time has passed since the last ADDED without a CP response
-        final long timeSinceLastAdded = now - lastNotificationAddedSentMs;
+        final long timeSinceLastAdded = now - oldestPendingMs;
         if (timeSinceLastAdded < ANCS_STALL_THRESHOLD_MS) {
-            return;  // Not yet timed out
+            scheduleAncsStallCheck();
+            return;
         }
 
-        // Check cooldown
         if (now - lastAncsRecoveryAttemptMs < ANCS_RECOVERY_COOLDOWN_MS) {
             logger.debug("ANCS stall detected but recovery cooldown active ({}ms remaining)",
                     ANCS_RECOVERY_COOLDOWN_MS - (now - lastAncsRecoveryAttemptMs));
+            scheduleAncsStallCheck();
             return;
         }
 
         lastAncsRecoveryAttemptMs = now;
-        ancsRecoveryAttemptCount++;
-
-        if (ancsRecoveryAttemptCount <= 1) {
-            // Soft recovery: just re-send SET_ANCS_STATUS + feature tags
-            logger.warn("ANCS stall detected: no CP write for {}ms after ADDED (lastCP={}ms ago). " +
-                            "Attempting soft recovery (attempt #{}): re-sending SET_ANCS_STATUS + feature tags",
-                    timeSinceLastAdded,
-                    lastControlPointWriteMs > 0 ? (now - lastControlPointWriteMs) : -1,
-                    ancsRecoveryAttemptCount);
-            resetAncsState();
-        } else {
-            // Hard recovery: disconnect and reconnect
-            logger.warn("ANCS stall detected: no CP write for {}ms after ADDED (lastCP={}ms ago). " +
-                            "Attempting hard recovery (attempt #{}): disconnecting to force clean reconnect",
-                    timeSinceLastAdded,
-                    lastControlPointWriteMs > 0 ? (now - lastControlPointWriteMs) : -1,
-                    ancsRecoveryAttemptCount);
+        logger.warn("ANCS stall detected: no CP write for {}ms after ADDED (lastCP={}ms ago). " +
+                        "Disconnecting to restore ANCS subscriptions",
+                timeSinceLastAdded,
+                lastControlPointWriteMs > 0 ? (now - lastControlPointWriteMs) : -1);
+        if (isConnected()) {
             disconnect();
+            backgroundTasksHandler.postDelayed(() -> {
+                logger.info("Reconnecting after ANCS stall recovery");
+                connect();
+            }, 1500);
+        } else {
+            connect();
         }
     }
 
@@ -1317,15 +1261,10 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
      * Called when a Control Point write is received from the watch,
      * confirming the ANCS session is alive.
      */
-    private void onControlPointWriteReceived() {
+    private void onControlPointWriteReceived(final long acknowledgedNotificationMs) {
         lastControlPointWriteMs = System.currentTimeMillis();
-        // CP write received, ANCS is working -- reset recovery counter
-        if (ancsRecoveryAttemptCount > 0) {
-            logger.info("ANCS recovered: CP write received after {} recovery attempts", ancsRecoveryAttemptCount);
-            ancsRecoveryAttemptCount = 0;
-        }
-        // Cancel any pending stall check since we just got a CP write
-        backgroundTasksHandler.removeCallbacks(ancsStallCheckRunnable);
+        lastAcknowledgedNotificationMs = Math.max(lastAcknowledgedNotificationMs, acknowledgedNotificationMs);
+        scheduleAncsStallCheck();
     }
 
     public void addSimpleConversationToQueue(Message message) {
