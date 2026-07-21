@@ -17,11 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
 /**
- * Pure orchestration for a RingConn Gen2 sync: connect -> auth -> record replay. Given each inbound
- * notification (and an injected clock), returns the commands to write and the step buckets to
- * persist. No Android, no timers, no I/O — the DeviceSupport is thin glue that executes these
- * Actions over BLE. Ack policy is enforced here: every stream is acked EXCEPT `4c` activity records,
- * which are read idempotently so the official RingConn app keeps them.
+ * Pure orchestration for a RingConn Gen2 sync (connect -> auth -> record replay): given each inbound notification and an injected clock, returns commands to write and step buckets to persist. No Android/timers/I/O. Ack policy enforced here: every stream is acked EXCEPT `4c` activity records, read idempotently so the official app keeps them.
  */
 class RingConnSyncEngine @JvmOverloads constructor(
     private val mac: ByteArray,
@@ -65,10 +61,9 @@ class RingConnSyncEngine @JvmOverloads constructor(
 
     private fun onRecordFrame(frame: RingConnRecordFrame, id: Int): Actions {
         val buckets = frame.activityRecords.map { Bucket(it.unixSeconds, it.steps, it.sleepFlagged) }
-        // Ack every record frame, including `4c` activity: the ack advances the ring's shared
-        // replay cursor, which is the only way to drain a multi-batch backlog. (Not acking leaves
-        // the cursor pinned to the oldest batch, so GB would perpetually re-read the same records
-        // and under-count. GB thus becomes the primary consumer for this ring.)
+        // Ack every record frame, including `4c` activity: the ack advances the ring's shared replay
+        // cursor, the only way to drain a multi-batch backlog. (Not acking pins the cursor to the oldest
+        // batch, so GB re-reads the same records and under-counts. GB becomes the primary consumer.)
         val drained = id == RingConnRecordParser.FRAME_ID_ACTIVITY && frame.remaining == 0
         return Actions(listOf(RingConnRecordParser.ackCommand(id)), buckets, drained)
     }

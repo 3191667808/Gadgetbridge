@@ -31,12 +31,7 @@ data class RingConnRecordFrame(
 )
 
 /**
- * Pure parser for RingConn Gen2 record frames. Two record types exist, both XOR-trailed and
- * btsnoop-verified:
- *  - `0x4c` — activity records (19-byte body per record, steps at [14], sleepFlagged when
- *    body[6:11] are all 0x01)
- *  - `0x47` — wellness records (43-byte body, skipped; only frameId and remaining parsed)
- * Timestamp for both: u32 big-endian offset from 2020-01-01 00:00:00 UTC+8.
+ * Pure parser for RingConn Gen2 record frames: `0x4c` activity (steps at body[14], sleepFlagged when body[6:11]==0x01) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
  */
 object RingConnRecordParser {
 
@@ -69,8 +64,7 @@ object RingConnRecordParser {
     private const val TIMESTAMP_OFFSET_3 = 3
 
     /**
-     * Parse a record frame, or null if invalid (bad frame id, bad length, bad XOR trailer,
-     * or insufficient records). Never throws on arbitrary input.
+     * Parse a record frame, or null if invalid (bad frame id/length/XOR trailer, or too few records). Never throws.
      */
     fun parse(frame: ByteArray): RingConnRecordFrame? {
         if (!isValidFrameStructure(frame)) return null
@@ -103,10 +97,7 @@ object RingConnRecordParser {
     }
 
     /**
-     * Build an ACK command for the given frame id, i.e. `<id|0x80> 00 00` (`47` -> `c7 00 00`).
-     * Acking advances the ring's shared per-stream replay cursor: required on `47`/`11` to
-     * unblock the session, deliberately NEVER sent for `4c` activity frames (see
-     * AndroidRingStepsSource's ack policy).
+     * Build an ACK command `<id|0x80> 00 00` (`47` -> `c7 00 00`). Acking advances the ring's shared per-stream replay cursor: required on `47`/`11`, deliberately NEVER sent for `4c` activity frames.
      */
     fun ackCommand(frameId: Int): ByteArray {
         return byteArrayOf(

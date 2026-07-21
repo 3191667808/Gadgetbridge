@@ -138,11 +138,9 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
             return;
         }
         completed = true;
-        // Stay connected (like every other GB gadget). Self-disconnecting here races the last
-        // in-flight ack write: disconnect() closes the gatt before the write callback fires, so
-        // the BtLEQueue out-thread stays blocked on its action-result latch and every later
-        // reconnect's init transaction is enqueued but never executed (permanent sync wedge).
-        // GB is the sole step-record consumer anyway, so there is no reason to release the ring.
+        // Stay connected (like every other GB gadget). Self-disconnecting races the last in-flight
+        // ack write — disconnect() closes the gatt before the write callback fires, wedging the
+        // BtLEQueue out-thread on its latch so every later reconnect's init never runs. GB is sole consumer.
         LOG.info("RingConn sync complete (sawRecords={}), staying connected", sawRecords);
         if (getDevice().isBusy()) {
             getDevice().unsetBusyTask();
