@@ -73,9 +73,9 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(NOTIFY_CHAR, true);
         builder.setDeviceState(GBDevice.State.INITIALIZED);
-        // The ring is single-central: sync on connect and disconnect when done (finishSync) so
-        // the official RingConn app can still reach it. onFetchRecordedData does the same on the
-        // manual "fetch activity data" trigger.
+        // Sync the activity backlog on connect, then stay connected (see finishSync). GB is the
+        // sole consumer of the ring's shared 4c record cursor, so it keeps the ring rather than
+        // releasing it. onFetchRecordedData re-runs the same drain on the manual fetch trigger.
         beginSync(builder);
         return builder;
     }
@@ -138,12 +138,16 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
             return;
         }
         completed = true;
-        LOG.info("RingConn sync complete (sawRecords={}), disconnecting", sawRecords);
+        // Stay connected (like every other GB gadget). Self-disconnecting here races the last
+        // in-flight ack write: disconnect() closes the gatt before the write callback fires, so
+        // the BtLEQueue out-thread stays blocked on its action-result latch and every later
+        // reconnect's init transaction is enqueued but never executed (permanent sync wedge).
+        // GB is the sole step-record consumer anyway, so there is no reason to release the ring.
+        LOG.info("RingConn sync complete (sawRecords={}), staying connected", sawRecords);
         if (getDevice().isBusy()) {
             getDevice().unsetBusyTask();
             getDevice().sendDeviceUpdateIntent(getContext());
         }
-        disconnect();
     }
 
     private void persist(final List<RingConnSyncEngine.Bucket> buckets) {
