@@ -47,6 +47,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(YcbtDeviceSupport.class);
     private YcbtInboundRouter inboundRouter = new YcbtInboundRouter();
     private boolean batteryQueryRequested;
+    private boolean capabilityQueryRequested;
 
     public YcbtDeviceSupport() {
         super(LOG);
@@ -114,6 +115,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         inboundRouter = new YcbtInboundRouter();
         batteryQueryRequested = false;
+        capabilityQueryRequested = false;
         diagnostic(YcbtDiagnostics.TYPE_INITIALIZE_ENTERED, "initialize entered");
 
         final List<BluetoothGattCharacteristic> indicationCharacteristics = new ArrayList<>(2);
@@ -331,6 +333,20 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 batteryInfo.level = batteryLevel;
                 handleGBDeviceEvent(batteryInfo);
                 diagnostic(YcbtDiagnostics.TYPE_STAGE, "battery query response=" + batteryLevel + "%");
+                requestCapabilityQuery();
+            }
+            final YcbtProtocol.Capabilities capabilities = YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID.equals(
+                    characteristicUuid
+            ) ? YcbtProtocol.parseCapabilities(frame) : null;
+            if (capabilities != null) {
+                diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
+                        Locale.ROOT,
+                        "capability query response bloodPressure=%s temperature=%s findDevice=%s bloodSugar=%s",
+                        capabilities.hasBloodPressure(),
+                        capabilities.hasTemperature(),
+                        capabilities.hasFindDevice(),
+                        capabilities.hasBloodSugar()
+                ));
             }
             LOG.info("Decoded YCBT frame from {}: group=0x{}, command=0x{}, payloadLength={}",
                     characteristicUuid,
@@ -366,6 +382,31 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         ));
         builder.write(commandCharacteristic, YcbtProtocol.buildBatteryRequest());
         builder.queue();
+    }
+
+    private void requestCapabilityQuery() {
+        synchronized (ConnectionMonitor) {
+            if (capabilityQueryRequested || !isConnected()) {
+                return;
+            }
+
+            final BluetoothGattCharacteristic commandCharacteristic = getCharacteristic(
+                    YcbtConstants.WRITE_CHARACTERISTIC_UUID
+            );
+            if (commandCharacteristic == null) {
+                diagnostic(YcbtDiagnostics.TYPE_FAILURE, "capability query command/reply missing");
+                return;
+            }
+            commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+            final TransactionBuilder builder = createTransactionBuilder("YCBT capability query");
+            builder.run(() -> diagnostic(
+                    YcbtDiagnostics.TYPE_STAGE,
+                    "capability query write request=0201080047469b16"
+            ));
+            builder.write(commandCharacteristic, YcbtProtocol.buildCapabilityRequest());
+            capabilityQueryRequested = true;
+            builder.queue();
+        }
     }
 
     @Override

@@ -21,9 +21,20 @@ import java.nio.charset.StandardCharsets;
 final class YcbtProtocol {
     private static final int GROUP_DEVICE_INFORMATION = 0x02;
     private static final int COMMAND_BATTERY = 0x00;
+    private static final int COMMAND_CAPABILITIES = 0x01;
     private static final int COMMAND_MODEL = 0x03;
     private static final int BATTERY_LEVEL_PAYLOAD_OFFSET = 5;
+    private static final int CAPABILITY_PAYLOAD_LENGTH = 60;
+    private static final int BLOOD_PRESSURE_PAYLOAD_OFFSET = 0;
+    private static final int BLOOD_PRESSURE_MASK = 1 << 0;
+    private static final int TEMPERATURE_PAYLOAD_OFFSET = 8;
+    private static final int TEMPERATURE_MASK = 1 << 0;
+    private static final int FIND_DEVICE_PAYLOAD_OFFSET = 6;
+    private static final int FIND_DEVICE_MASK = 1 << 4;
+    private static final int BLOOD_SUGAR_PAYLOAD_OFFSET = 17;
+    private static final int BLOOD_SUGAR_MASK = 1 << 3;
     private static final byte[] BATTERY_REQUEST_PAYLOAD = new byte[]{0x47, 0x43};
+    private static final byte[] CAPABILITY_REQUEST_PAYLOAD = new byte[]{0x47, 0x46};
     private static final byte[] MODEL_REQUEST_PAYLOAD = new byte[]{0x47, 0x50};
 
     private YcbtProtocol() {
@@ -37,6 +48,10 @@ final class YcbtProtocol {
         return YcbtFrameCodec.encode(GROUP_DEVICE_INFORMATION, COMMAND_BATTERY, BATTERY_REQUEST_PAYLOAD);
     }
 
+    static byte[] buildCapabilityRequest() {
+        return YcbtFrameCodec.encode(GROUP_DEVICE_INFORMATION, COMMAND_CAPABILITIES, CAPABILITY_REQUEST_PAYLOAD);
+    }
+
     static Integer parseBatteryLevel(final YcbtFrameCodec.Frame frame) {
         if (frame.getGroup() != GROUP_DEVICE_INFORMATION || frame.getCommand() != COMMAND_BATTERY) {
             return null;
@@ -48,6 +63,27 @@ final class YcbtProtocol {
         }
         final int level = payload[BATTERY_LEVEL_PAYLOAD_OFFSET] & 0xff;
         return level <= 100 ? level : null;
+    }
+
+    static Capabilities parseCapabilities(final YcbtFrameCodec.Frame frame) {
+        if (frame.getGroup() != GROUP_DEVICE_INFORMATION || frame.getCommand() != COMMAND_CAPABILITIES) {
+            return null;
+        }
+
+        final byte[] payload = frame.getPayload();
+        if (payload.length != CAPABILITY_PAYLOAD_LENGTH) {
+            return null;
+        }
+        return new Capabilities(
+                hasBit(payload, BLOOD_PRESSURE_PAYLOAD_OFFSET, BLOOD_PRESSURE_MASK),
+                hasBit(payload, TEMPERATURE_PAYLOAD_OFFSET, TEMPERATURE_MASK),
+                hasBit(payload, FIND_DEVICE_PAYLOAD_OFFSET, FIND_DEVICE_MASK),
+                hasBit(payload, BLOOD_SUGAR_PAYLOAD_OFFSET, BLOOD_SUGAR_MASK)
+        );
+    }
+
+    private static boolean hasBit(final byte[] payload, final int offset, final int mask) {
+        return offset >= 0 && offset < payload.length && (payload[offset] & mask) != 0;
     }
 
     static String parseModelResponse(final YcbtFrameCodec.Frame frame) {
@@ -76,5 +112,38 @@ final class YcbtProtocol {
             }
         }
         return new String(payload, 0, length, StandardCharsets.US_ASCII);
+    }
+
+    static final class Capabilities {
+        private final boolean bloodPressure;
+        private final boolean temperature;
+        private final boolean findDevice;
+        private final boolean bloodSugar;
+
+        private Capabilities(final boolean bloodPressure,
+                             final boolean temperature,
+                             final boolean findDevice,
+                             final boolean bloodSugar) {
+            this.bloodPressure = bloodPressure;
+            this.temperature = temperature;
+            this.findDevice = findDevice;
+            this.bloodSugar = bloodSugar;
+        }
+
+        boolean hasBloodPressure() {
+            return bloodPressure;
+        }
+
+        boolean hasTemperature() {
+            return temperature;
+        }
+
+        boolean hasFindDevice() {
+            return findDevice;
+        }
+
+        boolean hasBloodSugar() {
+            return bloodSugar;
+        }
     }
 }
