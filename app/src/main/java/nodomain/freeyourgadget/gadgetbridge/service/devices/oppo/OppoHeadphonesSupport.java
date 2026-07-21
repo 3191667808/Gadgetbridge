@@ -797,6 +797,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
             byte[] macBytes = new byte[6];
             buf.get(macBytes);
+            if (getCoordinator().multipointMacOrder(getDevice()) == ByteOrder.LITTLE_ENDIAN) {
+                macBytes = bytesReverse(macBytes);
+            }
+
             StringBuilder sb = new StringBuilder();
             for (int b = 0; b < macBytes.length; b++) {
                 sb.append(String.format("%02X", macBytes[b]));
@@ -835,10 +839,14 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private void multipointDevicesSet(String deviceAddress, boolean isConnect) {
         LOG.info("Connecting to {}", deviceAddress);
 
-        final byte[] macAddress = StringUtils.hexToBytes(deviceAddress.replace(":", ""));
+        byte[] macAddress = StringUtils.hexToBytes(deviceAddress.replace(":", ""));
         if (macAddress.length != 6) {
             LOG.warn("Unexpected MAC Address length: {}, expected 6", macAddress.length);
             return;
+        }
+
+        if (getCoordinator().multipointMacOrder(getDevice()) == ByteOrder.LITTLE_ENDIAN) {
+            macAddress = bytesReverse(macAddress);
         }
 
         final ByteBuffer buf = ByteBuffer.allocate(8);
@@ -946,5 +954,14 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private static String intToHex(final int code, final int len) {
         return String.format(Locale.ROOT, "%0" + len + "x", code);
+    }
+
+    @NonNull
+    private static byte[] bytesReverse(@NonNull final byte[] bytes) {
+        byte[] reversed = new byte[bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            reversed[i] = bytes[bytes.length - 1 - i];
+        }
+        return reversed;
     }
 }

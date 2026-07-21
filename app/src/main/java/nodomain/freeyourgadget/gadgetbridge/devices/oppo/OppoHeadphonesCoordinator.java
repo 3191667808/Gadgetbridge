@@ -22,6 +22,7 @@ import android.bluetooth.BluetoothClass;
 
 import androidx.annotation.NonNull;
 
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 
@@ -151,6 +152,11 @@ public abstract class OppoHeadphonesCoordinator extends AbstractBLClassicDeviceC
 
     public boolean supportsMultipoint(@NonNull GBDevice device) {
         return false;
+    }
+
+    @NonNull
+    public ByteOrder multipointMacOrder(@NonNull GBDevice device) {
+        return ByteOrder.BIG_ENDIAN;
     }
 
     public boolean supportsGameMode(@NonNull GBDevice device) {

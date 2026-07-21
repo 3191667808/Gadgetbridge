@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.realme;
 import android.util.Pair;
 import androidx.annotation.NonNull;
 
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -75,6 +76,10 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
     @Override
     public boolean supportsMultipoint(@NonNull GBDevice device) {
         return true;
+    }
+
+    public ByteOrder multipointMacOrder(@NonNull GBDevice device) {
+        return ByteOrder.LITTLE_ENDIAN;
     }
 
     @Override
