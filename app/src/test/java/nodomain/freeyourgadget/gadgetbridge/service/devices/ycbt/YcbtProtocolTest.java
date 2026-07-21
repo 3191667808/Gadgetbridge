@@ -29,6 +29,15 @@ public class YcbtProtocolTest {
     private static final byte[] CAPTURED_MODEL_RESPONSE = new byte[]{
             0x02, 0x03, 0x0b, 0x00, 0x52, 0x31, 0x31, 0x4d, 0x00, (byte) 0xa6, (byte) 0xdf
     };
+    private static final byte[] CAPTURED_BATTERY_REQUEST = new byte[]{
+            0x02, 0x00, 0x08, 0x00, 0x47, 0x43, 0x6f, (byte) 0xec
+    };
+    private static final byte[] CAPTURED_BATTERY_RESPONSE = new byte[]{
+            0x02, 0x00, 0x1e, 0x00, (byte) 0xa3, 0x00, 0x20, 0x02,
+            0x00, 0x34, 0x00, 0x01, 0x00, 0x03, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x00, 0x00, (byte) 0xe3, (byte) 0xec
+    };
 
     @Test
     public void buildsCapturedModelRequestExactly() {
@@ -38,6 +47,28 @@ public class YcbtProtocolTest {
     @Test
     public void parsesCapturedModelResponse() {
         assertEquals("R11M", YcbtProtocol.parseModelResponse(YcbtFrameCodec.decode(CAPTURED_MODEL_RESPONSE)));
+    }
+
+    @Test
+    public void buildsCapturedBatteryRequestExactly() {
+        assertArrayEquals(CAPTURED_BATTERY_REQUEST, YcbtProtocol.buildBatteryRequest());
+    }
+
+    @Test
+    public void parsesCapturedBatteryResponse() {
+        assertEquals(Integer.valueOf(52),
+                YcbtProtocol.parseBatteryLevel(YcbtFrameCodec.decode(CAPTURED_BATTERY_RESPONSE)));
+    }
+
+    @Test
+    public void rejectsShortOrOutOfRangeBatteryResponses() {
+        assertNull(YcbtProtocol.parseBatteryLevel(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x02, 0x00, new byte[]{0x00, 0x00, 0x00, 0x00, 0x00})
+        )));
+        assertNull(YcbtProtocol.parseBatteryLevel(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x02, 0x00, new byte[]{0x00, 0x00, 0x00, 0x00, 0x00, 101})
+        )));
+        assertNull(YcbtProtocol.parseBatteryLevel(YcbtFrameCodec.decode(CAPTURED_MODEL_RESPONSE)));
     }
 
     @Test

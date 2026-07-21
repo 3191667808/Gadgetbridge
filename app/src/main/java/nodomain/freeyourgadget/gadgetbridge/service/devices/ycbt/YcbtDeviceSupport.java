@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.ycbt.YcbtConstants;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BleNamesResolver;
@@ -45,6 +46,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.NotifyAction;
 public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(YcbtDeviceSupport.class);
     private YcbtInboundRouter inboundRouter = new YcbtInboundRouter();
+    private boolean batteryQueryRequested;
 
     public YcbtDeviceSupport() {
         super(LOG);
@@ -111,6 +113,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     protected TransactionBuilder initializeDevice(@NonNull final TransactionBuilder builder) {
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         inboundRouter = new YcbtInboundRouter();
+        batteryQueryRequested = false;
         diagnostic(YcbtDiagnostics.TYPE_INITIALIZE_ENTERED, "initialize entered");
 
         final List<BluetoothGattCharacteristic> indicationCharacteristics = new ArrayList<>(2);
@@ -277,7 +280,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (YcbtConstants.WRITE_CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
             diagnostic(
                     status == BluetoothGatt.GATT_SUCCESS ? YcbtDiagnostics.TYPE_STAGE : YcbtDiagnostics.TYPE_FAILURE,
-                    "model probe write callback status=" + status
+                    "command write callback status=" + status
             );
         }
         final boolean handledByParent = super.onCharacteristicWrite(gatt, characteristic, status);
@@ -318,6 +321,16 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     : null;
             if (model != null) {
                 diagnostic(YcbtDiagnostics.TYPE_STAGE, "model probe response=" + model);
+                requestBatteryQuery();
+            }
+            final Integer batteryLevel = YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID.equals(characteristicUuid)
+                    ? YcbtProtocol.parseBatteryLevel(frame)
+                    : null;
+            if (batteryLevel != null) {
+                final GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
+                batteryInfo.level = batteryLevel;
+                handleGBDeviceEvent(batteryInfo);
+                diagnostic(YcbtDiagnostics.TYPE_STAGE, "battery query response=" + batteryLevel + "%");
             }
             LOG.info("Decoded YCBT frame from {}: group=0x{}, command=0x{}, payloadLength={}",
                     characteristicUuid,
@@ -334,6 +347,25 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             ));
         }
         return true;
+    }
+
+    private void requestBatteryQuery() {
+        if (batteryQueryRequested) {
+            return;
+        }
+        batteryQueryRequested = true;
+
+        final BluetoothGattCharacteristic commandCharacteristic = getCharacteristic(
+                YcbtConstants.WRITE_CHARACTERISTIC_UUID
+        );
+        commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+        final TransactionBuilder builder = createTransactionBuilder("YCBT battery query");
+        builder.run(() -> diagnostic(
+                YcbtDiagnostics.TYPE_STAGE,
+                "battery query write request=0200080047436fec"
+        ));
+        builder.write(commandCharacteristic, YcbtProtocol.buildBatteryRequest());
+        builder.queue();
     }
 
     @Override

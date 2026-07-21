@@ -20,7 +20,10 @@ import java.nio.charset.StandardCharsets;
 
 final class YcbtProtocol {
     private static final int GROUP_DEVICE_INFORMATION = 0x02;
+    private static final int COMMAND_BATTERY = 0x00;
     private static final int COMMAND_MODEL = 0x03;
+    private static final int BATTERY_LEVEL_PAYLOAD_OFFSET = 5;
+    private static final byte[] BATTERY_REQUEST_PAYLOAD = new byte[]{0x47, 0x43};
     private static final byte[] MODEL_REQUEST_PAYLOAD = new byte[]{0x47, 0x50};
 
     private YcbtProtocol() {
@@ -28,6 +31,23 @@ final class YcbtProtocol {
 
     static byte[] buildModelRequest() {
         return YcbtFrameCodec.encode(GROUP_DEVICE_INFORMATION, COMMAND_MODEL, MODEL_REQUEST_PAYLOAD);
+    }
+
+    static byte[] buildBatteryRequest() {
+        return YcbtFrameCodec.encode(GROUP_DEVICE_INFORMATION, COMMAND_BATTERY, BATTERY_REQUEST_PAYLOAD);
+    }
+
+    static Integer parseBatteryLevel(final YcbtFrameCodec.Frame frame) {
+        if (frame.getGroup() != GROUP_DEVICE_INFORMATION || frame.getCommand() != COMMAND_BATTERY) {
+            return null;
+        }
+
+        final byte[] payload = frame.getPayload();
+        if (payload.length <= BATTERY_LEVEL_PAYLOAD_OFFSET) {
+            return null;
+        }
+        final int level = payload[BATTERY_LEVEL_PAYLOAD_OFFSET] & 0xff;
+        return level <= 100 ? level : null;
     }
 
     static String parseModelResponse(final YcbtFrameCodec.Frame frame) {

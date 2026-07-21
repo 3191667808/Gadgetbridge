@@ -90,7 +90,7 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getBatteryCount(final GBDevice device) {
-        return 0;
+        return 1;
     }
 
     @Override
