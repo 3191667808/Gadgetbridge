@@ -55,6 +55,17 @@ public class YcbtProtocolTest {
             0x00, 0x00, 0x00, 0x00,
             0x2e, 0x69
     };
+    private static final byte[] DOCUMENTED_BLOOD_PRESSURE_START = new byte[]{
+            0x03, 0x2f, 0x08, 0x00, 0x01, 0x01, 0x6e, 0x0b
+    };
+    private static final byte[] DOCUMENTED_BLOOD_PRESSURE_STOP = new byte[]{
+            0x03, 0x2f, 0x08, 0x00, 0x00, 0x01, 0x5f, 0x38
+    };
+    private static final byte[] FIRST_PARTY_BLOOD_PRESSURE_RESULT = new byte[]{
+            0x06, 0x03, 0x14, 0x00, 0x6f, 0x4a, 0x44, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x74, (byte) 0xf1
+    };
 
     @Test
     public void buildsCapturedModelRequestExactly() {
@@ -135,6 +146,94 @@ public class YcbtProtocolTest {
         assertTrue(capabilities.hasTemperature());
         assertTrue(capabilities.hasFindDevice());
         assertTrue(capabilities.hasBloodSugar());
+    }
+
+    @Test
+    public void buildsDocumentedBloodPressureControlFramesExactly() {
+        assertArrayEquals(DOCUMENTED_BLOOD_PRESSURE_START, YcbtProtocol.buildBloodPressureStartRequest());
+        assertArrayEquals(DOCUMENTED_BLOOD_PRESSURE_STOP, YcbtProtocol.buildBloodPressureStopRequest());
+    }
+
+    @Test
+    public void parsesExactBloodPressureControlReply() {
+        assertEquals(Integer.valueOf(0), YcbtProtocol.parseBloodPressureControlReply(
+                YcbtFrameCodec.decode(new byte[]{0x03, 0x2f, 0x07, 0x00, 0x00, (byte) 0xee, (byte) 0x99})
+        ));
+        assertEquals(Integer.valueOf(2), YcbtProtocol.parseBloodPressureControlReply(
+                YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x02}))
+        ));
+        assertNull(YcbtProtocol.parseBloodPressureControlReply(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x00, 0x01})
+        )));
+        assertNull(YcbtProtocol.parseBloodPressureControlReply(YcbtFrameCodec.decode(CAPTURED_MODEL_RESPONSE)));
+    }
+
+    @Test
+    public void parsesFirstPartyBloodPressureResult() {
+        final YcbtProtocol.BloodPressure result = YcbtProtocol.parseBloodPressureResult(
+                YcbtFrameCodec.decode(FIRST_PARTY_BLOOD_PRESSURE_RESULT)
+        );
+
+        assertEquals(111, result.getSystolic());
+        assertEquals(74, result.getDiastolic());
+    }
+
+    @Test
+    public void rejectsBloodPressureResultsWithWrongShapeOrImplausibleValues() {
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, new byte[13])
+        )));
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, new byte[15])
+        )));
+
+        final byte[] lowSystolic = new byte[14];
+        lowSystolic[0] = 59;
+        lowSystolic[1] = 74;
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, lowSystolic)
+        )));
+
+        final byte[] highDiastolic = new byte[14];
+        highDiastolic[0] = 111;
+        highDiastolic[1] = (byte) 151;
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, highDiastolic)
+        )));
+
+        final byte[] highSystolic = new byte[14];
+        highSystolic[0] = (byte) 251;
+        highSystolic[1] = 74;
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, highSystolic)
+        )));
+
+        final byte[] lowDiastolic = new byte[14];
+        lowDiastolic[0] = 111;
+        lowDiastolic[1] = 29;
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, lowDiastolic)
+        )));
+        assertNull(YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x04, 0x03, new byte[14])
+        )));
+    }
+
+    @Test
+    public void acceptsBloodPressurePlausibilityBoundaries() {
+        final byte[] minimum = new byte[14];
+        minimum[0] = 60;
+        minimum[1] = 30;
+        assertEquals(60, YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, minimum)
+        )).getSystolic());
+
+        final byte[] maximum = new byte[14];
+        maximum[0] = (byte) 250;
+        maximum[1] = (byte) 150;
+        assertEquals(150, YcbtProtocol.parseBloodPressureResult(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03, maximum)
+        )).getDiastolic());
     }
 
     @Test

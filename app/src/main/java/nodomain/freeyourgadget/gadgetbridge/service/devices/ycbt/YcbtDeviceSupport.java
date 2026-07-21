@@ -21,8 +21,12 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresPermission;
 
 import org.slf4j.Logger;
@@ -42,12 +46,25 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.BtLEAction;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattDescriptor;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.NotifyAction;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.actions.WriteAction;
 
 public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(YcbtDeviceSupport.class);
+    private static final long BLOOD_PRESSURE_RESULT_TIMEOUT_MILLIS = 60_000L;
+    private static final long BLOOD_PRESSURE_STOP_REPLY_TIMEOUT_MILLIS = 10_000L;
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
+    private final YcbtBloodPressureOperation bloodPressureOperation = new YcbtBloodPressureOperation();
     private YcbtInboundRouter inboundRouter = new YcbtInboundRouter();
     private boolean batteryQueryRequested;
     private boolean capabilityQueryRequested;
+    private volatile Boolean bloodPressureSupported;
+    private long bloodPressureTimeoutGeneration;
+
+    private enum BloodPressureCommand {
+        START,
+        STOP,
+        CLEANUP_STOP
+    }
 
     public YcbtDeviceSupport() {
         super(LOG);
@@ -116,6 +133,9 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         inboundRouter = new YcbtInboundRouter();
         batteryQueryRequested = false;
         capabilityQueryRequested = false;
+        bloodPressureSupported = null;
+        cancelBloodPressureTimeout();
+        bloodPressureOperation.cancel();
         diagnostic(YcbtDiagnostics.TYPE_INITIALIZE_ENTERED, "initialize entered");
 
         final List<BluetoothGattCharacteristic> indicationCharacteristics = new ArrayList<>(2);
@@ -250,6 +270,76 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private final class YcbtBloodPressureWriteAction extends BtLEAction {
+        private final BloodPressureCommand command;
+        private final byte[] request;
+        private final String diagnosticMessage;
+        private final long replyTimeoutMillis;
+        private boolean writeStarted;
+
+        private YcbtBloodPressureWriteAction(final BluetoothGattCharacteristic characteristic,
+                                             final BloodPressureCommand command,
+                                             final byte[] request,
+                                             final String diagnosticMessage,
+                                             final long replyTimeoutMillis) {
+            super(characteristic);
+            this.command = command;
+            this.request = request;
+            this.diagnosticMessage = diagnosticMessage;
+            this.replyTimeoutMillis = replyTimeoutMillis;
+        }
+
+        @Override
+        @RequiresPermission("android.permission.BLUETOOTH_CONNECT")
+        public boolean run(@NonNull final BluetoothGatt gatt) {
+            boolean disconnectAfterFailure = false;
+            synchronized (ConnectionMonitor) {
+                final boolean current;
+                switch (command) {
+                    case START:
+                        current = bloodPressureOperation.markStartRequested();
+                        break;
+                    case STOP:
+                        current = bloodPressureOperation.markStopRequested();
+                        break;
+                    case CLEANUP_STOP:
+                        current = bloodPressureOperation.markCleanupStopRequested();
+                        break;
+                    default:
+                        throw new IllegalStateException("Unexpected blood pressure command " + command);
+                }
+                if (!current) {
+                    diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
+                            Locale.ROOT,
+                            "blood pressure %s write skipped state=%s",
+                            command,
+                            bloodPressureOperation.getState()
+                    ));
+                    return true;
+                }
+                diagnostic(YcbtDiagnostics.TYPE_STAGE, diagnosticMessage);
+                scheduleBloodPressureTimeout(replyTimeoutMillis);
+                writeStarted = WriteAction.writeCharacteristic(gatt, getCharacteristic(), request);
+                if (!writeStarted) {
+                    cancelBloodPressureTimeout();
+                    bloodPressureOperation.cancel();
+                    diagnostic(YcbtDiagnostics.TYPE_FAILURE,
+                            "blood pressure " + command + " write failed synchronously");
+                    disconnectAfterFailure = true;
+                }
+            }
+            if (disconnectAfterFailure) {
+                disconnect();
+            }
+            return writeStarted;
+        }
+
+        @Override
+        public boolean expectsResult() {
+            return writeStarted;
+        }
+    }
+
     @Override
     public boolean onDescriptorWrite(final BluetoothGatt gatt,
                                      final BluetoothGattDescriptor descriptor,
@@ -339,6 +429,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     characteristicUuid
             ) ? YcbtProtocol.parseCapabilities(frame) : null;
             if (capabilities != null) {
+                bloodPressureSupported = capabilities.hasBloodPressure();
                 diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
                         Locale.ROOT,
                         "capability query response bloodPressure=%s temperature=%s findDevice=%s bloodSugar=%s",
@@ -347,6 +438,17 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                         capabilities.hasFindDevice(),
                         capabilities.hasBloodSugar()
                 ));
+            }
+            if (YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID.equals(characteristicUuid)) {
+                final Integer status = YcbtProtocol.parseBloodPressureControlReply(frame);
+                if (status != null) {
+                    handleBloodPressureControlReply(status);
+                }
+            } else if (YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID.equals(characteristicUuid)) {
+                final YcbtProtocol.BloodPressure bloodPressure = YcbtProtocol.parseBloodPressureResult(frame);
+                if (bloodPressure != null) {
+                    handleBloodPressureResult(bloodPressure);
+                }
             }
             LOG.info("Decoded YCBT frame from {}: group=0x{}, command=0x{}, payloadLength={}",
                     characteristicUuid,
@@ -410,15 +512,196 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
+    public void onTestNewFunction(@Nullable final Bundle options) {
+        synchronized (ConnectionMonitor) {
+            if (!isInitialized()) {
+                diagnostic(YcbtDiagnostics.TYPE_FAILURE, "blood pressure start ignored: device not initialized");
+                return;
+            }
+            if (!Boolean.TRUE.equals(bloodPressureSupported)) {
+                final String reason = bloodPressureSupported == null ? "capability unknown" : "capability absent";
+                diagnostic(YcbtDiagnostics.TYPE_FAILURE, "blood pressure start ignored: " + reason);
+                return;
+            }
+            if (!bloodPressureOperation.requestStart()) {
+                diagnostic(YcbtDiagnostics.TYPE_STAGE,
+                        "blood pressure start ignored: state=" + bloodPressureOperation.getState());
+                return;
+            }
+            if (!queueBloodPressureCommand(
+                    "YCBT blood pressure start",
+                    YcbtProtocol.buildBloodPressureStartRequest(),
+                    "blood pressure start write request=032f080001016e0b",
+                    BloodPressureCommand.START,
+                    BLOOD_PRESSURE_RESULT_TIMEOUT_MILLIS
+            )) {
+                bloodPressureOperation.cancel();
+                return;
+            }
+        }
+    }
+
+    private void handleBloodPressureControlReply(final int status) {
+        synchronized (ConnectionMonitor) {
+            final YcbtBloodPressureOperation.Reply reply = bloodPressureOperation.handleReply(status);
+            switch (reply) {
+                case START_ACCEPTED:
+                    diagnostic(YcbtDiagnostics.TYPE_STAGE,
+                            "blood pressure start reply accepted status=" + status);
+                    break;
+                case START_REJECTED:
+                    cancelBloodPressureTimeout();
+                    diagnostic(YcbtDiagnostics.TYPE_FAILURE,
+                            "blood pressure start reply rejected status=" + status);
+                    break;
+                case STOP_REPLY:
+                    cancelBloodPressureTimeout();
+                    diagnostic(YcbtDiagnostics.TYPE_STAGE,
+                            "blood pressure stop reply status=" + status);
+                    break;
+                case IGNORED:
+                    diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
+                            Locale.ROOT,
+                            "blood pressure control reply ignored status=%d state=%s",
+                            status,
+                            bloodPressureOperation.getState()
+                    ));
+                    break;
+            }
+        }
+    }
+
+    private void handleBloodPressureResult(final YcbtProtocol.BloodPressure bloodPressure) {
+        synchronized (ConnectionMonitor) {
+            if (!bloodPressureOperation.handleResult()) {
+                diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
+                        Locale.ROOT,
+                        "blood pressure result ignored systolic=%d diastolic=%d state=%s",
+                        bloodPressure.getSystolic(),
+                        bloodPressure.getDiastolic(),
+                        bloodPressureOperation.getState()
+                ));
+                return;
+            }
+
+            diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
+                    Locale.ROOT,
+                    "blood pressure result systolic=%d diastolic=%d",
+                    bloodPressure.getSystolic(),
+                    bloodPressure.getDiastolic()
+            ));
+            scheduleBloodPressureTimeout(BLOOD_PRESSURE_STOP_REPLY_TIMEOUT_MILLIS);
+            if (!queueBloodPressureCommand(
+                    "YCBT blood pressure stop",
+                    YcbtProtocol.buildBloodPressureStopRequest(),
+                    "blood pressure stop write request=032f080000015f38",
+                    BloodPressureCommand.STOP,
+                    BLOOD_PRESSURE_STOP_REPLY_TIMEOUT_MILLIS
+            )) {
+                cancelBloodPressureTimeout();
+                bloodPressureOperation.cancel();
+                return;
+            }
+        }
+    }
+
+    private boolean queueBloodPressureCommand(final String transactionName,
+                                              final byte[] request,
+                                              final String diagnosticMessage,
+                                              final BloodPressureCommand command,
+                                              final long replyTimeoutMillis) {
+        final BluetoothGattCharacteristic commandCharacteristic = getCharacteristic(
+                YcbtConstants.WRITE_CHARACTERISTIC_UUID
+        );
+        if (commandCharacteristic == null) {
+            diagnostic(YcbtDiagnostics.TYPE_FAILURE, transactionName + " command/reply missing");
+            return false;
+        }
+        commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+        final TransactionBuilder builder = createTransactionBuilder(transactionName);
+        builder.add(new YcbtBloodPressureWriteAction(
+                commandCharacteristic,
+                command,
+                request,
+                diagnosticMessage,
+                replyTimeoutMillis
+        ));
+        builder.queue();
+        return true;
+    }
+
+    private void scheduleBloodPressureTimeout(final long delayMillis) {
+        synchronized (ConnectionMonitor) {
+            final long generation = ++bloodPressureTimeoutGeneration;
+            timeoutHandler.removeCallbacksAndMessages(null);
+            timeoutHandler.postDelayed(() -> onBloodPressureTimeout(generation), delayMillis);
+        }
+    }
+
+    private void cancelBloodPressureTimeout() {
+        synchronized (ConnectionMonitor) {
+            bloodPressureTimeoutGeneration++;
+            timeoutHandler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    private void onBloodPressureTimeout(final long generation) {
+        synchronized (ConnectionMonitor) {
+            if (generation != bloodPressureTimeoutGeneration) {
+                return;
+            }
+            bloodPressureTimeoutGeneration++;
+            final YcbtBloodPressureOperation.State state = bloodPressureOperation.getState();
+            if (state == YcbtBloodPressureOperation.State.IDLE) {
+                return;
+            }
+            diagnostic(YcbtDiagnostics.TYPE_FAILURE, "blood pressure timeout state=" + state);
+            if (state == YcbtBloodPressureOperation.State.CLEANUP_STOP_SENT) {
+                bloodPressureOperation.finishCleanup();
+                return;
+            }
+            if (state == YcbtBloodPressureOperation.State.CLEANUP_STOP_QUEUED) {
+                return;
+            }
+            if (state == YcbtBloodPressureOperation.State.WAITING_STOP_REPLY || !isConnected()) {
+                bloodPressureOperation.cancel();
+                return;
+            }
+            if (bloodPressureOperation.requestCleanupStop() && !queueBloodPressureCommand(
+                    "YCBT blood pressure timeout stop",
+                    YcbtProtocol.buildBloodPressureStopRequest(),
+                    "blood pressure timeout stop write request=032f080000015f38",
+                    BloodPressureCommand.CLEANUP_STOP,
+                    BLOOD_PRESSURE_STOP_REPLY_TIMEOUT_MILLIS
+            )) {
+                bloodPressureOperation.cancel();
+            }
+        }
+    }
+
+    @Override
     public void onConnectionStateChange(final BluetoothGatt gatt, final int status, final int newState) {
         super.onConnectionStateChange(gatt, status, newState);
         if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            synchronized (ConnectionMonitor) {
+                cancelBloodPressureTimeout();
+                bloodPressureOperation.cancel();
+            }
             LOG.warn("YCBT GATT disconnected with status {}", status);
             final String message = "disconnect status=" + status;
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 diagnostic(YcbtDiagnostics.TYPE_FAILURE, message);
             }
             diagnostic(YcbtDiagnostics.TYPE_DISCONNECTED, message);
+        }
+    }
+
+    @Override
+    public void dispose() {
+        synchronized (ConnectionMonitor) {
+            cancelBloodPressureTimeout();
+            bloodPressureOperation.cancel();
+            super.dispose();
         }
     }
 

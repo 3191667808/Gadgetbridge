@@ -20,9 +20,18 @@ import java.nio.charset.StandardCharsets;
 
 final class YcbtProtocol {
     private static final int GROUP_DEVICE_INFORMATION = 0x02;
+    private static final int GROUP_APP_CONTROL = 0x03;
+    private static final int GROUP_REAL_TIME = 0x06;
     private static final int COMMAND_BATTERY = 0x00;
     private static final int COMMAND_CAPABILITIES = 0x01;
     private static final int COMMAND_MODEL = 0x03;
+    private static final int COMMAND_LIVE_VITALS = 0x03;
+    private static final int COMMAND_LIVE_MEASUREMENT = 0x2f;
+    private static final int LIVE_VITALS_PAYLOAD_LENGTH = 14;
+    private static final int MINIMUM_SYSTOLIC = 60;
+    private static final int MAXIMUM_SYSTOLIC = 250;
+    private static final int MINIMUM_DIASTOLIC = 30;
+    private static final int MAXIMUM_DIASTOLIC = 150;
     private static final int BATTERY_LEVEL_PAYLOAD_OFFSET = 5;
     private static final int CAPABILITY_PAYLOAD_LENGTH = 60;
     private static final int BLOOD_PRESSURE_PAYLOAD_OFFSET = 0;
@@ -36,6 +45,8 @@ final class YcbtProtocol {
     private static final byte[] BATTERY_REQUEST_PAYLOAD = new byte[]{0x47, 0x43};
     private static final byte[] CAPABILITY_REQUEST_PAYLOAD = new byte[]{0x47, 0x46};
     private static final byte[] MODEL_REQUEST_PAYLOAD = new byte[]{0x47, 0x50};
+    private static final byte[] BLOOD_PRESSURE_START_PAYLOAD = new byte[]{0x01, 0x01};
+    private static final byte[] BLOOD_PRESSURE_STOP_PAYLOAD = new byte[]{0x00, 0x01};
 
     private YcbtProtocol() {
     }
@@ -50,6 +61,14 @@ final class YcbtProtocol {
 
     static byte[] buildCapabilityRequest() {
         return YcbtFrameCodec.encode(GROUP_DEVICE_INFORMATION, COMMAND_CAPABILITIES, CAPABILITY_REQUEST_PAYLOAD);
+    }
+
+    static byte[] buildBloodPressureStartRequest() {
+        return YcbtFrameCodec.encode(GROUP_APP_CONTROL, COMMAND_LIVE_MEASUREMENT, BLOOD_PRESSURE_START_PAYLOAD);
+    }
+
+    static byte[] buildBloodPressureStopRequest() {
+        return YcbtFrameCodec.encode(GROUP_APP_CONTROL, COMMAND_LIVE_MEASUREMENT, BLOOD_PRESSURE_STOP_PAYLOAD);
     }
 
     static Integer parseBatteryLevel(final YcbtFrameCodec.Frame frame) {
@@ -114,6 +133,32 @@ final class YcbtProtocol {
         return new String(payload, 0, length, StandardCharsets.US_ASCII);
     }
 
+    static Integer parseBloodPressureControlReply(final YcbtFrameCodec.Frame frame) {
+        if (frame.getGroup() != GROUP_APP_CONTROL || frame.getCommand() != COMMAND_LIVE_MEASUREMENT) {
+            return null;
+        }
+        final byte[] payload = frame.getPayload();
+        return payload.length == 1 ? payload[0] & 0xff : null;
+    }
+
+    static BloodPressure parseBloodPressureResult(final YcbtFrameCodec.Frame frame) {
+        if (frame.getGroup() != GROUP_REAL_TIME || frame.getCommand() != COMMAND_LIVE_VITALS) {
+            return null;
+        }
+        final byte[] payload = frame.getPayload();
+        if (payload.length != LIVE_VITALS_PAYLOAD_LENGTH) {
+            return null;
+        }
+
+        final int systolic = payload[0] & 0xff;
+        final int diastolic = payload[1] & 0xff;
+        if (systolic < MINIMUM_SYSTOLIC || systolic > MAXIMUM_SYSTOLIC
+                || diastolic < MINIMUM_DIASTOLIC || diastolic > MAXIMUM_DIASTOLIC) {
+            return null;
+        }
+        return new BloodPressure(systolic, diastolic);
+    }
+
     static final class Capabilities {
         private final boolean bloodPressure;
         private final boolean temperature;
@@ -144,6 +189,24 @@ final class YcbtProtocol {
 
         boolean hasBloodSugar() {
             return bloodSugar;
+        }
+    }
+
+    static final class BloodPressure {
+        private final int systolic;
+        private final int diastolic;
+
+        private BloodPressure(final int systolic, final int diastolic) {
+            this.systolic = systolic;
+            this.diastolic = diastolic;
+        }
+
+        int getSystolic() {
+            return systolic;
+        }
+
+        int getDiastolic() {
+            return diastolic;
         }
     }
 }
