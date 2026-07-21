@@ -68,25 +68,29 @@ public class YcbtInboundRouterTest {
     }
 
     @Test
-    public void reassemblesOneFrameAcrossBothInboundCharacteristics() {
+    public void keepsReassemblyStateSeparateForEachInboundCharacteristic() {
         final YcbtInboundRouter router = new YcbtInboundRouter();
 
-        final YcbtInboundRouter.RouteResult first = router.accept(
+        final YcbtInboundRouter.RouteResult partialCommandReply = router.accept(
                 YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
                 Arrays.copyOfRange(CAPTURED_FRAME, 0, 3)
         );
-        final YcbtInboundRouter.RouteResult second = router.accept(
+        final YcbtInboundRouter.RouteResult completeStreamHistory = router.accept(
                 YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID,
+                CAPTURED_FRAME
+        );
+        final YcbtInboundRouter.RouteResult completeCommandReply = router.accept(
+                YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID,
                 Arrays.copyOfRange(CAPTURED_FRAME, 3, CAPTURED_FRAME.length)
         );
 
-        assertTrue(first.isAccepted());
-        assertTrue(first.getFrames().isEmpty());
-        assertTrue(second.isAccepted());
-        assertEquals(1, second.getFrames().size());
-        assertEquals(0x02, second.getFrames().get(0).getGroup());
-        assertEquals(0x00, second.getFrames().get(0).getCommand());
-        assertArrayEquals(new byte[]{0x47, 0x43}, second.getFrames().get(0).getPayload());
+        assertTrue(partialCommandReply.isAccepted());
+        assertTrue(partialCommandReply.getFrames().isEmpty());
+        assertEquals(1, completeStreamHistory.getFrames().size());
+        assertEquals(1, completeCommandReply.getFrames().size());
+        assertEquals(0x02, completeCommandReply.getFrames().get(0).getGroup());
+        assertEquals(0x00, completeCommandReply.getFrames().get(0).getCommand());
+        assertArrayEquals(new byte[]{0x47, 0x43}, completeCommandReply.getFrames().get(0).getPayload());
     }
 
     @Test

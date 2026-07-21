@@ -134,10 +134,19 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         for (final BluetoothGattCharacteristic characteristic : indicationCharacteristics) {
             builder.add(new YcbtIndicateAction(characteristic));
         }
+        final BluetoothGattCharacteristic commandCharacteristic = getCharacteristic(
+                YcbtConstants.WRITE_CHARACTERISTIC_UUID
+        );
+        commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+        builder.run(() -> diagnostic(
+                YcbtDiagnostics.TYPE_STAGE,
+                "model probe write request=020308004750ef20"
+        ));
+        builder.write(commandCharacteristic, YcbtProtocol.buildModelRequest());
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         builder.run(() -> diagnostic(
                 YcbtDiagnostics.TYPE_INITIALIZED,
-                "INITIALIZED after both descriptor callbacks"
+                "INITIALIZED after indications and model probe write"
         ));
         return builder;
     }
@@ -165,10 +174,11 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             diagnostic(YcbtDiagnostics.TYPE_FAILURE, characteristicName + " indication property missing");
             return false;
         }
-        if (YcbtConstants.WRITE_CHARACTERISTIC_UUID.equals(expectedUuid) && !supportsWrites(properties)) {
-            LOG.error("YCBT command characteristic {} does not advertise write support; properties=0x{}",
+        if (YcbtConstants.WRITE_CHARACTERISTIC_UUID.equals(expectedUuid)
+                && !supportsWriteWithoutResponse(properties)) {
+            LOG.error("YCBT command characteristic {} does not advertise write-without-response support; properties=0x{}",
                     expectedUuid, Integer.toHexString(properties));
-            diagnostic(YcbtDiagnostics.TYPE_FAILURE, characteristicName + " write property missing");
+            diagnostic(YcbtDiagnostics.TYPE_FAILURE, characteristicName + " writeNoResponse property missing");
             return false;
         }
 
@@ -188,9 +198,8 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return (properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0;
     }
 
-    static boolean supportsWrites(final int properties) {
-        return (properties & (BluetoothGattCharacteristic.PROPERTY_WRITE
-                | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) != 0;
+    static boolean supportsWriteWithoutResponse(final int properties) {
+        return (properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0;
     }
 
     private final class YcbtIndicateAction extends BtLEAction {
@@ -262,8 +271,22 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
+    public boolean onCharacteristicWrite(final BluetoothGatt gatt,
+                                         final BluetoothGattCharacteristic characteristic,
+                                         final int status) {
+        if (YcbtConstants.WRITE_CHARACTERISTIC_UUID.equals(characteristic.getUuid())) {
+            diagnostic(
+                    status == BluetoothGatt.GATT_SUCCESS ? YcbtDiagnostics.TYPE_STAGE : YcbtDiagnostics.TYPE_FAILURE,
+                    "model probe write callback status=" + status
+            );
+        }
+        final boolean handledByParent = super.onCharacteristicWrite(gatt, characteristic, status);
+        return handledByParent || YcbtConstants.WRITE_CHARACTERISTIC_UUID.equals(characteristic.getUuid());
+    }
+
+    @Override
     public boolean onCharacteristicChanged(final BluetoothGatt gatt,
-                                           final BluetoothGattCharacteristic characteristic,
+                                            final BluetoothGattCharacteristic characteristic,
                                            final byte[] value) {
         if (super.onCharacteristicChanged(gatt, characteristic, value)) {
             return true;
@@ -290,6 +313,12 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     characteristicName(characteristicUuid) + " malformed inbound reason=" + result.getMalformedReason());
         }
         for (final YcbtFrameCodec.Frame frame : result.getFrames()) {
+            final String model = YcbtConstants.COMMAND_REPLY_CHARACTERISTIC_UUID.equals(characteristicUuid)
+                    ? YcbtProtocol.parseModelResponse(frame)
+                    : null;
+            if (model != null) {
+                diagnostic(YcbtDiagnostics.TYPE_STAGE, "model probe response=" + model);
+            }
             LOG.info("Decoded YCBT frame from {}: group=0x{}, command=0x{}, payloadLength={}",
                     characteristicUuid,
                     String.format(Locale.ROOT, "%02x", frame.getGroup()),

@@ -34,14 +34,16 @@ public class YcbtDeviceSupportTest {
     }
 
     @Test
-    public void acceptsBothWriteModesButNotIndicateOnly() {
-        assertTrue(YcbtDeviceSupport.supportsWrites(BluetoothGattCharacteristic.PROPERTY_WRITE));
-        assertTrue(YcbtDeviceSupport.supportsWrites(BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE));
-        assertTrue(YcbtDeviceSupport.supportsWrites(
+    public void requiresWriteWithoutResponseForCapturedCommandTransport() {
+        assertTrue(YcbtDeviceSupport.supportsWriteWithoutResponse(
+                BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+        ));
+        assertTrue(YcbtDeviceSupport.supportsWriteWithoutResponse(
                 BluetoothGattCharacteristic.PROPERTY_WRITE
                         | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
                         | BluetoothGattCharacteristic.PROPERTY_INDICATE
         ));
-        assertFalse(YcbtDeviceSupport.supportsWrites(BluetoothGattCharacteristic.PROPERTY_INDICATE));
+        assertFalse(YcbtDeviceSupport.supportsWriteWithoutResponse(BluetoothGattCharacteristic.PROPERTY_WRITE));
+        assertFalse(YcbtDeviceSupport.supportsWriteWithoutResponse(BluetoothGattCharacteristic.PROPERTY_INDICATE));
     }
 }

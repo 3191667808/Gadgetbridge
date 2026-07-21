@@ -19,7 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.ycbt;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.ycbt.YcbtConstants;
@@ -30,7 +32,13 @@ public final class YcbtInboundRouter {
             YcbtConstants.STREAM_HISTORY_CHARACTERISTIC_UUID
     ));
 
-    private final YcbtFrameReassembler reassembler = new YcbtFrameReassembler();
+    private final Map<UUID, YcbtFrameReassembler> reassemblers = new HashMap<>();
+
+    public YcbtInboundRouter() {
+        for (final UUID characteristicUuid : INBOUND_CHARACTERISTIC_UUIDS) {
+            reassemblers.put(characteristicUuid, new YcbtFrameReassembler());
+        }
+    }
 
     public static List<UUID> getInboundCharacteristicUuids() {
         return INBOUND_CHARACTERISTIC_UUIDS;
@@ -45,7 +53,8 @@ public final class YcbtInboundRouter {
             return new RouteResult(false, Collections.emptyList(), null);
         }
 
-        final YcbtFrameReassembler.AcceptResult result = reassembler.acceptWithDiagnostics(value);
+        final YcbtFrameReassembler.AcceptResult result = reassemblers.get(characteristicUuid)
+                .acceptWithDiagnostics(value);
         return new RouteResult(true, result.getFrames(), result.getMalformedReason());
     }
 
