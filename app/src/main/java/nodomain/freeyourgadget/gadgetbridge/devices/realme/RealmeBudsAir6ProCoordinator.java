@@ -54,7 +54,7 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
         final BatteryConfig battery1 = new BatteryConfig(0, R.drawable.ic_realme_buds_t300_l, R.string.left_earbud);
         final BatteryConfig battery2 = new BatteryConfig(1, R.drawable.ic_realme_buds_t300_r, R.string.right_earbud);
         final BatteryConfig battery3 = new BatteryConfig(2, R.drawable.ic_realme_buds_t300_case, R.string.battery_case);
-        return new BatteryConfig[]{battery1, battery2, battery3};
+        return new BatteryConfig[] { battery1, battery2, battery3 };
     }
 
     @Override
@@ -88,25 +88,31 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
+    public boolean supportsSpatialAudio(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
-        return new LinkedHashMap<>() {{
-            final List<TouchConfigValue> options = Arrays.asList(
-                    TouchConfigValue.OFF,
-                    TouchConfigValue.PLAY_PAUSE,
-                    TouchConfigValue.PREVIOUS,
-                    TouchConfigValue.NEXT,
-                    TouchConfigValue.VOLUME_UP,
-                    TouchConfigValue.VOLUME_DOWN,
-                    TouchConfigValue.VOICE_ASSISTANT_REALME,
-                    TouchConfigValue.GAME_MODE,
-                    TouchConfigValue.ANC_CYCLE
-            );
-            put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.TAP_2), options);
-            put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.TAP_3), options);
-            put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.HOLD), options);
-            put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.TAP_2), options);
-            put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.TAP_3), options);
-            put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.HOLD), options);
-        }};
+        return new LinkedHashMap<>() {
+            {
+                final List<TouchConfigValue> options = Arrays.asList(
+                        TouchConfigValue.OFF,
+                        TouchConfigValue.PLAY_PAUSE,
+                        TouchConfigValue.PREVIOUS,
+                        TouchConfigValue.NEXT,
+                        TouchConfigValue.VOLUME_UP,
+                        TouchConfigValue.VOLUME_DOWN,
+                        TouchConfigValue.VOICE_ASSISTANT_REALME,
+                        TouchConfigValue.GAME_MODE,
+                        TouchConfigValue.ANC_CYCLE);
+                put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.TAP_2), options);
+                put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.TAP_3), options);
+                put(Pair.create(TouchConfigSide.LEFT, TouchConfigType.HOLD), options);
+                put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.TAP_2), options);
+                put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.TAP_3), options);
+                put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.HOLD), options);
+            }
+        };
     }
 }
