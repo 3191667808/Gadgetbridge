@@ -93,6 +93,11 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
+    public boolean supportsAncLevel(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public boolean supportsSpatialAudio(@NonNull GBDevice device) {
         return true;
     }

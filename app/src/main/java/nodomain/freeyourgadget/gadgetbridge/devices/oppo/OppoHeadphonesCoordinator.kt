@@ -73,6 +73,19 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
                 icon = R.drawable.ic_surround,
                 defaultValue = AncConfigValue.OFF,
             )
+            if (supportsAncLevel(device)) {
+                enumList<AncConfigValue.Level>(
+                    key = OppoHeadphonesPreferences.ANC_LEVEL,
+                    title = R.string.prefs_active_noise_cancelling_level,
+                    defaultValue = AncConfigValue.Level.HIGH,
+                    dependency = OppoHeadphonesPreferences.ANC_MODE,
+                    visibleWhen = {
+                        val modePreference = it.getString(OppoHeadphonesPreferences.ANC_MODE, null)
+                        val mode = AncConfigValue.fromPreference(modePreference)
+                        mode == AncConfigValue.ON
+                    }
+                )
+            }
         }
         if (supportsGameMode(device)) {
             switchSetting(
@@ -130,6 +143,7 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     open fun multipointMacOrder(device: GBDevice): ByteOrder = ByteOrder.BIG_ENDIAN
     open fun supportsGameMode(device: GBDevice): Boolean = false
     open fun supportsAnc(device: GBDevice): Boolean = false
+    open fun supportsAncLevel(device: GBDevice): Boolean = false
     open fun supportsSpatialAudio(device: GBDevice): Boolean = false
 }
 
