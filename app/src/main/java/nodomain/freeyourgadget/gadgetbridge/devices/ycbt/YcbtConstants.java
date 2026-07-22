@@ -19,7 +19,26 @@ package nodomain.freeyourgadget.gadgetbridge.devices.ycbt;
 import java.util.UUID;
 
 public final class YcbtConstants {
-    public static final String R10M_DEVICE_NAME = "R10M FCF4";
+    public static final String SUPPORTED_DEVICE_NAME_PATTERN = "^R(?:10|11)M(?:[ _][0-9A-F]{4})?$";
+    public static final String CONFIG_MEASURE_BLOOD_PRESSURE = "ycbt_measure_blood_pressure";
+    public static final String CONFIG_MEASURE_SPO2 = "ycbt_measure_spo2";
+    public static final String PREF_HEART_RATE_MONITORING_CONFIGURED =
+            "ycbt_heart_rate_monitoring_configured";
+    public static final String PREF_SPO2_MONITORING_CONFIGURED = "ycbt_spo2_monitoring_configured";
+    public static final String PREF_CAPABILITY_HEART_RATE = "ycbt_capability_heart_rate";
+    public static final String PREF_CAPABILITY_SPO2 = "ycbt_capability_spo2";
+    public static final String PREF_CAPABILITY_HRV = "ycbt_capability_hrv";
+    public static final String PREF_CAPABILITY_STEPS = "ycbt_capability_steps";
+    public static final String PREF_CAPABILITY_SLEEP = "ycbt_capability_sleep";
+    public static final String PREF_CAPABILITY_FIND_DEVICE = "ycbt_capability_find_device";
+    public static final String PREF_CAPABILITY_BLOOD_PRESSURE = "ycbt_capability_blood_pressure";
+    public static final String PREF_CAPABILITY_MANUAL_HEART_RATE = "ycbt_capability_manual_heart_rate";
+    public static final String PREF_CAPABILITY_MANUAL_BLOOD_PRESSURE = "ycbt_capability_manual_blood_pressure";
+    public static final String PREF_CAPABILITY_MANUAL_SPO2 = "ycbt_capability_manual_spo2";
+    public static final String PREF_CAPABILITY_MANUAL_HRV = "ycbt_capability_manual_hrv";
+    public static final String PREF_CAPABILITY_TEMPERATURE = "ycbt_capability_temperature";
+    public static final String PREF_CAPABILITY_BLOOD_SUGAR = "ycbt_capability_blood_sugar";
+    public static final String PREF_CAPABILITY_STRESS = "ycbt_capability_stress";
     public static final byte[] OBSERVED_MANUFACTURER_BYTES = new byte[]{0x10, 0x78};
 
     public static final UUID SERVICE_UUID = UUID.fromString("be940000-7333-be46-b7ae-689e71722bd5");

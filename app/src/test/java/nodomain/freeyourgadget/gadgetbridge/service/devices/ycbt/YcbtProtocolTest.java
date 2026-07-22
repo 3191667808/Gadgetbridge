@@ -24,7 +24,21 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.Arrays;
+
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
+
 public class YcbtProtocolTest {
+    @Test
+    public void framesLogicalHistoryCommands() {
+        assertArrayEquals(new byte[]{0x05, 0x06, 0x06, 0x00, (byte) 0x83, 0x20},
+                YcbtProtocol.frameLogicalCommand(new byte[]{0x05, 0x06}));
+        assertArrayEquals(new byte[]{0x05, (byte) 0x80, 0x07, 0x00, 0x00, (byte) 0xf3, 0x6a},
+                YcbtProtocol.frameLogicalCommand(new byte[]{0x05, (byte) 0x80, 0x00}));
+        assertArrayEquals(new byte[]{0x05, (byte) 0x80, 0x07, 0x00, 0x04, 0x77, 0x2a},
+                YcbtProtocol.frameLogicalCommand(new byte[]{0x05, (byte) 0x80, 0x04}));
+    }
+
     private static final byte[] CAPTURED_MODEL_REQUEST = new byte[]{
             0x02, 0x03, 0x08, 0x00, 0x47, 0x50, (byte) 0xef, 0x20
     };
@@ -111,23 +125,42 @@ public class YcbtProtocolTest {
         );
 
         assertTrue(capabilities.hasBloodPressure());
+        assertTrue(capabilities.hasSteps());
+        assertTrue(capabilities.hasSleep());
+        assertTrue(capabilities.hasHeartRate());
+        assertTrue(capabilities.hasSpo2());
+        assertFalse(capabilities.hasHrv());
+        assertTrue(capabilities.hasManualHeartRate());
+        assertTrue(capabilities.hasManualBloodPressure());
+        assertTrue(capabilities.hasManualSpo2());
         assertFalse(capabilities.hasTemperature());
         assertFalse(capabilities.hasFindDevice());
         assertFalse(capabilities.hasBloodSugar());
     }
 
     @Test
-    public void rejectsCapabilityResponsesWithUnexpectedCommandOrPayloadLength() {
+    public void acceptsVariableLengthCapabilitiesAndRejectsTruncatedCorePayloads() {
         assertNull(YcbtProtocol.parseCapabilities(YcbtFrameCodec.decode(CAPTURED_BATTERY_RESPONSE)));
         assertNull(YcbtProtocol.parseCapabilities(YcbtFrameCodec.decode(
                 YcbtFrameCodec.encode(0x01, 0x01, new byte[60])
         )));
         assertNull(YcbtProtocol.parseCapabilities(YcbtFrameCodec.decode(
-                YcbtFrameCodec.encode(0x02, 0x01, new byte[59])
+                YcbtFrameCodec.encode(0x02, 0x01, new byte[13])
         )));
-        assertNull(YcbtProtocol.parseCapabilities(YcbtFrameCodec.decode(
-                YcbtFrameCodec.encode(0x02, 0x01, new byte[61])
-        )));
+
+        final byte[] corePayload = new byte[14];
+        corePayload[0] = (byte) 0xc9;
+        corePayload[1] = 0x0a;
+        final YcbtProtocol.Capabilities capabilities = YcbtProtocol.parseCapabilities(
+                YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x02, 0x01, corePayload))
+        );
+        assertTrue(capabilities.hasSteps());
+        assertTrue(capabilities.hasSleep());
+        assertTrue(capabilities.hasHeartRate());
+        assertTrue(capabilities.hasBloodPressure());
+        assertTrue(capabilities.hasSpo2());
+        assertTrue(capabilities.hasHrv());
+        assertFalse(capabilities.hasBloodSugar());
     }
 
     @Test
@@ -149,9 +182,93 @@ public class YcbtProtocolTest {
     }
 
     @Test
+    public void selectsCapabilityGatedHistoryTypesWithoutUnsupportedDedicatedSpo2() {
+        final byte[] payload = new byte[24];
+        payload[0] = (byte) 0xc9;
+        payload[1] = 0x0a;
+        payload[8] = 0x01;
+        payload[17] = 0x08;
+        payload[22] = 0x40;
+        final YcbtProtocol.Capabilities capabilities = YcbtProtocol.parseCapabilities(
+                YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x02, 0x01, payload))
+        );
+
+        assertEquals(Arrays.asList(
+                        YcbtHistoryTransfer.HistoryType.SPORT,
+                        YcbtHistoryTransfer.HistoryType.SLEEP,
+                        YcbtHistoryTransfer.HistoryType.HEART_RATE,
+                        YcbtHistoryTransfer.HistoryType.BLOOD_PRESSURE,
+                        YcbtHistoryTransfer.HistoryType.VITALS,
+                        YcbtHistoryTransfer.HistoryType.TEMPERATURE,
+                        YcbtHistoryTransfer.HistoryType.COMPREHENSIVE,
+                        YcbtHistoryTransfer.HistoryType.BODY_DATA
+                ),
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SYNC, capabilities));
+        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.SLEEP),
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SLEEP, capabilities));
+        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.VITALS),
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SPO2, capabilities));
+    }
+
+    @Test
     public void buildsDocumentedBloodPressureControlFramesExactly() {
         assertArrayEquals(DOCUMENTED_BLOOD_PRESSURE_START, YcbtProtocol.buildBloodPressureStartRequest());
         assertArrayEquals(DOCUMENTED_BLOOD_PRESSURE_STOP, YcbtProtocol.buildBloodPressureStopRequest());
+    }
+
+    @Test
+    public void buildsDocumentedHeartRateAndFindDeviceFrames() {
+        assertArrayEquals(
+                YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x01, 0x00}),
+                YcbtProtocol.buildHeartRateStartRequest()
+        );
+        assertArrayEquals(
+                YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x00, 0x00}),
+                YcbtProtocol.buildHeartRateStopRequest()
+        );
+        assertArrayEquals(
+                YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x01, 0x02}),
+                YcbtProtocol.buildSpo2StartRequest()
+        );
+        assertArrayEquals(
+                YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x00, 0x02}),
+                YcbtProtocol.buildSpo2StopRequest()
+        );
+        assertArrayEquals(
+                YcbtFrameCodec.encode(0x03, 0x00, new byte[]{0x01, 0x05, 0x02}),
+                YcbtProtocol.buildFindDeviceRequest()
+        );
+    }
+
+    @Test
+    public void buildsDocumentedAutomaticMonitoringFrames() {
+        assertArrayEquals(
+                new byte[]{0x01, 0x0c, 0x08, 0x00, 0x01, 0x1e, (byte) 0x96, (byte) 0x85},
+                YcbtProtocol.buildHeartRateMonitoringRequest(true, 30)
+        );
+        assertArrayEquals(
+                new byte[]{0x01, 0x26, 0x08, 0x00, 0x01, 0x3c, (byte) 0xac, (byte) 0xcf},
+                YcbtProtocol.buildSpo2MonitoringRequest(true, 60)
+        );
+    }
+
+    @Test
+    public void normalizesAutomaticMonitoringIntervalsToFirmwareLimits() {
+        assertEquals(60, YcbtProtocol.normalizeMonitoringInterval(0));
+        assertEquals(30, YcbtProtocol.normalizeMonitoringInterval(5));
+        assertEquals(255, YcbtProtocol.normalizeMonitoringInterval(360));
+        assertArrayEquals(
+                new byte[]{0x00, 0x3c},
+                YcbtFrameCodec.decode(YcbtProtocol.buildHeartRateMonitoringRequest(false, 0)).getPayload()
+        );
+        assertArrayEquals(
+                new byte[]{0x01, 0x1e},
+                YcbtFrameCodec.decode(YcbtProtocol.buildHeartRateMonitoringRequest(true, 5)).getPayload()
+        );
+        assertArrayEquals(
+                new byte[]{0x01, (byte) 0xff},
+                YcbtFrameCodec.decode(YcbtProtocol.buildSpo2MonitoringRequest(true, 360)).getPayload()
+        );
     }
 
     @Test
@@ -176,6 +293,61 @@ public class YcbtProtocolTest {
 
         assertEquals(111, result.getSystolic());
         assertEquals(74, result.getDiastolic());
+        assertEquals(68, result.getPulse());
+    }
+
+    @Test
+    public void decodesFirstPartyLiveStreams() {
+        final YcbtProtocol.Activity activity = YcbtProtocol.parseLiveActivity(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x00, new byte[]{0x34, 0x12, 0x78, 0x56, (byte) 0xbc, (byte) 0x9a})
+        ));
+        assertEquals(0x1234, activity.getSteps());
+        assertEquals(0x5678, activity.getDistanceMeters());
+        assertEquals(0x9abc, activity.getCalories());
+
+        assertEquals(Integer.valueOf(68), YcbtProtocol.parseLiveHeartRate(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x01, new byte[]{68})
+        )));
+        assertEquals(Integer.valueOf(97), YcbtProtocol.parseLiveSpo2(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x02, new byte[]{97})
+        )));
+        assertEquals(Integer.valueOf(68), YcbtProtocol.parseLiveBattery(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x15, new byte[]{0x00, 68})
+        )));
+
+        final YcbtProtocol.LiveVitals vitals = YcbtProtocol.parseLiveVitals(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x03,
+                        new byte[]{111, 74, 68, 42, 98, 36, 5, 0, 0, 0, 0, 0, 0, 0})
+        ));
+        assertEquals(68, vitals.getHeartRate());
+        assertEquals(42, vitals.getHrv());
+        assertEquals(98, vitals.getSpo2());
+        assertEquals(36.5, vitals.getTemperatureCelsius(), 0.001);
+    }
+
+    @Test
+    public void rejectsImplausibleOrMalformedLiveStreams() {
+        assertNull(YcbtProtocol.parseLiveActivity(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x00, new byte[5])
+        )));
+        assertNull(YcbtProtocol.parseLiveHeartRate(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x01, new byte[]{29})
+        )));
+        assertNull(YcbtProtocol.parseLiveSpo2(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x02, new byte[]{69})
+        )));
+        assertNull(YcbtProtocol.parseLiveBattery(YcbtFrameCodec.decode(
+                YcbtFrameCodec.encode(0x06, 0x15, new byte[]{0x00, 101})
+        )));
+    }
+
+    @Test
+    public void buildsFirstPartyLiveActivityRequest() {
+        final YcbtFrameCodec.Frame frame = YcbtFrameCodec.decode(YcbtProtocol.buildLiveActivityRequest());
+
+        assertEquals(0x03, frame.getGroup());
+        assertEquals(0x09, frame.getCommand());
+        assertArrayEquals(new byte[]{0x01, 0x00, 0x02}, frame.getPayload());
     }
 
     @Test

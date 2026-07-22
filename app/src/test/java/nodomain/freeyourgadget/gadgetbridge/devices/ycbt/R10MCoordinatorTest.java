@@ -18,16 +18,19 @@ package nodomain.freeyourgadget.gadgetbridge.devices.ycbt;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.bluetooth.le.ScanFilter;
 
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.regex.Pattern;
 
+import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
+import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
@@ -36,13 +39,17 @@ public class R10MCoordinatorTest extends TestBase {
     private final R10MCoordinator coordinator = new R10MCoordinator();
 
     @Test
-    public void recognizesOnlyExactAdvertisedName() {
+    public void recognizesSupportedRingFamilyNames() {
         final Pattern supportedName = coordinator.getSupportedDeviceName();
 
         assertTrue(supportedName.matcher("R10M FCF4").matches());
-        assertFalse(supportedName.matcher("R10M FCF3").matches());
+        assertTrue(supportedName.matcher("R10M FCF3").matches());
+        assertTrue(supportedName.matcher("R10M_FCF4").matches());
+        assertTrue(supportedName.matcher("R11M 123A").matches());
+        assertTrue(supportedName.matcher("R11M_ABCD").matches());
+        assertTrue(supportedName.matcher("R11M").matches());
         assertFalse(supportedName.matcher("R10M fcf4").matches());
-        assertFalse(supportedName.matcher("R10M_FCF4").matches());
+        assertFalse(supportedName.matcher("R12M FCF4").matches());
         assertFalse(supportedName.matcher(" R10M FCF4").matches());
         assertFalse(supportedName.matcher("R10M FCF4 ").matches());
     }
@@ -54,12 +61,10 @@ public class R10MCoordinatorTest extends TestBase {
     }
 
     @Test
-    public void filtersByExactAdvertisedName() {
+    public void reliesOnSoftwareNameMatchingForVariableSuffixes() {
         final Collection<? extends ScanFilter> filters = coordinator.createBLEScanFilters();
 
-        assertEquals(1, filters.size());
-        assertEquals(YcbtConstants.R10M_DEVICE_NAME, filters.iterator().next().getDeviceName());
-        assertNull(filters.iterator().next().getServiceUuid());
+        assertTrue(filters.isEmpty());
     }
 
     @Test
@@ -71,5 +76,19 @@ public class R10MCoordinatorTest extends TestBase {
         assertEquals(DeviceCoordinator.DeviceKind.RING, coordinator.getDeviceKind(null));
         assertEquals(1, coordinator.getBatteryCount(null));
         assertEquals(1, coordinator.getBatteryConfig(null).length);
+        assertEquals(2, coordinator.getCustomActions().size());
+    }
+
+    @Test
+    public void exposesOnlySupportedAutomaticMonitoringIntervals() {
+        assertEquals(Arrays.asList(
+                        HeartRateCapability.MeasurementInterval.OFF,
+                        HeartRateCapability.MeasurementInterval.MINUTES_30,
+                        HeartRateCapability.MeasurementInterval.HOUR_1
+                ),
+                coordinator.getHeartRateMeasurementIntervals());
+
+        final DeviceSpecificSettings settings = coordinator.getDeviceSpecificSettings(null);
+        assertTrue(settings.getAllScreens().contains(R.xml.devicesettings_ycbt_health));
     }
 }

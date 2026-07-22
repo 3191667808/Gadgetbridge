@@ -16,7 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ycbt;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -45,5 +47,44 @@ public class YcbtDeviceSupportTest {
         ));
         assertFalse(YcbtDeviceSupport.supportsWriteWithoutResponse(BluetoothGattCharacteristic.PROPERTY_WRITE));
         assertFalse(YcbtDeviceSupport.supportsWriteWithoutResponse(BluetoothGattCharacteristic.PROPERTY_INDICATE));
+    }
+
+    @Test
+    public void latestRealtimeHeartRateRequestWinsAcrossPendingRepliesAndQuarantine() {
+        final YcbtDeviceSupport.RealtimeHeartRateRequest pendingStartDisable =
+                YcbtDeviceSupport.decideRealtimeHeartRateRequest(false, false, false, true, true, null);
+        assertEquals(YcbtDeviceSupport.RealtimeHeartRateRequestAction.DEFER,
+                pendingStartDisable.getAction());
+        assertEquals(Boolean.FALSE, pendingStartDisable.getDeferredTarget());
+
+        final YcbtDeviceSupport.RealtimeHeartRateRequest quarantinedEnable =
+                YcbtDeviceSupport.decideRealtimeHeartRateRequest(true, false, true, false, false,
+                        pendingStartDisable.getDeferredTarget());
+        assertEquals(Boolean.TRUE, quarantinedEnable.getDeferredTarget());
+
+        final YcbtDeviceSupport.RealtimeHeartRateRequest latestQuarantinedDisable =
+                YcbtDeviceSupport.decideRealtimeHeartRateRequest(false, false, true, false, false,
+                        quarantinedEnable.getDeferredTarget());
+        assertEquals(Boolean.FALSE, latestQuarantinedDisable.getDeferredTarget());
+
+        final YcbtDeviceSupport.RealtimeHeartRateRequest reconciledDisable =
+                YcbtDeviceSupport.decideRealtimeHeartRateRequest(false, false, false, false, false,
+                        latestQuarantinedDisable.getDeferredTarget());
+        assertEquals(YcbtDeviceSupport.RealtimeHeartRateRequestAction.IGNORE, reconciledDisable.getAction());
+        assertNull(reconciledDisable.getDeferredTarget());
+    }
+
+    @Test
+    public void realtimeHeartRateRequestStartsAndStopsWhenUnblocked() {
+        assertEquals(
+                YcbtDeviceSupport.RealtimeHeartRateRequestAction.START,
+                YcbtDeviceSupport.decideRealtimeHeartRateRequest(true, false, false, false, false, null)
+                        .getAction()
+        );
+        assertEquals(
+                YcbtDeviceSupport.RealtimeHeartRateRequestAction.STOP,
+                YcbtDeviceSupport.decideRealtimeHeartRateRequest(false, true, false, false, false, null)
+                        .getAction()
+        );
     }
 }
