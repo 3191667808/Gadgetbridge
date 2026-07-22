@@ -692,10 +692,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         synchronized (ConnectionMonitor) {
             if (sessionNegotiation.handleCapabilities() == YcbtSessionNegotiation.Result.READY) {
                 cancelSessionTimeout();
-                if (!queueCommand(
-                        "YCBT time sync",
-                        YcbtProtocol.buildSetTimeRequest(Instant.now(), ZoneId.systemDefault())
-                )) {
+                if (!queueTimeSync()) {
                     failSession("could not queue time sync");
                     return;
                 }
@@ -739,6 +736,22 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         final TransactionBuilder builder = createTransactionBuilder("YCBT live activity");
         builder.write(commandCharacteristic, YcbtProtocol.buildLiveActivityRequest());
         builder.queue();
+    }
+
+    @Override
+    public void onSetTime() {
+        synchronized (ConnectionMonitor) {
+            if (isInitialized()) {
+                queueTimeSync();
+            }
+        }
+    }
+
+    private boolean queueTimeSync() {
+        return queueCommand(
+                "YCBT time sync",
+                YcbtProtocol.buildSetTimeRequest(Instant.now(), ZoneId.systemDefault())
+        );
     }
 
     private void applyAutomaticMonitoringSettings() {
