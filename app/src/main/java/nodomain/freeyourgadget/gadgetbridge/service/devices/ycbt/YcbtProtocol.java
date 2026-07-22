@@ -17,6 +17,9 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ycbt;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 
 final class YcbtProtocol {
@@ -24,6 +27,7 @@ final class YcbtProtocol {
     private static final int GROUP_DEVICE_INFORMATION = 0x02;
     private static final int GROUP_APP_CONTROL = 0x03;
     private static final int GROUP_REAL_TIME = 0x06;
+    private static final int COMMAND_SET_TIME = 0x00;
     private static final int COMMAND_LIVE_ACTIVITY_REQUEST = 0x09;
     private static final int COMMAND_LIVE_STATUS = 0x00;
     private static final int COMMAND_LIVE_HEART_RATE = 0x01;
@@ -103,6 +107,24 @@ final class YcbtProtocol {
 
     static byte[] buildCapabilityRequest() {
         return YcbtFrameCodec.encode(GROUP_DEVICE_INFORMATION, COMMAND_CAPABILITIES, CAPABILITY_REQUEST_PAYLOAD);
+    }
+
+    static byte[] buildSetTimeRequest(final Instant instant, final ZoneId zoneId) {
+        if (instant == null || zoneId == null) {
+            throw new IllegalArgumentException("Instant and zone ID must not be null");
+        }
+        final ZonedDateTime localTime = instant.atZone(zoneId);
+        final int year = localTime.getYear();
+        return YcbtFrameCodec.encode(GROUP_SETTING, COMMAND_SET_TIME, new byte[]{
+                (byte) (year & 0xff),
+                (byte) ((year >> 8) & 0xff),
+                (byte) localTime.getMonthValue(),
+                (byte) localTime.getDayOfMonth(),
+                (byte) localTime.getHour(),
+                (byte) localTime.getMinute(),
+                (byte) localTime.getSecond(),
+                (byte) (localTime.getDayOfWeek().getValue() - 1)
+        });
     }
 
     static byte[] buildBloodPressureStartRequest() {

@@ -193,6 +193,23 @@ public class YcbtHealthRecordParserTest {
     }
 
     @Test
+    public void preservesEachSleepSegmentTimestamp() {
+        final YcbtHealthRecordParser.SleepRecord sleep = (YcbtHealthRecordParser.SleepRecord)
+                YcbtHealthRecordParser.parse(
+                        YcbtHealthRecordParser.HISTORY_SLEEP,
+                        sleepSession(new int[][]{{0xf2, 30 * 60}, {0xf1, 15 * 60}}),
+                        ZoneOffset.UTC
+                ).get(0);
+
+        assertEquals(2, sleep.getSegments().size());
+        assertEquals(Instant.parse("2026-07-06T23:00:44Z"), sleep.getSegments().get(0).getTimestamp());
+        assertEquals(Instant.parse("2026-07-07T00:00:44Z"), sleep.getSegments().get(1).getTimestamp());
+        assertEquals(Instant.parse("2026-07-07T00:15:44Z"), sleep.getEndTimestamp());
+        assertEquals(30, sleep.getSegments().get(0).getDurationMinutes());
+        assertEquals(15, sleep.getSegments().get(1).getDurationMinutes());
+    }
+
+    @Test
     public void boundsCorruptSleepDurationAndDeduplicatesSegmentStarts() {
         final byte[] corruptDuration = sleepSession(new int[][]{
                 {0xf2, 0x00ffffff},
@@ -256,7 +273,7 @@ public class YcbtHealthRecordParserTest {
     }
 
     @Test
-    public void returnedRecordsAndSleepStagesAreImmutable() {
+    public void returnedRecordsSleepStagesAndSegmentsAreImmutable() {
         final List<YcbtHealthRecordParser.Record> records = YcbtHealthRecordParser.parse(
                 YcbtHealthRecordParser.HISTORY_SLEEP,
                 sleepSession(new int[][]{{0xf4, 60}}),
@@ -275,6 +292,12 @@ public class YcbtHealthRecordParserTest {
         try {
             sleep.getStages().clear();
             fail("Expected immutable sleep stages");
+        } catch (final UnsupportedOperationException expected) {
+            // Expected.
+        }
+        try {
+            sleep.getSegments().clear();
+            fail("Expected immutable sleep segments");
         } catch (final UnsupportedOperationException expected) {
             // Expected.
         }

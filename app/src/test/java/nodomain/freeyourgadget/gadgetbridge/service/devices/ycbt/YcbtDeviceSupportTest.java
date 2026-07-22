@@ -25,6 +25,12 @@ import android.bluetooth.BluetoothGattCharacteristic;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
+
 public class YcbtDeviceSupportTest {
     @Test
     public void requiresIndicateButAllowsNotifyAndIndicate() {
@@ -86,5 +92,105 @@ public class YcbtDeviceSupportTest {
                 YcbtDeviceSupport.decideRealtimeHeartRateRequest(false, true, false, false, false, null)
                         .getAction()
         );
+    }
+
+    @Test
+    public void persistsCompletedHistoryBeforeAcknowledgingAndAdvancing() {
+        final List<String> events = new ArrayList<>();
+
+        assertTrue(YcbtDeviceSupport.processHistoryResult(
+                completedHistoryResult(),
+                (type, block) -> {
+                    events.add("persist");
+                    return true;
+                },
+                action -> events.add(action.getType().name())
+        ));
+
+        assertEquals(Arrays.asList("persist", "ACK", "REQUEST"), events);
+    }
+
+    @Test
+    public void doesNotAcknowledgeHistoryWhenPersistenceFails() {
+        final List<String> events = new ArrayList<>();
+
+        assertFalse(YcbtDeviceSupport.processHistoryResult(
+                completedHistoryResult(),
+                (type, block) -> {
+                    events.add("persist");
+                    return false;
+                },
+                action -> events.add(action.getType().name())
+        ));
+
+        assertEquals(Arrays.asList("persist"), events);
+    }
+
+    @Test
+    public void filtersCombinedVitalsFieldsByAdvertisedCapabilities() {
+        final byte[] capabilityPayload = new byte[24];
+        capabilityPayload[1] = 1 << 3;
+        final YcbtProtocol.Capabilities capabilities = YcbtProtocol.parseCapabilities(
+                YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x02, 0x01, capabilityPayload))
+        );
+        final List<YcbtHealthRecordParser.Record> records = YcbtHealthRecordParser.parse(
+                YcbtHealthRecordParser.HISTORY_COMBINED_VITALS,
+                bytes("1cf0de31721046764f610f3a0324061504370000")
+        );
+        final List<YcbtHealthRecordParser.MeasurementKind> acceptedKinds = new ArrayList<>();
+        for (final YcbtHealthRecordParser.Record record : records) {
+            if (YcbtDeviceSupport.historyRecordSupported(record, capabilities)
+                    && record instanceof YcbtHealthRecordParser.MeasurementRecord) {
+                acceptedKinds.add(((YcbtHealthRecordParser.MeasurementRecord) record).getKind());
+            }
+        }
+
+        assertEquals(Arrays.asList(
+                YcbtHealthRecordParser.MeasurementKind.SPO2,
+                YcbtHealthRecordParser.MeasurementKind.RESPIRATORY_RATE
+        ), acceptedKinds);
+    }
+
+    @Test
+    public void doesNotRequestUnadvertisedBaselineHistoryTypes() {
+        final YcbtProtocol.Capabilities capabilities = YcbtProtocol.parseCapabilities(
+                YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x02, 0x01, new byte[24]))
+        );
+
+        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_ACTIVITY, capabilities).isEmpty());
+        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SLEEP, capabilities).isEmpty());
+        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_HEART_RATE, capabilities).isEmpty());
+        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SPO2, capabilities).isEmpty());
+        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.VITALS),
+                YcbtDeviceSupport.historyTypesFor(
+                        RecordedDataTypes.TYPE_SLEEP_RESPIRATORY_RATE,
+                        capabilities
+                ));
+    }
+
+    private static YcbtHistoryTransfer.Result completedHistoryResult() {
+        final YcbtHistoryTransfer transfer = new YcbtHistoryTransfer();
+        transfer.start(Arrays.asList(
+                YcbtHistoryTransfer.HistoryType.HEART_RATE,
+                YcbtHistoryTransfer.HistoryType.VITALS
+        ), 0);
+        transfer.handle(0x06, new byte[]{
+                0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00
+        }, 10);
+        transfer.handle(0x15, new byte[]{
+                0x1c, (byte) 0xf0, (byte) 0xde, 0x31, 0x00, 0x47,
+                0x1a, (byte) 0xfe, (byte) 0xde, 0x31, 0x00, 0x42
+        }, 20);
+        return transfer.handle(0x80, new byte[]{
+                0x01, 0x00, 0x0c, 0x00, 0x1a, (byte) 0x8b
+        }, 30);
+    }
+
+    private static byte[] bytes(final String hex) {
+        final byte[] bytes = new byte[hex.length() / 2];
+        for (int index = 0; index < bytes.length; index++) {
+            bytes[index] = (byte) Integer.parseInt(hex.substring(index * 2, index * 2 + 2), 16);
+        }
+        return bytes;
     }
 }

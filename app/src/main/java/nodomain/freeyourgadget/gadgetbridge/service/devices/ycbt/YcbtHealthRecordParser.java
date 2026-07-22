@@ -278,9 +278,9 @@ public final class YcbtHealthRecordParser {
                     && recordLength <= payload.length - cursor
                     && (recordLength - headerLength) % segmentLength == 0;
 
-            final List<SleepStage> stages = new ArrayList<>();
+            final List<SleepSegment> segments = new ArrayList<>();
             final Set<Long> seenStarts = new HashSet<>();
-            Instant sessionStart = null;
+            int totalMinutes = 0;
             for (int index = 0; index < segmentCount; index++) {
                 final int offset = segmentsStart + index * segmentLength;
                 final SleepStage stage = sleepStage(unsigned(payload[offset]));
@@ -291,23 +291,19 @@ public final class YcbtHealthRecordParser {
                 if (!seenStarts.add(segmentStart)) {
                     continue;
                 }
-                if (sessionStart == null) {
-                    sessionStart = timestamp(segmentStart, zoneId);
-                }
-
-                final int remaining = MAX_SLEEP_SESSION_MINUTES - stages.size();
+                final int remaining = MAX_SLEEP_SESSION_MINUTES - totalMinutes;
                 if (remaining <= 0) {
                     break;
                 }
                 final int segmentSeconds = readUnsigned24(payload, offset + 5);
                 final int minutes = Math.max(1, Math.min(remaining, (int) Math.round(segmentSeconds / 60.0)));
-                for (int minute = 0; minute < minutes; minute++) {
-                    stages.add(stage);
-                }
+                segments.add(new SleepSegment(timestamp(segmentStart, zoneId), stage, minutes));
+                totalMinutes += minutes;
             }
 
-            if (sessionStart != null && !stages.isEmpty()) {
-                records.add(new SleepRecord(sessionStart, stages, completeSession));
+            if (!segments.isEmpty()) {
+                segments.sort((left, right) -> left.getTimestamp().compareTo(right.getTimestamp()));
+                records.add(new SleepRecord(segments, completeSession));
             }
             cursor = segmentsStart + segmentCount * segmentLength;
         }
@@ -478,14 +474,21 @@ public final class YcbtHealthRecordParser {
 
     public static final class SleepRecord implements Record {
         private final Instant timestamp;
+        private final List<SleepSegment> segments;
         private final List<SleepStage> stages;
         private final boolean completeSession;
 
-        private SleepRecord(final Instant timestamp,
-                            final List<SleepStage> stages,
+        private SleepRecord(final List<SleepSegment> segments,
                             final boolean completeSession) {
-            this.timestamp = timestamp;
-            this.stages = Collections.unmodifiableList(new ArrayList<>(stages));
+            this.timestamp = segments.get(0).getTimestamp();
+            this.segments = Collections.unmodifiableList(new ArrayList<>(segments));
+            final List<SleepStage> expandedStages = new ArrayList<>();
+            for (final SleepSegment segment : segments) {
+                for (int minute = 0; minute < segment.getDurationMinutes(); minute++) {
+                    expandedStages.add(segment.getStage());
+                }
+            }
+            this.stages = Collections.unmodifiableList(expandedStages);
             this.completeSession = completeSession;
         }
 
@@ -498,8 +501,47 @@ public final class YcbtHealthRecordParser {
             return stages;
         }
 
+        public List<SleepSegment> getSegments() {
+            return segments;
+        }
+
+        public Instant getEndTimestamp() {
+            Instant end = timestamp;
+            for (final SleepSegment segment : segments) {
+                final Instant segmentEnd = segment.getTimestamp().plusSeconds(segment.getDurationMinutes() * 60L);
+                if (segmentEnd.isAfter(end)) {
+                    end = segmentEnd;
+                }
+            }
+            return end;
+        }
+
         public boolean isCompleteSession() {
             return completeSession;
+        }
+    }
+
+    public static final class SleepSegment {
+        private final Instant timestamp;
+        private final SleepStage stage;
+        private final int durationMinutes;
+
+        private SleepSegment(final Instant timestamp, final SleepStage stage, final int durationMinutes) {
+            this.timestamp = timestamp;
+            this.stage = stage;
+            this.durationMinutes = durationMinutes;
+        }
+
+        public Instant getTimestamp() {
+            return timestamp;
+        }
+
+        public SleepStage getStage() {
+            return stage;
+        }
+
+        public int getDurationMinutes() {
+            return durationMinutes;
         }
     }
 

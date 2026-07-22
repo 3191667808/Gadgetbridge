@@ -32,6 +32,8 @@ import androidx.annotation.RequiresPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -39,6 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -684,6 +688,13 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         synchronized (ConnectionMonitor) {
             if (sessionNegotiation.handleCapabilities() == YcbtSessionNegotiation.Result.READY) {
                 cancelSessionTimeout();
+                if (!queueCommand(
+                        "YCBT time sync",
+                        YcbtProtocol.buildSetTimeRequest(Instant.now(), ZoneId.systemDefault())
+                )) {
+                    failSession("could not queue time sync");
+                    return;
+                }
                 getDevice().setUpdateState(GBDevice.State.INITIALIZED, getContext());
                 diagnostic(YcbtDiagnostics.TYPE_INITIALIZED,
                         "INITIALIZED after model, battery, and capability negotiation");
@@ -796,20 +807,24 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 || dataTypes == RecordedDataTypes.TYPE_SYNC
                 || dataTypes == RecordedDataTypes.TYPE_ALL;
 
-        if (requested(dataTypes, RecordedDataTypes.TYPE_ACTIVITY, fullSync)) {
+        if (capabilities.hasSteps()
+                && requested(dataTypes, RecordedDataTypes.TYPE_ACTIVITY, fullSync)) {
             types.add(YcbtHistoryTransfer.HistoryType.SPORT);
         }
-        if (requested(dataTypes, RecordedDataTypes.TYPE_SLEEP, fullSync)) {
+        if (capabilities.hasSleep()
+                && requested(dataTypes, RecordedDataTypes.TYPE_SLEEP, fullSync)) {
             types.add(YcbtHistoryTransfer.HistoryType.SLEEP);
         }
-        if (requested(dataTypes, RecordedDataTypes.TYPE_HEART_RATE, fullSync)) {
+        if (capabilities.hasHeartRate()
+                && requested(dataTypes, RecordedDataTypes.TYPE_HEART_RATE, fullSync)) {
             types.add(YcbtHistoryTransfer.HistoryType.HEART_RATE);
         }
         if (fullSync && capabilities.hasBloodPressure()) {
             types.add(YcbtHistoryTransfer.HistoryType.BLOOD_PRESSURE);
         }
 
-        final boolean wantsVitals = requested(dataTypes, RecordedDataTypes.TYPE_SPO2, fullSync)
+        final boolean wantsVitals = (capabilities.hasSpo2()
+                && requested(dataTypes, RecordedDataTypes.TYPE_SPO2, fullSync))
                 || (capabilities.hasHrv() && requested(dataTypes, RecordedDataTypes.TYPE_HRV, fullSync))
                 || requested(dataTypes, RecordedDataTypes.TYPE_SLEEP_RESPIRATORY_RATE, fullSync);
         if (wantsVitals) {
@@ -854,27 +869,29 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void consumeHistoryResult(final YcbtHistoryTransfer.Result result) {
-        int actionIndex = 0;
-        final List<YcbtHistoryTransfer.Action> actions = result.getActions();
-        if (result.getCompletedBlock() != null) {
-            if (!actions.isEmpty() && actions.get(0).getType() == YcbtHistoryTransfer.ActionType.ACK) {
-                if (!queueHistoryAction(actions.get(0))) {
-                    cancelHistoryFetch(true);
-                    return;
-                }
-                actionIndex = 1;
-            }
-            persistHistoryBlock(result.getCompletedType(), result.getCompletedBlock());
-        }
-        for (; actionIndex < actions.size(); actionIndex++) {
-            if (!queueHistoryAction(actions.get(actionIndex))) {
-                cancelHistoryFetch(true);
-                return;
-            }
+        if (!processHistoryResult(result, this::persistHistoryBlock, this::queueHistoryAction)) {
+            cancelHistoryFetch(true);
+            return;
         }
         if (result.isFinished() && historyFetchActive) {
             finishHistoryFetch();
         }
+    }
+
+    static boolean processHistoryResult(
+            final YcbtHistoryTransfer.Result result,
+            final BiFunction<YcbtHistoryTransfer.HistoryType, byte[], Boolean> persister,
+            final Predicate<YcbtHistoryTransfer.Action> actionConsumer) {
+        if (result.getCompletedBlock() != null
+                && !Boolean.TRUE.equals(persister.apply(result.getCompletedType(), result.getCompletedBlock()))) {
+            return false;
+        }
+        for (final YcbtHistoryTransfer.Action action : result.getActions()) {
+            if (!actionConsumer.test(action)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean queueHistoryAction(final YcbtHistoryTransfer.Action action) {
@@ -1461,7 +1478,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    private void persistHistoryBlock(final YcbtHistoryTransfer.HistoryType historyType, final byte[] block) {
+    private boolean persistHistoryBlock(final YcbtHistoryTransfer.HistoryType historyType, final byte[] block) {
         final List<YcbtHealthRecordParser.Record> records = YcbtHealthRecordParser.parse(
                 historyType.getQueryKey(),
                 block
@@ -1484,6 +1501,9 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             final long timestamp = record.getTimestamp().toEpochMilli();
             if (timestamp < now - HISTORY_MAX_AGE_MILLIS || timestamp > now + HISTORY_MAX_FUTURE_MILLIS) {
                 LOG.warn("Ignoring YCBT {} history record outside retention window: {}", historyType, record.getTimestamp());
+                continue;
+            }
+            if (!historyRecordSupported(record, capabilities)) {
                 continue;
             }
             if (record instanceof YcbtHealthRecordParser.ActivityRecord) {
@@ -1578,19 +1598,20 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
 
+        boolean persisted = true;
         try (DBHandler handler = GBApplication.acquireDB()) {
             final DaoSession session = handler.getDaoSession();
-            new YcbtActivitySampleProvider(getDevice(), session)
+            persisted &= new YcbtActivitySampleProvider(getDevice(), session)
                     .persistSamples(activitySamples, getContext());
-            new GenericBloodPressureSampleProvider(getDevice(), session)
+            persisted &= new GenericBloodPressureSampleProvider(getDevice(), session)
                     .persistSamples(bloodPressureSamples, getContext());
-            new GenericHeartRateSampleProvider(getDevice(), session)
+            persisted &= new GenericHeartRateSampleProvider(getDevice(), session)
                     .persistSamples(heartRateSamples, getContext());
-            new GenericHrvValueSampleProvider(getDevice(), session)
+            persisted &= new GenericHrvValueSampleProvider(getDevice(), session)
                     .persistSamples(hrvSamples, getContext());
-            new GenericMetricSampleProvider(getDevice(), session)
+            persisted &= new GenericMetricSampleProvider(getDevice(), session)
                     .persistSamples(metricSamples, getContext());
-            new GenericRespiratoryRateSampleProvider(getDevice(), session)
+            persisted &= new GenericRespiratoryRateSampleProvider(getDevice(), session)
                     .persistSamples(respiratoryRateSamples, getContext());
             final GenericSleepStageSampleProvider sleepProvider =
                     new GenericSleepStageSampleProvider(getDevice(), session);
@@ -1600,14 +1621,16 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     continue;
                 }
                 final long start = sleepRecord.getTimestamp().toEpochMilli();
-                final long packetEnd = start + sleepRecord.getStages().size() * 60_000L;
+                final long packetEnd = sleepRecord.getEndTimestamp().toEpochMilli();
                 previousSleepStages.addAll(findOverlappingSleepSessionStages(
                         sleepProvider,
                         start,
                         packetEnd
                 ));
             }
-            if (sleepProvider.persistSamples(sleepStageSamples, getContext()) && !previousSleepStages.isEmpty()) {
+            final boolean sleepPersisted = sleepProvider.persistSamples(sleepStageSamples, getContext());
+            persisted &= sleepPersisted;
+            if (sleepPersisted && !previousSleepStages.isEmpty()) {
                 final Set<Long> currentStageTimestamps = new HashSet<>();
                 for (final GenericSleepStageSample sample : sleepStageSamples) {
                     currentStageTimestamps.add(sample.getTimestamp());
@@ -1617,20 +1640,25 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     sleepProvider.getSampleDao().deleteInTx(previousSleepStages);
                 }
             }
-            new GenericSpo2SampleProvider(getDevice(), session)
+            persisted &= new GenericSpo2SampleProvider(getDevice(), session)
                     .persistSamples(spo2Samples, getContext());
-            new GenericStressSampleProvider(getDevice(), session)
+            persisted &= new GenericStressSampleProvider(getDevice(), session)
                     .persistSamples(stressSamples, getContext());
-            new GenericTemperatureSampleProvider(
+            persisted &= new GenericTemperatureSampleProvider(
                     getDevice(),
                     session,
                     TemperatureSample.TYPE_SKIN,
                     TemperatureSample.LOCATION_FINGER
             ).persistSamples(temperatureSamples, getContext());
-            new GlucoseSampleProvider(getDevice(), session)
+            persisted &= new GlucoseSampleProvider(getDevice(), session)
                     .persistSamples(glucoseSamples, getContext());
         } catch (final Exception e) {
             LOG.error("Could not persist YCBT {} history", historyType, e);
+            return false;
+        }
+        if (!persisted) {
+            LOG.error("Could not persist all YCBT {} history samples", historyType);
+            return false;
         }
 
         diagnostic(YcbtDiagnostics.TYPE_STAGE, String.format(
@@ -1640,24 +1668,56 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 records.size(),
                 activitySamples.size()
         ));
+        return true;
+    }
+
+    static boolean historyRecordSupported(final YcbtHealthRecordParser.Record record,
+                                          final YcbtProtocol.Capabilities capabilities) {
+        if (record == null || capabilities == null) {
+            return false;
+        }
+        if (record instanceof YcbtHealthRecordParser.ActivityRecord) {
+            return capabilities.hasSteps();
+        }
+        if (record instanceof YcbtHealthRecordParser.SleepRecord) {
+            return capabilities.hasSleep();
+        }
+        if (record instanceof YcbtHealthRecordParser.BloodPressureRecord) {
+            return capabilities.hasBloodPressure();
+        }
+        if (!(record instanceof YcbtHealthRecordParser.MeasurementRecord)) {
+            return false;
+        }
+        switch (((YcbtHealthRecordParser.MeasurementRecord) record).getKind()) {
+            case HEART_RATE:
+                return capabilities.hasHeartRate();
+            case SPO2:
+                return capabilities.hasSpo2();
+            case HRV:
+                return capabilities.hasHrv();
+            case TEMPERATURE:
+                return capabilities.hasTemperature();
+            case BLOOD_SUGAR:
+                return capabilities.hasBloodSugar();
+            case STRESS:
+                return capabilities.hasStress();
+            case RESPIRATORY_RATE:
+            case FATIGUE:
+            case VO2_MAX:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static void appendSleepStageSamples(final List<GenericSleepStageSample> samples,
                                                 final YcbtHealthRecordParser.SleepRecord record) {
-        final List<YcbtHealthRecordParser.SleepStage> stages = record.getStages();
-        int runStart = 0;
-        while (runStart < stages.size()) {
-            final YcbtHealthRecordParser.SleepStage stage = stages.get(runStart);
-            int runEnd = runStart + 1;
-            while (runEnd < stages.size() && stages.get(runEnd) == stage) {
-                runEnd++;
-            }
+        for (final YcbtHealthRecordParser.SleepSegment segment : record.getSegments()) {
             final GenericSleepStageSample sample = new GenericSleepStageSample();
-            sample.setTimestamp(record.getTimestamp().toEpochMilli() + runStart * 60_000L);
-            sample.setDuration(runEnd - runStart);
-            sample.setStage(toGenericSleepStage(stage));
+            sample.setTimestamp(segment.getTimestamp().toEpochMilli());
+            sample.setDuration(segment.getDurationMinutes());
+            sample.setStage(toGenericSleepStage(segment.getStage()));
             samples.add(sample);
-            runStart = runEnd;
         }
     }
 

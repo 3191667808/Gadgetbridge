@@ -24,6 +24,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 
 import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
@@ -116,6 +118,21 @@ public class YcbtProtocolTest {
     @Test
     public void buildsCapturedCapabilityRequestExactly() {
         assertArrayEquals(CAPTURED_CAPABILITY_REQUEST, YcbtProtocol.buildCapabilityRequest());
+    }
+
+    @Test
+    public void buildsDocumentedLocalTimeFrame() {
+        assertArrayEquals(
+                new byte[]{
+                        0x01, 0x00, 0x0e, 0x00,
+                        (byte) 0xea, 0x07, 0x07, 0x16, 0x0e, 0x05, 0x06, 0x02,
+                        (byte) 0xa9, (byte) 0x84
+                },
+                YcbtProtocol.buildSetTimeRequest(
+                        Instant.parse("2026-07-22T14:05:06Z"),
+                        ZoneOffset.UTC
+                )
+        );
     }
 
     @Test
