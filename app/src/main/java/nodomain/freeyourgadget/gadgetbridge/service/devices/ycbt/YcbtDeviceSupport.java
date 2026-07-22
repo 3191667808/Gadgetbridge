@@ -1348,6 +1348,10 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     diagnostic(YcbtDiagnostics.TYPE_FAILURE,
                             "blood pressure start reply rejected status=" + status);
                     break;
+                case DELAYED_START_REPLY:
+                    diagnostic(YcbtDiagnostics.TYPE_STAGE,
+                            "blood pressure delayed start reply ignored status=" + status);
+                    break;
                 case STOP_REPLY:
                     cancelBloodPressureTimeout();
                     diagnostic(YcbtDiagnostics.TYPE_STAGE,

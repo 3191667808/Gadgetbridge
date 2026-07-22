@@ -32,15 +32,18 @@ final class YcbtBloodPressureOperation {
         IGNORED,
         START_ACCEPTED,
         START_REJECTED,
+        DELAYED_START_REPLY,
         STOP_REPLY
     }
 
     private volatile State state = State.IDLE;
+    private boolean delayedStartReplyExpected;
 
     boolean requestStart() {
         if (state != State.IDLE) {
             return false;
         }
+        delayedStartReplyExpected = false;
         state = State.START_QUEUED;
         return true;
     }
@@ -54,15 +57,22 @@ final class YcbtBloodPressureOperation {
     }
 
     Reply handleReply(final int status) {
+        if (delayedStartReplyExpected && state != State.WAITING_START_REPLY) {
+            delayedStartReplyExpected = false;
+            return Reply.DELAYED_START_REPLY;
+        }
         if (state == State.WAITING_START_REPLY) {
             if (status == 0) {
+                delayedStartReplyExpected = false;
                 state = State.MEASURING;
                 return Reply.START_ACCEPTED;
             }
+            delayedStartReplyExpected = false;
             state = State.IDLE;
             return Reply.START_REJECTED;
         }
         if (state == State.WAITING_STOP_REPLY) {
+            delayedStartReplyExpected = false;
             state = State.IDLE;
             return Reply.STOP_REPLY;
         }
@@ -73,6 +83,7 @@ final class YcbtBloodPressureOperation {
         if (state != State.WAITING_START_REPLY && state != State.MEASURING) {
             return false;
         }
+        delayedStartReplyExpected = state == State.WAITING_START_REPLY;
         state = State.STOP_QUEUED;
         return true;
     }
@@ -106,6 +117,7 @@ final class YcbtBloodPressureOperation {
             return false;
         }
         state = State.IDLE;
+        delayedStartReplyExpected = false;
         return true;
     }
 
@@ -114,6 +126,7 @@ final class YcbtBloodPressureOperation {
             return false;
         }
         state = State.IDLE;
+        delayedStartReplyExpected = false;
         return true;
     }
 

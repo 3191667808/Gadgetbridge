@@ -59,8 +59,9 @@ public class YcbtBloodPressureOperationTest {
         assertTrue(operation.markStartRequested());
         assertTrue(operation.handleResult());
         assertEquals(YcbtBloodPressureOperation.State.STOP_QUEUED, operation.getState());
-        assertEquals(YcbtBloodPressureOperation.Reply.IGNORED, operation.handleReply(0));
         assertTrue(operation.markStopRequested());
+        assertEquals(YcbtBloodPressureOperation.Reply.DELAYED_START_REPLY, operation.handleReply(0));
+        assertEquals(YcbtBloodPressureOperation.State.WAITING_STOP_REPLY, operation.getState());
         assertEquals(YcbtBloodPressureOperation.Reply.STOP_REPLY, operation.handleReply(0));
     }
 
