@@ -54,6 +54,17 @@ public class YcbtBloodPressureOperationTest {
     }
 
     @Test
+    public void acceptsResultBeforeStartReply() {
+        assertTrue(operation.requestStart());
+        assertTrue(operation.markStartRequested());
+        assertTrue(operation.handleResult());
+        assertEquals(YcbtBloodPressureOperation.State.STOP_QUEUED, operation.getState());
+        assertEquals(YcbtBloodPressureOperation.Reply.IGNORED, operation.handleReply(0));
+        assertTrue(operation.markStopRequested());
+        assertEquals(YcbtBloodPressureOperation.Reply.STOP_REPLY, operation.handleReply(0));
+    }
+
+    @Test
     public void ignoresDuplicateAndOutOfOrderEvents() {
         assertEquals(YcbtBloodPressureOperation.Reply.IGNORED, operation.handleReply(0));
         assertFalse(operation.handleResult());

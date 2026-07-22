@@ -170,10 +170,14 @@ public class YcbtDeviceSupportTest {
                 YcbtDeviceSupport.LiveVitalsFrameRoute.VITALS,
                 YcbtDeviceSupport.routeLiveVitalsFrame(YcbtBloodPressureOperation.State.IDLE)
         );
-        assertEquals(
-                YcbtDeviceSupport.LiveVitalsFrameRoute.BLOOD_PRESSURE,
-                YcbtDeviceSupport.routeLiveVitalsFrame(YcbtBloodPressureOperation.State.MEASURING)
-        );
+        for (final YcbtBloodPressureOperation.State state : YcbtBloodPressureOperation.State.values()) {
+            if (state != YcbtBloodPressureOperation.State.IDLE) {
+                assertEquals(
+                        YcbtDeviceSupport.LiveVitalsFrameRoute.BLOOD_PRESSURE,
+                        YcbtDeviceSupport.routeLiveVitalsFrame(state)
+                );
+            }
+        }
     }
 
     @Test

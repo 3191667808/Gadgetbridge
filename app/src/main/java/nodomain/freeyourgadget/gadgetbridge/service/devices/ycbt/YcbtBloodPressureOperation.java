@@ -35,7 +35,7 @@ final class YcbtBloodPressureOperation {
         STOP_REPLY
     }
 
-    private State state = State.IDLE;
+    private volatile State state = State.IDLE;
 
     boolean requestStart() {
         if (state != State.IDLE) {
@@ -70,7 +70,7 @@ final class YcbtBloodPressureOperation {
     }
 
     boolean handleResult() {
-        if (state != State.MEASURING) {
+        if (state != State.WAITING_START_REPLY && state != State.MEASURING) {
             return false;
         }
         state = State.STOP_QUEUED;

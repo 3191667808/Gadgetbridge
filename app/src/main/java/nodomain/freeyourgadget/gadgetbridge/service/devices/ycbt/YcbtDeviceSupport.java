@@ -847,9 +847,9 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     static LiveVitalsFrameRoute routeLiveVitalsFrame(final YcbtBloodPressureOperation.State state) {
-        return state == YcbtBloodPressureOperation.State.MEASURING
-                ? LiveVitalsFrameRoute.BLOOD_PRESSURE
-                : LiveVitalsFrameRoute.VITALS;
+        return state == YcbtBloodPressureOperation.State.IDLE
+                ? LiveVitalsFrameRoute.VITALS
+                : LiveVitalsFrameRoute.BLOOD_PRESSURE;
     }
 
     private void handleHistoryFrame(final YcbtFrameCodec.Frame frame) {
