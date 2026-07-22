@@ -79,13 +79,6 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
             final String rootKey) {
         final Set<TouchConfigSide> knownSides = new HashSet<>();
         final Set<TouchConfigType> knownTypes = new HashSet<>();
-
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.LDAC);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_MODE);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
-        this.addPreferenceHandler(handler, OppoHeadphonesPreferences.SPATIAL_AUDIO);
-
         for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions
                 .entrySet()) {
             final TouchConfigSide side = e.getKey().first;
@@ -142,12 +135,16 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
                 }
             }
         }
-    }
 
-    private void addPreferenceHandler(DeviceSpecificSettingsHandler handler, String key) {
-        Preference pref = handler.findPreference(key);
+        final Preference pref = handler.findPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
         if (pref != null) {
-            handler.addPreferenceHandlerFor(key);
+            final boolean hasNoiseControl = touchOptions.values().stream()
+                    .anyMatch(list -> list.contains(TouchConfigValue.ANC_CYCLE));
+            if (hasNoiseControl) {
+                handler.addPreferenceHandlerFor(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
+            } else {
+                pref.setVisible(false);
+            }
         }
     }
 

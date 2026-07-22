@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -405,7 +406,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 LOG.debug("Got anc config for MODE = {}", value);
                 evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
                         OppoHeadphonesPreferences.ANC_MODE,
-                        value.getPrefId()));
+                        value.getPreference()));
                 break;
             }
             case MULTIPOINT: {
@@ -661,10 +662,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void ancModeSet() {
-        final String valuePrefId = getDevicePrefs().getString(OppoHeadphonesPreferences.ANC_MODE, null);
-        AncConfigValue value = AncConfigValue.fromPrefId(valuePrefId);
+        final String valuePreference = getDevicePrefs().getString(OppoHeadphonesPreferences.ANC_MODE, null);
+        AncConfigValue value = AncConfigValue.fromPreference(valuePreference);
         if (value == null) {
-            LOG.warn("Unknown ANC prefId = \"{}\"", valuePrefId);
+            LOG.warn("Unknown ANC prefId = \"{}\"", valuePreference);
             return;
         }
         LOG.debug("Sending ANC value = {}", value);
@@ -672,9 +673,9 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void touchAncCycleModesSet() {
-        final Set<String> valuePrefIds = getDevicePrefs().getStringSet(
+        final Set<String> valuePreferences = getDevicePrefs().getStringSet(
                 OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, Collections.emptySet());
-        final EnumSet<AncConfigValue> values = AncConfigValue.fromPrefIds(valuePrefIds);
+        final EnumSet<AncConfigValue> values = AncConfigValue.fromPreferences(valuePreferences);
         if (values.size() < 2) {
             LOG.warn("ANC cycle must contain at least 2 values. Current selection: {}", values);
             final String message = getContext()
@@ -739,7 +740,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 }
 
                 LOG.debug("Got anc config for {} = {}", type, value);
-                event.withPreference(OppoHeadphonesPreferences.ANC_MODE, value.getPrefId());
+                event.withPreference(OppoHeadphonesPreferences.ANC_MODE, value.getPreference());
                 break;
             }
             case TOUCH_CYCLE_MODES: {
@@ -748,7 +749,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     LOG.warn("Unknown anc value mask 0x{}", intToHex(valueCode, 2));
                     break;
                 }
-                final Set<String> valuePrefIds = AncConfigValue.toPrefIds(values);
+                final Set<String> valuePrefIds = AncConfigValue.toPreferences(values);
                 LOG.debug("Got anc config for {} = {}", type, valuePrefIds);
                 event.withPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, valuePrefIds);
                 break;

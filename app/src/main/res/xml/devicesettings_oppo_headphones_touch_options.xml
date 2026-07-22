@@ -75,4 +75,17 @@
             app:useSimpleSummaryProvider="true"
             android:title="@string/long_press" />
     </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="oppo_touch_header_anc"
+        android:title="@string/prefs_active_noise_cancelling"
+        app:iconSpaceReserved="false">
+        <MultiSelectListPreference
+            android:key="oppo_touch_anc_cycle_modes"
+            android:title="@string/prefs_noise_modes_to_cycle"
+            android:icon="@drawable/ic_sync"
+            android:entries="@array/onemore_noise_control_modes"
+            android:entryValues="@array/oppo_touch_anc_cycle_modes_values"
+            android:defaultValue="@array/oppo_touch_anc_cycle_modes_values" />
+    </PreferenceCategory>
 </androidx.preference.PreferenceScreen>
