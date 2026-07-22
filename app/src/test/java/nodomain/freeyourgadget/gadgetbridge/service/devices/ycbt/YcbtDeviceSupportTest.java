@@ -145,27 +145,43 @@ public class YcbtDeviceSupportTest {
             }
         }
 
-        assertEquals(Arrays.asList(
-                YcbtHealthRecordParser.MeasurementKind.SPO2,
-                YcbtHealthRecordParser.MeasurementKind.RESPIRATORY_RATE
-        ), acceptedKinds);
+        assertEquals(Arrays.asList(YcbtHealthRecordParser.MeasurementKind.SPO2), acceptedKinds);
     }
 
     @Test
-    public void doesNotRequestUnadvertisedBaselineHistoryTypes() {
+    public void requestsBaselineHistoryWithoutBitmapBits() {
         final YcbtProtocol.Capabilities capabilities = YcbtProtocol.parseCapabilities(
                 YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x02, 0x01, new byte[24]))
         );
 
-        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_ACTIVITY, capabilities).isEmpty());
-        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SLEEP, capabilities).isEmpty());
-        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_HEART_RATE, capabilities).isEmpty());
-        assertTrue(YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SPO2, capabilities).isEmpty());
+        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.SPORT),
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_ACTIVITY, capabilities));
+        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.SLEEP),
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SLEEP, capabilities));
+        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.HEART_RATE),
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_HEART_RATE, capabilities));
         assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.VITALS),
-                YcbtDeviceSupport.historyTypesFor(
-                        RecordedDataTypes.TYPE_SLEEP_RESPIRATORY_RATE,
-                        capabilities
-                ));
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SPO2, capabilities));
+    }
+
+    @Test
+    public void routesCombinedLiveFrameToOnlyOneConsumer() {
+        assertEquals(
+                YcbtDeviceSupport.LiveVitalsFrameRoute.VITALS,
+                YcbtDeviceSupport.routeLiveVitalsFrame(YcbtBloodPressureOperation.State.IDLE)
+        );
+        assertEquals(
+                YcbtDeviceSupport.LiveVitalsFrameRoute.BLOOD_PRESSURE,
+                YcbtDeviceSupport.routeLiveVitalsFrame(YcbtBloodPressureOperation.State.MEASURING)
+        );
+    }
+
+    @Test
+    public void acceptsOldHistoryButRejectsFarFutureTimestamps() {
+        final long now = 1_800_000_000_000L;
+        assertTrue(YcbtDeviceSupport.historyTimestampSupported(now - 30L * 24L * 60L * 60L * 1_000L, now));
+        assertTrue(YcbtDeviceSupport.historyTimestampSupported(now + 60L * 60L * 1_000L, now));
+        assertFalse(YcbtDeviceSupport.historyTimestampSupported(now + 60L * 60L * 1_000L + 1, now));
     }
 
     private static YcbtHistoryTransfer.Result completedHistoryResult() {

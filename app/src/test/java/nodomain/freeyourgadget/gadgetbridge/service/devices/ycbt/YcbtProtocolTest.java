@@ -270,10 +270,10 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void normalizesAutomaticMonitoringIntervalsToFirmwareLimits() {
+    public void normalizesAutomaticMonitoringIntervalsToSupportedSettings() {
         assertEquals(60, YcbtProtocol.normalizeMonitoringInterval(0));
         assertEquals(30, YcbtProtocol.normalizeMonitoringInterval(5));
-        assertEquals(255, YcbtProtocol.normalizeMonitoringInterval(360));
+        assertEquals(60, YcbtProtocol.normalizeMonitoringInterval(360));
         assertArrayEquals(
                 new byte[]{0x00, 0x3c},
                 YcbtFrameCodec.decode(YcbtProtocol.buildHeartRateMonitoringRequest(false, 0)).getPayload()
@@ -283,7 +283,7 @@ public class YcbtProtocolTest {
                 YcbtFrameCodec.decode(YcbtProtocol.buildHeartRateMonitoringRequest(true, 5)).getPayload()
         );
         assertArrayEquals(
-                new byte[]{0x01, (byte) 0xff},
+                new byte[]{0x01, 0x3c},
                 YcbtFrameCodec.decode(YcbtProtocol.buildSpo2MonitoringRequest(true, 360)).getPayload()
         );
     }

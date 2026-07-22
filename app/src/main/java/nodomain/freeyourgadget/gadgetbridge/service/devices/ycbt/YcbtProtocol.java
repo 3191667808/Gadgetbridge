@@ -43,7 +43,6 @@ final class YcbtProtocol {
     private static final int COMMAND_SPO2_MONITORING = 0x26;
     private static final int DEFAULT_MONITORING_INTERVAL_MINUTES = 60;
     private static final int MINIMUM_MONITORING_INTERVAL_MINUTES = 30;
-    private static final int MAXIMUM_MONITORING_INTERVAL_MINUTES = 255;
     private static final int LIVE_VITALS_PAYLOAD_LENGTH = 14;
     private static final int MINIMUM_SYSTOLIC = 60;
     private static final int MAXIMUM_SYSTOLIC = 250;
@@ -173,10 +172,9 @@ final class YcbtProtocol {
         if (intervalMinutes <= 0) {
             return DEFAULT_MONITORING_INTERVAL_MINUTES;
         }
-        return Math.max(
-                MINIMUM_MONITORING_INTERVAL_MINUTES,
-                Math.min(MAXIMUM_MONITORING_INTERVAL_MINUTES, intervalMinutes)
-        );
+        return intervalMinutes <= MINIMUM_MONITORING_INTERVAL_MINUTES
+                ? MINIMUM_MONITORING_INTERVAL_MINUTES
+                : DEFAULT_MONITORING_INTERVAL_MINUTES;
     }
 
     static byte[] buildFindDeviceRequest() {
