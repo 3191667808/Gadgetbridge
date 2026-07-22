@@ -43,6 +43,13 @@ public class DefaultWorkoutChartsTest {
         return ap;
     }
 
+    /** An indoor point: machine-reported speed (m/s), no location. */
+    private static ActivityPoint speedPoint(final long ts, final float speedMps) {
+        final ActivityPoint ap = new ActivityPoint(new Date(ts));
+        ap.setSpeed(speedMps);
+        return ap;
+    }
+
     @Test
     public void firstFixIsZeroAndDistanceAccumulates() {
         // 45.000,5.000 -> 45.000,5.001 is ~78.6 m of easting at this latitude;
@@ -101,11 +108,55 @@ public class DefaultWorkoutChartsTest {
     }
 
     @Test
-    public void noUsableFixesReturnsNull() {
+    public void noUsableFixesOrSpeedReturnsNull() {
         final List<ActivityPoint> points = Arrays.asList(
                 new ActivityPoint(new Date(1000)),
                 point(2000, 0.0, 0.0));
 
         assertNull(DefaultWorkoutCharts.deriveCumulativeDistances(points));
+    }
+
+    @Test
+    public void indoorSpeedIsIntegratedOverTimeWhenNoGps() {
+        // 2 m/s held across two 1 s intervals -> 2 m then 4 m (trapezoid rule).
+        final List<ActivityPoint> points = Arrays.asList(
+                speedPoint(1000, 2.0f),
+                speedPoint(2000, 2.0f),
+                speedPoint(3000, 2.0f));
+
+        final double[] d = DefaultWorkoutCharts.deriveCumulativeDistances(points);
+
+        assertEquals(0.0, d[0], 1e-9);
+        assertEquals(2.0, d[1], 1e-9);
+        assertEquals(4.0, d[2], 1e-9);
+    }
+
+    @Test
+    public void speedGapBridgesFromLastSampleAndNoDistanceOnGap() {
+        final List<ActivityPoint> points = Arrays.asList(
+                speedPoint(1000, 3.0f),
+                new ActivityPoint(new Date(2000)), // no speed
+                speedPoint(3000, 3.0f));
+
+        final double[] d = DefaultWorkoutCharts.deriveCumulativeDistances(points);
+
+        assertEquals(0.0, d[0], 1e-9);
+        assertTrue("no-speed point has no distance", Double.isNaN(d[1]));
+        // bridges the 2 s gap using the last valid speed: 0.5*(3+3)*2 = 6 m
+        assertEquals(6.0, d[2], 1e-9);
+    }
+
+    @Test
+    public void gpsWinsOverSpeedWhenBothPresent() {
+        // Points carry both a fix and a speed; the GPS derivation must take priority.
+        final ActivityPoint p0 = point(1000, 5.000, 45.000);
+        final ActivityPoint p1 = point(2000, 5.001, 45.000);
+        p0.setSpeed(50.0f); // absurd speed that would dominate if integrated
+        p1.setSpeed(50.0f);
+
+        final double[] d = DefaultWorkoutCharts.deriveCumulativeDistances(Arrays.asList(p0, p1));
+
+        assertEquals(0.0, d[0], 1e-9);
+        assertEquals(78.6, d[1], 1.0); // ~78.6 m from the fixes, not 50 m/s * 1 s
     }
 }

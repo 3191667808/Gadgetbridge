@@ -345,13 +345,15 @@ public class DefaultWorkoutCharts {
     }
 
     /**
-     * Derive a per-point cumulative distance (metres) from the GPS fixes when the source carries no
-     * distance of its own. Returns {@code null} when any point already provides a distance (honour
-     * the device value) or when there are no usable fixes to derive from, so the caller falls back to
-     * {@link ActivityPoint#getDistance()}. Entries for points without a location — including Null
-     * Island (0,0) no-fix placeholders — are {@link Double#NaN}, so a dropout neither gets a distance
-     * nor injects a spurious hop. Uses the pure-Java {@link GPSCoordinate#distanceHaversine} so it
-     * stays off {@code android.location.Location} and unit-testable.
+     * Derive a per-point cumulative distance (metres) when the source carries no distance of its own,
+     * so the distance chart still renders. Returns {@code null} when any point already provides a
+     * distance (honour the device value) or when there is nothing to derive from, so the caller falls
+     * back to {@link ActivityPoint#getDistance()}.
+     * <p>
+     * Two sources, in order of trust: GPS fixes (outdoor tracks that expose position but no distance,
+     * e.g. Xiaomi/Bangle), else the speed stream integrated over time (indoor treadmill/bike workouts
+     * that carry machine-reported speed but neither location nor distance). Entries with no usable
+     * value are {@link Double#NaN} so they contribute no distance and inject no spurious hop.
      */
     static double[] deriveCumulativeDistances(final List<? extends ActivityPoint> points) {
         for (final ActivityPoint p : points) {
@@ -359,6 +361,20 @@ public class DefaultWorkoutCharts {
                 return null; // source already carries distance — do not override it
             }
         }
+        final double[] fromGps = deriveFromGps(points);
+        if (fromGps != null) {
+            return fromGps;
+        }
+        return deriveFromSpeed(points);
+    }
+
+    /**
+     * Cumulative distance from consecutive GPS fixes via the pure-Java
+     * {@link GPSCoordinate#distanceHaversine} (off {@code android.location.Location}, unit-testable).
+     * Null Island (0,0) no-fix placeholders and locationless points are skipped ({@code NaN}), so a
+     * momentary dropout never injects a jump. {@code null} if there is no usable fix.
+     */
+    private static double[] deriveFromGps(final List<? extends ActivityPoint> points) {
         final double[] distances = new double[points.size()];
         double cumulativeMeters = 0.0;
         GPSCoordinate previous = null;
@@ -377,6 +393,41 @@ public class DefaultWorkoutCharts {
             anyFix = true;
         }
         return anyFix ? distances : null;
+    }
+
+    /**
+     * Cumulative distance from the speed stream, integrated over time (trapezoid rule between
+     * consecutive samples). For indoor workouts whose gadget was connected to the machine and thus
+     * report speed but no position. Integrating a measured speed is well-behaved (a smoothing, unlike
+     * differentiating position into speed); it never fabricates from nothing — no speed, no distance.
+     * Points without a speed value are {@code NaN}. {@code null} if no point carries a speed.
+     */
+    private static double[] deriveFromSpeed(final List<? extends ActivityPoint> points) {
+        final double[] distances = new double[points.size()];
+        double cumulativeMeters = 0.0;
+        float previousSpeed = -1.0f; // m/s; <0 = no previous sample to bridge from
+        long previousTsMillis = -1L;
+        boolean anySpeed = false;
+        for (int i = 0; i < points.size(); i++) {
+            final ActivityPoint point = points.get(i);
+            final float speed = point.getSpeed(); // m/s, <0 when absent
+            if (speed < 0.0f) {
+                distances[i] = Double.NaN;
+                continue;
+            }
+            final long tsMillis = point.getTime().getTime();
+            if (previousSpeed >= 0.0f && previousTsMillis >= 0L) {
+                final double dtSeconds = (tsMillis - previousTsMillis) / 1000.0;
+                if (dtSeconds > 0.0) {
+                    cumulativeMeters += 0.5 * (previousSpeed + speed) * dtSeconds;
+                }
+            }
+            distances[i] = cumulativeMeters;
+            previousSpeed = speed;
+            previousTsMillis = tsMillis;
+            anySpeed = anySpeed || speed > 0.0f;
+        }
+        return anySpeed ? distances : null;
     }
 
     private static boolean isNullIsland(final GPSCoordinate location) {
