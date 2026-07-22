@@ -26,10 +26,11 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 import java.util.regex.Pattern;
 
-import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
@@ -88,7 +89,11 @@ public class R10MCoordinatorTest extends TestBase {
                 ),
                 coordinator.getHeartRateMeasurementIntervals());
 
-        final DeviceSpecificSettings settings = coordinator.getDeviceSpecificSettings(null);
-        assertTrue(settings.getAllScreens().contains(R.xml.devicesettings_ycbt_health));
+        final DeviceSettingsSpec settings = coordinator.getDeviceSettings(null);
+        assertEquals(Set.of(
+                DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL,
+                DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING,
+                DeviceSettingsPreferenceConst.PREF_SPO2_MEASUREMENT_INTERVAL
+        ), settings.collectAllKeys());
     }
 }

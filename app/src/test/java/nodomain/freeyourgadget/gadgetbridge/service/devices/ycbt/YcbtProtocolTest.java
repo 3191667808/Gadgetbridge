@@ -71,13 +71,13 @@ public class YcbtProtocolTest {
             0x00, 0x00, 0x00, 0x00,
             0x2e, 0x69
     };
-    private static final byte[] DOCUMENTED_BLOOD_PRESSURE_START = new byte[]{
+    private static final byte[] EXPECTED_BLOOD_PRESSURE_START = new byte[]{
             0x03, 0x2f, 0x08, 0x00, 0x01, 0x01, 0x6e, 0x0b
     };
-    private static final byte[] DOCUMENTED_BLOOD_PRESSURE_STOP = new byte[]{
+    private static final byte[] EXPECTED_BLOOD_PRESSURE_STOP = new byte[]{
             0x03, 0x2f, 0x08, 0x00, 0x00, 0x01, 0x5f, 0x38
     };
-    private static final byte[] FIRST_PARTY_BLOOD_PRESSURE_RESULT = new byte[]{
+    private static final byte[] CAPTURED_BLOOD_PRESSURE_RESULT = new byte[]{
             0x06, 0x03, 0x14, 0x00, 0x6f, 0x4a, 0x44, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x74, (byte) 0xf1
@@ -121,7 +121,7 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void buildsDocumentedLocalTimeFrame() {
+    public void buildsLocalTimeFrame() {
         assertArrayEquals(
                 new byte[]{
                         0x01, 0x00, 0x0e, 0x00,
@@ -181,7 +181,7 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void parsesOnlyDocumentedCapabilityBitPositions() {
+    public void parsesCapabilityBitPositions() {
         final byte[] payload = new byte[60];
         payload[0] = 1 << 0;
         payload[6] = 1 << 4;
@@ -228,13 +228,13 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void buildsDocumentedBloodPressureControlFramesExactly() {
-        assertArrayEquals(DOCUMENTED_BLOOD_PRESSURE_START, YcbtProtocol.buildBloodPressureStartRequest());
-        assertArrayEquals(DOCUMENTED_BLOOD_PRESSURE_STOP, YcbtProtocol.buildBloodPressureStopRequest());
+    public void buildsBloodPressureControlFramesExactly() {
+        assertArrayEquals(EXPECTED_BLOOD_PRESSURE_START, YcbtProtocol.buildBloodPressureStartRequest());
+        assertArrayEquals(EXPECTED_BLOOD_PRESSURE_STOP, YcbtProtocol.buildBloodPressureStopRequest());
     }
 
     @Test
-    public void buildsDocumentedHeartRateAndFindDeviceFrames() {
+    public void buildsHeartRateAndFindDeviceFrames() {
         assertArrayEquals(
                 YcbtFrameCodec.encode(0x03, 0x2f, new byte[]{0x01, 0x00}),
                 YcbtProtocol.buildHeartRateStartRequest()
@@ -258,7 +258,7 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void buildsDocumentedAutomaticMonitoringFrames() {
+    public void buildsAutomaticMonitoringFrames() {
         assertArrayEquals(
                 new byte[]{0x01, 0x0c, 0x08, 0x00, 0x01, 0x1e, (byte) 0x96, (byte) 0x85},
                 YcbtProtocol.buildHeartRateMonitoringRequest(true, 30)
@@ -303,9 +303,9 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void parsesFirstPartyBloodPressureResult() {
+    public void parsesCapturedBloodPressureResult() {
         final YcbtProtocol.BloodPressure result = YcbtProtocol.parseBloodPressureResult(
-                YcbtFrameCodec.decode(FIRST_PARTY_BLOOD_PRESSURE_RESULT)
+                YcbtFrameCodec.decode(CAPTURED_BLOOD_PRESSURE_RESULT)
         );
 
         assertEquals(111, result.getSystolic());
@@ -314,7 +314,7 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void decodesFirstPartyLiveStreams() {
+    public void decodesLiveStreams() {
         final YcbtProtocol.Activity activity = YcbtProtocol.parseLiveActivity(YcbtFrameCodec.decode(
                 YcbtFrameCodec.encode(0x06, 0x00, new byte[]{0x34, 0x12, 0x78, 0x56, (byte) 0xbc, (byte) 0x9a})
         ));
@@ -359,7 +359,7 @@ public class YcbtProtocolTest {
     }
 
     @Test
-    public void buildsFirstPartyLiveActivityRequest() {
+    public void buildsLiveActivityRequest() {
         final YcbtFrameCodec.Frame frame = YcbtFrameCodec.decode(YcbtProtocol.buildLiveActivityRequest());
 
         assertEquals(0x03, frame.getGroup());

@@ -35,8 +35,7 @@ import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCardAction;
@@ -288,10 +287,8 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public DeviceSpecificSettings getDeviceSpecificSettings(final GBDevice device) {
-        final DeviceSpecificSettings settings = new DeviceSpecificSettings();
-        settings.addRootScreen(DeviceSpecificSettingsScreen.HEALTH).add(R.xml.devicesettings_ycbt_health);
-        return settings;
+    public DeviceSettingsSpec getDeviceSettings(@NonNull final GBDevice device) {
+        return YcbtDeviceSettingsKt.ycbtDeviceSettings();
     }
 
     @Override

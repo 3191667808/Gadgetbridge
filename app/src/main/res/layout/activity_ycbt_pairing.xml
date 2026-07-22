@@ -70,6 +70,7 @@
             tools:text="YCBT pairing diagnostics\n\nAttempt 1\n01. 12:34:56.789 connect requested" />
 
         <LinearLayout
+            style="?android:attr/buttonBarStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
@@ -77,6 +78,7 @@
 
             <Button
                 android:id="@+id/ycbt_pair_retry"
+                style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -84,6 +86,7 @@
 
             <Button
                 android:id="@+id/ycbt_pair_copy"
+                style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"

@@ -649,7 +649,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     handleBloodPressureResult(bloodPressure);
                 }
             }
-            LOG.info("Decoded YCBT frame from {}: group=0x{}, command=0x{}, payloadLength={}",
+            LOG.debug("Decoded YCBT frame from {}: group=0x{}, command=0x{}, payloadLength={}",
                     characteristicUuid,
                     String.format(Locale.ROOT, "%02x", frame.getGroup()),
                     String.format(Locale.ROOT, "%02x", frame.getCommand()),
@@ -696,6 +696,8 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     failSession("could not queue time sync");
                     return;
                 }
+                getDevice().setFirmwareVersion("N/A");
+                getDevice().setFirmwareVersion2("N/A");
                 getDevice().setUpdateState(GBDevice.State.INITIALIZED, getContext());
                 diagnostic(YcbtDiagnostics.TYPE_INITIALIZED,
                         "INITIALIZED after model, battery, and capability negotiation");
@@ -2164,10 +2166,12 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 realtimeHeartRateEnabled = false;
                 deferredRealtimeHeartRateEnabled = null;
             }
-            LOG.warn("YCBT GATT disconnected with status {}", status);
             final String message = "disconnect status=" + status;
             if (status != BluetoothGatt.GATT_SUCCESS) {
+                LOG.warn("YCBT GATT disconnected with status {}", status);
                 diagnostic(YcbtDiagnostics.TYPE_FAILURE, message);
+            } else {
+                LOG.debug("YCBT GATT disconnected successfully");
             }
             diagnostic(YcbtDiagnostics.TYPE_DISCONNECTED, message);
         }
