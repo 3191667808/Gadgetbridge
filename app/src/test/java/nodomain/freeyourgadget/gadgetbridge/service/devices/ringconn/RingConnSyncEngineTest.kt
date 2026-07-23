@@ -91,4 +91,12 @@ class RingConnSyncEngineTest {
         assertEquals(1, actions.commandsToWrite.size)
         assertArrayEquals(byteArrayOf(0x91.toByte(), 0x00, 0x00), actions.commandsToWrite[0]) // 11 -> 91
     }
+
+    @Test fun status_push_surfaces_battery_without_commands() {
+        val actions = engine().onNotification(hexDecode("10640400000000ED00EC0000000010E90A3CBE"))
+        assertEquals(100, actions.battery?.level)
+        assertEquals(true, actions.battery?.charging)
+        assertTrue(actions.commandsToWrite.isEmpty())
+        assertTrue(actions.bucketsToPersist.isEmpty())
+    }
 }

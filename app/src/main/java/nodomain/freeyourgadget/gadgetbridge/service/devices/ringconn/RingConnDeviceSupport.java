@@ -37,8 +37,10 @@ import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.RingConnActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
+import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 
@@ -113,6 +115,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
             return false;
         }
         final RingConnSyncEngine.Actions actions = engine.onNotification(value);
+        if (actions.getBattery() != null) {
+            dispatchBattery(actions.getBattery());
+            // Pure status push (~every 14s), not part of the sync stream: leave the quiet timer alone.
+            return true;
+        }
         if (!actions.getCommandsToWrite().isEmpty()) {
             final TransactionBuilder b = createTransactionBuilder("ringconn-cmd");
             for (final byte[] cmd : actions.getCommandsToWrite()) {
@@ -146,6 +153,22 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
             getDevice().unsetBusyTask();
             getDevice().sendDeviceUpdateIntent(getContext());
         }
+    }
+
+    /** Report a battery snapshot; GB persists history and fires low/full notifications from here. */
+    private void dispatchBattery(final RingConnBatteryStatus status) {
+        final GBDeviceEventBatteryInfo evt = new GBDeviceEventBatteryInfo();
+        evt.level = status.getLevel();
+        evt.state = batteryState(status.getLevel(), status.getCharging());
+        handleGBDeviceEvent(evt);
+    }
+
+    private static BatteryState batteryState(final int level, final boolean charging) {
+        if (charging) {
+            return level >= 100 ? BatteryState.BATTERY_CHARGING_FULL : BatteryState.BATTERY_CHARGING;
+        }
+        // Leave BATTERY_LOW to the event's own threshold check (GBDeviceEventBatteryInfo.evaluate).
+        return BatteryState.BATTERY_NORMAL;
     }
 
     private void persist(final List<RingConnSyncEngine.Bucket> buckets) {

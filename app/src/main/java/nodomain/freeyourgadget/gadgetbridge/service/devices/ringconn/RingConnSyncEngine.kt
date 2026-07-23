@@ -28,6 +28,7 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val commandsToWrite: List<ByteArray>,
         val bucketsToPersist: List<Bucket>,
         val activityDrained: Boolean,
+        val battery: RingConnBatteryStatus? = null,
     )
 
     /** First write after notifications are enabled: request the status/challenge frame. */
@@ -37,8 +38,10 @@ class RingConnSyncEngine @JvmOverloads constructor(
         if (frame.isEmpty()) return EMPTY
         val id = frame[0].toInt() and BYTE_MASK
         val record = RingConnRecordParser.parse(frame)
+        val battery = RingConnRecordParser.parseBattery(frame)
         return when {
             record != null -> onRecordFrame(record, id)
+            battery != null -> Actions(emptyList(), emptyList(), false, battery)
             id == EVENT_FRAME_ID -> Actions(listOf(RingConnRecordParser.ackCommand(id)), emptyList(), false)
             isChallenge(id, frame) -> onChallenge(frame)
             else -> EMPTY

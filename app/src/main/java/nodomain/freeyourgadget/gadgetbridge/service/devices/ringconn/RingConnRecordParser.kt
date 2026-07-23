@@ -30,6 +30,12 @@ data class RingConnRecordFrame(
     val activityRecords: List<RingConnActivityRecord>,
 )
 
+/** Battery snapshot from a `10`/`87` status frame: [level] 0-100, [charging] true on the charger. */
+data class RingConnBatteryStatus(
+    val level: Int,
+    val charging: Boolean,
+)
+
 /**
  * Pure parser for RingConn Gen2 record frames: `0x4c` activity (steps at body[14], sleepFlagged when body[6:11]==0x01) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
  */
@@ -53,6 +59,15 @@ object RingConnRecordParser {
 
     /** Ring timestamps are seconds since 2020-01-01 00:00:00 UTC+8; add this for unix seconds. */
     const val TIMESTAMP_OFFSET_UNIX = 1_577_808_000L
+
+    /** Status frame ids: the ring pushes `10` every ~14s; `87` is the poll-reply (identical layout). */
+    private const val FRAME_ID_STATUS_PUSH = 0x10
+    private const val FRAME_ID_STATUS_POLL = 0x87
+    private const val STATUS_FRAME_LEN = 19
+    private const val BATTERY_OFFSET = 1
+    private const val CHARGE_OFFSET = 2
+    private const val CHARGING_VALUE = 0x04
+    private const val MAX_BATTERY = 100
 
     private const val BYTE_MASK = 0xFF
     private const val BYTE_MASK_LONG = 0xFFL
@@ -105,6 +120,20 @@ object RingConnRecordParser {
             0x00,
             0x00
         )
+    }
+
+    /**
+     * Battery from a `10`/`87` status frame (byte[1] = percent 0-100, byte[2] == `04` while charging), or null if the frame isn't a valid status frame. Never throws.
+     */
+    fun parseBattery(frame: ByteArray): RingConnBatteryStatus? {
+        if (frame.size < STATUS_FRAME_LEN) return null
+        val id = frame[0].toInt() and BYTE_MASK
+        if (id != FRAME_ID_STATUS_PUSH && id != FRAME_ID_STATUS_POLL) return null
+        if (!xorValid(frame)) return null
+        val level = frame[BATTERY_OFFSET].toInt() and BYTE_MASK
+        if (level > MAX_BATTERY) return null
+        val charging = (frame[CHARGE_OFFSET].toInt() and BYTE_MASK) == CHARGING_VALUE
+        return RingConnBatteryStatus(level, charging)
     }
 
     private fun parseActivityRecords(frame: ByteArray, recordCount: Int): List<RingConnActivityRecord> {

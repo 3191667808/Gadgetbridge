@@ -120,4 +120,35 @@ class RingConnRecordParserTest {
         assertEquals(3, ack.size); assertEquals(0xc7.toByte(), ack[0])
         assertEquals(0x00.toByte(), ack[1]); assertEquals(0x00.toByte(), ack[2])
     }
+
+    // Battery frames below are real captures from device panther (2026-07-23), XOR-valid.
+    @Test fun parses_battery_charging_from_poll_reply() {
+        val b = RingConnRecordParser.parseBattery(hexDecode("87020400000000F000F6000000000F350B46F0"))
+        assertEquals(2, b?.level); assertEquals(true, b?.charging)
+    }
+    @Test fun parses_battery_full_charging_push() {
+        val b = RingConnRecordParser.parseBattery(hexDecode("10640400000000ED00EC0000000010E90A3CBE"))
+        assertEquals(100, b?.level); assertEquals(true, b?.charging)
+    }
+    @Test fun parses_battery_discharging() {
+        val b = RingConnRecordParser.parseBattery(hexDecode("10630200000000EB00EA0000000010E90AFF7C"))
+        assertEquals(99, b?.level); assertEquals(false, b?.charging)
+    }
+    @Test fun parses_battery_full_off_charger() {
+        val b = RingConnRecordParser.parseBattery(hexDecode("10640100000000EB00EB0000000010E70AFF77"))
+        assertEquals(100, b?.level); assertEquals(false, b?.charging)
+    }
+    @Test fun battery_rejects_bad_xor() {
+        val f = hexDecode("10640400000000ED00EC0000000010E90A3CBE")
+            .also { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() }
+        assertNull(RingConnRecordParser.parseBattery(f))
+    }
+    @Test fun battery_rejects_short_frame() {
+        assertNull(RingConnRecordParser.parseBattery(hexDecode("100000")))
+    }
+    @Test fun battery_rejects_non_status_id() {
+        // 0x50 broadcast is not a status frame -> null
+        assertNull(RingConnRecordParser.parseBattery(
+            hexDecode("50000017866B06690015310C53F35B15120C53F66C10010C54E42D110000008600180100000000")))
+    }
 }

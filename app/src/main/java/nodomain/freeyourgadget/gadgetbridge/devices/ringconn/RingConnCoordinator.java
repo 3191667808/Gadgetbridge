@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.RingConnActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn.RingConnDeviceSupport;
 
@@ -97,5 +98,12 @@ public class RingConnCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public boolean supportsDataFetching(@NonNull final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public BatteryConfig[] getBatteryConfig(final GBDevice device) {
+        return new BatteryConfig[]{
+                new BatteryConfig(0, GBDevice.BATTERY_ICON_DEFAULT, GBDevice.BATTERY_LABEL_DEFAULT, 15, 100)
+        };
     }
 }
