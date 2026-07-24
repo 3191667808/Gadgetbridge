@@ -38,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.Set;
 import java.util.EnumSet;
@@ -80,7 +81,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     public static final byte CMD_PREAMBLE = (byte) 0xAA;
 
     private final ByteBuffer packetBuffer = ByteBuffer.allocate(MAX_MTU).order(ByteOrder.LITTLE_ENDIAN);
-    private int seqNum = 0;
+    private AtomicInteger seqNum = new AtomicInteger(0);
 
     public OppoHeadphonesSupport() {
         super(LOG, MAX_MTU);
@@ -103,6 +104,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         packetBuffer.clear();
+        seqNum.set(0);
         subscriptionSet(builder);
         firmwareVersionGet(builder);
         batteryGet(builder);
@@ -982,7 +984,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         buf.put((byte) 0);
         buf.put((byte) 0);
         buf.putShort(command.getCode());
-        buf.put((byte) seqNum++);
+        buf.put((byte) (seqNum.getAndIncrement() & 0xff));
 
         buf.putShort((short) payload.length);
         buf.put(payload);
