@@ -122,8 +122,8 @@ public class DailySummaryParser extends XiaomiActivityParser {
 
     /**
      * Pure decode of the raw bytes. Returns null when the file version is unsupported.
-     * v3 and v5 share the same {@link #SLOTS} table; they differ only in the number
-     * of slots present and the header (validity bitmap) size, mirroring how
+     * All supported versions share the same {@link #SLOTS} table; they differ only in
+     * the number of slots present and the header (validity bitmap) size, mirroring how
      * {@code WorkoutSummaryParser} sizes its per-version header to match the field
      * count it adds via the simple-parser builder.
      */
@@ -132,6 +132,10 @@ public class DailySummaryParser extends XiaomiActivityParser {
         final int headerSize;
         final int slotCount;
         switch (version) {
+            case 2:   // Mi Watch Color Sport
+                headerSize = 2;
+                slotCount = 15;
+                break;
             case 3:   // Smart Band 8 Active
             case 4:   // Mi Band 9 Active
                 headerSize = 3;
