@@ -139,10 +139,11 @@ public class DailyDetailsParser extends XiaomiActivityParser {
 
             if (complexParser.nextGroup(16)) {
                 if (version == 2 && complexParser.hasFirst()) {
-                    // stress, 16 bits
+                    // stress, 16 bits, scaled by 100
                     final int val = complexParser.get(0, 16);
                     if (val > 0) {
                         final int stress = val / 100;
+                        // rest of this group is not known, so ignore anything out of range
                         if (stress > 0 && stress <= 100) {
                             sample.setStress(stress);
                         }

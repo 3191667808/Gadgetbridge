@@ -96,7 +96,11 @@ public class ManualSamplesParser extends XiaomiActivityParser {
                 case XiaomiManualSampleProvider.TYPE_HR:
                 case XiaomiManualSampleProvider.TYPE_SPO2:
                 case XiaomiManualSampleProvider.TYPE_STRESS:
+                    knownType = true;
+                    break;
                 case XiaomiManualSampleProvider.TYPE_TEMPERATURE:
+                    // FIXME: This is actually 2 2-byte values
+                    // see https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/3517#issuecomment-1516353
                     knownType = true;
                     break;
                 default:
