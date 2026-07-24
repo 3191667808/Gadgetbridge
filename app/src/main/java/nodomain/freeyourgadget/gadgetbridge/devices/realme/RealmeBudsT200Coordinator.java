@@ -93,6 +93,11 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
+    public boolean useStandardSppUuid(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
         return new LinkedHashMap<>() {
             {

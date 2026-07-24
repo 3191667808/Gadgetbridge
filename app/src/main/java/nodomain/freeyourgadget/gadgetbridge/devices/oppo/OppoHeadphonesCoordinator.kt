@@ -145,5 +145,6 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     open fun supportsAnc(device: GBDevice): Boolean = false
     open fun supportsAncLevel(device: GBDevice): Boolean = false
     open fun supportsSpatialAudio(device: GBDevice): Boolean = false
+    open fun useStandardSppUuid(device: GBDevice): Boolean = false
 }
 
