@@ -43,6 +43,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(RingConnDeviceSupport.class);
@@ -152,6 +153,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         if (getDevice().isBusy()) {
             getDevice().unsetBusyTask();
             getDevice().sendDeviceUpdateIntent(getContext());
+        }
+        // Broadcast ACTION_NEW_DATA so device-card steps, charts and dashboard recompute;
+        // sendDeviceUpdateIntent only re-renders cached values, it does not recompute totals.
+        if (sawRecords) {
+            GB.signalActivityDataFinish(getDevice());
         }
     }
 
