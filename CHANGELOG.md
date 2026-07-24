@@ -32,6 +32,7 @@
 * Soundcore Sport X20: Extend functionality
 * Workouts: Add function to set header photo
 * Xiaomi-protobuf: Add dynamic vibration pattern configuration screen
+* Xiaomi-protobuf: Fix sleep, stress and resting heart rate for Mi Watch Color Sport
 * Xiaomi-protobuf: Improve daily summary parsing
 * Xiaomi-protobuf: Improve workout summary parsing
 * Xiaomi-protobuf: Parse workout details
