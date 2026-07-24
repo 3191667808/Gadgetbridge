@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -81,11 +82,19 @@ public class XiaomiCharacteristicV1 {
     private boolean sendingChunked = false;
     private Payload currentPayload = null;
 
-    private final Runnable sendTimeoutTask = () -> {
-        LOG.warn("Timeout waiting for ACK or chunked ACK! Dropping payload {}", currentPayload != null ? currentPayload.getTaskName() : "null");
-        if (currentPayload != null && currentPayload.getCallback() != null) {
+    private final AtomicInteger sendTimeoutGeneration = new AtomicInteger();
+
+    private void onSendTimeout(final int generation) {
+        if (!sendTimeoutGeneration.compareAndSet(generation, generation + 1)) {
+            LOG.debug("Ignoring stale send timeout");
+            return;
+        }
+
+        final Payload payload = currentPayload;
+        LOG.warn("Timeout waiting for ACK or chunked ACK! Dropping payload {}", payload != null ? payload.getTaskName() : "null");
+        if (payload != null && payload.getCallback() != null) {
             try {
-                currentPayload.getCallback().onNack();
+                payload.getCallback().onNack();
             } catch (Exception e) {
                 LOG.error("Error in onNack callback", e);
             }
@@ -94,15 +103,16 @@ public class XiaomiCharacteristicV1 {
         sendingChunked = false;
         waitingAck = false;
         sendNext(null);
-    };
+    }
 
     private void rescheduleSendTimeout() {
         rescheduleSendTimeout(SEND_TIMEOUT_DELAY);
     }
 
     private void rescheduleSendTimeout(final long delay) {
+        final int generation = sendTimeoutGeneration.incrementAndGet();
         sendTimeoutHandler.removeCallbacksAndMessages(null);
-        sendTimeoutHandler.postDelayed(sendTimeoutTask, delay);
+        sendTimeoutHandler.postDelayed(() -> onSendTimeout(generation), delay);
     }
 
     private void rescheduleSendTimeoutForChunks(final int chunkCount) {
@@ -110,6 +120,7 @@ public class XiaomiCharacteristicV1 {
     }
 
     private void cancelSendTimeout() {
+        sendTimeoutGeneration.incrementAndGet();
         sendTimeoutHandler.removeCallbacksAndMessages(null);
     }
 
@@ -191,11 +202,11 @@ public class XiaomiCharacteristicV1 {
         sendNext(builder);
     }
 
-    private void sendChunk(final TransactionBuilder builder, final int index, final int chunkPayloadSize) {
-        final byte[] payload = currentPayload.getBytesToSend();
+    private void sendChunk(final TransactionBuilder builder, final Payload chunkedPayload, final int index, final int chunkPayloadSize) {
+        final byte[] payload = chunkedPayload.getBytesToSend();
         final int startIndex = index * chunkPayloadSize;
         final int endIndex = Math.min((index + 1) * chunkPayloadSize, payload.length);
-        LOG.debug("Sending chunk {} from {} to {} for {}", index, startIndex, endIndex, currentPayload.getTaskName());
+        LOG.debug("Sending chunk {} from {} to {} for {}", index, startIndex, endIndex, chunkedPayload.getTaskName());
         final byte[] chunkToSend = new byte[2 + endIndex - startIndex];
         BLETypeConversions.writeUint16(chunkToSend, 0, index + 1);
         System.arraycopy(payload, startIndex, chunkToSend, 2, endIndex - startIndex);
@@ -342,12 +353,15 @@ public class XiaomiCharacteristicV1 {
                                 subtype, GB.hexdump(remaining));
                     }
 
+                    // send timeout may drop payload from the main looper at any point
+                    final Payload chunkedPayload = currentPayload;
+
                     switch (subtype) {
                         case 0: {
                             LOG.debug("Got chunked ack end");
                             cancelSendTimeout();
-                            if (currentPayload != null && currentPayload.getCallback() != null) {
-                                currentPayload.getCallback().onSend();
+                            if (chunkedPayload != null && chunkedPayload.getCallback() != null) {
+                                chunkedPayload.getCallback().onSend();
                             }
                             currentPayload = null;
                             sendingChunked = false;
@@ -356,13 +370,18 @@ public class XiaomiCharacteristicV1 {
                         }
                         case 1: {
                             LOG.debug("Got chunked ack start");
-                            final TransactionBuilder builder = mSupport.createTransactionBuilder("send chunks for " + currentPayload.getTaskName());
-                            final byte[] payload = currentPayload.getBytesToSend();
+                            if (chunkedPayload == null) {
+                                LOG.warn("Got chunked ack start, but no payload is being sent");
+                                return;
+                            }
+
+                            final TransactionBuilder builder = mSupport.createTransactionBuilder("send chunks for " + chunkedPayload.getTaskName());
+                            final byte[] payload = chunkedPayload.getBytesToSend();
                             final int chunkPayloadSize = maxWriteSizeForCurrentMessage - 2;
 
                             int chunkCount = 0;
                             for (int i = 0; i * chunkPayloadSize < payload.length; i++) {
-                                sendChunk(builder, i, chunkPayloadSize);
+                                sendChunk(builder, chunkedPayload, i, chunkPayloadSize);
                                 chunkCount++;
                             }
 
@@ -371,10 +390,10 @@ public class XiaomiCharacteristicV1 {
                             return;
                         }
                         case 2: {
-                            LOG.warn("Got chunked nack for {}", currentPayload.getTaskName());
+                            LOG.warn("Got chunked nack for {}", chunkedPayload != null ? chunkedPayload.getTaskName() : "null");
                             cancelSendTimeout();
-                            if (currentPayload != null && currentPayload.getCallback() != null) {
-                                currentPayload.getCallback().onNack();
+                            if (chunkedPayload != null && chunkedPayload.getCallback() != null) {
+                                chunkedPayload.getCallback().onNack();
                             }
                             currentPayload = null;
                             sendingChunked = false;
@@ -390,21 +409,26 @@ public class XiaomiCharacteristicV1 {
                                 }
 
                                 LOG.info("Got chunk request, requested chunks: {}", Arrays.toString(invalidChunks));
+                                if (chunkedPayload == null) {
+                                    LOG.warn("Got chunk request, but no payload is being sent");
+                                    return;
+                                }
+
                                 rescheduleSendTimeoutForChunks(invalidChunks.length);
-                                final TransactionBuilder builder = mSupport.createTransactionBuilder("resend chunks for " + currentPayload.getTaskName());
+                                final TransactionBuilder builder = mSupport.createTransactionBuilder("resend chunks for " + chunkedPayload.getTaskName());
 
                                 for (short chunkIndex : invalidChunks) {
                                     // chunk indices start at 1
-                                    sendChunk(builder, chunkIndex - 1, maxWriteSizeForCurrentMessage - 2);
+                                    sendChunk(builder, chunkedPayload, chunkIndex - 1, maxWriteSizeForCurrentMessage - 2);
                                 }
                                 builder.queue();
                                 return;
                             } else {
                                 LOG.warn("Got chunk request, no chunk indices requested");
 
-                                if (maxWriteSize != maxWriteSizeForCurrentMessage) {
+                                if (chunkedPayload != null && maxWriteSize != maxWriteSizeForCurrentMessage) {
                                     LOG.info("MTU changed while sending message, prepending message to queue and resending");
-                                    ((LinkedList<Payload>) payloadQueue).addFirst(currentPayload);
+                                    ((LinkedList<Payload>) payloadQueue).addFirst(chunkedPayload);
                                     currentPayload = null;
                                     sendingChunked = false;
                                     cancelSendTimeout();
@@ -415,7 +439,7 @@ public class XiaomiCharacteristicV1 {
                         }
                     }
 
-                    LOG.warn("Unknown chunked ack subtype {} for {}", subtype, currentPayload.getTaskName());
+                    LOG.warn("Unknown chunked ack subtype {} for {}", subtype, chunkedPayload != null ? chunkedPayload.getTaskName() : "null");
                     return;
                 case 2:
                     // Single command
@@ -441,18 +465,19 @@ public class XiaomiCharacteristicV1 {
                 case 3:
                     // ack
                     final byte result = buf.get();
+                    final Payload ackedPayload = currentPayload;
 
                     if (result == 0) {
-                        LOG.debug("Got ack for {}", currentPayload.getTaskName());
+                        LOG.debug("Got ack for {}", ackedPayload != null ? ackedPayload.getTaskName() : "null");
 
-                        if (currentPayload != null && currentPayload.getCallback() != null) {
-                            currentPayload.getCallback().onSend();
+                        if (ackedPayload != null && ackedPayload.getCallback() != null) {
+                            ackedPayload.getCallback().onSend();
                         }
                     } else {
-                        LOG.warn("Got single cmd NACK ({}) for {}", result, currentPayload.getTaskName());
+                        LOG.warn("Got single cmd NACK ({}) for {}", result, ackedPayload != null ? ackedPayload.getTaskName() : "null");
 
-                        if (currentPayload != null && currentPayload.getCallback() != null) {
-                            currentPayload.getCallback().onNack();
+                        if (ackedPayload != null && ackedPayload.getCallback() != null) {
+                            ackedPayload.getCallback().onNack();
                         }
                     }
 
