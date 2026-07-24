@@ -74,6 +74,7 @@ public class XiaomiCharacteristicV1 {
     // Scheduling
     private final Handler sendTimeoutHandler = new Handler(Looper.getMainLooper());
     private static final long SEND_TIMEOUT_DELAY = 10000L;
+    private static final long SEND_TIMEOUT_PER_CHUNK = 100L;
 
     private final Queue<Payload> payloadQueue = new LinkedList<>();
     private boolean waitingAck = false;
@@ -96,8 +97,16 @@ public class XiaomiCharacteristicV1 {
     };
 
     private void rescheduleSendTimeout() {
+        rescheduleSendTimeout(SEND_TIMEOUT_DELAY);
+    }
+
+    private void rescheduleSendTimeout(final long delay) {
         sendTimeoutHandler.removeCallbacksAndMessages(null);
-        sendTimeoutHandler.postDelayed(sendTimeoutTask, SEND_TIMEOUT_DELAY);
+        sendTimeoutHandler.postDelayed(sendTimeoutTask, delay);
+    }
+
+    private void rescheduleSendTimeoutForChunks(final int chunkCount) {
+        rescheduleSendTimeout(SEND_TIMEOUT_DELAY + chunkCount * SEND_TIMEOUT_PER_CHUNK);
     }
 
     private void cancelSendTimeout() {
@@ -347,15 +356,17 @@ public class XiaomiCharacteristicV1 {
                         }
                         case 1: {
                             LOG.debug("Got chunked ack start");
-                            rescheduleSendTimeout();
                             final TransactionBuilder builder = mSupport.createTransactionBuilder("send chunks for " + currentPayload.getTaskName());
                             final byte[] payload = currentPayload.getBytesToSend();
                             final int chunkPayloadSize = maxWriteSizeForCurrentMessage - 2;
 
+                            int chunkCount = 0;
                             for (int i = 0; i * chunkPayloadSize < payload.length; i++) {
                                 sendChunk(builder, i, chunkPayloadSize);
+                                chunkCount++;
                             }
 
+                            rescheduleSendTimeoutForChunks(chunkCount);
                             builder.queue();
                             return;
                         }
@@ -379,7 +390,7 @@ public class XiaomiCharacteristicV1 {
                                 }
 
                                 LOG.info("Got chunk request, requested chunks: {}", Arrays.toString(invalidChunks));
-                                rescheduleSendTimeout();
+                                rescheduleSendTimeoutForChunks(invalidChunks.length);
                                 final TransactionBuilder builder = mSupport.createTransactionBuilder("resend chunks for " + currentPayload.getTaskName());
 
                                 for (short chunkIndex : invalidChunks) {
