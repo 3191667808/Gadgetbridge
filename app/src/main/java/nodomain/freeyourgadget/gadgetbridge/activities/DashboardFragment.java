@@ -48,6 +48,7 @@ import com.google.android.material.card.MaterialCardView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -391,7 +392,10 @@ public class DashboardFragment extends Fragment implements MenuProvider {
         public int hrIntervalSecs;
         public int timeFrom;
         public int timeTo;
-        public final List<GeneralizedActivity> generalizedActivities = Collections.synchronizedList(new ArrayList<>());
+        // Filled from a background thread while the fragment may be saving its state, so it is
+        // serialized as a snapshot below instead of letting the default serialization walk a
+        // list that is still being modified.
+        public transient List<GeneralizedActivity> generalizedActivities = Collections.synchronizedList(new ArrayList<>());
         private final CachedValue<Integer> stepsTotal = new CachedValue<>();
         private final CachedValue<Float> stepsGoalFactor = new CachedValue<>();
         private final CachedValue<Integer> restingCaloriesTotal = new CachedValue<>();
@@ -404,6 +408,22 @@ public class DashboardFragment extends Fragment implements MenuProvider {
         private final CachedValue<Long> activeMinutesTotal = new CachedValue<>();
         private final CachedValue<Float> activeMinutesGoalFactor = new CachedValue<>();
         private final Map<String, Serializable> genericData = new ConcurrentHashMap<>();
+
+        private void writeObject(final java.io.ObjectOutputStream out) throws IOException {
+            out.defaultWriteObject();
+            final List<GeneralizedActivity> snapshot;
+            synchronized (generalizedActivities) {
+                snapshot = new ArrayList<>(generalizedActivities);
+            }
+            out.writeObject(snapshot);
+        }
+
+        private void readObject(final java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+            in.defaultReadObject();
+            @SuppressWarnings("unchecked")
+            final List<GeneralizedActivity> restored = (List<GeneralizedActivity>) in.readObject();
+            generalizedActivities = Collections.synchronizedList(new ArrayList<>(restored));
+        }
 
         public void clear() {
             restingCaloriesTotal.clear();
