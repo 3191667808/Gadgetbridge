@@ -142,10 +142,10 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
 
         final Preference touchAncCycleModesPref = handler
                 .findPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
-        final boolean hasAncCycle = touchOptions.values().stream()
-                .anyMatch(list -> list.contains(TouchConfigValue.ANC_CYCLE));
+        final boolean supportsAncCycleModes = touchOptions.values().stream()
+                .anyMatch(list -> list.contains(TouchConfigValue.ANC_CYCLE_MODES));
         if (touchAncCycleModesPref != null) {
-            if (hasAncCycle) {
+            if (supportsAncCycleModes) {
                 handler.addPreferenceHandlerFor(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
             } else {
                 touchAncCycleModesPref.setVisible(false);
@@ -163,7 +163,7 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
 
         final Preference headerOther = handler.findPreference(OppoHeadphonesPreferences.TOUCH_HEADER_OTHER);
         if (headerOther != null) {
-            if (!(hasAncCycle || supportsFindPhone)) {
+            if (!(supportsAncCycleModes || supportsFindPhone)) {
                 headerOther.setVisible(false);
             }
         }

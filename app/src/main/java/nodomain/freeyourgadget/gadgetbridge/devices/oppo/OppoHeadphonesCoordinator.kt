@@ -64,6 +64,9 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     )
 
     protected abstract val touchOptions: Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>>
+    public final fun supportsTouchAncCycleModes(): Boolean = touchOptions.values.any { values ->
+        values.contains(TouchConfigValue.ANC_CYCLE_MODES)
+    }
 
     override fun getDeviceSettings(device: GBDevice): DeviceSettingsSpec = deviceSettings {
         if (supportsAnc(device)) {

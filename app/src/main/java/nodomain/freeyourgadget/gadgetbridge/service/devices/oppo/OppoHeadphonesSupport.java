@@ -124,9 +124,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         batteryGet();
         touchConfigGet();
         miscConfigGet();
-        if (getCoordinator().supportsAnc(getDevice())) {
-            ancConfigGet();
-        }
+        ancConfigGet();
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
@@ -705,16 +703,19 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void ancConfigGet() {
-        Consumer<AncConfigType> sendAncConfig = (configType) -> {
-            byte[] payload = new byte[] {
-                    (byte) configType.getCode(),
+        final EnumSet<AncConfigType> types = EnumSet.noneOf(AncConfigType.class);
+        if (getCoordinator().supportsAnc(getDevice()))
+            types.add(AncConfigType.MODE);
+        if (getCoordinator().supportsTouchAncCycleModes())
+            types.add(AncConfigType.TOUCH_CYCLE_MODES);
+
+        for (AncConfigType type : types) {
+            final byte[] payload = new byte[] {
+                    (byte) type.getCode(),
                     (byte) 0x01,
             };
             queueCommand(OppoCommand.ANC_CONFIG_REQ, payload);
-        };
-
-        sendAncConfig.accept(AncConfigType.MODE);
-        sendAncConfig.accept(AncConfigType.TOUCH_CYCLE_MODES);
+        }
     }
 
     private void parseAncConfig(final byte[] payload) {
