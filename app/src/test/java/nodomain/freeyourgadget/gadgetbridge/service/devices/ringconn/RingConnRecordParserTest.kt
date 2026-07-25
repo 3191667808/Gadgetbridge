@@ -162,4 +162,27 @@ class RingConnRecordParserTest {
         assertNull(RingConnRecordParser.parseBattery(
             hexDecode("50000017866B06690015310C53F35B15120C53F66C10010C54E42D110000008600180100000000")))
     }
+
+    // Temperature frames below are real captures from device panther (2026-07-24), XOR-valid.
+    @Test fun parses_temperature_channels() {
+        val t = RingConnRecordParser.parseTemperature(hexDecode("1056030000DD0138014200000000106C00FF61"))
+        assertEquals(312, t?.channelA); assertEquals(322, t?.channelB)
+    }
+    @Test fun parses_temperature_second_sample() {
+        val t = RingConnRecordParser.parseTemperature(hexDecode("1056020001070136014000000000106900FFB2"))
+        assertEquals(310, t?.channelA); assertEquals(320, t?.channelB)
+    }
+    @Test fun temperature_channelB_reads_warmer_than_channelA() {
+        // Gap narrows as the ring warms; B above A held across every frame captured.
+        val t = RingConnRecordParser.parseTemperature(hexDecode("10560300017E0135014400000000106900FFCD"))
+        assertEquals(309, t?.channelA); assertEquals(324, t?.channelB)
+    }
+    @Test fun temperature_rejects_bad_xor() {
+        val f = hexDecode("1056030000DD0138014200000000106C00FF61")
+            .also { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() }
+        assertNull(RingConnRecordParser.parseTemperature(f))
+    }
+    @Test fun temperature_rejects_short_frame() {
+        assertNull(RingConnRecordParser.parseTemperature(hexDecode("100000")))
+    }
 }

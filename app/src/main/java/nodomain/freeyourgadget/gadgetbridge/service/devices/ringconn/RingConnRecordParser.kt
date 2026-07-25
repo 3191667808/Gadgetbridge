@@ -38,6 +38,14 @@ data class RingConnBatteryStatus(
 )
 
 /**
+ * Two skin-temperature channels from a `10`/`87` status frame, in RAW counts. [channelB] reads consistently warmer than [channelA] and the gap narrows as the ring warms, which is what two probes at different depths do. Observed 241-344, consistent with tenths of a degree C, but the scale is UNVERIFIED against a thermometer - do not convert to degrees until it is.
+ */
+data class RingConnTemperature(
+    val channelA: Int,
+    val channelB: Int,
+)
+
+/**
  * Pure parser for RingConn Gen2 record frames: `0x4c` activity (heart rate at body[0], motion buckets at body[6:11], motion index at body[14] but not a gait-filtered step count) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
  */
 object RingConnRecordParser {
@@ -69,6 +77,8 @@ object RingConnRecordParser {
     private const val CHARGE_OFFSET = 2
     private const val CHARGING_VALUE = 0x04
     private const val MAX_BATTERY = 100
+    private const val TEMP_A_OFFSET = 6
+    private const val TEMP_B_OFFSET = 8
 
     private const val BYTE_MASK = 0xFF
     private const val BYTE_MASK_LONG = 0xFFL
@@ -129,14 +139,29 @@ object RingConnRecordParser {
      * Battery from a `10`/`87` status frame (byte[1] = percent 0-100, byte[2] == `04` while charging), or null if the frame isn't a valid status frame. Never throws.
      */
     fun parseBattery(frame: ByteArray): RingConnBatteryStatus? {
-        if (frame.size < STATUS_FRAME_LEN) return null
-        val id = frame[0].toInt() and BYTE_MASK
-        if (id != FRAME_ID_STATUS_PUSH && id != FRAME_ID_STATUS_POLL) return null
-        if (!xorValid(frame)) return null
+        if (!isStatusFrame(frame)) return null
         val level = frame[BATTERY_OFFSET].toInt() and BYTE_MASK
         if (level > MAX_BATTERY) return null
         val charging = (frame[CHARGE_OFFSET].toInt() and BYTE_MASK) == CHARGING_VALUE
         return RingConnBatteryStatus(level, charging)
+    }
+
+    /**
+     * Skin temperature from a `10`/`87` status frame (u16-BE at bytes 6 and 8), or null if the frame isn't a valid status frame. Values are raw counts, deliberately not converted - see [RingConnTemperature]. Never throws.
+     */
+    fun parseTemperature(frame: ByteArray): RingConnTemperature? {
+        if (!isStatusFrame(frame)) return null
+        return RingConnTemperature(
+            readU16BE(frame, TEMP_A_OFFSET),
+            readU16BE(frame, TEMP_B_OFFSET)
+        )
+    }
+
+    private fun isStatusFrame(frame: ByteArray): Boolean {
+        if (frame.size < STATUS_FRAME_LEN) return false
+        val id = frame[0].toInt() and BYTE_MASK
+        if (id != FRAME_ID_STATUS_PUSH && id != FRAME_ID_STATUS_POLL) return false
+        return xorValid(frame)
     }
 
     private fun parseActivityRecords(frame: ByteArray, recordCount: Int): List<RingConnActivityRecord> {
@@ -169,6 +194,12 @@ object RingConnRecordParser {
             }
         }
         return true
+    }
+
+    private fun readU16BE(frame: ByteArray, offset: Int): Int {
+        val hi = frame[offset].toInt() and BYTE_MASK
+        val lo = frame[offset + 1].toInt() and BYTE_MASK
+        return (hi shl BYTE_SHIFT) or lo
     }
 
     private fun readU32BE(frame: ByteArray, offset: Int): Long {
