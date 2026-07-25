@@ -42,6 +42,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
     private final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions;
+    private final boolean supportsFindPhone;
 
     public static final Creator<OppoHeadphonesSettingsCustomizer> CREATOR = new Creator<OppoHeadphonesSettingsCustomizer>() {
         @Override
@@ -56,7 +57,8 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
                 touchOptions.put(Pair.create(touchConfigSide, touchConfigType), values);
             }
 
-            return new OppoHeadphonesSettingsCustomizer(touchOptions);
+            final boolean supportsFindPhone = in.readByte() == 1;
+            return new OppoHeadphonesSettingsCustomizer(touchOptions, supportsFindPhone);
         }
 
         @Override
@@ -66,8 +68,10 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
     };
 
     public OppoHeadphonesSettingsCustomizer(
-            final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions) {
+            final Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> touchOptions,
+            final boolean supportsFindPhone) {
         this.touchOptions = touchOptions;
+        this.supportsFindPhone = supportsFindPhone;
     }
 
     @Override
@@ -118,7 +122,7 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
             if (!knownSides.contains(side)) {
                 // Side not configurable, hide it completely
                 final Preference header = handler
-                        .findPreference("oppo_touch_header_" + side.name().toLowerCase(Locale.ROOT));
+                        .findPreference(OppoHeadphonesPreferences.getTouchHeaderKey(side));
                 if (header != null) {
                     header.setVisible(false);
                     continue;
@@ -136,16 +140,34 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
             }
         }
 
-        final Preference pref = handler.findPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
-        if (pref != null) {
-            final boolean hasNoiseControl = touchOptions.values().stream()
-                    .anyMatch(list -> list.contains(TouchConfigValue.ANC_CYCLE));
-            if (hasNoiseControl) {
+        final Preference touchAncCycleModesPref = handler
+                .findPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
+        final boolean hasAncCycle = touchOptions.values().stream()
+                .anyMatch(list -> list.contains(TouchConfigValue.ANC_CYCLE));
+        if (touchAncCycleModesPref != null) {
+            if (hasAncCycle) {
                 handler.addPreferenceHandlerFor(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES);
             } else {
-                pref.setVisible(false);
+                touchAncCycleModesPref.setVisible(false);
             }
         }
+
+        final Preference findPhonePref = handler.findPreference(OppoHeadphonesPreferences.TOUCH_FIND_PHONE);
+        if (findPhonePref != null) {
+            if (supportsFindPhone) {
+                handler.addPreferenceHandlerFor(OppoHeadphonesPreferences.TOUCH_FIND_PHONE);
+            } else {
+                findPhonePref.setVisible(false);
+            }
+        }
+
+        final Preference headerOther = handler.findPreference(OppoHeadphonesPreferences.TOUCH_HEADER_OTHER);
+        if (headerOther != null) {
+            if (!(hasAncCycle || supportsFindPhone)) {
+                headerOther.setVisible(false);
+            }
+        }
+
     }
 
     @Override
@@ -167,5 +189,7 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
             dest.writeString(e.getKey().second.name());
             dest.writeList(e.getValue());
         }
+
+        dest.writeByte((byte) (supportsFindPhone ? 1 : 0));
     }
 }

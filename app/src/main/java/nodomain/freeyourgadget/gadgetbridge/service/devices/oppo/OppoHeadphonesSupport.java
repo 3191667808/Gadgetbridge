@@ -70,6 +70,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferenc
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 
@@ -211,6 +212,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case OppoHeadphonesPreferences.ANC_LEVEL -> ancModeSet();
             case OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES -> touchAncCycleModesSet();
             case OppoHeadphonesPreferences.SPATIAL_AUDIO -> spatialAudioSet();
+            case OppoHeadphonesPreferences.TOUCH_FIND_PHONE -> findPhoneSet();
         }
     }
 
@@ -267,6 +269,20 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             }
             case FIND_DEVICE_ACK ->
                 LOG.debug("Got find device ack, status={}", payload[0]);
+            case FIND_PHONE -> {
+                LOG.debug("Got find phone");
+                final GBDeviceEventFindPhone event = new GBDeviceEventFindPhone();
+                final int eventCode = buf.get();
+                if (eventCode == 0x05) {
+                  event.event = GBDeviceEventFindPhone.Event.START;
+                } else if (eventCode == 0x06) {
+                  event.event = GBDeviceEventFindPhone.Event.STOP;
+                } else {
+                    LOG.warn("Unexpected byte 0x{}", intToHex(eventCode, 2));
+                }
+
+                evaluateGBDeviceEvent(event);
+            }
             case MULTIPOINT_DEVICES_ACK ->
                 LOG.debug("Got multipoint devices ack, status={}", payload[0]);
             case MULTIPOINT_DEVICES_RET -> {
@@ -590,8 +606,14 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private void spatialAudioSet() {
         final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.SPATIAL_AUDIO, false);
-        LOG.debug("SPATIAL_AUDIO = {}", isEnabled);
+        LOG.debug("Sending SPATIAL_AUDIO = {}", isEnabled);
         miscConfigSet(MiscConfigType.SPATIAL_AUDIO, isEnabled);
+    }
+
+    private void findPhoneSet() {
+        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.TOUCH_FIND_PHONE, false);
+        LOG.debug("Sending TOUCH_FIND_PHONE = {}", isEnabled);
+        miscConfigSet(MiscConfigType.TOUCH_FIND_PHONE, isEnabled);
     }
 
     private void miscConfigSet(final MiscConfigType type, final boolean isEnabled) {
@@ -610,6 +632,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             types.add(MiscConfigType.GAME_MODE);
         if (getCoordinator().supportsSpatialAudio(getDevice()))
             types.add(MiscConfigType.SPATIAL_AUDIO);
+        if (getCoordinator().supportsFindPhone(getDevice()))
+            types.add(MiscConfigType.TOUCH_FIND_PHONE);
         if (types.isEmpty())
             return;
 
@@ -679,6 +703,13 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     eventUpdatePreferences
                             .withPreference(
                                     OppoHeadphonesPreferences.SPATIAL_AUDIO,
+                                    isEnabled);
+                }
+                case TOUCH_FIND_PHONE -> {
+                    LOG.debug("Got misc config for TOUCH_FIND_PHONE = {}", isEnabled);
+                    eventUpdatePreferences
+                            .withPreference(
+                                    OppoHeadphonesPreferences.TOUCH_FIND_PHONE,
                                     isEnabled);
                 }
                 default -> LOG.warn("Unknown misc config type code 0x{}", intToHex(typeCode, 2));

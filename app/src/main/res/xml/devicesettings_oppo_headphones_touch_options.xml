@@ -77,8 +77,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:key="oppo_touch_header_anc"
-        android:title="@string/prefs_active_noise_cancelling"
+        android:key="oppo_touch_header_other"
+        android:title="@string/Other"
         app:iconSpaceReserved="false">
         <MultiSelectListPreference
             android:key="oppo_touch_anc_cycle_modes"
@@ -87,5 +87,11 @@
             android:entries="@array/onemore_noise_control_modes"
             android:entryValues="@array/oppo_touch_anc_cycle_modes_values"
             android:defaultValue="@array/oppo_touch_anc_cycle_modes_values" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:icon="@drawable/ic_vibration"
+            android:key="oppo_touch_find_phone"
+            android:title="@string/prefs_find_phone" />
     </PreferenceCategory>
 </androidx.preference.PreferenceScreen>

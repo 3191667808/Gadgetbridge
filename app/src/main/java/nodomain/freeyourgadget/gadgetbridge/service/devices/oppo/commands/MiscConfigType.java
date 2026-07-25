@@ -23,7 +23,7 @@ public enum MiscConfigType {
     GAME_MODE(0x06),
     MULTIPOINT(0x11),
     SPATIAL_AUDIO(0x1b),
-    FIND_PHONE(0x26),
+    TOUCH_FIND_PHONE(0x26),
     ;
 
     private final int code;

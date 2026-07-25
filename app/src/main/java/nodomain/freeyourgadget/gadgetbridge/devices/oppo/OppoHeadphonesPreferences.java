@@ -23,7 +23,10 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchC
 
 public class OppoHeadphonesPreferences {
     public static final String TOUCH_PREFIX = "oppo_touch__";
+    public static final String TOUCH_HEADER_PREFIX = "oppo_touch_header";
+    public static final String TOUCH_HEADER_OTHER = "oppo_touch_header_other";
     public static final String TOUCH_ANC_CYCLE_MODES = "oppo_touch_anc_cycle_modes";
+    public static final String TOUCH_FIND_PHONE = "oppo_touch_find_phone";
 
     public static final String LDAC = "pref_soundcore_ldac_mode";
     public static final String GAME_MODE = "oppo_game_mode";
@@ -38,5 +41,13 @@ public class OppoHeadphonesPreferences {
                 TOUCH_PREFIX,
                 side.name().toLowerCase(Locale.ROOT),
                 type.name().toLowerCase(Locale.ROOT));
+    }
+
+    public static String getTouchHeaderKey(final TouchConfigSide side) {
+        return String.format(
+                Locale.ROOT,
+                "%s_%s",
+                TOUCH_HEADER_PREFIX,
+                side.name().toLowerCase(Locale.ROOT));
     }
 }

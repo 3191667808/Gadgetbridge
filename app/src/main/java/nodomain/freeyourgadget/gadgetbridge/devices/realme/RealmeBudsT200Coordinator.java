@@ -93,6 +93,11 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
+    public boolean supportsFindPhone(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
     public boolean useStandardSppUuid(@NonNull GBDevice device) {
         return true;
     }
