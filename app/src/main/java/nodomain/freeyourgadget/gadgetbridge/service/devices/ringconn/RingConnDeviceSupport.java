@@ -192,7 +192,10 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 // Ring's motion index is not a gait-filtered step count; report motion intensity instead.
                 sample.setSteps(0);
                 sample.setRawIntensity(bucket.getMotionLevel());
-                sample.setRawKind(ActivityKind.ACTIVITY.getCode());
+                // The ring reports no sleep stage, so store the inferred session as LIGHT_SLEEP:
+                // GB's SleepAnalysis and DailyTotals only bucket the four staged kinds, and
+                // SLEEP_ANY would silently contribute zero minutes to both.
+                sample.setRawKind((bucket.getAsleep() ? ActivityKind.LIGHT_SLEEP : ActivityKind.ACTIVITY).getCode());
                 sample.setProvider(provider);
                 samples.add(sample);
             }

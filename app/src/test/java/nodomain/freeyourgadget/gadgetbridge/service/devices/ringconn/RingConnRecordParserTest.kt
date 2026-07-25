@@ -185,4 +185,52 @@ class RingConnRecordParserTest {
     @Test fun temperature_rejects_short_frame() {
         assertNull(RingConnRecordParser.parseTemperature(hexDecode("100000")))
     }
+
+    // Sleep frames below are real captures from device panther (2026-07-25 overnight), XOR-valid.
+    private val allSleepFrame =
+        "4c00ac0c58ddb54d000a855c0a010101010100000000000000040c58de4b4a130a78120a010101010100000000000c00000c58dee147150a785a0a010101010100000000000000040c58df7746150a77120a010101010100000000000000000c58e00d46170a87590a010101010100000000000000040c58e0a349170a7d120a0101010101000000000000000073"
+
+    // Record 0 is still (asleep), record 1 carries the same b2 == 10 while moving (a daytime stray).
+    private val strayFrame =
+        "4c000a0c593ca13c210a785b0a010101010100000000000000040c593d373c240a7d120a010101014d00000000009033700c593dcd3d23097f600a2f2f21202000007b00000000040c593e633b220400120b213e011c181051012840de2e300c593ef93d230500120b413901100113047317822d1af00c593f8f3f00037e5e0a01016115181b01a82d53022154ee"
+
+    @Test fun confidence_saturates_at_10_and_marks_sleep() {
+        val parsed = RingConnRecordParser.parse(hexDecode(allSleepFrame))
+        assertEquals(6, parsed?.activityRecords?.size)
+        parsed?.activityRecords?.forEach { rec ->
+            assertEquals(10, rec.confidence)
+            assertEquals(true, rec.still)
+            assertEquals(true, rec.asleep)
+        }
+    }
+
+    @Test fun confidence_of_10_while_moving_is_not_sleep() {
+        // b2 == 10 alone fires ~10x/day while awake and moving; the motion gate removes every one.
+        val parsed = RingConnRecordParser.parse(hexDecode(strayFrame))
+        val still = parsed?.activityRecords?.get(0)
+        val moving = parsed?.activityRecords?.get(1)
+        assertEquals(10, still?.confidence); assertEquals(true, still?.asleep)
+        assertEquals(10, moving?.confidence); assertEquals(false, moving?.asleep)
+        assertEquals(false, moving?.still)
+    }
+
+    @Test fun confidence_is_low_while_active() {
+        val parsed = RingConnRecordParser.parse(hexDecode(strayFrame))
+        assertEquals(4, parsed?.activityRecords?.get(3)?.confidence)
+        assertEquals(false, parsed?.activityRecords?.get(3)?.asleep)
+    }
+
+    @Test fun existing_still_frame_is_marked_asleep() {
+        val parsed = RingConnRecordParser.parse(hexDecode("4c00000c3be1d34d130a7f610a010101010100000000000000040c"))
+        assertEquals(true, parsed?.activityRecords?.get(0)?.asleep)
+    }
+
+    @Test fun active_frame_is_not_asleep() {
+        val frame = hexDecode(
+            "4c00000c3b853f4f3d020012174246223b451975a52c12ea5d000c3b85d550000200120c1a161014109d404019555a17000c3b866b4f000200120b101010101000410853b33a44000c3b87014f0001855e0c101010101000000401100017340c3b8797503d0281120a101010100f05900801308c00d00c3b882d50000481120a101010100f01e2c41cf0040000f5"
+        )
+        val parsed = RingConnRecordParser.parse(frame)
+        assertEquals(2, parsed?.activityRecords?.get(0)?.confidence)
+        assertEquals(false, parsed?.activityRecords?.get(0)?.asleep)
+    }
 }

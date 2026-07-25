@@ -16,12 +16,16 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
-/** One 2.5-minute activity bucket from a `4c` record frame. */
+/**
+ * One 2.5-minute activity bucket from a `4c` record frame. [confidence] is the ring's own sensor signal-quality byte (0..~12); [asleep] is GB's inference from it, not a flag the ring sends.
+ */
 data class RingConnActivityRecord(
     val unixSeconds: Long,
     val motionIndex: Int,
     val motionLevel: Int,
     val still: Boolean,
+    val confidence: Int,
+    val asleep: Boolean,
 )
 
 /** One parsed record frame. For `47` (wellness) frames [activityRecords] is empty. */
@@ -46,7 +50,9 @@ data class RingConnTemperature(
 )
 
 /**
- * Pure parser for RingConn Gen2 record frames: `0x4c` activity (heart rate at body[0], motion buckets at body[6:11], motion index at body[14] but not a gait-filtered step count) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
+ * Pure parser for RingConn Gen2 record frames: `0x4c` activity and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
+ *
+ * `0x4c` record body layout, cross-checked against panther captures and the vendor APK field map published by OpenRingConn (docs/PROTOCOL.md 5.3): body[0] HR, body[1] HRV/RMSSD ms, body[2] sensor confidence 0..~12, body[3] respiratory rate x8, body[4] SpO2 (`12`/`13` = no sample this epoch), body[5] epoch marker, body[6:16] activity-magnitude blob, body[16] per-epoch flag. Only confidence and the activity blob are consumed here; HR, HRV, respiratory rate and SpO2 are identified but need DB entities before they can be stored.
  */
 object RingConnRecordParser {
 
@@ -65,6 +71,12 @@ object RingConnRecordParser {
     private const val STILL_CHECK_START = 6
     private const val STILL_CHECK_END = 11 // exclusive
     private const val STILL_VALUE = 0x01
+    private const val CONFIDENCE_OFFSET_IN_BODY = 2
+
+    /**
+     * Confidence saturates at this value once the sensor has a clean signal. Measured over 371 records (panther, 2026-07-25): mean 9.3 while motionless vs 4.3 while moving, so it is a signal-quality byte, not a sleep flag - on its own it fires ~10x/day while awake and moving.
+     */
+    private const val CONFIDENCE_SATURATED = 10
 
     /** Ring timestamps are seconds since 2020-01-01 00:00:00 UTC+8; add this for unix seconds. */
     const val TIMESTAMP_OFFSET_UNIX = 1_577_808_000L
@@ -179,8 +191,16 @@ object RingConnRecordParser {
                 .sumOf { frame[bodyStart + it].toInt() and BYTE_MASK } / (STILL_CHECK_END - STILL_CHECK_START)
 
             val still = isStill(frame, bodyStart)
+            val confidence = frame[bodyStart + CONFIDENCE_OFFSET_IN_BODY].toInt() and BYTE_MASK
 
-            records.add(RingConnActivityRecord(unixSeconds, motionIndex, motionLevel, still))
+            // The ring reports no sleep stage of its own, so infer the session: saturated sensor
+            // confidence AND no motion. Gating on motion removes every daytime false positive
+            // (precision 1.000, recall 0.855 against a scored overnight window).
+            val asleep = confidence >= CONFIDENCE_SATURATED && still
+
+            records.add(
+                RingConnActivityRecord(unixSeconds, motionIndex, motionLevel, still, confidence, asleep)
+            )
             offset += ACTIVITY_RECORD_LEN
         }
 

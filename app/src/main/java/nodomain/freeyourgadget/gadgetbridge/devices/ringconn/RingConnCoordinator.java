@@ -90,8 +90,14 @@ public class RingConnCoordinator extends AbstractBLEDeviceCoordinator {
         return true;
     }
 
+    /** The ring exposes no gait-filtered step count, so every sample stores zero steps. */
     @Override
     public boolean supportsStepCounter(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsSleepMeasurement(@NonNull final GBDevice device) {
         return true;
     }
 
