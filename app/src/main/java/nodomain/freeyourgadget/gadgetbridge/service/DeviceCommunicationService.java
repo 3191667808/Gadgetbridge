@@ -80,6 +80,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemo
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.DeviceAlarmReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.RealtimeHrCommandReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothConnectReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothPairingRequestReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CMWeatherReceiver;
@@ -557,6 +558,10 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         final DeviceAlarmReceiver deviceAlarmReceiver = new DeviceAlarmReceiver();
         ContextCompat.registerReceiver(this, deviceAlarmReceiver, deviceAlarmReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);
         globalReceivers.add(deviceAlarmReceiver);
+
+        final RealtimeHrCommandReceiver realtimeHrCommandReceiver = new RealtimeHrCommandReceiver();
+        ContextCompat.registerReceiver(this, realtimeHrCommandReceiver, realtimeHrCommandReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);
+        globalReceivers.add(realtimeHrCommandReceiver);
 
         final IntentApiReceiver intentApiReceiver = new IntentApiReceiver();
         ContextCompat.registerReceiver(this, intentApiReceiver, intentApiReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);

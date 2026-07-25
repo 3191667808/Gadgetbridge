@@ -11,6 +11,7 @@
 * Experimental support for BM6 Battery Monitor
 * Experimental support for Garmin Fenix 5S Plus
 * Add cumulative calories daily chart
+* Add opt-in intent for 3rd party apps to start realtime heart rate measurements
 * Add Quick Settings tiles for some device
 * Amazfit Active 3 Premium: Fix map upload via Bluetooth
 * Debug: Randomize test weather
