@@ -38,6 +38,8 @@ data class RingConnBatteryStatus(
 
 /**
  * Pure parser for RingConn Gen2 record frames: `0x4c` activity (steps at body[14], sleepFlagged when body[6:11]==0x01) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
+ *
+ * UNDER INVESTIGATION (2026-07-24): body[14] over-reads while stationary and reads ~0 during sustained walking, so it may not be the gait-filtered step count. See STEPS_OFFSET_IN_BODY.
  */
 object RingConnRecordParser {
 
@@ -52,6 +54,8 @@ object RingConnRecordParser {
     private const val HEADER_LEN = 3 // frame_id + 0x00 + remaining
     private const val TRAILER_LEN = 1
     private const val TIMESTAMP_LEN = 4
+    // UNSETTLED: this offset tracks movement but contradicts ground truth (over-counts at rest,
+    // ~0 during sustained walking). Verify against raw frame hex + a manually counted walk.
     private const val STEPS_OFFSET_IN_BODY = 14
     private const val SLEEP_CHECK_START = 6
     private const val SLEEP_CHECK_END = 11 // exclusive
@@ -112,7 +116,9 @@ object RingConnRecordParser {
     }
 
     /**
-     * Build an ACK command `<id|0x80> 00 00` (`47` -> `c7 00 00`). Acking advances the ring's shared per-stream replay cursor: required on `47`/`11`, deliberately NEVER sent for `4c` activity frames.
+     * Build an ACK command `<id|0x80> 00 00` (`47` -> `c7 00 00`). Acking advances the ring's shared per-stream replay cursor; the engine acks every stream INCLUDING `4c` (see RingConnSyncEngine.onRecordFrame).
+     *
+     * UNDER INVESTIGATION (2026-07-24): effect of `4c` acks on the official app's own reads.
      */
     fun ackCommand(frameId: Int): ByteArray {
         return byteArrayOf(

@@ -17,7 +17,9 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
 /**
- * Pure orchestration for a RingConn Gen2 sync (connect -> auth -> record replay): given each inbound notification and an injected clock, returns commands to write and step buckets to persist. No Android/timers/I/O. Ack policy enforced here: every stream is acked EXCEPT `4c` activity records, read idempotently so the official app keeps them.
+ * Pure orchestration for a RingConn Gen2 sync (connect -> auth -> record replay): given each inbound notification and an injected clock, returns commands to write and step buckets to persist. No Android/timers/I/O. Ack policy enforced here: EVERY stream is acked, including `4c` activity records, which advances the ring's shared replay cursor and makes GB the consuming reader.
+ *
+ * UNDER INVESTIGATION (2026-07-24): whether GB's `4c` acks starve the official app of the same records. Do not treat the cursor semantics below as settled.
  */
 class RingConnSyncEngine @JvmOverloads constructor(
     private val mac: ByteArray,
