@@ -71,17 +71,17 @@ public class RealtimeSamplesAggregator {
             previousSteps = steps;
         }
 
-        broadcast(heartRate, steps - previousSteps);
+        broadcast(heartRate, steps - previousSteps, false);
     }
 
     public void broadcastHeartRate(final int newHeartRate) {
         lastHeartRateTime = System.currentTimeMillis();
         heartRate = newHeartRate;
 
-        broadcast(heartRate, 0);
+        broadcast(heartRate, 0, true);
     }
 
-    private void broadcast(final int hr, final int steps) {
+    private void broadcast(final int hr, final int steps, final boolean hrFresh) {
         final AbstractActivitySample sample;
         try (final DBHandler dbHandler = GBApplication.acquireDB()) {
             final DaoSession session = dbHandler.getDaoSession();
@@ -119,6 +119,7 @@ public class RealtimeSamplesAggregator {
 
         final Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES)
                 .putExtra(GBDevice.EXTRA_DEVICE, gbDevice)
+                .putExtra(DeviceService.EXTRA_REALTIME_HR_FRESH, hrFresh)
                 .putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, (Serializable) sample);
         LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
     }

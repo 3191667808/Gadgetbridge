@@ -80,6 +80,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemo
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.DeviceAlarmReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.RealtimeHrBroadcast;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothConnectReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothPairingRequestReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CMWeatherReceiver;
@@ -105,11 +106,13 @@ import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService
 import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceService;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Contact;
+import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NavigationInfoSpec;
@@ -439,6 +442,23 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 } else if(subject == GBDevice.DeviceUpdateSubject.DEVICE_STATE && (device.getState() == GBDevice.State.SCANNED)) {
                     sendDeviceAPIBroadcast(device.getAddress(), API_LEGACY_ACTION_DEVICE_SCANNED);
                 }
+            } else if (ACTION_REALTIME_SAMPLES.equals(action)) {
+                final GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+                if (device == null) {
+                    return;
+                }
+                if (!intent.getBooleanExtra(EXTRA_REALTIME_HR_FRESH, true)) {
+                    // sample carries a cached heart rate (eg. steps-only update), not a fresh measurement
+                    return;
+                }
+                final Object sample = intent.getSerializableExtra(EXTRA_REALTIME_SAMPLE);
+                int heartRate = -1;
+                if (sample instanceof ActivitySample) {
+                    heartRate = ((ActivitySample) sample).getHeartRate();
+                } else if (sample instanceof HeartRateSample) {
+                    heartRate = ((HeartRateSample) sample).getHeartRate();
+                }
+                RealtimeHrBroadcast.sendIfEnabled(DeviceCommunicationService.this, device, heartRate);
             } else if(BLEScanService.EVENT_DEVICE_FOUND.equals(action)){
                 String deviceAddress = intent.getStringExtra(BLEScanService.EXTRA_DEVICE_ADDRESS);
 
@@ -525,6 +545,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         IntentFilter localFilter = new IntentFilter();
         localFilter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
         localFilter.addAction(BLEScanService.EVENT_DEVICE_FOUND);
+        localFilter.addAction(ACTION_REALTIME_SAMPLES);
         LocalBroadcastManager.getInstance(this).registerReceiver(mReceiver, localFilter);
     }
 

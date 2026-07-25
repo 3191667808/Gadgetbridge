@@ -165,6 +165,12 @@ public interface DeviceService extends EventHandler {
     String EXTRA_CAMERA_FILENAME = "filename";
 
     String EXTRA_REALTIME_SAMPLE = "realtime_sample";
+    /**
+     * Whether the heart rate carried by EXTRA_REALTIME_SAMPLE comes from a fresh heart rate
+     * notification (true, default), or was cached from a previous notification (eg. samples
+     * triggered by a steps-only update). Absence of the extra means fresh.
+     */
+    String EXTRA_REALTIME_HR_FRESH = "realtime_hr_fresh";
     String EXTRA_TIMESTAMP = "timestamp";
 
     /**

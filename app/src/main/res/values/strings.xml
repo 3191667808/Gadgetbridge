@@ -1150,6 +1150,8 @@
     <string name="pref_summary_third_party_app_device_settings">Allow other installed 3rd party apps to set device settings through intents.</string>
     <string name="pref_title_third_party_app_device_alarms">Allow 3rd party apps to set alarms</string>
     <string name="pref_summary_third_party_app_device_alarms">Allow other installed 3rd party apps to set device alarms through intents.</string>
+    <string name="pref_title_third_party_app_realtime_hr">Allow 3rd party apps to receive realtime heart rate</string>
+    <string name="pref_summary_third_party_app_realtime_hr">Broadcast an intent for each realtime heart rate measurement, so other installed 3rd party apps can receive live heart rate data while a realtime measurement is running. Any installed app is able to read these broadcasts.</string>
     <string name="live_activity_steps_history">Steps history</string>
     <string name="live_activity_current_steps_per_minute">Current steps/min</string>
     <string name="live_activity_total_steps">Total steps</string>
