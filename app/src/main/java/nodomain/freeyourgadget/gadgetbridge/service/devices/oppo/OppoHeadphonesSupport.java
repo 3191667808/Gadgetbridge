@@ -265,7 +265,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 }
 
-                evaluateGBDeviceEvents(new BatteryInfo(payload).decode());
+                evaluateGBDeviceEvents(new BatteryInfo(getContext()).decode(payload));
             }
             case SUBSCRIPTION_RET -> parseSubscription(payload);
             case FIRMWARE_RET -> {
@@ -275,7 +275,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 }
 
-                evaluateGBDeviceEvents(new FirmwareInfo(payload).decode());
+                evaluateGBDeviceEvents(new FirmwareInfo(getContext()).decode(payload));
             }
             case SUBSCRIPTION_ACK, TOUCH_CONFIG_ACK, MISC_CONFIG_ACK,
                     ANC_CONFIG_ACK, FIND_DEVICE_ACK, MULTIPOINT_DEVICES_ACK -> {
@@ -382,7 +382,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
         switch (type) {
             case BATTERY: {
-                evaluateGBDeviceEvents(new BatteryInfo(payload).decode());
+                evaluateGBDeviceEvents(new BatteryInfo(getContext()).decode(payload));
                 break;
             }
             case STATUS: {

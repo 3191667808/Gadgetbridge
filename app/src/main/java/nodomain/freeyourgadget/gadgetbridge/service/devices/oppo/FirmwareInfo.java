@@ -17,6 +17,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
+import android.content.Context;
 import androidx.annotation.NonNull;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -33,16 +34,16 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInf
 public class FirmwareInfo extends AbstractInfo {
     private static final Logger LOG = LoggerFactory.getLogger(FirmwareInfo.class);
 
-    FirmwareInfo(@NonNull final byte[] payload) {
-        super(payload);
+    FirmwareInfo(@NonNull final Context context) {
+        super(context);
     }
 
     @Override
-    public List<GBDeviceEvent> decode() {
-        return List.of(decodeSingle());
+    public List<GBDeviceEvent> decode(@NonNull final byte[] payload) {
+        return List.of(decodeSingle(payload));
     }
 
-    private GBDeviceEvent decodeSingle() {
+    private GBDeviceEvent decodeSingle(final byte[] payload) {
         final String fwString;
         if (payload[payload.length - 1] == 0) {
             fwString = new String(ArrayUtils.subarray(payload, 2, payload.length - 1)).strip();

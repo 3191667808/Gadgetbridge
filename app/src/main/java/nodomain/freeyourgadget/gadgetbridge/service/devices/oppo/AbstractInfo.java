@@ -21,19 +21,18 @@ import android.content.Context;
 
 import java.util.List;
 
-import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 
 public abstract class AbstractInfo {
-    protected final byte[] payload;
+    protected final Context context;
 
-    public AbstractInfo(@NonNull final byte[] payload) {
-        this.payload = payload;
+    public AbstractInfo(@NonNull final Context context) {
+        this.context = context;
     }
 
-    public abstract List<GBDeviceEvent> decode();
+    public abstract List<GBDeviceEvent> decode(@NonNull final byte[] payload);
 
     protected Context getContext() {
-        return GBApplication.getContext();
+        return context;
     }
 }

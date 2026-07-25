@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
@@ -14,10 +15,12 @@ import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class BatteryInfoTest extends TestBase {
+    private static final BatteryInfo batteryInfo = new BatteryInfo(GBApplication.getContext());
+
     @Test
     public void testHandleBatteryAll() {
-        List<GBDeviceEvent> events = new BatteryInfo(GB.hexStringToByteArray(
-                "0003014602640346")).decode();
+        List<GBDeviceEvent> events = batteryInfo.decode(GB.hexStringToByteArray(
+                "0003014602640346"));
         Assert.assertEquals(3, events.size());
 
         Set<Integer> uniqueIndices = events.stream()
@@ -46,8 +49,8 @@ public class BatteryInfoTest extends TestBase {
 
     @Test
     public void testHandleBatteryWithoutCase() {
-        List<GBDeviceEvent> events = new BatteryInfo(GB.hexStringToByteArray(
-                "0003014602640300")).decode();
+        List<GBDeviceEvent> events = batteryInfo.decode(GB.hexStringToByteArray(
+                "0003014602640300"));
         Assert.assertEquals(3, events.size());
 
         Set<Integer> uniqueIndices = events.stream()
@@ -76,8 +79,8 @@ public class BatteryInfoTest extends TestBase {
 
     @Test
     public void testHandleBatteryRight() {
-        List<GBDeviceEvent> events = new BatteryInfo(GB.hexStringToByteArray(
-                "000202640300")).decode();
+        List<GBDeviceEvent> events = batteryInfo.decode(GB.hexStringToByteArray(
+                "000202640300"));
         Assert.assertEquals(3, events.size());
 
         Set<Integer> uniqueIndices = events.stream()
@@ -103,8 +106,8 @@ public class BatteryInfoTest extends TestBase {
 
     @Test
     public void testHandleBatteryLeft() {
-        List<GBDeviceEvent> events = new BatteryInfo(GB.hexStringToByteArray(
-                "000301460300")).decode();
+        List<GBDeviceEvent> events = batteryInfo.decode(GB.hexStringToByteArray(
+                "000301460300"));
         Assert.assertEquals(3, events.size());
 
         Set<Integer> uniqueIndices = events.stream()

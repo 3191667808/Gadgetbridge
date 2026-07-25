@@ -17,6 +17,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
+import android.content.Context;
 import androidx.annotation.NonNull;
 
 import org.slf4j.Logger;
@@ -32,12 +33,12 @@ import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 public class BatteryInfo extends AbstractInfo {
     private static final Logger LOG = LoggerFactory.getLogger(BatteryInfo.class);
 
-    BatteryInfo(@NonNull final byte[] payload) {
-        super(payload);
+    BatteryInfo(@NonNull final Context context) {
+        super(context);
     }
 
     @Override
-    public List<GBDeviceEvent> decode() {
+    public List<GBDeviceEvent> decode(@NonNull final byte[] payload) {
         final List<GBDeviceEvent> events = new ArrayList<>();
         final int numBatteries = payload[1] & 0xff;
         for (int i = 2; i < payload.length; i += 2) {
