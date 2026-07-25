@@ -19,8 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 /** One 2.5-minute activity bucket from a `4c` record frame. */
 data class RingConnActivityRecord(
     val unixSeconds: Long,
-    val steps: Int,
-    val sleepFlagged: Boolean,
+    val motionIndex: Int,
+    val motionLevel: Int,
+    val still: Boolean,
 )
 
 /** One parsed record frame. For `47` (wellness) frames [activityRecords] is empty. */
@@ -37,13 +38,11 @@ data class RingConnBatteryStatus(
 )
 
 /**
- * Pure parser for RingConn Gen2 record frames: `0x4c` activity (steps at body[14], sleepFlagged when body[6:11]==0x01) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
- *
- * UNDER INVESTIGATION (2026-07-24): body[14] over-reads while stationary and reads ~0 during sustained walking, so it may not be the gait-filtered step count. See STEPS_OFFSET_IN_BODY.
+ * Pure parser for RingConn Gen2 record frames: `0x4c` activity (heart rate at body[0], motion buckets at body[6:11], motion index at body[14] but not a gait-filtered step count) and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
  */
 object RingConnRecordParser {
 
-    /** Frame id of the step-bearing activity record stream. */
+    /** Frame id of the activity record stream. */
     const val FRAME_ID_ACTIVITY = 0x4c
 
     private const val FRAME_ID_WELLNESS = 0x47
@@ -54,12 +53,10 @@ object RingConnRecordParser {
     private const val HEADER_LEN = 3 // frame_id + 0x00 + remaining
     private const val TRAILER_LEN = 1
     private const val TIMESTAMP_LEN = 4
-    // UNSETTLED: this offset tracks movement but contradicts ground truth (over-counts at rest,
-    // ~0 during sustained walking). Verify against raw frame hex + a manually counted walk.
-    private const val STEPS_OFFSET_IN_BODY = 14
-    private const val SLEEP_CHECK_START = 6
-    private const val SLEEP_CHECK_END = 11 // exclusive
-    private const val SLEEP_FLAG_VALUE = 0x01
+    private const val MOTION_INDEX_OFFSET_IN_BODY = 14
+    private const val STILL_CHECK_START = 6
+    private const val STILL_CHECK_END = 11 // exclusive
+    private const val STILL_VALUE = 0x01
 
     /** Ring timestamps are seconds since 2020-01-01 00:00:00 UTC+8; add this for unix seconds. */
     const val TIMESTAMP_OFFSET_UNIX = 1_577_808_000L
@@ -151,20 +148,23 @@ object RingConnRecordParser {
             val unixSeconds = timestamp + TIMESTAMP_OFFSET_UNIX
             val bodyStart = offset + TIMESTAMP_LEN
 
-            val steps = frame[bodyStart + STEPS_OFFSET_IN_BODY].toInt() and BYTE_MASK
+            val motionIndex = frame[bodyStart + MOTION_INDEX_OFFSET_IN_BODY].toInt() and BYTE_MASK
 
-            val sleepFlagged = isSleepFlagged(frame, bodyStart)
+            val motionLevel = (STILL_CHECK_START until STILL_CHECK_END)
+                .sumOf { frame[bodyStart + it].toInt() and BYTE_MASK } / (STILL_CHECK_END - STILL_CHECK_START)
 
-            records.add(RingConnActivityRecord(unixSeconds, steps, sleepFlagged))
+            val still = isStill(frame, bodyStart)
+
+            records.add(RingConnActivityRecord(unixSeconds, motionIndex, motionLevel, still))
             offset += ACTIVITY_RECORD_LEN
         }
 
         return records
     }
 
-    private fun isSleepFlagged(frame: ByteArray, bodyStart: Int): Boolean {
-        for (i in SLEEP_CHECK_START until SLEEP_CHECK_END) {
-            if ((frame[bodyStart + i].toInt() and BYTE_MASK) != SLEEP_FLAG_VALUE) {
+    private fun isStill(frame: ByteArray, bodyStart: Int): Boolean {
+        for (i in STILL_CHECK_START until STILL_CHECK_END) {
+            if ((frame[bodyStart + i].toInt() and BYTE_MASK) != STILL_VALUE) {
                 return false
             }
         }

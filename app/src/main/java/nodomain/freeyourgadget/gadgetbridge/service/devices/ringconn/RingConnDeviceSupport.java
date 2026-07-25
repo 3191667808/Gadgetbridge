@@ -185,13 +185,13 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
             final RingConnSampleProvider provider = new RingConnSampleProvider(getDevice(), session);
             final List<RingConnActivitySample> samples = new ArrayList<>();
             for (final RingConnSyncEngine.Bucket bucket : buckets) {
-                final int steps = bucket.getSleepFlagged() ? 0 : bucket.getSteps();
                 final RingConnActivitySample sample = new RingConnActivitySample();
                 sample.setTimestamp((int) bucket.getUnixSeconds());
                 sample.setDeviceId(device.getId());
                 sample.setUserId(user.getId());
-                sample.setSteps(steps);
-                sample.setRawIntensity(steps);
+                // Ring's motion index is not a gait-filtered step count; report motion intensity instead.
+                sample.setSteps(0);
+                sample.setRawIntensity(bucket.getMotionLevel());
                 sample.setRawKind(ActivityKind.ACTIVITY.getCode());
                 sample.setProvider(provider);
                 samples.add(sample);

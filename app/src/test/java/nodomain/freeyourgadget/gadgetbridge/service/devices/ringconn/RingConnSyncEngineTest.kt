@@ -55,15 +55,15 @@ class RingConnSyncEngineTest {
     }
 
     @Test fun activity_frame_persists_and_acks_last_batch() {
-        // Vector B: 1-record 4c, remaining=0, sleepFlagged, steps=0.
+        // Vector B: 1-record 4c, remaining=0, still, motionIndex=0.
         val frame = hexDecode("4c00000c3be1d34d130a7f610a010101010100000000000000040c")
         val actions = engine().onNotification(frame)
         assertEquals(1, actions.commandsToWrite.size)   // ack 4c to advance the cursor -> cc
         assertArrayEquals(byteArrayOf(0xcc.toByte(), 0x00, 0x00), actions.commandsToWrite[0])
         assertEquals(1, actions.bucketsToPersist.size)
         assertEquals(1783059027L, actions.bucketsToPersist[0].unixSeconds)
-        assertEquals(0, actions.bucketsToPersist[0].steps)
-        assertTrue(actions.bucketsToPersist[0].sleepFlagged)
+        assertEquals(0, actions.bucketsToPersist[0].motionIndex)
+        assertTrue(actions.bucketsToPersist[0].still)
         assertTrue(actions.activityDrained)             // remaining == 0
     }
 

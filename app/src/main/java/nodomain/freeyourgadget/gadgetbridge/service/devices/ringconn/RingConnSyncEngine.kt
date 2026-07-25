@@ -25,7 +25,7 @@ class RingConnSyncEngine @JvmOverloads constructor(
     private val mac: ByteArray,
     private val nowUnixSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
-    data class Bucket(val unixSeconds: Long, val steps: Int, val sleepFlagged: Boolean)
+    data class Bucket(val unixSeconds: Long, val motionIndex: Int, val motionLevel: Int, val still: Boolean)
     data class Actions(
         val commandsToWrite: List<ByteArray>,
         val bucketsToPersist: List<Bucket>,
@@ -65,7 +65,7 @@ class RingConnSyncEngine @JvmOverloads constructor(
     }
 
     private fun onRecordFrame(frame: RingConnRecordFrame, id: Int): Actions {
-        val buckets = frame.activityRecords.map { Bucket(it.unixSeconds, it.steps, it.sleepFlagged) }
+        val buckets = frame.activityRecords.map { Bucket(it.unixSeconds, it.motionIndex, it.motionLevel, it.still) }
         // Ack every record frame, including `4c` activity: the ack advances the ring's shared replay
         // cursor, the only way to drain a multi-batch backlog. (Not acking pins the cursor to the oldest
         // batch, so GB re-reads the same records and under-counts. GB becomes the primary consumer.)

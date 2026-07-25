@@ -43,8 +43,8 @@ class RingConnRecordParserTest {
         )
         expected.forEachIndexed { idx, (sec, step) ->
             assertEquals(sec.toLong(), parsed?.activityRecords?.get(idx)?.unixSeconds)
-            assertEquals(step, parsed?.activityRecords?.get(idx)?.steps)
-            assertEquals(false, parsed?.activityRecords?.get(idx)?.sleepFlagged)
+            assertEquals(step, parsed?.activityRecords?.get(idx)?.motionIndex)
+            assertEquals(false, parsed?.activityRecords?.get(idx)?.still)
         }
     }
 
@@ -56,8 +56,8 @@ class RingConnRecordParserTest {
         assertEquals(1, parsed?.activityRecords?.size)
         val rec = parsed?.activityRecords?.get(0)
         assertEquals(1783059027L, rec?.unixSeconds)
-        assertEquals(0, rec?.steps)
-        assertEquals(true, rec?.sleepFlagged)
+        assertEquals(0, rec?.motionIndex)
+        assertEquals(true, rec?.still)
     }
 
     @Test fun parses_6record_frame_with_remaining() {
@@ -71,8 +71,19 @@ class RingConnRecordParserTest {
         val first = parsed?.activityRecords?.get(0)
         assertEquals(1783068627L, first?.unixSeconds)
         parsed?.activityRecords?.forEach { rec ->
-            assertEquals(0, rec.steps); assertEquals(true, rec.sleepFlagged)
+            assertEquals(0, rec.motionIndex); assertEquals(true, rec.still)
         }
+    }
+
+    @Test fun computes_motionLevel_as_mean_of_body_6_to_10() {
+        // First record from parses_6record_activity_frame: body[6..10] = 42, 46, 22, 3b, 45 (hex)
+        // = 66, 70, 34, 59, 69 (decimal) -> mean = 59
+        val frame = hexDecode(
+            "4c00000c3b853f4f3d020012174246223b451975a52c12ea5d000c3b85d550000200120c1a161014109d404019555a17000c3b866b4f000200120b101010101000410853b33a44000c3b87014f0001855e0c101010101000000401100017340c3b8797503d0281120a101010100f05900801308c00d00c3b882d50000481120a101010100f01e2c41cf0040000f5"
+        )
+        val parsed = RingConnRecordParser.parse(frame)
+        val first = parsed?.activityRecords?.get(0)
+        assertEquals(59, first?.motionLevel)
     }
 
     @Test fun parses_47_wellness_frame_empty_records() {
