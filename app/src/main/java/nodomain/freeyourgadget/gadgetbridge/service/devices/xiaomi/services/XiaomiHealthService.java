@@ -700,6 +700,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         LOG.debug("Got workout status: {}", workoutStatus.getStatus());
 
         final boolean startOnPhone = getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_WORKOUT_START_ON_PHONE, false);
+        final boolean realtimeData = getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_WORKOUT_REALTIME_DATA, false);
 
         switch (workoutStatus.getStatus()) {
             case WORKOUT_STARTED:
@@ -708,8 +709,15 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 if (startOnPhone) {
                     OpenTracksController.startRecording(getSupport().getContext(), sportToActivityKind(workoutStatus.getSport()));
                 }
+                if (realtimeData) {
+                    enableRealtimeStats(true);
+                }
                 break;
             case WORKOUT_RESUMED:
+                if (realtimeData) {
+                    enableRealtimeStats(true);
+                }
+                break;
             case WORKOUT_PAUSED:
                 break;
             case WORKOUT_FINISHED:
@@ -718,6 +726,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                 GBLocationService.stop(getSupport().getContext(), getSupport().getDevice());
                 if (startOnPhone) {
                     OpenTracksController.stopRecording(getSupport().getContext());
+                }
+                if (realtimeData) {
+                    enableRealtimeStats(false);
                 }
                 break;
         }
@@ -933,7 +944,12 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             if (realTimeStats.getHeartRate() <= 10) {
                 return;
             }
-            enableRealtimeStats(false);
+            if (workoutStarted && getDevicePrefs().getBoolean(DeviceSettingsPreferenceConst.PREF_WORKOUT_REALTIME_DATA, false)) {
+                // a workout with realtime data is running - satisfy the one-shot but keep the stream
+                realtimeOneShot = false;
+            } else {
+                enableRealtimeStats(false);
+            }
         }
 
         if (previousSteps == -1) {

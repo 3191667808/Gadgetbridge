@@ -625,6 +625,8 @@
     <string name="pref_morning_updates_categories_summary">List of categories to display every morning</string>
     <string name="pref_workout_start_on_phone_title">Fitness app tracking</string>
     <string name="pref_workout_start_on_phone_summary">Start/stop fitness app tracking on phone when a GPS workout is started on the band</string>
+    <string name="pref_workout_realtime_data_title">Realtime data during workouts</string>
+    <string name="pref_workout_realtime_data_summary">Request live heart rate and steps from the band while a workout is running on the band, making them available to the live activity view and the realtime heart rate broadcast</string>
     <string name="pref_workout_send_gps_title">Send GPS during workout</string>
     <string name="pref_workout_send_gps_summary">Send the current GPS location to the band during a workout</string>
     <string name="pref_workout_send_gps_timeout_title">Send GPS timeout</string>

@@ -32,6 +32,7 @@
 * Soundcore Sport X20: Extend functionality
 * Workouts: Add function to set header photo
 * Xiaomi-protobuf: Add dynamic vibration pattern configuration screen
+* Xiaomi-protobuf: Add option to enable realtime data during workouts started on the band
 * Xiaomi-protobuf: Improve daily summary parsing
 * Xiaomi-protobuf: Improve workout summary parsing
 * Xiaomi-protobuf: Parse workout details
