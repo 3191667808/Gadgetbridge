@@ -225,6 +225,24 @@ class RingConnRecordParserTest {
         assertEquals(true, parsed?.activityRecords?.get(0)?.asleep)
     }
 
+    @Test fun parses_spo2_and_drops_the_no_sample_sentinel() {
+        // The ring measures SpO2 only intermittently; unmeasured epochs carry 12/13, which is a
+        // plausible-looking percentage and must never reach the chart.
+        val recs = RingConnRecordParser.parse(hexDecode(allSleepFrame))?.activityRecords
+        assertEquals(listOf(92, null, 90, null, 89, null), recs?.map { it.spo2 })
+    }
+
+    @Test fun spo2_sentinel_is_dropped_regardless_of_motion() {
+        val recs = RingConnRecordParser.parse(hexDecode(strayFrame))?.activityRecords
+        assertEquals(listOf(91, null, 96, null, null, 94), recs?.map { it.spo2 })
+    }
+
+    @Test fun spo2_rejects_implausible_values() {
+        // body[4] = 0x0f (15) appeared twice in the 2026-07-25 capture; well below any real SpO2.
+        val frame = hexDecode("4c00000c3be1d34d130a7f0f0a0101010101000000000000000462")
+        assertNull(RingConnRecordParser.parse(frame)?.activityRecords?.get(0)?.spo2)
+    }
+
     @Test fun active_frame_is_not_asleep() {
         val frame = hexDecode(
             "4c00000c3b853f4f3d020012174246223b451975a52c12ea5d000c3b85d550000200120c1a161014109d404019555a17000c3b866b4f000200120b101010101000410853b33a44000c3b87014f0001855e0c101010101000000401100017340c3b8797503d0281120a101010100f05900801308c00d00c3b882d50000481120a101010100f01e2c41cf0040000f5"

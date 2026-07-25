@@ -31,9 +31,11 @@ import java.util.UUID;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.ringconn.RingConnSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.entities.RingConnActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -200,9 +202,26 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 samples.add(sample);
             }
             provider.addGBActivitySamples(samples);   // insertOrReplaceInTx -> idempotent by (device, timestamp)
+            persistSpo2(session, device, user, buckets);
         } catch (final Exception e) {
             LOG.error("Failed to persist RingConn samples", e);
         }
+    }
+
+    /** SpO2 rides the same 2.5-minute records but is only measured on some epochs, so most buckets carry none. */
+    private void persistSpo2(final DaoSession session, final Device device, final User user,
+                             final List<RingConnSyncEngine.Bucket> buckets) {
+        final List<GenericSpo2Sample> samples = new ArrayList<>();
+        for (final RingConnSyncEngine.Bucket bucket : buckets) {
+            if (bucket.getSpo2() != null) {
+                samples.add(new GenericSpo2Sample(bucket.getUnixSeconds() * 1000L, device.getId(),
+                        user.getId(), bucket.getSpo2()));
+            }
+        }
+        if (samples.isEmpty()) {
+            return;
+        }
+        new GenericSpo2SampleProvider(getDevice(), session).addSamples(samples);
     }
 
     private static byte[] macBytes(final String address) {

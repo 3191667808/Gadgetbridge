@@ -26,12 +26,16 @@ import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.RingConnActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
+import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn.RingConnDeviceSupport;
 
@@ -77,6 +81,7 @@ public class RingConnCoordinator extends AbstractBLEDeviceCoordinator {
     public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
         return new HashMap<>() {{
             put(session.getRingConnActivitySampleDao(), RingConnActivitySampleDao.Properties.DeviceId);
+            put(session.getGenericSpo2SampleDao(), GenericSpo2SampleDao.Properties.DeviceId);
         }};
     }
 
@@ -99,6 +104,17 @@ public class RingConnCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public boolean supportsSleepMeasurement(@NonNull final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public boolean supportsSpo2(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public TimeSampleProvider<? extends Spo2Sample> getSpo2SampleProvider(final GBDevice device,
+                                                                         final DaoSession session) {
+        return new GenericSpo2SampleProvider(device, session);
     }
 
     @Override

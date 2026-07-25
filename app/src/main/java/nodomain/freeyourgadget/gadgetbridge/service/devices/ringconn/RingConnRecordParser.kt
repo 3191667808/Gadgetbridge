@@ -17,7 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
 /**
- * One 2.5-minute activity bucket from a `4c` record frame. [confidence] is the ring's own sensor signal-quality byte (0..~12); [asleep] is GB's inference from it, not a flag the ring sends.
+ * One 2.5-minute activity bucket from a `4c` record frame. [confidence] is the ring's own sensor signal-quality byte (0..~12); [asleep] is GB's inference from it, not a flag the ring sends. [spo2] is null on epochs the ring did not measure.
  */
 data class RingConnActivityRecord(
     val unixSeconds: Long,
@@ -26,6 +26,7 @@ data class RingConnActivityRecord(
     val still: Boolean,
     val confidence: Int,
     val asleep: Boolean,
+    val spo2: Int? = null,
 )
 
 /** One parsed record frame. For `47` (wellness) frames [activityRecords] is empty. */
@@ -72,6 +73,13 @@ object RingConnRecordParser {
     private const val STILL_CHECK_END = 11 // exclusive
     private const val STILL_VALUE = 0x01
     private const val CONFIDENCE_OFFSET_IN_BODY = 2
+    private const val SPO2_OFFSET_IN_BODY = 4
+
+    /**
+     * SpO2 is sampled intermittently; unmeasured epochs carry the sentinels `12`/`13`, which read as a plausible 18-19%. Both fall below this floor, so one range check rejects them along with the occasional garbage byte (15 was observed twice on 2026-07-25).
+     */
+    private const val SPO2_MIN = 70
+    private const val SPO2_MAX = 100
 
     /**
      * Confidence saturates at this value once the sensor has a clean signal. Measured over 371 records (panther, 2026-07-25): mean 9.3 while motionless vs 4.3 while moving, so it is a signal-quality byte, not a sleep flag - on its own it fires ~10x/day while awake and moving.
@@ -198,8 +206,13 @@ object RingConnRecordParser {
             // (precision 1.000, recall 0.855 against a scored overnight window).
             val asleep = confidence >= CONFIDENCE_SATURATED && still
 
+            val spo2 = (frame[bodyStart + SPO2_OFFSET_IN_BODY].toInt() and BYTE_MASK)
+                .takeIf { it in SPO2_MIN..SPO2_MAX }
+
             records.add(
-                RingConnActivityRecord(unixSeconds, motionIndex, motionLevel, still, confidence, asleep)
+                RingConnActivityRecord(
+                    unixSeconds, motionIndex, motionLevel, still, confidence, asleep, spo2
+                )
             )
             offset += ACTIVITY_RECORD_LEN
         }
