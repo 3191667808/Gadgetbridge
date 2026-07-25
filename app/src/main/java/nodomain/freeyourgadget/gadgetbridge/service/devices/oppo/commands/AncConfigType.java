@@ -19,8 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands;
 import androidx.annotation.Nullable;
 
 public enum AncConfigType {
-    MODE(0x01),
-    TOUCH_CYCLE_MODES(0x02),
+    MODE(0x0101),
+    TOUCH_CYCLE_MODES(0x0102),
+    DYNAMIC_LEVEL(0x0104),
     ;
 
     private final int code;

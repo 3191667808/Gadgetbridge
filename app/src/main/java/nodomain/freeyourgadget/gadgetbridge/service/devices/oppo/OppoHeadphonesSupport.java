@@ -92,6 +92,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private final AtomicInteger timeoutRetries = new AtomicInteger(0);
     private final Handler timeoutHandler = new Handler();
 
+    private AncConfig ancConfig;
+
     public OppoHeadphonesSupport() {
         super(LOG, MAX_MTU);
     }
@@ -124,7 +126,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         batteryGet();
         touchConfigGet();
         miscConfigGet();
-        ancConfigGet();
+        queueCommand(ancConfig.encodeGet());
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
@@ -133,6 +135,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     public void setContext(@NonNull GBDevice gbDevice, @NonNull BluetoothAdapter btAdapter, @NonNull Context context) {
         super.setContext(gbDevice, btAdapter, context);
+        this.ancConfig = new AncConfig(getContext(), getDevice());
         if (getCoordinator().supportsMultipoint(getDevice())) {
             setupMultipointBroadcastReceiver();
         }
@@ -239,12 +242,11 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             return;
         }
 
+        queueCommand(ancConfig.onSendConfiguration(config));
+
         switch (config) {
             case OppoHeadphonesPreferences.LDAC -> ldacSet();
             case OppoHeadphonesPreferences.GAME_MODE -> gameModeSet();
-            case OppoHeadphonesPreferences.ANC_MODE -> ancModeSet();
-            case OppoHeadphonesPreferences.ANC_LEVEL -> ancModeSet();
-            case OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES -> touchAncCycleModesSet();
             case OppoHeadphonesPreferences.SPATIAL_AUDIO -> spatialAudioSet();
             case OppoHeadphonesPreferences.TOUCH_FIND_PHONE -> findPhoneSet();
         }
@@ -313,7 +315,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 }
 
-                parseAncConfig(payload);
+                evaluateGBDeviceEvents(ancConfig.decode(payload));
             }
             case FIND_PHONE -> {
                 LOG.debug("Got {}", command);
@@ -403,7 +405,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 break;
             }
             case ANC_MODE: {
-                parseSubscriptionAncMode(payload);
+                evaluateGBDeviceEvents(ancConfig.decode(payload));
                 break;
             }
             case MULTIPOINT: {
@@ -413,48 +415,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             default: {
                 LOG.warn("Unhandled subscription type {}", type);
                 break;
-            }
-        }
-    }
-
-    private void parseSubscriptionAncMode(final byte[] payload) {
-        final ByteBuffer buf = ByteBuffer.wrap(payload);
-        if (buf.remaining() != 3 && buf.remaining() != 4) {
-            LOG.warn("Unexpected payload remaining: {}, expected 3 or 4", buf.remaining());
-        }
-
-        final int zero = buf.get();
-        final int type = ((buf.remaining() == 3) ? (buf.get() & 0xff) : 0x01);
-        final int one = buf.get();
-        final int valueCode = buf.get() & 0xff;
-
-        final AncConfigValue.Level valueLevel = AncConfigValue.Level.fromCode(valueCode);
-        final AncConfigValue value = AncConfigValue.fromCode(valueCode);
-
-        switch (type) {
-            case 0x01 -> {
-                if (valueLevel != null) {
-                    LOG.debug("Got anc config for {} = ON {}", type, valueLevel);
-                    final GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
-                    event.withPreference(OppoHeadphonesPreferences.ANC_LEVEL, valueLevel.getPreference());
-                    event.withPreference(OppoHeadphonesPreferences.ANC_MODE, AncConfigValue.ON.getPreference());
-                    evaluateGBDeviceEvent(event);
-                    break;
-                }
-
-                if (value == null) {
-                    LOG.warn("Unknown anc value code 0x{}", numberToHex(valueCode));
-                    break;
-                }
-
-                LOG.debug("Got anc config for MODE = {}", value);
-                evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
-                        OppoHeadphonesPreferences.ANC_MODE,
-                        value.getPreference()));
-
-            }
-            case 0x04 -> {
-                LOG.debug("Got anc config for {} = ON DYNAMIC {}", type, valueLevel);
             }
         }
     }
@@ -651,132 +611,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         evaluateGBDeviceEvent(eventUpdatePreferences);
     }
 
-    private void ancModeSet() {
-        final String valuePreference = getDevicePrefs().getString(OppoHeadphonesPreferences.ANC_MODE, null);
-        AncConfigValue value = AncConfigValue.fromPreference(valuePreference);
-        if (value == null) {
-            LOG.warn("Unknown ANC prefId = \"{}\"", valuePreference);
-            return;
-        }
-
-        int code = value.getCode();
-        if (getCoordinator().supportsAncLevel(getDevice()) && value == AncConfigValue.ON) {
-            final String valueLevelPreference = getDevicePrefs().getString(OppoHeadphonesPreferences.ANC_LEVEL, null);
-            AncConfigValue.Level valueLevel = AncConfigValue.Level.fromPreference(valueLevelPreference);
-            if (valueLevel == null) {
-                LOG.warn("Unknown ANC level prefId = \"{}\"", valueLevelPreference);
-                return;
-            }
-            code = valueLevel.getCode();
-            LOG.debug("Sending ANC value = ON {}", valueLevel);
-        } else {
-            LOG.debug("Sending ANC value = {}", value);
-        }
-        ancConfigSet(AncConfigType.MODE, code);
-    }
-
-    private void touchAncCycleModesSet() {
-        final Set<String> valuePreferences = getDevicePrefs().getStringSet(
-                OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, Collections.emptySet());
-        final EnumSet<AncConfigValue> values = AncConfigValue.fromPreferences(valuePreferences);
-        if (values.size() < 2) {
-            LOG.warn("ANC cycle must contain at least 2 values. Current selection: {}", values);
-            final String message = getContext()
-                    .getString(nodomain.freeyourgadget.gadgetbridge.R.string.select_at_least_option, 2);
-            GB.toast(getContext(), message, Toast.LENGTH_LONG, GB.WARN);
-            ancConfigGet();
-            return;
-        }
-
-        LOG.debug("Sending ANC touch cycle values = {}", values);
-        final int mask = AncConfigValue.toMask(values);
-        ancConfigSet(AncConfigType.TOUCH_CYCLE_MODES, mask);
-    }
-
-    private void ancConfigSet(final AncConfigType type, final int value) {
-        final byte[] payload = new byte[] {
-                (byte) type.getCode(),
-                (byte) 0x01,
-                (byte) value
-        };
-        queueCommand(OppoCommand.ANC_CONFIG_SET, payload);
-    }
-
-    private void ancConfigGet() {
-        final EnumSet<AncConfigType> types = EnumSet.noneOf(AncConfigType.class);
-        if (getCoordinator().supportsAnc(getDevice()))
-            types.add(AncConfigType.MODE);
-        if (getCoordinator().supportsTouchAncCycleModes())
-            types.add(AncConfigType.TOUCH_CYCLE_MODES);
-
-        for (AncConfigType type : types) {
-            final byte[] payload = new byte[] {
-                    (byte) type.getCode(),
-                    (byte) 0x01,
-            };
-            queueCommand(OppoCommand.ANC_CONFIG_REQ, payload);
-        }
-    }
-
-    private void parseAncConfig(final byte[] payload) {
-        final ByteBuffer buf = ByteBuffer.wrap(payload);
-        if (buf.remaining() != 4) {
-            LOG.warn("Unexpected anc config ret payload remaining {}, expected 4", buf.remaining());
-            return;
-        }
-
-        final GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
-        final int zero = buf.get();
-        final int typeCode = buf.get() & 0xFF;
-        final int one = buf.get();
-        final int valueCode = buf.get() & 0xff;
-
-        final AncConfigType type = AncConfigType.fromCode(typeCode);
-        if (type == null) {
-            LOG.warn("Unknown anc type code 0x{}", numberToHex(typeCode));
-            return;
-        }
-
-        switch (type) {
-            case MODE: {
-                if (getCoordinator().supportsAncLevel(getDevice())) {
-                    AncConfigValue.Level valueLevel = AncConfigValue.Level.fromCode(valueCode);
-                    if (valueLevel != null) {
-                        LOG.debug("Got anc config for {} = ON {}", type, valueLevel);
-                        event.withPreference(OppoHeadphonesPreferences.ANC_LEVEL, valueLevel.getPreference());
-                        event.withPreference(OppoHeadphonesPreferences.ANC_MODE, AncConfigValue.ON.getPreference());
-                        break;
-                    }
-                }
-                final AncConfigValue value = AncConfigValue.fromCode(valueCode);
-                if (value == null) {
-                    LOG.warn("Unknown anc value code 0x{}", numberToHex(valueCode));
-                    break;
-                }
-
-                LOG.debug("Got anc config for {} = {}", type, value);
-                event.withPreference(OppoHeadphonesPreferences.ANC_MODE, value.getPreference());
-                break;
-            }
-            case TOUCH_CYCLE_MODES: {
-                final EnumSet<AncConfigValue> values = AncConfigValue.fromMask(valueCode);
-                if (values.isEmpty()) {
-                    LOG.warn("Unknown anc value mask 0x{}", numberToHex(valueCode));
-                    break;
-                }
-                final Set<String> valuePrefIds = AncConfigValue.toPreferences(values);
-                LOG.debug("Got anc config for {} = {}", type, valuePrefIds);
-                event.withPreference(OppoHeadphonesPreferences.TOUCH_ANC_CYCLE_MODES, valuePrefIds);
-                break;
-            }
-            default: {
-                LOG.debug("Unknown anc type code {}", typeCode);
-                break;
-            }
-        }
-        evaluateGBDeviceEvent(event);
-    }
-
     private void multipointSet(final boolean isEnabled) {
         LOG.debug("Sending MULTIPOINT = {}", isEnabled);
         miscConfigSet(MiscConfigType.MULTIPOINT, isEnabled);
@@ -940,12 +774,24 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
-    private void queueCommand(OppoCommand command, byte[] payload) {
-        messageQueue.add(new OppoMessage(command, payload));
+    private void queueCommand(final OppoMessage message) {
+        messageQueue.add(message);
 
         if (pendingMessage == null) {
             sendNextCommand();
         }
+    }
+
+    private void queueCommand(final List<OppoMessage> messages) {
+        for (OppoMessage message : messages) {
+            if (message != null) {
+                queueCommand(message);
+            }
+        }
+    }
+
+    private void queueCommand(final OppoCommand command, final byte[] payload) {
+        queueCommand(new OppoMessage(command, payload));
     }
 
     private void onCommandTimeout() {
@@ -1006,9 +852,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
     }
 
-    private static String numberToHex(@NonNull final Number code) {
-        if (code == null)
-            return "00";
+    protected static String numberToHex(@NonNull final Number code) {
         long val = code.longValue();
         int byteSize = (code instanceof Byte) ? 1 : (code instanceof Short) ? 2 : (code instanceof Integer) ? 4 : 8;
         return String.format("%0" + (byteSize * 2) + "X", val & (0xFFFFFFFFFFFFFFFFL >>> (64 - byteSize * 8)));
