@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import android.os.Handler;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -38,11 +39,13 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.Set;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Queue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,6 +61,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
 import nodomain.freeyourgadget.gadgetbridge.service.AbstractHeadphoneBTBRDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoCommand;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
@@ -80,9 +84,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private static final UUID UUID_SERVICE_STANDARD = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
     private static final UUID UUID_SERVICE_OPPO = UUID.fromString("0000079a-d102-11e1-9b23-00025b00a5a5");
     public static final byte CMD_PREAMBLE = (byte) 0xAA;
+    public static final short CMD_MASK_RESPONSE = (short) 0x8000;
 
     private final ByteBuffer packetBuffer = ByteBuffer.allocate(MAX_MTU).order(ByteOrder.LITTLE_ENDIAN);
-    private AtomicInteger seqNum = new AtomicInteger(0);
+    private final AtomicInteger seqNum = new AtomicInteger(0);
+
+    private final Queue<OppoMessage> messageQueue = new ConcurrentLinkedQueue<>();
+    private OppoMessage pendingMessage = null;
+    private final AtomicInteger timeoutRetries = new AtomicInteger(0);
+    private final Handler timeoutHandler = new Handler();
 
     public OppoHeadphonesSupport() {
         super(LOG, MAX_MTU);
@@ -105,12 +115,17 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         packetBuffer.clear();
+        timeoutHandler.removeCallbacksAndMessages(null);
+        messageQueue.clear();
+        pendingMessage = null;
+        timeoutRetries.set(0);
         seqNum.set(0);
-        subscriptionSet(builder);
-        firmwareVersionGet(builder);
-        batteryGet(builder);
-        touchConfigGet(builder);
-        miscConfigGet(builder);
+
+        subscriptionSet();
+        firmwareVersionGet();
+        batteryGet();
+        touchConfigGet();
+        miscConfigGet();
         if (getCoordinator().supportsAnc(getDevice())) {
             ancConfigGet();
         }
@@ -130,10 +145,11 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     public void dispose() {
         synchronized (ConnectionMonitor) {
-            super.dispose();
+            timeoutHandler.removeCallbacksAndMessages(null);
             if (getCoordinator().supportsMultipoint(getDevice())) {
                 LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(multipointBroadcastReceiver);
             }
+            super.dispose();
         }
     }
 
@@ -176,7 +192,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final short code = packetBuffer.getShort();
             final OppoCommand command = OppoCommand.fromCode(code);
             if (command == null) {
-                LOG.warn("Unknown command code 0x{}", intToHex(code, 4));
+                LOG.warn("Unknown command code 0x{}", numberToHex(code));
                 packetBuffer.position(nextPacketPosition);
                 continue;
             }
@@ -192,7 +208,23 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
             final byte[] payload = new byte[payloadLength];
             packetBuffer.get(payload);
-            handleCommand(command, payload);
+
+            boolean sendNext;
+            try {
+                handleCommand(command, payload);
+                if (pendingMessage != null) {
+                    sendNext = (pendingMessage.command().getCode() | CMD_MASK_RESPONSE) == command.getCode();
+                } else {
+                    sendNext = false;
+                }
+            } catch (Exception e) {
+                LOG.error("Failed to handle command", e);
+                sendNext = true;
+            }
+
+            if (sendNext) {
+                sendNextCommand();
+            }
         }
 
         packetBuffer.compact();
@@ -217,60 +249,72 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void handleCommand(OppoCommand command, byte[] payload) {
+        final ByteBuffer buf = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
+
+        if (LOG.isTraceEnabled()) {
+            LOG.debug("Handling command {} payload={}", command, StringUtils.bytesToHex(payload));
+        }
+
         switch (command) {
             case BATTERY_RET -> {
-                if (payload[0] != 0) {
-                    LOG.warn("Unknown battery ret {}", payload[0]);
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
                     break;
                 }
 
                 parseBattery(payload);
             }
-            case SUBSCRIPTION_ACK -> LOG.debug("Got subscription ack, status={}", payload[0]);
             case SUBSCRIPTION_RET -> parseSubscription(payload);
             case FIRMWARE_RET -> {
-                if (payload[0] != 0) {
-                    LOG.warn("Unexpected firmware ret {}", payload[0]);
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
                     break;
                 }
 
                 parseFirmwareVersion(payload);
             }
-            case TOUCH_CONFIG_ACK -> LOG.debug("Got touch config ack, status={}", payload[0]);
+            case SUBSCRIPTION_ACK, TOUCH_CONFIG_ACK, MISC_CONFIG_ACK,
+                    ANC_CONFIG_ACK, FIND_DEVICE_ACK, MULTIPOINT_DEVICES_ACK -> {
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    break;
+                }
+
+                LOG.debug("Got {}", command);
+            }
             case TOUCH_CONFIG_RET -> {
-                if (payload[0] != 0) {
-                    LOG.warn("Unknown touch config ret {}", payload[0]);
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
                     break;
                 }
 
                 parseTouchConfig(payload);
                 break;
             }
-            case MISC_CONFIG_ACK -> {
-                LOG.debug("Got misc config ack, status={}", payload[0]);
-                break;
-            }
             case MISC_CONFIG_RET -> {
-                if (payload[0] != 0) {
-                    LOG.warn("Unknown misc config ret {}", payload[0]);
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
                     break;
                 }
 
                 parseMiscConfig(payload);
             }
-            case ANC_CONFIG_ACK -> LOG.debug("Got anc config ack, status={}", payload[0]);
             case ANC_CONFIG_RET -> {
-                if (payload[0] != 0) {
-                    LOG.warn("Unknown anc config ret {}", payload[0]);
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
                     break;
                 }
 
                 parseAncConfig(payload);
             }
-            case FIND_DEVICE_ACK ->
-                LOG.debug("Got find device ack, status={}", payload[0]);
             case FIND_PHONE -> {
-                LOG.debug("Got find phone");
+                LOG.debug("Got {}", command);
                 final GBDeviceEventFindPhone event = new GBDeviceEventFindPhone();
                 final int eventCode = buf.get();
                 if (eventCode == 0x05) {
@@ -283,12 +327,13 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
                 evaluateGBDeviceEvent(event);
             }
-            case MULTIPOINT_DEVICES_ACK ->
-                LOG.debug("Got multipoint devices ack, status={}", payload[0]);
             case MULTIPOINT_DEVICES_RET -> {
-                if (payload[0] != 0) {
-                    LOG.warn("Unknown multipoint devices ret {}", payload[0]);
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    break;
                 }
+
                 parseMultipointDevices(payload);
             }
             default -> LOG.warn("Unhandled command {}", command);
@@ -296,8 +341,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     }
 
-    private void batteryGet(final TransactionBuilder builder) {
-        sendCommand(builder, OppoCommand.BATTERY_REQ, null);
+    private void batteryGet() {
+        queueCommand(OppoCommand.BATTERY_REQ, new byte[0]);
     }
 
     private void parseBattery(final byte[] payload) {
@@ -350,7 +395,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
     }
 
-    private void subscriptionSet(final TransactionBuilder builder) {
+    private void subscriptionSet() {
         final List<SubscriptionType> types = new ArrayList<>();
         types.add(SubscriptionType.BATTERY);
         types.add(SubscriptionType.STATUS);
@@ -366,7 +411,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         for (SubscriptionType type : types) {
             buf.put((byte) type.getCode());
         }
-        sendCommand(builder, OppoCommand.SUBSCRIPTION_SET, buf.array());
+        queueCommand(OppoCommand.SUBSCRIPTION_SET, buf.array());
     }
 
     private void parseSubscription(final byte[] payload) {
@@ -379,7 +424,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final int typeCode = buf.get() & 0xFF;
         final SubscriptionType type = SubscriptionType.fromCode(typeCode);
         if (type == null) {
-            LOG.warn("Unknown subcription type 0x{}", intToHex(typeCode, 2));
+            LOG.warn("Unknown subcription type 0x{}", numberToHex(typeCode));
             return;
         }
 
@@ -446,7 +491,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 }
 
                 if (value == null) {
-                    LOG.warn("Unknown anc value code 0x{}", intToHex(valueCode, 2));
+                    LOG.warn("Unknown anc value code 0x{}", numberToHex(valueCode));
                     break;
                 }
 
@@ -462,8 +507,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
     }
 
-    private void firmwareVersionGet(final TransactionBuilder builder) {
-        sendCommand(builder, OppoCommand.FIRMWARE_REQ, null);
+    private void firmwareVersionGet() {
+        queueCommand(OppoCommand.FIRMWARE_REQ, new byte[0]);
     }
 
     private void parseFirmwareVersion(final byte[] payload) {
@@ -548,11 +593,11 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         buf.put((byte) value.getCode());
 
         LOG.debug("Sending {} {} = {}", side, type, value);
-        sendCommand(OppoCommand.TOUCH_CONFIG_SET, buf.array());
+        queueCommand(OppoCommand.TOUCH_CONFIG_SET, buf.array());
     }
 
-    private void touchConfigGet(final TransactionBuilder builder) {
-        sendCommand(builder, OppoCommand.TOUCH_CONFIG_REQ, new byte[] { 0x02, 0x03, 0x01 });
+    private void touchConfigGet() {
+        queueCommand(OppoCommand.TOUCH_CONFIG_REQ, new byte[] { 0x02, 0x03, 0x01 });
     }
 
     private void parseTouchConfig(final byte[] payload) {
@@ -571,15 +616,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final TouchConfigValue value = TouchConfigValue.fromCode(valueCode);
 
             if (side == null) {
-                LOG.warn("Unknown touch side code 0x{}", intToHex(sideCode, 2));
+                LOG.warn("Unknown touch side code 0x{}", numberToHex(sideCode));
                 continue;
             }
             if (type == null) {
-                LOG.warn("Unknown touch type code 0x{}", intToHex(typeCode, 4));
+                LOG.warn("Unknown touch type code 0x{}", numberToHex(typeCode));
                 continue;
             }
             if (value == null) {
-                LOG.warn("Unknown touch value code 0x{}", intToHex(valueCode, 2));
+                LOG.warn("Unknown touch value code 0x{}", numberToHex(valueCode));
                 continue;
             }
 
@@ -621,10 +666,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 (byte) type.getCode(),
                 (byte) (isEnabled ? 0x01 : 0x00),
         };
-        sendCommand(OppoCommand.MISC_CONFIG_SET, payload);
+        queueCommand(OppoCommand.MISC_CONFIG_SET, payload);
     }
 
-    private void miscConfigGet(final TransactionBuilder builder) {
+    private void miscConfigGet() {
         final EnumSet<MiscConfigType> types = EnumSet.noneOf(MiscConfigType.class);
         if (getCoordinator().supportsLdac(getDevice()))
             types.add(MiscConfigType.LDAC);
@@ -644,7 +689,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         for (MiscConfigType type : types) {
             payload[i++] = (byte) type.getCode();
         }
-        sendCommand(builder, OppoCommand.MISC_CONFIG_REQ, payload);
+        queueCommand(OppoCommand.MISC_CONFIG_REQ, payload);
     }
 
     private void parseMiscConfig(final byte[] payload) {
@@ -712,7 +757,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                                     OppoHeadphonesPreferences.TOUCH_FIND_PHONE,
                                     isEnabled);
                 }
-                default -> LOG.warn("Unknown misc config type code 0x{}", intToHex(typeCode, 2));
+                default -> LOG.warn("Unknown misc config type code 0x{}", numberToHex(typeCode));
             }
         }
         evaluateGBDeviceEvent(eventUpdatePreferences);
@@ -766,7 +811,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 (byte) 0x01,
                 (byte) value
         };
-        sendCommand(OppoCommand.ANC_CONFIG_SET, payload);
+        queueCommand(OppoCommand.ANC_CONFIG_SET, payload);
     }
 
     private void ancConfigGet() {
@@ -775,7 +820,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     (byte) configType.getCode(),
                     (byte) 0x01,
             };
-            sendCommand(OppoCommand.ANC_CONFIG_REQ, payload);
+            queueCommand(OppoCommand.ANC_CONFIG_REQ, payload);
         };
 
         sendAncConfig.accept(AncConfigType.MODE);
@@ -797,7 +842,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
         final AncConfigType type = AncConfigType.fromCode(typeCode);
         if (type == null) {
-            LOG.warn("Unknown anc type code 0x{}", intToHex(typeCode, 2));
+            LOG.warn("Unknown anc type code 0x{}", numberToHex(typeCode));
             return;
         }
 
@@ -814,7 +859,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 }
                 final AncConfigValue value = AncConfigValue.fromCode(valueCode);
                 if (value == null) {
-                    LOG.warn("Unknown anc value code 0x{}", intToHex(valueCode, 2));
+                    LOG.warn("Unknown anc value code 0x{}", numberToHex(valueCode));
                     break;
                 }
 
@@ -825,7 +870,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case TOUCH_CYCLE_MODES: {
                 final EnumSet<AncConfigValue> values = AncConfigValue.fromMask(valueCode);
                 if (values.isEmpty()) {
-                    LOG.warn("Unknown anc value mask 0x{}", intToHex(valueCode, 2));
+                    LOG.warn("Unknown anc value mask 0x{}", numberToHex(valueCode));
                     break;
                 }
                 final Set<String> valuePrefIds = AncConfigValue.toPreferences(values);
@@ -853,7 +898,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 (byte) 0x01,
                 (byte) MiscConfigType.MULTIPOINT.getCode()
         };
-        sendCommand(OppoCommand.MISC_CONFIG_REQ, payload);
+        queueCommand(OppoCommand.MISC_CONFIG_REQ, payload);
     }
 
     private void parseMultipointDevices(final byte[] payload) {
@@ -913,7 +958,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private void multipointDevicesGet() {
         LOG.info("Requesting paired devices");
-        sendCommand(OppoCommand.MULTIPOINT_DEVICES_REQ, null);
+        queueCommand(OppoCommand.MULTIPOINT_DEVICES_REQ, new byte[0]);
     }
 
     private void multipointDevicesSet(String deviceAddress, boolean isConnect) {
@@ -933,12 +978,12 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         buf.put((byte) 0x01);
         buf.put(macAddress);
         buf.put((byte) (isConnect ? 0x01 : 0x00));
-        sendCommand(OppoCommand.MULTIPOINT_DEVICES_SET, buf.array());
+        queueCommand(OppoCommand.MULTIPOINT_DEVICES_SET, buf.array());
     }
 
     @Override
     public void onFindDevice(boolean start) {
-        sendCommand(OppoCommand.FIND_DEVICE_REQ, new byte[] { (byte) (start ? 0x01 : 0x00) });
+        queueCommand(OppoCommand.FIND_DEVICE_REQ, new byte[] { (byte) (start ? 0x01 : 0x00) });
     }
 
     private void setupMultipointBroadcastReceiver() {
@@ -1004,11 +1049,47 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
-    private void sendCommand(final TransactionBuilder builder, final OppoCommand command, @Nullable byte[] payload) {
-        if (payload == null) {
-            payload = new byte[0];
-        }
+    private void queueCommand(OppoCommand command, byte[] payload) {
+        messageQueue.add(new OppoMessage(command, payload));
 
+        if (pendingMessage == null) {
+            sendNextCommand();
+        }
+    }
+
+    private void onCommandTimeout() {
+        if (timeoutRetries.getAndIncrement() < 3) {
+            LOG.warn("Timed out waiting for response, retrying attempt {}", timeoutRetries);
+            if (pendingMessage != null) {
+                sendMessage(pendingMessage);
+                return;
+            }
+        }
+        LOG.warn("Timed out waiting for response, giving up");
+        sendNextCommand();
+    }
+
+    private void sendNextCommand() {
+        timeoutHandler.removeCallbacksAndMessages(null);
+        timeoutRetries.set(0);
+
+        pendingMessage = messageQueue.poll();
+        if (pendingMessage != null) {
+            LOG.debug("Sending next command in queue: {}", pendingMessage.command());
+            sendMessage(pendingMessage);
+            return;
+        }
+        LOG.debug("No more commands in the queue");
+    }
+
+    private void sendMessage(OppoMessage message) {
+        final TransactionBuilder builder = createTransactionBuilder(message.command().name().toLowerCase());
+        builder.write(encodeCommand(message.command(), message.payload()));
+        builder.queue();
+        timeoutHandler.postDelayed(() -> onCommandTimeout(), 2000L);
+    }
+
+    byte[] encodeCommand(final OppoCommand command, final byte[] payload) {
         final ByteBuffer buf = ByteBuffer.allocate(9 + payload.length).order(ByteOrder.LITTLE_ENDIAN);
         buf.put(CMD_PREAMBLE);
         buf.put((byte) (buf.limit() - 2));
@@ -1016,24 +1097,21 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         buf.put((byte) 0);
         buf.putShort(command.getCode());
         buf.put((byte) (seqNum.getAndIncrement() & 0xff));
-
         buf.putShort((short) payload.length);
         buf.put(payload);
-        builder.write(buf.array());
-    }
-
-    private void sendCommand(final OppoCommand command, @Nullable byte[] payload) {
-        final TransactionBuilder builder = createTransactionBuilder(command.name().toLowerCase());
-        sendCommand(builder, command, payload);
-        builder.queue();
+        return buf.array();
     }
 
     private OppoHeadphonesCoordinator getCoordinator() {
         return (OppoHeadphonesCoordinator) getDevice().getDeviceCoordinator();
     }
 
-    private static String intToHex(final int code, final int len) {
-        return String.format(Locale.ROOT, "%0" + len + "x", code);
+    private static String numberToHex(@NonNull final Number code) {
+        if (code == null)
+            return "00";
+        long val = code.longValue();
+        int byteSize = (code instanceof Byte) ? 1 : (code instanceof Short) ? 2 : (code instanceof Integer) ? 4 : 8;
+        return String.format("%0" + (byteSize * 2) + "X", val & (0xFFFFFFFFFFFFFFFFL >>> (64 - byteSize * 8)));
     }
 
     @NonNull
