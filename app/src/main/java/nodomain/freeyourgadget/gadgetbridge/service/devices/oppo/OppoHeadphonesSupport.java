@@ -17,8 +17,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
-import org.apache.commons.lang3.ArrayUtils;
-
 import android.os.Handler;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -72,9 +70,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncCon
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.SubscriptionType;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferences;
-import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
-import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
@@ -270,7 +267,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 }
 
-                parseBattery(payload);
+                evaluateGBDeviceEvents(new BatteryInfo(payload).decode());
             }
             case SUBSCRIPTION_RET -> parseSubscription(payload);
             case FIRMWARE_RET -> {
@@ -280,7 +277,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 }
 
-                parseFirmwareVersion(payload);
+                evaluateGBDeviceEvents(new FirmwareInfo(payload).decode());
             }
             case SUBSCRIPTION_ACK, TOUCH_CONFIG_ACK, MISC_CONFIG_ACK,
                     ANC_CONFIG_ACK, FIND_DEVICE_ACK, MULTIPOINT_DEVICES_ACK -> {
@@ -352,56 +349,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         queueCommand(OppoCommand.BATTERY_REQ, new byte[0]);
     }
 
-    private void parseBattery(final byte[] payload) {
-        final List<GBDeviceEventBatteryInfo> events = new ArrayList<>();
-        final int numBatteries = payload[1] & 0xff;
-        for (int i = 2; i < payload.length; i += 2) {
-            if ((payload[i] & 0xff) == 0xff) {
-                continue;
-            }
-            final int batteryIndex = payload[i] - 1;
-            if (batteryIndex < 0 || batteryIndex > 2) {
-                LOG.error("Unknown battery index {}", payload[i]);
-                break;
-            }
-
-            final int batteryLevel = payload[i + 1] & 0x7f;
-            if (batteryIndex == 2 && batteryLevel == 0) {
-                continue;
-            }
-            final BatteryState batteryState = (payload[i + 1] & 0x80) != 0 ? BatteryState.BATTERY_CHARGING
-                    : BatteryState.BATTERY_NORMAL;
-
-            LOG.debug("Got battery {}: {}%, {}", batteryIndex, batteryLevel, batteryState);
-
-            final GBDeviceEventBatteryInfo eventBatteryInfo = new GBDeviceEventBatteryInfo();
-            eventBatteryInfo.batteryIndex = batteryIndex;
-            eventBatteryInfo.level = batteryLevel;
-            eventBatteryInfo.state = batteryState;
-            events.add(eventBatteryInfo);
-        }
-
-        List<Integer> processedBatteries = events.stream()
-                .map(event -> event.batteryIndex)
-                .toList();
-
-        for (int i = 0; i < 3; i++) {
-            if (processedBatteries.contains(i)) {
-                continue;
-            }
-
-            final GBDeviceEventBatteryInfo eventBatteryInfo = new GBDeviceEventBatteryInfo();
-            eventBatteryInfo.batteryIndex = i;
-            eventBatteryInfo.level = -1;
-            eventBatteryInfo.state = BatteryState.UNKNOWN;
-            events.add(eventBatteryInfo);
-        }
-
-        for (GBDeviceEventBatteryInfo event : events) {
-            evaluateGBDeviceEvent(event);
-        }
-    }
-
     private void subscriptionSet() {
         final List<SubscriptionType> types = new ArrayList<>();
         types.add(SubscriptionType.BATTERY);
@@ -437,7 +384,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
         switch (type) {
             case BATTERY: {
-                parseBattery(buf.array());
+                evaluateGBDeviceEvents(new BatteryInfo(payload).decode());
                 break;
             }
             case STATUS: {
@@ -516,70 +463,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private void firmwareVersionGet() {
         queueCommand(OppoCommand.FIRMWARE_REQ, new byte[0]);
-    }
-
-    private void parseFirmwareVersion(final byte[] payload) {
-        final String fwString;
-        if (payload[payload.length - 1] == 0) {
-            fwString = new String(ArrayUtils.subarray(payload, 2, payload.length - 1)).strip();
-        } else {
-            fwString = new String(ArrayUtils.subarray(payload, 2, payload.length)).strip();
-        }
-        final String[] parts = fwString.split(",");
-        if (parts.length % 3 != 0) {
-            LOG.warn("Fw parts length {} from '{}' is not divisible by 3", parts.length, fwString);
-
-            // We need to persist something, otherwise Gb misbehaves
-            final GBDeviceEventVersionInfo eventVersionInfo = new GBDeviceEventVersionInfo();
-            eventVersionInfo.fwVersion = fwString;
-            eventVersionInfo.hwVersion = getContext().getString(R.string.n_a);
-            evaluateGBDeviceEvent(eventVersionInfo);
-            return;
-        }
-        final String[] fwVersionParts = new String[3];
-        for (int i = 0; i < parts.length; i += 3) {
-            final String versionPart = parts[i];
-            final String versionType = parts[i + 1];
-            final String version = parts[i + 2];
-            if (!"2".equals(versionType)) {
-                continue; // not fw
-            }
-
-            switch (versionPart) {
-                case "1":
-                    fwVersionParts[0] = version;
-                    break;
-                case "2":
-                    fwVersionParts[1] = version;
-                    break;
-                case "3":
-                    fwVersionParts[2] = version;
-                    break;
-                default:
-                    LOG.warn("Unknown firmware version part {}", versionPart);
-            }
-        }
-
-        final List<String> nonNullParts = new ArrayList<>(fwVersionParts.length);
-        for (int i = 0; i < fwVersionParts.length; i++) {
-            if (fwVersionParts[i] == null) {
-                continue;
-            }
-            nonNullParts.add(fwVersionParts[i]);
-            if (fwVersionParts[i].contains(".")) {
-                // Realme devices have the version already with the dots, repeated multiple
-                // times
-                break;
-            }
-        }
-        final String fwVersion = String.join(".", nonNullParts);
-
-        final GBDeviceEventVersionInfo eventVersionInfo = new GBDeviceEventVersionInfo();
-        eventVersionInfo.fwVersion = fwVersion;
-        eventVersionInfo.hwVersion = GBApplication.getContext().getString(R.string.n_a);
-        evaluateGBDeviceEvent(eventVersionInfo);
-
-        LOG.debug("Got fw version: {}", fwVersion);
     }
 
     private void touchConfigSet(final String config) {
@@ -1114,6 +997,12 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private OppoHeadphonesCoordinator getCoordinator() {
         return (OppoHeadphonesCoordinator) getDevice().getDeviceCoordinator();
+    }
+
+    private void evaluateGBDeviceEvents(final List<GBDeviceEvent> events) {
+        for (GBDeviceEvent event : events) {
+            evaluateGBDeviceEvent(event);
+        }
     }
 
     private static String numberToHex(@NonNull final Number code) {
