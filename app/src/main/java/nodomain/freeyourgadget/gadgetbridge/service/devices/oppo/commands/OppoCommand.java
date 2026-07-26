@@ -21,6 +21,8 @@ import androidx.annotation.Nullable;
 public enum OppoCommand {
     BATTERY_REQ(0x0106),
     BATTERY_RET(0x8106),
+    STATUS_REQ(0x0109),
+    STATUS_RET(0x8109),
     SUBSCRIPTION_SET(0x0205),
     SUBSCRIPTION_ACK(0x8205),
     SUBSCRIPTION_RET(0x0204),

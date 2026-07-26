@@ -38,6 +38,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.OppoHeadphonesSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue
 
@@ -156,6 +158,6 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     open fun supportsSpatialAudio(device: GBDevice): Boolean = false
     open fun supportsFindPhone(device: GBDevice): Boolean = false
     open fun supportsSppUuid(device: GBDevice): Boolean = false
-
+    open fun canApplyAncMode(map: Map<StatusInfoSide, StatusInfoValue>, mode: AncConfigValue): Boolean =
+        map.isNotEmpty() && map.values.any { it == StatusInfoValue.READY }
 }
-

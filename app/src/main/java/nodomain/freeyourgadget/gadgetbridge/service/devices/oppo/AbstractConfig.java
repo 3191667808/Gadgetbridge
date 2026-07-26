@@ -28,8 +28,8 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public abstract class AbstractConfig {
-    private final Context mContext;
-    private final GBDevice mDevice;
+    private Context mContext;
+    private GBDevice mDevice;
 
     public AbstractConfig(@NonNull final Context context, @NonNull final GBDevice device) {
         mContext = context;
@@ -39,6 +39,11 @@ public abstract class AbstractConfig {
     @NonNull
     protected Context getContext() {
         return mContext;
+    }
+
+    protected void setContext(@NonNull final Context context, @NonNull final GBDevice device) {
+        mContext = context;
+        mDevice = device;
     }
 
     @NonNull

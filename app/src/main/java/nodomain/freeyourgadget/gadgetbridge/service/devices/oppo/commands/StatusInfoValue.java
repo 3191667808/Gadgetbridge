@@ -1,4 +1,5 @@
-/*  Copyright (C) 2026 NTeditor
+/*  Copyright (C) 2024 José Rebelo
+    Copyright (C) 2026 NTeditor
 
     This file is part of Gadgetbridge.
 
@@ -14,21 +15,34 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands;
 
-import androidx.annotation.NonNull;
-import android.content.Context;
+import androidx.annotation.Nullable;
 
-import java.util.List;
+public enum StatusInfoValue {
+    IN_CASE(0x00),
+    OFF_EAR(0x01),
+    READY(0x03),
+    ;
 
-public abstract class AbstractInfo {
-    protected final Context context;
+    private final int code;
 
-    public AbstractInfo(@NonNull final Context context) {
-        this.context = context;
+    StatusInfoValue(final int code) {
+        this.code = code;
     }
 
-    protected Context getContext() {
-        return context;
+    public int getCode() {
+        return code;
+    }
+
+    @Nullable
+    public static StatusInfoValue fromCode(final int code) {
+        for (final StatusInfoValue param : StatusInfoValue.values()) {
+            if (param.code == code) {
+                return param;
+            }
+        }
+
+        return null;
     }
 }

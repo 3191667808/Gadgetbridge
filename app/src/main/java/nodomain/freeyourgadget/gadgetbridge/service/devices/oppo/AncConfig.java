@@ -28,9 +28,12 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferences;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
@@ -38,15 +41,26 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePref
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.SubscriptionType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoCommand;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class AncConfig extends AbstractConfig {
     private static final Logger LOG = LoggerFactory.getLogger(AncConfig.class);
+    private Map<StatusInfoSide, StatusInfoValue> statusMap = null;
 
     public AncConfig(@NonNull final Context context, @NonNull final GBDevice device) {
         super(context, device);
+    }
+
+    public Map<StatusInfoSide, StatusInfoValue> getStatusMap() {
+        return statusMap;
+    }
+
+    public void setStatusMap(final Map<StatusInfoSide, StatusInfoValue> map) {
+        this.statusMap = map;
     }
 
     @NonNull
@@ -104,6 +118,14 @@ public class AncConfig extends AbstractConfig {
         if (value == null) {
             LOG.warn("Unknown AncConfigValue preference {}", valuePreference);
             return null;
+        }
+
+        if (statusMap != null) {
+            if (!getCoordinator().canApplyAncMode(statusMap, value)) {
+                final String message = getContext().getString(R.string.activity_type_not_worn);
+                GB.toast(getContext(), message, Toast.LENGTH_LONG, GB.WARN);
+                return encodeGet(AncConfigType.MODE);
+            }
         }
 
         int code = value.getCode();

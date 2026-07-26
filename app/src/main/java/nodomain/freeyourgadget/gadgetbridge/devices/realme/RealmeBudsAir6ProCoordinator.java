@@ -30,9 +30,12 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;
 
 public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
     @Override
@@ -129,5 +132,22 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
                 put(Pair.create(TouchConfigSide.RIGHT, TouchConfigType.HOLD), options);
             }
         };
+    }
+
+    @Override
+    public boolean canApplyAncMode(@NonNull final Map<StatusInfoSide, ? extends StatusInfoValue> map,
+            @NonNull final AncConfigValue mode) {
+        final boolean isAllReady = map.values().stream().allMatch(value -> value == StatusInfoValue.READY);
+        final boolean isAnyReady = map.values().stream().anyMatch(value -> value == StatusInfoValue.READY);
+        if (map.size() == 2) {
+            if (isAllReady) {
+                return true;
+            }
+            if (isAnyReady && mode != AncConfigValue.ON) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

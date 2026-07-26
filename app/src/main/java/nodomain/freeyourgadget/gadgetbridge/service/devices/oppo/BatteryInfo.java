@@ -37,7 +37,6 @@ public class BatteryInfo extends AbstractInfo {
         super(context);
     }
 
-    @Override
     public List<GBDeviceEvent> decode(@NonNull final byte[] payload) {
         final List<GBDeviceEvent> events = new ArrayList<>();
         final int numBatteries = payload[1] & 0xff;

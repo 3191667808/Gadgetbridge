@@ -42,7 +42,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.Set;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Queue;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,6 +66,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoMe
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.MiscConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue;
@@ -126,6 +130,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
         queueCommand(OppoCommand.BATTERY_REQ);
         miscConfigGet();
+        queueCommand(OppoCommand.STATUS_REQ);
         queueCommand(ancConfig.encodeGet());
         touchConfigGet();
         subscriptionSet();
@@ -138,7 +143,11 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     public void setContext(@NonNull GBDevice gbDevice, @NonNull BluetoothAdapter btAdapter, @NonNull Context context) {
         super.setContext(gbDevice, btAdapter, context);
-        this.ancConfig = new AncConfig(getContext(), getDevice());
+        if (ancConfig == null) {
+            this.ancConfig = new AncConfig(getContext(), getDevice());
+        } else {
+            this.ancConfig.setContext(getContext(), getDevice());
+        }
         if (getCoordinator().supportsMultipoint(getDevice())) {
             setupMultipointBroadcastReceiver();
         }
@@ -272,6 +281,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
                 evaluateGBDeviceEvents(new BatteryInfo(getContext()).decode(payload));
             }
+            case STATUS_RET -> {
+                final byte zero = buf.get();
+                if (zero != 0) {
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
+                    break;
+                }
+
+                ancConfig.setStatusMap(new StatusInfo(getContext()).decode(payload));
+            }
             case SUBSCRIPTION_RET -> parseSubscription(payload);
             case FIRMWARE_RET -> {
                 final byte zero = buf.get();
@@ -387,8 +405,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 break;
             }
             case STATUS: {
-                LOG.debug("Got status");
-                // TODO handle
+                ancConfig.setStatusMap(new StatusInfo(getContext()).decode(payload));
                 break;
             }
             case GAME_MODE: {
@@ -416,6 +433,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 break;
             }
         }
+
     }
 
     private void touchConfigSet(final String config) {

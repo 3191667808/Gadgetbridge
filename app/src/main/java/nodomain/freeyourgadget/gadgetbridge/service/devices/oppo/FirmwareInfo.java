@@ -38,7 +38,6 @@ public class FirmwareInfo extends AbstractInfo {
         super(context);
     }
 
-    @Override
     public List<GBDeviceEvent> decode(@NonNull final byte[] payload) {
         return List.of(decodeSingle(payload));
     }
