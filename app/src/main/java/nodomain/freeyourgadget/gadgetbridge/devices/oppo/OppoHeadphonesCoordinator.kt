@@ -132,6 +132,12 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
             DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS,
             R.xml.devicesettings_headphones,
         )
+        if (supportsSppUuid(device)) {
+            xmlScreen(
+                DeviceSpecificSettingsScreen.CONNECTION,
+                R.xml.devicesettings_oppo_headphones_legacy_rfcomm,
+            )
+        }
     }
 
     override fun getDeviceSpecificSettingsCustomizer(device: GBDevice): DeviceSpecificSettingsCustomizer =
@@ -149,6 +155,7 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     open fun supportsAncLevel(device: GBDevice): Boolean = false
     open fun supportsSpatialAudio(device: GBDevice): Boolean = false
     open fun supportsFindPhone(device: GBDevice): Boolean = false
-    open fun useStandardSppUuid(device: GBDevice): Boolean = false
+    open fun supportsSppUuid(device: GBDevice): Boolean = false
+
 }
 

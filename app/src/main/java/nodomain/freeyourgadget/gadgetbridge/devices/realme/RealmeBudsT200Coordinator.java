@@ -26,7 +26,9 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferences;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
@@ -64,7 +66,7 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
 
     @Override
     public boolean supportsFindDevice(@NonNull GBDevice device) {
-        return true;
+        return GBApplication.getDevicePrefs(device).getBoolean(OppoHeadphonesPreferences.LEGACY_RFCOMM, false);
     }
 
     @Override
@@ -98,7 +100,7 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
-    public boolean useStandardSppUuid(@NonNull GBDevice device) {
+    public boolean supportsSppUuid(@NonNull GBDevice device) {
         return true;
     }
 

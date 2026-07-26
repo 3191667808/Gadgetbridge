@@ -103,7 +103,7 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
     }
 
     @Override
-    public boolean useStandardSppUuid(@NonNull GBDevice device) {
+    public boolean supportsSppUuid(@NonNull GBDevice device) {
         return true;
     }
 

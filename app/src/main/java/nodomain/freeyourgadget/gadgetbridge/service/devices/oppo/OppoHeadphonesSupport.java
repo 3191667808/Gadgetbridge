@@ -79,8 +79,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPair
 public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(OppoHeadphonesSupport.class);
     private static final int MAX_MTU = 2048;
-    private static final UUID UUID_SERVICE_STANDARD = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
-    private static final UUID UUID_SERVICE_OPPO = UUID.fromString("0000079a-d102-11e1-9b23-00025b00a5a5");
+    private static final UUID UUID_SERVICE_SPP = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+    private static final UUID UUID_SERVICE_RFCOMM = UUID.fromString("0000079a-d102-11e1-9b23-00025b00a5a5");
     public static final byte CMD_PREAMBLE = (byte) 0xAA;
     public static final short CMD_MASK_RESPONSE = (short) 0x8000;
 
@@ -100,11 +100,14 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     @Override
     public UUID getSupportedService() {
-        if (getCoordinator().useStandardSppUuid(getDevice())) {
-            return UUID_SERVICE_STANDARD;
-        } else {
-            return UUID_SERVICE_OPPO;
+        final boolean isSppSupported = getCoordinator().supportsSppUuid(getDevice());
+        if (isSppSupported) {
+            final boolean isForceUseRFCOMM = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.LEGACY_RFCOMM, false);
+            if (!isForceUseRFCOMM) {
+                return UUID_SERVICE_SPP;
+            }
         }
+        return UUID_SERVICE_RFCOMM;
     }
 
     @Override

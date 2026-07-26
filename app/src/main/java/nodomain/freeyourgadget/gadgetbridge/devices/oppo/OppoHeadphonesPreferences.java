@@ -34,6 +34,8 @@ public class OppoHeadphonesPreferences {
     public static final String ANC_LEVEL = "pref_anc_level";
     public static final String SPATIAL_AUDIO = "pref_nothing_spatial_audio";
 
+    public static final String LEGACY_RFCOMM = "pref_legacy_rfcomm";
+
     public static String getTouchKey(final TouchConfigSide side, final TouchConfigType type) {
         return String.format(
                 Locale.ROOT,

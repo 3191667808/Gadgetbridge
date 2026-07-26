@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:icon="@drawable/ic_bluetooth"
+        android:key="pref_legacy_rfcomm"
+        android:title="@string/pref_legacy_rfcomm_title"
+        android:summary="@string/pref_legacy_rfcomm_summary" />
+</androidx.preference.PreferenceScreen>

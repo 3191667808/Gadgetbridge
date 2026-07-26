@@ -528,6 +528,8 @@
     <string name="connection_priority_low_power_summary">Reduce Bluetooth priority and data rate connection parameters.</string>
     <string name="connection_force_legacy_gatt_title">Force legacy GATT</string>
     <string name="connection_force_legacy_gatt_summary">Prevent issues on old Android versions, but might introduce race conditions</string>
+    <string name="pref_legacy_rfcomm_title">Force use legacy RFCOMM</string>
+    <string name="pref_legacy_rfcomm_summary">May break more features (Reconnect required)</string>
     <!-- Device Settings - Device Settings - Used in devicesettings_watchxplus.xml -->
     <string name="pref_header_device_spec_settings">Device settings</string>
     <string name="pref_title_device_spec_settings_force_time">Force synchronize time</string>
