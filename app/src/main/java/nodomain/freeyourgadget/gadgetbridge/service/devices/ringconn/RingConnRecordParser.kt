@@ -97,6 +97,7 @@ object RingConnRecordParser {
     private const val CHARGE_OFFSET = 2
     private const val CHARGING_VALUE = 0x04
     private const val MAX_BATTERY = 100
+    private const val STEPS_OFFSET = 4
     private const val TEMP_A_OFFSET = 6
     private const val TEMP_B_OFFSET = 8
 
@@ -175,6 +176,14 @@ object RingConnRecordParser {
             readU16BE(frame, TEMP_A_OFFSET),
             readU16BE(frame, TEMP_B_OFFSET)
         )
+    }
+
+    /**
+     * ALPHA. Raw step accumulator from a `10`/`87` status frame (u16-BE at byte 4), or null if the frame isn't a valid status frame. This counts up and then RESETS to 0 (observed 7 -> 42 -> 75 -> ... -> 147 -> 0), so it is not a daily total - callers must difference consecutive readings. NOT ground-truthed against another step counter; see RingConnSyncEngine.stepDeltaFrom. Never throws.
+     */
+    fun parseStepAccumulator(frame: ByteArray): Int? {
+        if (!isStatusFrame(frame)) return null
+        return readU16BE(frame, STEPS_OFFSET)
     }
 
     private fun isStatusFrame(frame: ByteArray): Boolean {

@@ -38,7 +38,12 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val bucketsToPersist: List<Bucket>,
         val activityDrained: Boolean,
         val battery: RingConnBatteryStatus? = null,
+        /** ALPHA. Steps accrued since the previous status frame; 0 when unknown. See [stepDeltaFrom]. */
+        val stepsDelta: Int = 0,
     )
+
+    /** Previous status-frame step accumulator, for differencing; null until the first status frame. */
+    private var lastStepAccumulator: Int? = null
 
     /** First write after notifications are enabled: request the status/challenge frame. */
     fun start(): List<ByteArray> = listOf(CMD_STATUS.copyOf())
@@ -50,11 +55,22 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val battery = RingConnRecordParser.parseBattery(frame)
         return when {
             record != null -> onRecordFrame(record, id)
-            battery != null -> Actions(emptyList(), emptyList(), false, battery)
+            battery != null -> Actions(emptyList(), emptyList(), false, battery, stepDeltaFrom(frame))
             id == EVENT_FRAME_ID -> Actions(listOf(RingConnRecordParser.ackCommand(id)), emptyList(), false)
             isChallenge(id, frame) -> onChallenge(frame)
             else -> EMPTY
         }
+    }
+
+    /**
+     * ALPHA. Difference consecutive status-frame accumulators into steps taken. The accumulator resets to 0 on its own schedule, so a drop is read as "reset, and the new value is the count since it" - that over-counts if a reset lands mid-window, which is why this is not ground-truthed. The first reading of a session yields 0: with no baseline its absolute value is not a delta we may claim.
+     */
+    private fun stepDeltaFrom(frame: ByteArray): Int {
+        val current = RingConnRecordParser.parseStepAccumulator(frame) ?: return 0
+        val previous = lastStepAccumulator
+        lastStepAccumulator = current
+        if (previous == null) return 0
+        return if (current >= previous) current - previous else current
     }
 
     private fun isChallenge(id: Int, frame: ByteArray) =

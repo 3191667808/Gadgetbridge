@@ -186,6 +186,32 @@ class RingConnRecordParserTest {
         assertNull(RingConnRecordParser.parseTemperature(hexDecode("100000")))
     }
 
+    // Step accumulator (u16-BE at bytes 4/5) read off the same panther status frames as temperature.
+    @Test fun parses_step_accumulator() {
+        assertEquals(221, RingConnRecordParser.parseStepAccumulator(
+            hexDecode("1056030000DD0138014200000000106C00FF61")))
+    }
+    @Test fun step_accumulator_rises_across_the_capture() {
+        // Same session, later frames: 221 -> 263 -> 382, which is what an accumulator does.
+        assertEquals(263, RingConnRecordParser.parseStepAccumulator(
+            hexDecode("1056020001070136014000000000106900FFB2")))
+        assertEquals(382, RingConnRecordParser.parseStepAccumulator(
+            hexDecode("10560300017E0135014400000000106900FFCD")))
+    }
+    @Test fun step_accumulator_is_zero_on_the_charger() {
+        assertEquals(0, RingConnRecordParser.parseStepAccumulator(
+            hexDecode("10640400000000ED00EC0000000010E90A3CBE")))
+    }
+    @Test fun step_accumulator_rejects_non_status_id() {
+        assertNull(RingConnRecordParser.parseStepAccumulator(
+            hexDecode("50000017866B06690015310C53F35B15120C53F66C10010C54E42D110000008600180100000000")))
+    }
+    @Test fun step_accumulator_rejects_bad_xor() {
+        val f = hexDecode("1056030000DD0138014200000000106C00FF61")
+            .also { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() }
+        assertNull(RingConnRecordParser.parseStepAccumulator(f))
+    }
+
     // Sleep frames below are real captures from device panther (2026-07-25 overnight), XOR-valid.
     private val allSleepFrame =
         "4c00ac0c58ddb54d000a855c0a010101010100000000000000040c58de4b4a130a78120a010101010100000000000c00000c58dee147150a785a0a010101010100000000000000040c58df7746150a77120a010101010100000000000000000c58e00d46170a87590a010101010100000000000000040c58e0a349170a7d120a0101010101000000000000000073"

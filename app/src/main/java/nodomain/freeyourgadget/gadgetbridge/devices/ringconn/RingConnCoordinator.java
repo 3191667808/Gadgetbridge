@@ -95,10 +95,10 @@ public class RingConnCoordinator extends AbstractBLEDeviceCoordinator {
         return true;
     }
 
-    /** The ring exposes no gait-filtered step count, so every sample stores zero steps. */
+    /** ALPHA: steps come from the status-frame accumulator, not the per-epoch motion index. */
     @Override
     public boolean supportsStepCounter(@NonNull final GBDevice device) {
-        return false;
+        return true;
     }
 
     @Override

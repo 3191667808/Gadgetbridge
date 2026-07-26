@@ -99,4 +99,41 @@ class RingConnSyncEngineTest {
         assertTrue(actions.commandsToWrite.isEmpty())
         assertTrue(actions.bucketsToPersist.isEmpty())
     }
+
+    // Step deltas: the ring's accumulator is absolute-and-resetting, so only in-session rises count.
+    private val steps221 = hexDecode("1056030000DD0138014200000000106C00FF61")
+    private val steps263 = hexDecode("1056020001070136014000000000106900FFB2")
+    private val steps382 = hexDecode("10560300017E0135014400000000106900FFCD")
+
+    @Test fun first_status_frame_reports_no_step_delta() {
+        // No prior reading, so the accumulator's absolute value is not a delta we may claim.
+        assertEquals(0, engine().onNotification(steps221).stepsDelta)
+    }
+
+    @Test fun rising_accumulator_reports_the_difference() {
+        val e = engine()
+        e.onNotification(steps221)
+        assertEquals(42, e.onNotification(steps263).stepsDelta)
+    }
+
+    @Test fun accumulator_reset_reports_the_new_value_as_the_delta() {
+        // Observed 7->42->...->147->0: on reset the fresh value is itself the steps since the reset.
+        val e = engine()
+        e.onNotification(steps382)
+        assertEquals(221, e.onNotification(steps221).stepsDelta)
+    }
+
+    @Test fun unchanged_accumulator_reports_no_delta() {
+        val e = engine()
+        e.onNotification(steps263)
+        assertEquals(0, e.onNotification(steps263).stepsDelta)
+    }
+
+    @Test fun record_frames_do_not_disturb_the_step_baseline() {
+        // 4c records carry no accumulator; they must not reset the delta tracking.
+        val e = engine()
+        e.onNotification(steps221)
+        e.onNotification(hexDecode("4c002b0c3c075342210a7d5c0a010101010100000000000000040c3c07e9411f0a7f120a010101010100000000000000000c3c087f471f09805d0a010101010100000000000000040c3c091542170a87120a010101010100000000000000000c3c09ab45180a875e0a010101010100000000000000040c3c0a4142150a78120a01010101010000000000000000d5"))
+        assertEquals(42, e.onNotification(steps263).stepsDelta)
+    }
 }
