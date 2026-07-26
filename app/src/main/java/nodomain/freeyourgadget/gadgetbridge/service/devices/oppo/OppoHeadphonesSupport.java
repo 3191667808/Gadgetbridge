@@ -124,12 +124,12 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         timeoutRetries.set(0);
         seqNum.set(0);
 
-        subscriptionSet();
-        firmwareVersionGet();
-        batteryGet();
-        touchConfigGet();
+        queueCommand(OppoCommand.BATTERY_REQ);
         miscConfigGet();
         queueCommand(ancConfig.encodeGet());
+        touchConfigGet();
+        subscriptionSet();
+        queueCommand(OppoCommand.FIRMWARE_REQ);
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
@@ -348,10 +348,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     }
 
-    private void batteryGet() {
-        queueCommand(OppoCommand.BATTERY_REQ, new byte[0]);
-    }
-
     private void subscriptionSet() {
         final List<SubscriptionType> types = new ArrayList<>();
         types.add(SubscriptionType.BATTERY);
@@ -420,10 +416,6 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 break;
             }
         }
-    }
-
-    private void firmwareVersionGet() {
-        queueCommand(OppoCommand.FIRMWARE_REQ, new byte[0]);
     }
 
     private void touchConfigSet(final String config) {
@@ -795,6 +787,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private void queueCommand(final OppoCommand command, final byte[] payload) {
         queueCommand(new OppoMessage(command, payload));
+    }
+
+    private void queueCommand(final OppoCommand command) {
+        queueCommand(new OppoMessage(command, new byte[0]));
     }
 
     private void onCommandTimeout() {
