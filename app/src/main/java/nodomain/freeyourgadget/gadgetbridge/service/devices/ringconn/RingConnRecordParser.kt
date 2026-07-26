@@ -179,7 +179,7 @@ object RingConnRecordParser {
     }
 
     /**
-     * ALPHA. Raw step accumulator from a `10`/`87` status frame (u16-BE at byte 4), or null if the frame isn't a valid status frame. This counts up and then RESETS to 0 (observed 7 -> 42 -> 75 -> ... -> 147 -> 0), so it is not a daily total - callers must difference consecutive readings. NOT ground-truthed against another step counter; see RingConnSyncEngine.stepDeltaFrom. Never throws.
+     * ALPHA. Raw step accumulator from a `10`/`87` status frame (u16-BE at byte 4), or null if the frame isn't a valid status frame. Confirmed on hardware 2026-07-26 to be a CUMULATIVE step count that RESETS to 0 on its own schedule: a measured 3-minute walk read 0 -> 7 -> 84 -> 138 -> 293 -> 350, about 98 steps/min, correct for 2 mph. It is therefore not a daily total - callers must difference consecutive readings (see RingConnSyncEngine.stepDeltaFrom). Still NOT cross-checked against an independent step counter. Never throws.
      */
     fun parseStepAccumulator(frame: ByteArray): Int? {
         if (!isStatusFrame(frame)) return null
@@ -210,9 +210,9 @@ object RingConnRecordParser {
             val still = isStill(frame, bodyStart)
             val confidence = frame[bodyStart + CONFIDENCE_OFFSET_IN_BODY].toInt() and BYTE_MASK
 
-            // The ring reports no sleep stage of its own, so infer the session: saturated sensor
-            // confidence AND no motion. Gating on motion removes every daytime false positive
-            // (precision 1.000, recall 0.855 against a scored overnight window).
+            // The ring stages sleep, but sends no stage byte - the vendor app computes the
+            // hypnogram from these raw signals, so infer it here: saturated confidence AND no
+            // motion (precision 1.000, recall 0.855 against a scored overnight window).
             val asleep = confidence >= CONFIDENCE_SATURATED && still
 
             val spo2 = (frame[bodyStart + SPO2_OFFSET_IN_BODY].toInt() and BYTE_MASK)

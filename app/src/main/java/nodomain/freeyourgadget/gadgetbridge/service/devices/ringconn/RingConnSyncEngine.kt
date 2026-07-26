@@ -78,7 +78,7 @@ class RingConnSyncEngine @JvmOverloads constructor(
     }
 
     /**
-     * ALPHA. Difference consecutive status-frame accumulators into steps taken. The accumulator resets to 0 on its own schedule, so a drop is read as "reset, and the new value is the count since it" - that over-counts if a reset lands mid-window, which is why this is not ground-truthed. The first reading of a session yields 0: with no baseline its absolute value is not a delta we may claim.
+     * ALPHA. Difference consecutive status-frame accumulators into steps taken; the deltas reconciled exactly against the accumulator on a measured walk (7 + 77 + 54 + 155 = 293). The accumulator resets to 0 on its own schedule, so a drop is read as "reset, and the new value is the count since it" - that would over-count if a reset landed mid-window, which has not been observed but is not ruled out. The first reading of a session yields 0: with no baseline its absolute value is not a delta we may claim.
      */
     private fun stepDeltaFrom(frame: ByteArray): Int {
         val current = RingConnRecordParser.parseStepAccumulator(frame) ?: return 0

@@ -125,7 +125,8 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         final RingConnSyncEngine.Actions actions = engine.onNotification(value);
         if (actions.getBattery() != null) {
-            // ALPHA observability: byte-4 accumulator is unverified, so log what it actually does.
+            // ALPHA observability: keeps the accumulator falsifiable. A zero step total cannot
+            // otherwise be told apart from a wrong byte offset.
             LOG.info("RingConn status: stepAccumulator={} delta={}",
                     RingConnRecordParser.INSTANCE.parseStepAccumulator(value), actions.getStepsDelta());
             dispatchBattery(actions.getBattery());
@@ -207,9 +208,9 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 final Integer carried = liveSteps.get((int) bucket.getUnixSeconds());
                 sample.setSteps(Math.max(bucket.getSteps(), carried == null ? 0 : carried));
                 sample.setRawIntensity(bucket.getMotionLevel());
-                // The ring reports no sleep stage, so store the inferred session as LIGHT_SLEEP:
-                // GB's SleepAnalysis and DailyTotals only bucket the four staged kinds, and
-                // SLEEP_ANY would silently contribute zero minutes to both.
+                // No stage rides the wire (the vendor app computes the hypnogram), so store the
+                // inferred session as LIGHT_SLEEP: SleepAnalysis and DailyTotals bucket only the
+                // four staged kinds, and SLEEP_ANY would silently contribute zero minutes to both.
                 sample.setRawKind((bucket.getAsleep() ? ActivityKind.LIGHT_SLEEP : ActivityKind.ACTIVITY).getCode());
                 sample.setProvider(provider);
                 samples.add(sample);
