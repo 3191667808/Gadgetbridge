@@ -153,6 +153,27 @@ class RingConnSyncEngineTest {
         assertEquals(0, second.sumOf { it.steps })
     }
 
+    @Test fun a_resync_engine_adopts_banked_steps_instead_of_dropping_them() {
+        // beginSync() builds a NEW engine on every connect and every manual fetch, so without this
+        // the steps taken while merely connected are discarded before any epoch can claim them.
+        val previous = engine()
+        previous.onNotification(steps221)
+        previous.onNotification(steps263) // +42 banked, no record frame yet
+        val resync = engine()
+        resync.adoptStepState(previous)
+        val buckets = resync.onNotification(hexDecode(sixRecordFrame)).bucketsToPersist
+        assertEquals(42, buckets.maxByOrNull { it.unixSeconds }!!.steps)
+    }
+
+    @Test fun an_adopted_baseline_keeps_deltas_continuous_across_a_resync() {
+        val previous = engine()
+        previous.onNotification(steps221)
+        val resync = engine()
+        resync.adoptStepState(previous)
+        // 263 - 221 = 42; without the adopted baseline this would read 0 as a "first" frame.
+        assertEquals(42, resync.onNotification(steps263).stepsDelta)
+    }
+
     @Test fun record_frame_with_no_banked_steps_attributes_zero() {
         assertEquals(0, engine().onNotification(hexDecode(sixRecordFrame))
             .bucketsToPersist.sumOf { it.steps })

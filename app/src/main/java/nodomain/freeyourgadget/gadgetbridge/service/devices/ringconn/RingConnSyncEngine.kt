@@ -50,6 +50,16 @@ class RingConnSyncEngine @JvmOverloads constructor(
     /** Steps counted since the last record frame, awaiting a real epoch to attribute them to. */
     private var bankedSteps: Int = 0
 
+    /**
+     * Carry step tracking across a re-sync. beginSync builds a fresh engine on every connect and
+     * every manual fetch, and banked steps are only attributed when a record frame arrives, so
+     * without this the steps taken while merely connected would be dropped before any epoch claims them.
+     */
+    fun adoptStepState(previous: RingConnSyncEngine) {
+        lastStepAccumulator = previous.lastStepAccumulator
+        bankedSteps = previous.bankedSteps
+    }
+
     /** First write after notifications are enabled: request the status/challenge frame. */
     fun start(): List<ByteArray> = listOf(CMD_STATUS.copyOf())
 

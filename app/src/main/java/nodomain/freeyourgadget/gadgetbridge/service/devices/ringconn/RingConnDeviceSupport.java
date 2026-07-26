@@ -99,7 +99,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Reset state, mark the device busy, and kick the auth+replay handshake on {@code builder}. */
     private void beginSync(final TransactionBuilder builder) {
+        final RingConnSyncEngine previous = engine;
         engine = new RingConnSyncEngine(macBytes(getDevice().getAddress()));
+        if (previous != null) {
+            engine.adoptStepState(previous); // Banked steps outlive a re-sync; see adoptStepState.
+        }
         sawRecords = false;
         completed = false;
         builder.setBusyTask(R.string.busy_task_fetch_activity_data);
