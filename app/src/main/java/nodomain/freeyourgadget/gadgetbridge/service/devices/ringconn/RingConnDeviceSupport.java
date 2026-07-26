@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +59,6 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final long READ_TIMEOUT_MS = 20_000L;
     private static final long REPLAY_WAIT_MS = 2_500L;
     private static final long DRAINED_QUIET_MS = 800L;
-    private static final int EPOCH_SECONDS = 150;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private RingConnSyncEngine engine;
@@ -124,7 +122,6 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         final RingConnSyncEngine.Actions actions = engine.onNotification(value);
         if (actions.getBattery() != null) {
             dispatchBattery(actions.getBattery());
-            persistLiveSteps(actions.getStepsDelta());
             // Pure status push (~every 14s), not part of the sync stream: leave the quiet timer alone.
             return true;
         }
@@ -184,51 +181,6 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return BatteryState.BATTERY_NORMAL;
     }
 
-    /**
-     * ALPHA. Add live steps to the epoch they happened in. The ring's 2.5-minute epochs are spaced
-     * 150 s apart but on an arbitrary phase, so the bucket is snapped to the newest stored sample
-     * rather than to a global grid - an independent grid would land off-phase and double-count.
-     */
-    private void persistLiveSteps(final int delta) {
-        if (delta <= 0) {
-            return;
-        }
-        try (DBHandler dbHandler = GBApplication.acquireDB()) {
-            final DaoSession session = dbHandler.getDaoSession();
-            final Device device = DBHelper.getDevice(getDevice(), session);
-            final User user = DBHelper.getUser(session);
-            final RingConnSampleProvider provider = new RingConnSampleProvider(getDevice(), session);
-            final RingConnActivitySample anchor = provider.getLatestActivitySample();
-            if (anchor == null) {
-                return; // No epoch phase known yet; wait for the first record sync.
-            }
-            final int now = (int) (System.currentTimeMillis() / 1000L);
-            final int elapsed = now - anchor.getTimestamp();
-            if (elapsed < 0) {
-                return;
-            }
-            final int timestamp = anchor.getTimestamp() + (elapsed / EPOCH_SECONDS) * EPOCH_SECONDS;
-            final List<RingConnActivitySample> existing =
-                    provider.getAllActivitySamples(timestamp, timestamp);
-            final int carried = existing.isEmpty() ? 0 : existing.get(0).getSteps();
-            final int kind = existing.isEmpty()
-                    ? ActivityKind.ACTIVITY.getCode() : existing.get(0).getRawKind();
-            final int intensity = existing.isEmpty() ? 0 : existing.get(0).getRawIntensity();
-
-            final RingConnActivitySample sample = new RingConnActivitySample();
-            sample.setTimestamp(timestamp);
-            sample.setDeviceId(device.getId());
-            sample.setUserId(user.getId());
-            sample.setSteps(carried + delta);
-            sample.setRawIntensity(intensity);
-            sample.setRawKind(kind);
-            sample.setProvider(provider);
-            provider.addGBActivitySamples(Collections.singletonList(sample));
-        } catch (final Exception e) {
-            LOG.error("Failed to persist RingConn live steps", e);
-        }
-    }
-
     private void persist(final List<RingConnSyncEngine.Bucket> buckets) {
         try (DBHandler dbHandler = GBApplication.acquireDB()) {
             final DaoSession session = dbHandler.getDaoSession();
@@ -242,11 +194,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 sample.setTimestamp((int) bucket.getUnixSeconds());
                 sample.setDeviceId(device.getId());
                 sample.setUserId(user.getId());
-                // The 4c record carries no gait-filtered step count, so the only steps a bucket can
-                // hold are ones persistLiveSteps already wrote from the status accumulator. Carry
-                // them: insertOrReplace would otherwise zero live steps on every later re-sync.
+                // The 4c record carries no gait-filtered step count; steps arrive banked on the
+                // bucket from the status accumulator. Keep whatever a previous sync already stored:
+                // insertOrReplace would otherwise zero them when the ring replays the same epoch.
                 final Integer carried = liveSteps.get((int) bucket.getUnixSeconds());
-                sample.setSteps(carried == null ? 0 : carried);
+                sample.setSteps(Math.max(bucket.getSteps(), carried == null ? 0 : carried));
                 sample.setRawIntensity(bucket.getMotionLevel());
                 // The ring reports no sleep stage, so store the inferred session as LIGHT_SLEEP:
                 // GB's SleepAnalysis and DailyTotals only bucket the four staged kinds, and

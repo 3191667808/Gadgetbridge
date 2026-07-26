@@ -101,6 +101,9 @@ class RingConnSyncEngineTest {
     }
 
     // Step deltas: the ring's accumulator is absolute-and-resetting, so only in-session rises count.
+    private val sixRecordFrame =
+        "4c002b0c3c075342210a7d5c0a010101010100000000000000040c3c07e9411f0a7f120a010101010100000000000000000c3c087f471f09805d0a010101010100000000000000040c3c091542170a87120a010101010100000000000000000c3c09ab45180a875e0a010101010100000000000000040c3c0a4142150a78120a01010101010000000000000000d5"
+
     private val steps221 = hexDecode("1056030000DD0138014200000000106C00FF61")
     private val steps263 = hexDecode("1056020001070136014000000000106900FFB2")
     private val steps382 = hexDecode("10560300017E0135014400000000106900FFCD")
@@ -129,11 +132,37 @@ class RingConnSyncEngineTest {
         assertEquals(0, e.onNotification(steps263).stepsDelta)
     }
 
+    // Live steps are banked in memory and attributed to a REAL epoch when its record arrives, so no
+    // timestamp is ever invented: the ring's epochs drift up to 22 s off any anchor+k*150 grid.
+    @Test fun banked_steps_land_on_the_newest_bucket_of_the_next_record_frame() {
+        val e = engine()
+        e.onNotification(steps221)
+        e.onNotification(steps263) // +42
+        val buckets = e.onNotification(hexDecode(sixRecordFrame)).bucketsToPersist
+        val newest = buckets.maxByOrNull { it.unixSeconds }!!
+        assertEquals(42, newest.steps)
+        assertEquals(0, buckets.filter { it !== newest }.sumOf { it.steps })
+    }
+
+    @Test fun banked_steps_are_not_attributed_twice() {
+        val e = engine()
+        e.onNotification(steps221)
+        e.onNotification(steps263)
+        e.onNotification(hexDecode(sixRecordFrame))
+        val second = e.onNotification(hexDecode(sixRecordFrame)).bucketsToPersist
+        assertEquals(0, second.sumOf { it.steps })
+    }
+
+    @Test fun record_frame_with_no_banked_steps_attributes_zero() {
+        assertEquals(0, engine().onNotification(hexDecode(sixRecordFrame))
+            .bucketsToPersist.sumOf { it.steps })
+    }
+
     @Test fun record_frames_do_not_disturb_the_step_baseline() {
         // 4c records carry no accumulator; they must not reset the delta tracking.
         val e = engine()
         e.onNotification(steps221)
-        e.onNotification(hexDecode("4c002b0c3c075342210a7d5c0a010101010100000000000000040c3c07e9411f0a7f120a010101010100000000000000000c3c087f471f09805d0a010101010100000000000000040c3c091542170a87120a010101010100000000000000000c3c09ab45180a875e0a010101010100000000000000040c3c0a4142150a78120a01010101010000000000000000d5"))
+        e.onNotification(hexDecode(sixRecordFrame))
         assertEquals(42, e.onNotification(steps263).stepsDelta)
     }
 }

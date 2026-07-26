@@ -32,6 +32,8 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val still: Boolean,
         val asleep: Boolean = false,
         val spo2: Int? = null,
+        /** ALPHA. Live steps banked since the last record frame, attributed to this epoch. */
+        val steps: Int = 0,
     )
     data class Actions(
         val commandsToWrite: List<ByteArray>,
@@ -44,6 +46,9 @@ class RingConnSyncEngine @JvmOverloads constructor(
 
     /** Previous status-frame step accumulator, for differencing; null until the first status frame. */
     private var lastStepAccumulator: Int? = null
+
+    /** Steps counted since the last record frame, awaiting a real epoch to attribute them to. */
+    private var bankedSteps: Int = 0
 
     /** First write after notifications are enabled: request the status/challenge frame. */
     fun start(): List<ByteArray> = listOf(CMD_STATUS.copyOf())
@@ -70,7 +75,9 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val previous = lastStepAccumulator
         lastStepAccumulator = current
         if (previous == null) return 0
-        return if (current >= previous) current - previous else current
+        val delta = if (current >= previous) current - previous else current
+        bankedSteps += delta
+        return delta
     }
 
     private fun isChallenge(id: Int, frame: ByteArray) =
@@ -88,8 +95,14 @@ class RingConnSyncEngine @JvmOverloads constructor(
     }
 
     private fun onRecordFrame(frame: RingConnRecordFrame, id: Int): Actions {
+        // Hand banked live steps to the newest REAL epoch in this batch. Never synthesise a
+        // timestamp: the ring's epochs are 150 s apart but drift up to 22 s off any computed
+        // grid, and an off-phase row would double-count against the record that arrives later.
+        val newestSeconds = frame.activityRecords.maxOfOrNull { it.unixSeconds }
+        var toAttribute = if (newestSeconds != null) bankedSteps.also { bankedSteps = 0 } else 0
         val buckets = frame.activityRecords.map {
-            Bucket(it.unixSeconds, it.motionIndex, it.motionLevel, it.still, it.asleep, it.spo2)
+            val steps = if (it.unixSeconds == newestSeconds) toAttribute.also { toAttribute = 0 } else 0
+            Bucket(it.unixSeconds, it.motionIndex, it.motionLevel, it.still, it.asleep, it.spo2, steps)
         }
         // Ack every record frame, including `4c` activity: the ack advances the ring's shared replay
         // cursor, the only way to drain a multi-batch backlog. (Not acking pins the cursor to the oldest
