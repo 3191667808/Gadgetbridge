@@ -197,7 +197,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final short code = packetBuffer.getShort();
             final OppoCommand command = OppoCommand.fromCode(code);
             if (command == null) {
-                LOG.warn("Unknown command code 0x{}", numberToHex(code));
+                LOG.warn("Unknown command code 0x{}", OppoUtils.numberToHex(code));
                 packetBuffer.position(nextPacketPosition);
                 continue;
             }
@@ -263,7 +263,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case BATTERY_RET -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -273,7 +273,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case FIRMWARE_RET -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -283,7 +283,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     ANC_CONFIG_ACK, FIND_DEVICE_ACK, MULTIPOINT_DEVICES_ACK -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -292,7 +292,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case TOUCH_CONFIG_RET -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -302,7 +302,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case MISC_CONFIG_RET -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -311,7 +311,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case ANC_CONFIG_RET -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -326,7 +326,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 } else if (eventCode == 0x06) {
                   event.event = GBDeviceEventFindPhone.Event.STOP;
                 } else {
-                    LOG.warn("Unexpected byte 0x{}", intToHex(eventCode, 2));
+                    LOG.warn("Unexpected byte 0x{} for {}", OppoUtils.numberToHex(eventCode), command);
                 }
 
                 evaluateGBDeviceEvent(event);
@@ -334,7 +334,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case MULTIPOINT_DEVICES_RET -> {
                 final byte zero = buf.get();
                 if (zero != 0) {
-                    LOG.warn("Unexpected non-zero byte 0x{} for {}", numberToHex(zero), command);
+                    LOG.warn("Unexpected non-zero byte 0x{} for {}", OppoUtils.numberToHex(zero), command);
                     break;
                 }
 
@@ -378,7 +378,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final int typeCode = buf.get() & 0xFF;
         final SubscriptionType type = SubscriptionType.fromCode(typeCode);
         if (type == null) {
-            LOG.warn("Unknown subcription type 0x{}", numberToHex(typeCode));
+            LOG.warn("Unknown subcription type 0x{}", OppoUtils.numberToHex(typeCode));
             return;
         }
 
@@ -464,15 +464,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final TouchConfigValue value = TouchConfigValue.fromCode(valueCode);
 
             if (side == null) {
-                LOG.warn("Unknown touch side code 0x{}", numberToHex(sideCode));
+                LOG.warn("Unknown touch side code 0x{}", OppoUtils.numberToHex(sideCode));
                 continue;
             }
             if (type == null) {
-                LOG.warn("Unknown touch type code 0x{}", numberToHex(typeCode));
+                LOG.warn("Unknown touch type code 0x{}", OppoUtils.numberToHex(typeCode));
                 continue;
             }
             if (value == null) {
-                LOG.warn("Unknown touch value code 0x{}", numberToHex(valueCode));
+                LOG.warn("Unknown touch value code 0x{}", OppoUtils.numberToHex(valueCode));
                 continue;
             }
 
@@ -605,7 +605,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                                     OppoHeadphonesPreferences.TOUCH_FIND_PHONE,
                                     isEnabled);
                 }
-                default -> LOG.warn("Unknown misc config type code 0x{}", numberToHex(typeCode));
+                default -> LOG.warn("Unknown misc config type code 0x{}", OppoUtils.numberToHex(typeCode));
             }
         }
         evaluateGBDeviceEvent(eventUpdatePreferences);
@@ -648,7 +648,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             byte[] macBytes = new byte[6];
             buf.get(macBytes);
             if (getCoordinator().multipointMacOrder(getDevice()) == ByteOrder.LITTLE_ENDIAN) {
-                macBytes = bytesReverse(macBytes);
+                macBytes = OppoUtils.bytesReverse(macBytes);
             }
 
             StringBuilder sb = new StringBuilder();
@@ -696,7 +696,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
 
         if (getCoordinator().multipointMacOrder(getDevice()) == ByteOrder.LITTLE_ENDIAN) {
-            macAddress = bytesReverse(macAddress);
+            macAddress = OppoUtils.bytesReverse(macAddress);
         }
 
         final ByteBuffer buf = ByteBuffer.allocate(8);
@@ -850,20 +850,5 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         for (GBDeviceEvent event : events) {
             evaluateGBDeviceEvent(event);
         }
-    }
-
-    protected static String numberToHex(@NonNull final Number code) {
-        long val = code.longValue();
-        int byteSize = (code instanceof Byte) ? 1 : (code instanceof Short) ? 2 : (code instanceof Integer) ? 4 : 8;
-        return String.format("%0" + (byteSize * 2) + "X", val & (0xFFFFFFFFFFFFFFFFL >>> (64 - byteSize * 8)));
-    }
-
-    @NonNull
-    private static byte[] bytesReverse(@NonNull final byte[] bytes) {
-        byte[] reversed = new byte[bytes.length];
-        for (int i = 0; i < bytes.length; i++) {
-            reversed[i] = bytes[bytes.length - 1 - i];
-        }
-        return reversed;
     }
 }

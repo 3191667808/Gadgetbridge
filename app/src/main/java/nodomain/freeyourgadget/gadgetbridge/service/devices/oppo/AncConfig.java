@@ -156,7 +156,7 @@ public class AncConfig extends AbstractConfig {
 
         final AncConfigType type = AncConfigType.fromCode(typeCode);
         if (type == null) {
-            LOG.warn("Unknown AncConfigType code 0x{}", numberToHex(typeCode));
+            LOG.warn("Unknown AncConfigType code 0x{}", OppoUtils.numberToHex(typeCode));
             return null;
         }
 
@@ -172,12 +172,12 @@ public class AncConfig extends AbstractConfig {
                         return event;
                     }
                     if (LOG.isTraceEnabled()) {
-                        LOG.trace("Unknown AncConfigValue.Level code 0x{}", numberToHex(valueCode));
+                        LOG.trace("Unknown AncConfigValue.Level code 0x{}", OppoUtils.numberToHex(valueCode));
                     }
                 }
                 final AncConfigValue value = AncConfigValue.fromCode(valueCode);
                 if (value == null) {
-                    LOG.warn("Unknown AncConfigValue code 0x{}", numberToHex(valueCode));
+                    LOG.warn("Unknown AncConfigValue code 0x{}", OppoUtils.numberToHex(valueCode));
                     break;
                 }
 
@@ -187,7 +187,7 @@ public class AncConfig extends AbstractConfig {
             case TOUCH_CYCLE_MODES -> {
                 final EnumSet<AncConfigValue> values = AncConfigValue.fromMask(valueCode);
                 if (values.isEmpty()) {
-                    LOG.warn("Unknown AncConfigValue mask 0x{}", numberToHex(valueCode));
+                    LOG.warn("Unknown AncConfigValue mask 0x{}", OppoUtils.numberToHex(valueCode));
                     break;
                 }
                 LOG.debug("Got touch ANC cycle modes = {}", values);
@@ -197,7 +197,7 @@ public class AncConfig extends AbstractConfig {
             case DYNAMIC_LEVEL -> {
                 final AncConfigValue.Level valueLevel = AncConfigValue.Level.fromCode(valueCode);
                 if (valueLevel == null) {
-                    LOG.warn("Unknown AncConfigValue.Level code 0x{}", numberToHex(valueCode));
+                    LOG.warn("Unknown AncConfigValue.Level code 0x{}", OppoUtils.numberToHex(valueCode));
                     break;
                 }
                 LOG.debug("Got ANC mode = ON DYNAMIC ({})", valueLevel);

@@ -55,8 +55,4 @@ public abstract class AbstractConfig {
     public OppoHeadphonesCoordinator getCoordinator() {
         return (OppoHeadphonesCoordinator) getDevice().getDeviceCoordinator();
     }
-
-    protected final static String numberToHex(@NonNull final Number code) {
-        return OppoHeadphonesSupport.numberToHex(code);
-    }
 }
