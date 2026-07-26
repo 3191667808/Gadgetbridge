@@ -125,6 +125,9 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         final RingConnSyncEngine.Actions actions = engine.onNotification(value);
         if (actions.getBattery() != null) {
+            // ALPHA observability: byte-4 accumulator is unverified, so log what it actually does.
+            LOG.info("RingConn status: stepAccumulator={} delta={}",
+                    RingConnRecordParser.INSTANCE.parseStepAccumulator(value), actions.getStepsDelta());
             dispatchBattery(actions.getBattery());
             // Pure status push (~every 14s), not part of the sync stream: leave the quiet timer alone.
             return true;
