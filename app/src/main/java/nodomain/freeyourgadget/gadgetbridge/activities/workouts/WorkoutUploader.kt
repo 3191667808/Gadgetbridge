@@ -62,8 +62,13 @@ object WorkoutUploader {
      *
      * FIT-native devices (Garmin, iGPSPORT) keep the original .fit at rawDetailsPath — it is
      * copied verbatim. For any other device the FIT is synthesized from the summary (and the
-     * activity track, if one is available). [summaryData] is optional and may be null when the
-     * caller only has a bare summary (list / worker).
+     * activity track, if one is available).
+     *
+     * [summaryData] is optional: callers that have already parsed it (the detail screen) pass it
+     * to avoid re-parsing, and callers holding only a bare summary (list, worker) omit it, in
+     * which case it is read back off the summary. It must not be left null — the session-level
+     * fields of the exported FIT (distance, calories, average heart rate, pool length, …) come
+     * from it, so passing null silently strips them from the file.
      *
      * Blocking — call from an IO context.
      */
@@ -73,6 +78,14 @@ object WorkoutUploader {
         summary: BaseActivitySummary,
         summaryData: ActivitySummaryData? = null
     ): File {
+        val effectiveSummaryData = summaryData ?: summary.summaryData?.let {
+            try {
+                ActivitySummaryData.fromJson(it)
+            } catch (e: Exception) {
+                LOG.warn("Failed to parse stored summary data for summary {}", summary.id, e)
+                null
+            }
+        }
         val kindLabel = ActivityKind.fromCode(summary.activityKind).getLabel(context).lowercase()
         val fileName = FileUtils.makeValidFileName(
             "Workout-${kindLabel}-${DateTimeUtils.formatIso8601(summary.startTime)}.fit"
@@ -93,7 +106,7 @@ object WorkoutUploader {
                 LOG.warn("Failed to load activity track for FIT export", e)
                 null
             }
-            FitExporter().performExport(track, summary, summaryData, outFile)
+            FitExporter().performExport(track, summary, effectiveSummaryData, outFile)
         }
         return outFile
     }
