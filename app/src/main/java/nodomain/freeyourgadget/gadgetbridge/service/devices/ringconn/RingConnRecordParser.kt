@@ -61,11 +61,10 @@ object RingConnRecordParser {
     const val FRAME_ID_ACTIVITY = 0x4c
 
     private const val FRAME_ID_WELLNESS = 0x47
-    private const val REQUIRED_BYTE_1 = 0x00
     private const val ACTIVITY_RECORD_LEN = 23
     private const val WELLNESS_RECORD_LEN = 47
-    private const val MIN_FRAME_LEN = 5 // at least frame_id + 0x00 + remaining + 1 record + trailer
-    private const val HEADER_LEN = 3 // frame_id + 0x00 + remaining
+    private const val MIN_FRAME_LEN = 5 // at least frame_id + remaining:u16 + 1 record + trailer
+    private const val HEADER_LEN = 3 // frame_id + remaining as u16 BE
     private const val TRAILER_LEN = 1
     private const val TIMESTAMP_LEN = 4
     private const val MOTION_INDEX_OFFSET_IN_BODY = 14
@@ -117,7 +116,7 @@ object RingConnRecordParser {
         if (!isValidFrameStructure(frame)) return null
 
         val frameId = frame[0].toInt() and BYTE_MASK
-        val remaining = frame[2].toInt() and BYTE_MASK
+        val remaining = ((frame[1].toInt() and BYTE_MASK) shl 8) or (frame[2].toInt() and BYTE_MASK)
         val recordLen = if (frameId == FRAME_ID_ACTIVITY) ACTIVITY_RECORD_LEN else WELLNESS_RECORD_LEN
         val recordCount = (frame.size - HEADER_LEN - TRAILER_LEN) / recordLen
         val activityRecords = if (frameId == FRAME_ID_ACTIVITY) {
@@ -134,13 +133,12 @@ object RingConnRecordParser {
 
         val frameId = frame[0].toInt() and BYTE_MASK
         val frameIdValid = frameId == FRAME_ID_ACTIVITY || frameId == FRAME_ID_WELLNESS
-        val byte1Valid = (frame[1].toInt() and BYTE_MASK) == REQUIRED_BYTE_1
 
         val recordLen = if (frameId == FRAME_ID_ACTIVITY) ACTIVITY_RECORD_LEN else WELLNESS_RECORD_LEN
         val recordCount = (frame.size - HEADER_LEN - TRAILER_LEN) / recordLen
         val lengthValid = recordCount >= 1 && HEADER_LEN + recordCount * recordLen + TRAILER_LEN == frame.size
 
-        return frameIdValid && byte1Valid && lengthValid
+        return frameIdValid && lengthValid
     }
 
     /**

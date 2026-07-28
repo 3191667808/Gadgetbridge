@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -112,12 +113,14 @@ class RingConnRecordParserTest {
         corrupt[corrupt.size - 1] = x.toByte()
         assertNull(RingConnRecordParser.parse(corrupt))
     }
-    @Test fun rejects_invalid_byte_1() {
+    @Test fun byte_1_is_the_high_byte_of_remaining_not_a_guard() {
+        // Was asserted to be a reject; it is really remaining = 0x0100. Treating it as a guard
+        // dropped every frame once the backlog passed 255 records.
         val frame = hexDecode("4c00000c3be1d34d130a7f610a010101010100000000000000040c")
-        val corrupt = frame.copyOf().also { it[1] = 0x01 }
-        var x = 0; for (i in 0 until corrupt.size - 1) x = x xor (corrupt[i].toInt() and 0xFF)
-        corrupt[corrupt.size - 1] = x.toByte()
-        assertNull(RingConnRecordParser.parse(corrupt))
+        val high = frame.copyOf().also { it[1] = 0x01 }
+        var x = 0; for (i in 0 until high.size - 1) x = x xor (high[i].toInt() and 0xFF)
+        high[high.size - 1] = x.toByte()
+        assertEquals(256, RingConnRecordParser.parse(high)?.remaining)
     }
     @Test fun rejects_empty_frame() = assertNull(RingConnRecordParser.parse(byteArrayOf()))
 
@@ -267,6 +270,22 @@ class RingConnRecordParserTest {
         // body[4] = 0x0f (15) appeared twice in the 2026-07-25 capture; well below any real SpO2.
         val frame = hexDecode("4c00000c3be1d34d130a7f0f0a0101010101000000000000000462")
         assertNull(RingConnRecordParser.parse(frame)?.activityRecords?.get(0)?.spo2)
+    }
+
+    @Test fun parses_frame_with_backlog_over_255_records() {
+        // Captured from the ring 2026-07-27 after ~30 h offline: remaining is u16 BE (0x02cd =
+        // 717), so the high byte is set. Read as one byte the frame was rejected and never acked,
+        // which pinned the replay cursor and made the ring resend this batch forever.
+        val frame = hexDecode(
+            "4c02cd0c5b135d550003006048402d3734422902cd13416d2df40c5b13f354000200120c3f3b39393629d1" +
+                "a20881103c300c5b148951220600120c504d29411124e1f70e91a70fa00c5b151f4f2b0581120b3131" +
+                "3531403ab0c22645cf47e00c5b15b55100010061172e2d28343453520022e16737340c5b164b502e04" +
+                "7f120c1a111a3a1125704c2703621e506f"
+        )
+        val parsed = RingConnRecordParser.parse(frame)
+        assertNotNull(parsed)
+        assertEquals(717, parsed?.remaining)
+        assertEquals(6, parsed?.activityRecords?.size)
     }
 
     @Test fun active_frame_is_not_asleep() {

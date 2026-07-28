@@ -133,6 +133,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
             // Pure status push (~every 14s), not part of the sync stream: leave the quiet timer alone.
             return true;
         }
+        if (actions.getCommandsToWrite().isEmpty() && actions.getBucketsToPersist().isEmpty()) {
+            // A frame the parser rejects yields no work and is never acked, which pins the ring's
+            // replay cursor. Silence here cost a 30 h data gap before it was spotted.
+            LOG.warn("Unhandled RingConn frame: {}", GB.hexdump(value));
+        }
         if (!actions.getCommandsToWrite().isEmpty()) {
             final TransactionBuilder b = createTransactionBuilder("ringconn-cmd");
             for (final byte[] cmd : actions.getCommandsToWrite()) {
