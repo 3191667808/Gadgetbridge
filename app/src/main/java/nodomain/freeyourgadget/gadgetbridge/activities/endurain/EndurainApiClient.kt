@@ -334,9 +334,11 @@ class EndurainApiClient(
     }
 
     /**
-     * Upload activity photo
+     * Upload activity photo. [callback], when provided, fires with whether the upload succeeded,
+     * so callers off the main thread (the auto-upload worker's photo re-sync) can wait for the
+     * result.
      */
-    fun uploadActivityPhoto(activityId: Int, file: File) {
+    fun uploadActivityPhoto(activityId: Int, file: File, callback: ((success: Boolean) -> Unit)? = null) {
         Thread {
             try {
                 val uri = "$baseUrl/api/v1/activities_media/upload/activity_id/$activityId".toUri()
@@ -349,12 +351,15 @@ class EndurainApiClient(
                 ) { success, statusCode, responseText, reason ->
                     if (success && responseText != null) {
                         LOG.debug("Response ($statusCode) from Endurain: $responseText")
+                        callback?.invoke(true)
                     } else {
                         LOG.error("Activity photo upload to Endurain failed. Response ($statusCode, reason {}) received: $responseText", reason)
+                        callback?.invoke(false)
                     }
                 }
             } catch (e: Exception) {
                 LOG.error("Activity photo upload error", e)
+                callback?.invoke(false)
             }
         }.start()
     }

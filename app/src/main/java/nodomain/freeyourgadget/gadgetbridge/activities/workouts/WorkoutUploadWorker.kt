@@ -18,6 +18,10 @@ package nodomain.freeyourgadget.gadgetbridge.activities.workouts
 
 import android.content.Context
 import androidx.core.app.NotificationCompat
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
@@ -41,8 +45,10 @@ import java.util.Date
  * when at least one auto-upload toggle is on.
  *
  * Only workouts from the recent window are considered, and each service keeps its own set of
- * already-uploaded summary IDs so a workout is never uploaded twice. On failure a notification is
- * posted whose text explains the reason (no internet / server unreachable / HTTP error).
+ * already-uploaded summary IDs so a workout is never uploaded twice. For Endurain, a header photo
+ * added or changed after the initial upload is re-synced to the existing activity. On failure a
+ * notification is posted whose text explains the reason (no internet / server unreachable / HTTP
+ * error).
  */
 class WorkoutUploadWorker(
     context: Context,
@@ -84,10 +90,10 @@ class WorkoutUploadWorker(
 
         val minSummaryId = summaries.mapNotNull { it.id }.minOrNull() ?: return Result.success()
 
-        val enduDone = if (endurainLoggedIn) {
-            WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_ENDURAIN, minSummaryId)
+        val enduRows = if (endurainLoggedIn) {
+            WorkoutUploadStore.uploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN, minSummaryId)
         } else {
-            emptySet()
+            emptyMap()
         }
         val wandDone = if (wandererLoggedIn) {
             WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_WANDERER, minSummaryId)
@@ -102,13 +108,29 @@ class WorkoutUploadWorker(
         for (summary in summaries) {
             val id = summary.id ?: continue
 
-            if (endurainLoggedIn && !enduDone.contains(id)) {
-                val result = uploadEndurainBlocking(context, gbDevice, summary)
-                if (result.success) {
-                    WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId)
+            if (endurainLoggedIn) {
+                val photoPath = summary.headerPhoto
+                val photoHash = WorkoutUploadStore.photoHashOf(photoPath)
+                val existing = enduRows[id]
+                if (existing == null) {
+                    val result = uploadEndurainBlocking(context, gbDevice, summary)
+                    if (result.success) {
+                        WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId, photoHash)
+                    } else {
+                        endurainFailure = result.reason
+                        LOG.warn("Auto-upload to Endurain failed for summary {}: {}", id, result.reason)
+                    }
                 } else {
-                    endurainFailure = result.reason
-                    LOG.warn("Auto-upload to Endurain failed for summary {}: {}", id, result.reason)
+                    // Already uploaded: re-sync only if a header photo was added or changed since.
+                    val remoteId = existing.remoteActivityId
+                    if (photoPath != null && photoHash != null && photoHash != existing.photoHash && remoteId != null) {
+                        val ok = WorkoutUploader.resyncEndurainPhotoBlocking(context, remoteId, File(photoPath))
+                        if (ok) {
+                            WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_ENDURAIN, remoteId, photoHash)
+                        } else {
+                            LOG.warn("Photo re-sync to Endurain failed for summary {}", id)
+                        }
+                    }
                 }
             }
 
@@ -117,7 +139,7 @@ class WorkoutUploadWorker(
                 if (gpx != null) {
                     val result = WorkoutUploader.uploadToWandererBlocking(context, gpx)
                     if (result.success) {
-                        WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId)
+                        WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId, null)
                     } else {
                         wandererFailure = result.reason
                         LOG.warn("Auto-upload to Wanderer failed for summary {}: {}", id, result.reason)
@@ -182,7 +204,26 @@ class WorkoutUploadWorker(
 
     companion object {
         const val INPUT_DEVICE_ADDRESS = "device_address"
+        private const val WORK_NAME_PREFIX = "WorkoutUploadWorker_"
         private const val RECENT_WINDOW_MS = 14L * 24 * 60 * 60 * 1000
+
+        /**
+         * Enqueues an upload run for [deviceAddress] (unique per device, REPLACE). Used to re-sync
+         * a workout edit made outside a device fetch, e.g. a header photo added on the detail
+         * screen, which otherwise would not be picked up until the next data sync. Shares the
+         * per-device unique work name with the fetch-triggered path, so the two coalesce.
+         */
+        fun enqueue(context: Context, deviceAddress: String) {
+            val request = OneTimeWorkRequest.Builder(WorkoutUploadWorker::class.java)
+                .setInputData(Data.Builder().putString(INPUT_DEVICE_ADDRESS, deviceAddress).build())
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME_PREFIX + deviceAddress,
+                ExistingWorkPolicy.REPLACE,
+                request
+            )
+        }
+
         private const val NOTIFICATION_ID_ENDURAIN = 4711
         private const val NOTIFICATION_ID_WANDERER = 4712
     }

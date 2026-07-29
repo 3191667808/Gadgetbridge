@@ -215,6 +215,40 @@ object WorkoutUploader {
         uploadToWanderer(context, gpxFile, done)
     }
 
+    /**
+     * Re-attaches [photoFile] to an already-uploaded Endurain activity ([remoteActivityId]).
+     * Used by the auto-upload worker when a header photo is added or changed after the workout's
+     * initial upload. Blocking; call off the main thread. Returns true on success.
+     *
+     * Note: Endurain's media endpoint appends, so replacing an existing photo leaves the previous
+     * one on the server (there is no delete-media API); adding a first photo is clean.
+     */
+    fun resyncEndurainPhotoBlocking(
+        context: Context,
+        remoteActivityId: String,
+        photoFile: File,
+        timeoutSeconds: Long = DEFAULT_UPLOAD_TIMEOUT_SECONDS
+    ): Boolean {
+        val activityId = remoteActivityId.toIntOrNull()
+        if (activityId == null) {
+            LOG.warn("Cannot re-sync photo: non-numeric Endurain activity id '{}'", remoteActivityId)
+            return false
+        }
+        val serverUrl = GBApplication.getPrefs().preferences.getString(PREF_ENDURAIN_SERVER, null)
+            ?: return false
+        val tokenManager = EndurainTokenManager(context)
+        val apiClient = EndurainApiClient(serverUrl, tokenManager)
+        val latch = CountDownLatch(1)
+        var success = false
+        tokenManager.performTokenRefresh(serverUrl) {
+            apiClient.uploadActivityPhoto(activityId, photoFile) { ok ->
+                success = ok
+                latch.countDown()
+            }
+        }
+        return if (latch.await(timeoutSeconds, TimeUnit.SECONDS)) success else false
+    }
+
     private inline fun awaitUpload(
         context: Context,
         timeoutSeconds: Long,

@@ -1794,6 +1794,9 @@ public class GBDaoGenerator {
         upload.addStringProperty("remoteActivityId");
         upload.addIntProperty("status").notNull();
         upload.addLongProperty("updatedAt").notNull();
+        // Fingerprint of the header photo at the time of the last upload, so a photo added or
+        // replaced afterwards can be detected and re-synced to the remote activity.
+        upload.addStringProperty("photoHash");
     }
 
     private static Property findProperty(Entity entity, String propertyName) {

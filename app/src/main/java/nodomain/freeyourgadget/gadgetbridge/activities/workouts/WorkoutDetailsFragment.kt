@@ -649,6 +649,9 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                             notifyWorkoutChanged()
                             // Reload only the workout header
                             updateWorkoutHeader(it.summary)
+                            // Re-sync the new photo to Endurain now instead of waiting for the
+                            // next data sync (the worker no-ops if auto-upload is off).
+                            WorkoutUploadWorker.enqueue(requireContext(), gbDevice.address)
                         }
                     })
                 }
@@ -856,7 +859,8 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 val summaryId = workout.summary.id
                 if (result.success && summaryId != null) {
                     WorkoutUploadStore.recordSuccess(
-                        summaryId, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId
+                        summaryId, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId,
+                        WorkoutUploadStore.photoHashOf(workout.summary.headerPhoto)
                     )
                 }
                 activity?.runOnUiThread {
@@ -892,7 +896,7 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             val summaryId = workout.summary.id
             if (result.success && summaryId != null) {
                 WorkoutUploadStore.recordSuccess(
-                    summaryId, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId
+                    summaryId, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId, null
                 )
             }
             activity?.runOnUiThread {
