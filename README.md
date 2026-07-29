@@ -9,6 +9,24 @@ Bluetooth gadgets (mostly wearables like smart watches, but many more) without t
 and without the need to create an account and transmit any of your data to the
 vendor's servers.
 
+## MCP server
+
+Gadgetbridge includes an opt-in [Model Context Protocol (MCP)](docs/mcp.md)
+server. The server reads Gadgetbridge's database directly and shares the
+existing `DeviceCommunicationService` foreground lifetime, so it continues
+working while the application UI is in the background. It does not require a
+database export or run a second Android service.
+
+Enable it under **Settings > External integrations > MCP server**. The default
+endpoint is `http://127.0.0.1:8765/mcp`. Loopback access requires no token. LAN
+access is disabled by default and requires the generated bearer token for every
+request.
+
+The endpoint exposes two tools, `band_get_data` and `band_refresh_now`, plus
+nine `miband://` resources. Configuration, client examples, security details,
+and the Android network-permission implications are documented in
+[docs/mcp.md](docs/mcp.md).
+
 [Homepage](https://gadgetbridge.org) - [Blog](https://blog.freeyourgadget.org) - <a rel="me" href="https://social.anoxinon.de/@gadgetbridge">Mastodon</a>
 
 [![Donate](https://liberapay.com/assets/widgets/donate.svg)](https://liberapay.com/Gadgetbridge/donate)

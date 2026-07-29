@@ -77,6 +77,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.preferences.HealthConnect
 import nodomain.freeyourgadget.gadgetbridge.activities.quicksettings.QuickSettingsPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.TimeChangeReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.comaps.CoMapsNavigationReceiverFactory;
+import nodomain.freeyourgadget.gadgetbridge.mcp.McpSettingsController;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
@@ -141,6 +142,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
 
         private EditText fitnessAppEditText = null;
         private int fitnessAppSelectionListSpinnerFirstRun = 0;
+        private McpSettingsController mcpSettingsController;
 
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
@@ -160,6 +162,8 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
             setInputTypeFor("rtl_max_line_length", InputType.TYPE_CLASS_NUMBER);
             setInputTypeFor("location_latitude", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED | InputType.TYPE_NUMBER_FLAG_DECIMAL);
             setInputTypeFor("location_longitude", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED  | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            mcpSettingsController = new McpSettingsController(this);
+            mcpSettingsController.configure();
 
             Prefs prefs = GBApplication.getPrefs();
             Preference pref = findPreference("pref_category_activity_personal");
@@ -611,6 +615,24 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
                     return neededPermissions.size() < allPermissions.size();
                 });
             }
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            mcpSettingsController.onResume();
+        }
+
+        @Override
+        public void onStart() {
+            super.onStart();
+            mcpSettingsController.onStart();
+        }
+
+        @Override
+        public void onStop() {
+            mcpSettingsController.onStop();
+            super.onStop();
         }
 
         private void addListenerOnSpinnerDeviceSelection(Spinner spinner) {

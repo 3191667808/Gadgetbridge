@@ -56,8 +56,9 @@
     <uses-permission android:name="nz.eloque.foss_wallet.READ_CARDS"/>
     <uses-permission android:name="nz.eloque.foss_wallet.dev.READ_CARDS"/>
 
-    <!-- Make sure we don't get the INTERNET permission even when a dependency requires it -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <!-- Required only for the opt-in local MCP HTTP listener. Loopback is the default; exposing
+         the listener to the LAN additionally requires a generated bearer token. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Internet Helper -->
     <uses-permission android:name="nodomain.freeyourgadget.internethelper.INTERNET"/>

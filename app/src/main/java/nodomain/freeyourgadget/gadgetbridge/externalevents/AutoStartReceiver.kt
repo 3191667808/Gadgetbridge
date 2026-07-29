@@ -23,15 +23,25 @@ import android.content.Intent
 import android.util.Log
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.database.PeriodicDbExporter
+import nodomain.freeyourgadget.gadgetbridge.mcp.McpPreferences
+import nodomain.freeyourgadget.gadgetbridge.mcp.McpServiceController
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import nodomain.freeyourgadget.gadgetbridge.util.backup.PeriodicZipExporter
 
 class AutoStartReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (!GBApplication.getPrefs().autoStart) {
+        if (Intent.ACTION_BOOT_COMPLETED != intent.action && Intent.ACTION_MY_PACKAGE_REPLACED != intent.action) {
             return
         }
-        if (Intent.ACTION_BOOT_COMPLETED != intent.action && Intent.ACTION_MY_PACKAGE_REPLACED != intent.action) {
+
+        // MCP has its own explicit enable switch. It must remain available after a reboot even
+        // when Gadgetbridge's separate device auto-start option is disabled.
+        if (McpPreferences.isEnabled()) {
+            Log.i(TAG, "Boot or reinstall completed, starting Gadgetbridge for MCP")
+            McpServiceController.ensureServiceRunning(context)
+        }
+
+        if (!GBApplication.getPrefs().autoStart) {
             return
         }
 

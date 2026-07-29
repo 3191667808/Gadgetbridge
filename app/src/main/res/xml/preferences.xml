@@ -301,6 +301,79 @@
         android:title="@string/pref_header_external_integrations">
 
         <PreferenceScreen
+            android:icon="@drawable/ic_developer_mode"
+            android:key="pref_screen_mcp"
+            android:summary="@string/mcp_settings_summary"
+            android:title="@string/mcp_settings_title"
+            app:iconSpaceReserved="false">
+
+            <SwitchPreferenceCompat
+                android:defaultValue="false"
+                android:key="mcp_enabled"
+                android:layout="@layout/preference_checkbox"
+                android:summary="@string/mcp_enabled_summary"
+                android:title="@string/mcp_enabled_title"
+                app:iconSpaceReserved="false" />
+
+            <ListPreference
+                android:dependency="mcp_enabled"
+                android:key="mcp_device_address"
+                android:summary="@string/mcp_device_summary"
+                android:title="@string/mcp_device_title"
+                app:iconSpaceReserved="false"
+                app:useSimpleSummaryProvider="true" />
+
+            <SwitchPreferenceCompat
+                android:defaultValue="false"
+                android:dependency="mcp_enabled"
+                android:key="mcp_allow_lan"
+                android:layout="@layout/preference_checkbox"
+                android:summary="@string/mcp_allow_lan_summary"
+                android:title="@string/mcp_allow_lan_title"
+                app:iconSpaceReserved="false" />
+
+            <EditTextPreference
+                android:defaultValue="8765"
+                android:dependency="mcp_enabled"
+                android:inputType="number"
+                android:key="mcp_port"
+                android:title="@string/mcp_port_title"
+                app:iconSpaceReserved="false"
+                app:useSimpleSummaryProvider="true" />
+
+            <Preference
+                android:key="mcp_status"
+                android:persistent="false"
+                android:selectable="false"
+                android:title="@string/mcp_status_title"
+                app:iconSpaceReserved="false" />
+
+            <Preference
+                android:dependency="mcp_enabled"
+                android:key="mcp_endpoint"
+                android:persistent="false"
+                android:summary="@string/mcp_endpoint_summary"
+                android:title="@string/mcp_endpoint_title"
+                app:iconSpaceReserved="false" />
+
+            <Preference
+                android:dependency="mcp_enabled"
+                android:key="mcp_copy_token"
+                android:persistent="false"
+                android:summary="@string/mcp_copy_token_summary"
+                android:title="@string/mcp_copy_token_title"
+                app:iconSpaceReserved="false" />
+
+            <Preference
+                android:dependency="mcp_enabled"
+                android:key="mcp_regenerate_token"
+                android:persistent="false"
+                android:summary="@string/mcp_regenerate_token_summary"
+                android:title="@string/mcp_regenerate_token_title"
+                app:iconSpaceReserved="false" />
+        </PreferenceScreen>
+
+        <PreferenceScreen
             android:icon="@drawable/ic_navigation"
             android:key="navigation_settings"
             android:summary="@string/pref_title_navigation_forward"

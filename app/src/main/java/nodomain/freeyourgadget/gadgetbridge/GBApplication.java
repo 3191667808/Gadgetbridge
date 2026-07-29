@@ -715,7 +715,11 @@ public class GBApplication extends Application {
     }
 
     public static boolean hasDirectInternetAccess() {
-        return PermissionsUtils.checkPermission(getContext(), Manifest.permission.INTERNET);
+        // Some builds need the socket permission for local listeners without opting into
+        // Gadgetbridge's outbound network features. The build flag remains the authority for
+        // direct internet access; the manifest permission alone is no longer treated as consent.
+        return BuildConfig.INTERNET_ACCESS
+                && PermissionsUtils.checkPermission(getContext(), Manifest.permission.INTERNET);
     }
 
     public static boolean hasInternetAccess() {

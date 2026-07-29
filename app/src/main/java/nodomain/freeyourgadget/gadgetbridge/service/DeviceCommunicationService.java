@@ -108,6 +108,9 @@ import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService
 import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceService;
+import nodomain.freeyourgadget.gadgetbridge.mcp.McpPreferences;
+import nodomain.freeyourgadget.gadgetbridge.mcp.McpServerManager;
+import nodomain.freeyourgadget.gadgetbridge.mcp.McpServiceController;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
@@ -296,6 +299,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     private final List<CoMapsNavigationReceiver> mCoMapsNavigationReceivers = new ArrayList<>();
 
     private SleepAsAndroidReceiver mSleepAsAndroidReceiver = null;
+    private McpServerManager mMcpServerManager = null;
 
     private HashMap<String, Long> deviceLastScannedTimestamps = new HashMap<>();
 
@@ -591,6 +595,15 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         }
 
         startForeground();
+
+        // MCP deliberately shares this foreground service. Keeping one lifecycle owner avoids a
+        // second persistent notification and guarantees that device synchronization and the local
+        // endpoint observe the same in-memory GBDevice instances.
+        if (hasPrefs()) {
+            McpPreferences.ensureAccessToken(getPrefs().getPreferences());
+            mMcpServerManager = new McpServerManager(this);
+            mMcpServerManager.reconfigure();
+        }
         if(reconnectViaScan) {
             scanAllDevices();
 
@@ -819,6 +832,11 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
         Prefs prefs = getPrefs();
         switch (action) {
+            case McpServiceController.ACTION_RECONFIGURE:
+                if (mMcpServerManager != null) {
+                    mMcpServerManager.reconfigure();
+                }
+                break;
             case ACTION_CONNECT:
                 boolean firstTime = intent.getBooleanExtra(EXTRA_CONNECT_FIRST_TIME, false);
                 connectToDevice(targetDevice, firstTime);
@@ -1635,6 +1653,11 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
     @Override
     public void onDestroy() {
+        if (mMcpServerManager != null) {
+            mMcpServerManager.close();
+            mMcpServerManager = null;
+        }
+
         if (hasPrefs()) {
             getPrefs().getPreferences().unregisterOnSharedPreferenceChangeListener(this);
         }
@@ -1687,6 +1710,10 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (key == null) return;
+
+        if (McpPreferences.isServerPreference(key) && mMcpServerManager != null) {
+            mMcpServerManager.reconfigure();
+        }
 
         switch (key) {
             case GBPrefs.DEVICE_AUTO_RECONNECT -> {

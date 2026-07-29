@@ -4839,4 +4839,29 @@
     <string name="casio_interval_timer_total">总计：%1$s × %2$d = %3$s</string>
     <string name="permission_navigation_comaps">%1$s 需要读取 CoMaps 导航数据的权限。请轻按\"%2$s\" 转到系统应用设置并启用权限， 然后回到这里再次切换选项。</string>
     <string name="pref_navigation_app_comaps">CoMaps</string>
+    <string name="mcp_settings_title">MCP 服务器</string>
+    <string name="mcp_settings_summary">向本地 AI 客户端提供已同步的穿戴设备数据</string>
+    <string name="mcp_enabled_title">运行 MCP 服务器</string>
+    <string name="mcp_enabled_summary">随 Gadgetbridge 后台服务持续提供端点</string>
+    <string name="mcp_device_title">数据来源</string>
+    <string name="mcp_device_summary">选择已配对的 Gadgetbridge 设备</string>
+    <string name="mcp_device_automatic">自动（第一个活动追踪设备）</string>
+    <string name="mcp_allow_lan_title">允许局域网访问</string>
+    <string name="mcp_allow_lan_summary">监听所有网络接口；每个请求都必须携带访问令牌</string>
+    <string name="mcp_port_title">端口</string>
+    <string name="mcp_port_invalid">请输入 1024 到 65535 之间的端口</string>
+    <string name="mcp_status_title">状态</string>
+    <string name="mcp_status_disabled">已停止</string>
+    <string name="mcp_status_starting">正在启动…</string>
+    <string name="mcp_status_running">正在监听 %1$s</string>
+    <string name="mcp_status_error">无法启动：%1$s</string>
+    <string name="mcp_endpoint_title">复制端点</string>
+    <string name="mcp_endpoint_summary">将 MCP 地址复制到剪贴板</string>
+    <string name="mcp_copy_token_title">复制访问令牌</string>
+    <string name="mcp_copy_token_summary">启用局域网访问后，客户端必须使用此令牌</string>
+    <string name="mcp_regenerate_token_title">重新生成访问令牌</string>
+    <string name="mcp_regenerate_token_summary">替换当前令牌，并使已配置的局域网客户端断开</string>
+    <string name="mcp_regenerate_token_confirmation">现有局域网客户端配置将失效。要生成新令牌吗？</string>
+    <string name="mcp_regenerate_token_action">重新生成</string>
+    <string name="mcp_token_regenerated">访问令牌已重新生成</string>
 </resources>

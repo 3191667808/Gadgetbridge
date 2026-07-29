@@ -316,6 +316,7 @@ dependencies {
     implementation libs.protobuf.lite
     implementation libs.okhttp
     implementation libs.msgpack
+    implementation libs.nanohttpd
     implementation libs.searchpreference
 
     implementation libs.bundles.mapsforge
