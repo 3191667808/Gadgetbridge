@@ -649,6 +649,8 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                             notifyWorkoutChanged()
                             // Reload only the workout header
                             updateWorkoutHeader(it.summary)
+                            // Refresh the add/remove-photo menu items for the new photo state.
+                            requireActivity().invalidateOptionsMenu()
                             // Re-sync the new photo to Endurain now instead of waiting for the
                             // next data sync (the worker no-ops if auto-upload is off).
                             WorkoutUploadWorker.enqueue(requireContext(), gbDevice.address)
@@ -665,6 +667,8 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                             notifyWorkoutChanged()
                             // Reload only the workout header
                             updateWorkoutHeader(it.summary)
+                            // Refresh the add/remove-photo menu items for the new photo state.
+                            requireActivity().invalidateOptionsMenu()
                         }
                     })
                 }
