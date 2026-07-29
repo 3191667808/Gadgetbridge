@@ -23,9 +23,9 @@ import org.slf4j.LoggerFactory
 
 /**
  * Persistence for the "already uploaded" state of workout summaries, backed by the
- * [WorkoutUpload] table (keyed by summary id + service). Replaces the earlier unbounded
- * `StringSet` preferences: rows are pruned with their summary and additionally carry the remote
- * activity id, so the upload status can be surfaced in the workout list and later edits re-synced.
+ * [WorkoutUpload] table (keyed by summary id + service). Each row carries the remote activity
+ * id so the upload status can be surfaced in the workout list and later edits re-synced; rows
+ * are pruned together with their summary.
  */
 object WorkoutUploadStore {
     const val SERVICE_ENDURAIN = 0
@@ -35,14 +35,18 @@ object WorkoutUploadStore {
 
     private val LOG = LoggerFactory.getLogger(WorkoutUploadStore::class.java)
 
-    /** Summary ids already successfully uploaded to [service]. */
-    fun uploadedSummaryIds(service: Int): Set<Long> {
+    /**
+     * Summary ids already successfully uploaded to [service], limited to id >= [minSummaryId] so
+     * the query does not scan the whole table.
+     */
+    fun uploadedSummaryIds(service: Int, minSummaryId: Long): Set<Long> {
         return try {
             GBApplication.acquireDbReadOnly().use { db ->
                 db.daoSession.workoutUploadDao.queryBuilder()
                     .where(
                         WorkoutUploadDao.Properties.Service.eq(service),
-                        WorkoutUploadDao.Properties.Status.eq(STATUS_SUCCESS)
+                        WorkoutUploadDao.Properties.Status.eq(STATUS_SUCCESS),
+                        WorkoutUploadDao.Properties.SummaryId.ge(minSummaryId)
                     )
                     .list()
                     .map { it.summaryId }

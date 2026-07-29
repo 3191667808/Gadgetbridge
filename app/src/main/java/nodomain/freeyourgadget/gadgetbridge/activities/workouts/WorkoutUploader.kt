@@ -37,9 +37,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Shared orchestration for exporting a single workout and uploading it to Endurain (FIT) or
- * Wanderer (GPX). Extracted from [WorkoutDetailsFragment] so the detail screen, the multi-select
- * list, and the background auto-upload worker all behave identically — same name fallback, same
- * status/reason handling, same NPE-safe edit step.
+ * Wanderer (GPX). Used by the workout detail screen, the multi-select upload from the workout
+ * list, and the background auto-upload worker.
  *
  * All methods are blocking / callback-based and safe to call off the main thread; the upload
  * clients spawn their own worker threads internally.
@@ -60,17 +59,15 @@ object WorkoutUploader {
     /**
      * Builds a `.fit` file for [summary] in the cache directory and returns it.
      *
-     * FIT-native devices (Garmin, iGPSPORT) keep the original .fit at rawDetailsPath — it is
+     * FIT-native devices (Garmin, iGPSPORT) keep the original .fit at rawDetailsPath, which is
      * copied verbatim. For any other device the FIT is synthesized from the summary (and the
      * activity track, if one is available).
      *
-     * [summaryData] is optional: callers that have already parsed it (the detail screen) pass it
-     * to avoid re-parsing, and callers holding only a bare summary (list, worker) omit it, in
-     * which case it is read back off the summary. It must not be left null — the session-level
-     * fields of the exported FIT (distance, calories, average heart rate, pool length, …) come
-     * from it, so passing null silently strips them from the file.
+     * [summaryData] supplies the session-level fields of the exported FIT (distance, calories,
+     * average heart rate, pool length). Callers that have already parsed it pass it in to avoid
+     * re-parsing; when omitted it is read off [summary].
      *
-     * Blocking — call from an IO context.
+     * Blocking: call from an IO context.
      */
     fun buildFitFile(
         context: Context,
@@ -112,10 +109,8 @@ object WorkoutUploader {
     }
 
     /**
-     * Outcome of an upload attempt. [remoteActivityId] is the id the service assigned to the newly
-     * created activity (null on failure), and is persisted so the upload status can be shown in the
-     * workout list and later edits re-synced. [reason] is a localized failure explanation, null on
-     * success.
+     * Outcome of an upload attempt. [remoteActivityId] is the id the service assigned to the new
+     * activity, null on failure. [reason] is a localized failure explanation, null on success.
      */
     data class UploadResult(
         val success: Boolean,
@@ -124,9 +119,11 @@ object WorkoutUploader {
     )
 
     /**
-     * Uploads [fitFile] to Endurain: refresh the access token, upload, then set the activity
-     * type + name. [callback] fires with an [UploadResult]. The name-edit and photo steps run only
-     * after a successful upload, so a failure there can never flip a successful upload to "failed".
+     * Uploads [fitFile] to Endurain: refresh the access token, upload, then set the activity type,
+     * name and header photo on the created activity. [callback] fires with an [UploadResult].
+     *
+     * The type/name and photo steps are best-effort: they run only after a successful upload and
+     * their failure does not change the result.
      */
     fun uploadToEndurain(
         context: Context,
@@ -148,15 +145,11 @@ object WorkoutUploader {
             LOG.info("Uploading workout '{}' (type {}) to Endurain", name, kind)
             apiClient.uploadActivity(fitFile) { newId, reason ->
                 if (newId != null) {
-                    // Best-effort: set the type/name on the freshly created activity. A failure
-                    // here must not mark the (already successful) upload as failed.
                     try {
                         apiClient.editActivity(newId, kind, name)
                     } catch (e: Exception) {
                         LOG.warn("Endurain editActivity failed for id {}", newId, e)
                     }
-                    // Best-effort: attach the workout photo, if one is set. Same rule: a failure
-                    // here must not flip the successful upload to "failed".
                     val photoPath = summary.headerPhoto
                     if (photoPath != null) {
                         try {

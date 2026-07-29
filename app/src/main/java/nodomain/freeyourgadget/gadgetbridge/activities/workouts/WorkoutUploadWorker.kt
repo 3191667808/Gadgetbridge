@@ -82,13 +82,15 @@ class WorkoutUploadWorker(
             return Result.success()
         }
 
+        val minSummaryId = summaries.mapNotNull { it.id }.minOrNull() ?: return Result.success()
+
         val enduDone = if (endurainLoggedIn) {
-            WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_ENDURAIN)
+            WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_ENDURAIN, minSummaryId)
         } else {
             emptySet()
         }
         val wandDone = if (wandererLoggedIn) {
-            WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_WANDERER)
+            WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_WANDERER, minSummaryId)
         } else {
             emptySet()
         }

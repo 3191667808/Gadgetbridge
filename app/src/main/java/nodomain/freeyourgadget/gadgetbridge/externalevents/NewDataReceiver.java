@@ -79,12 +79,10 @@ public class NewDataReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (!ACTION_NEW_DATA.equals(intent.getAction())) {
-            return;
-        }
         GBPrefs prefs = GBApplication.getPrefs();
         maybeScheduleAutoUpload(context, intent, prefs);
-        if (prefs.getBoolean(GBPrefs.HEALTH_CONNECT_ENABLED, false) &&
+        if (ACTION_NEW_DATA.equals(intent.getAction()) &&
+                prefs.getBoolean(GBPrefs.HEALTH_CONNECT_ENABLED, false) &&
                 prefs.getBoolean(GBPrefs.HEALTH_CONNECT_SYNC_ON_EVENT, false)) {
 
             // Extract device from the intent
