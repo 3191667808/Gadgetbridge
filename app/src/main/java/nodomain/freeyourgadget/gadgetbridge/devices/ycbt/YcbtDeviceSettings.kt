@@ -33,6 +33,9 @@ fun ycbtDeviceSettings(): DeviceSettingsSpec = deviceSettings {
             ListEntry.Res("3600", R.string.interval_1_hour),
         ),
         defaultValue = "0",
+        visibleWhen = { prefs ->
+            prefs.getBoolean(YcbtConstants.PREF_CAPABILITY_HEART_RATE, false)
+        },
     )
     switchSetting(
         key = DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING,
@@ -40,6 +43,9 @@ fun ycbtDeviceSettings(): DeviceSettingsSpec = deviceSettings {
         summary = R.string.prefs_spo2_monitoring_description,
         icon = R.drawable.ic_spo2,
         defaultValue = false,
+        visibleWhen = { prefs ->
+            prefs.getBoolean(YcbtConstants.PREF_CAPABILITY_SPO2, false)
+        },
     )
     list(
         key = DeviceSettingsPreferenceConst.PREF_SPO2_MEASUREMENT_INTERVAL,
@@ -50,5 +56,8 @@ fun ycbtDeviceSettings(): DeviceSettingsSpec = deviceSettings {
         ),
         defaultValue = "1800",
         dependency = DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING,
+        visibleWhen = { prefs ->
+            prefs.getBoolean(YcbtConstants.PREF_CAPABILITY_SPO2, false)
+        },
     )
 }

@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.ycbt;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
@@ -69,5 +70,18 @@ public class YcbtPairingTraceTest {
                 "YCBT pairing diagnostics\n\nAttempt 1\n01. 12:37:00.000 stream/history properties=0x00000020\n02. 12:37:00.100 stream/history CCCD present",
                 restored.format()
         );
+    }
+
+    @Test
+    public void boundsRetainedDiagnosticHistory() {
+        final YcbtPairingTrace trace = new YcbtPairingTrace();
+
+        for (int event = 1; event <= 205; event++) {
+            trace.append("event " + event, "12:00:00.000");
+        }
+
+        assertEquals(200, trace.getLines().size());
+        assertFalse(trace.format().contains("event 1\n"));
+        assertEquals(205, trace.getEventNumber());
     }
 }

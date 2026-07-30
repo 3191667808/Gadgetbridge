@@ -423,6 +423,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Override
     @Nullable
+    public TimeSampleProvider<? extends HeartRateSample> getHeartRateSampleProvider(GBDevice device, DaoSession session) {
+        return null;
+    }
+
+    @Override
+    @Nullable
     public TimeSampleProvider<? extends HeartRateSample> getHeartRateRestingSampleProvider(GBDevice device, DaoSession session) {
         return null;
     }

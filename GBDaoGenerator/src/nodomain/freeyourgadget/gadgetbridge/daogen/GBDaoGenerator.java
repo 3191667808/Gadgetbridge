@@ -1516,6 +1516,7 @@ public class GBDaoGenerator {
         sample.addIntProperty(SAMPLE_RAW_INTENSITY).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         sample.addIntProperty(SAMPLE_STEPS).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         sample.addIntProperty("distanceCm").notNull().codeBeforeGetterAndSetter(OVERRIDE);
+        sample.addIntProperty("activeCalories").notNull().codeBeforeGetterAndSetter(OVERRIDE);
         sample.addIntProperty(SAMPLE_HEART_RATE).notNull().codeBeforeGetterAndSetter(OVERRIDE);
         return sample;
     }

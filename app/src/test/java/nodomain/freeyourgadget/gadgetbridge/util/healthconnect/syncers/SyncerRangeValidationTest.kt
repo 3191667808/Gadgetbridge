@@ -1,17 +1,28 @@
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.BloodPressureRecord
+import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
 import nodomain.freeyourgadget.gadgetbridge.entities.GlucoseSample
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
+import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceType
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample
 import nodomain.freeyourgadget.gadgetbridge.model.HrvValueSample
 import nodomain.freeyourgadget.gadgetbridge.model.RespiratoryRateSample
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample
 import nodomain.freeyourgadget.gadgetbridge.model.Vo2MaxSample
 import nodomain.freeyourgadget.gadgetbridge.model.WeightSample
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectPermissionManager
+import nodomain.freeyourgadget.gadgetbridge.util.healthconnect.HealthConnectUtils
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 import java.time.ZoneOffset
 
 class SyncerRangeValidationTest {
@@ -147,6 +158,48 @@ class SyncerRangeValidationTest {
         assertNull(RespiratoryRateSyncer.convertSample(respSample(-1.0f), offset, metadata, device))
     }
 
+    // --- Blood pressure ---
+
+    private fun bloodPressureSample(
+        systolic: Int,
+        diastolic: Int,
+        ts: Long = 1_700_000_000_123L
+    ): BloodPressureSample = object : BloodPressureSample {
+        override fun getTimestamp(): Long = ts
+        override fun getBpSystolic(): Int = systolic
+        override fun getBpDiastolic(): Int = diastolic
+    }
+
+    @Test
+    fun bloodPressure_pairAndTimestamp_preserved() {
+        val timestamp = 1_700_000_000_123L
+        val record = BloodPressureSyncer.convertSample(
+            bloodPressureSample(123, 78, timestamp), offset, metadata, device
+        )!!
+
+        assertEquals(123.0, record.systolic.inMillimetersOfMercury, 0.0)
+        assertEquals(78.0, record.diastolic.inMillimetersOfMercury, 0.0)
+        assertEquals(timestamp, record.time.toEpochMilli())
+    }
+
+    @Test
+    fun bloodPressure_hcBoundaries_enforced() {
+        assertNotNull(BloodPressureSyncer.convertSample(bloodPressureSample(20, 10), offset, metadata, device))
+        assertNotNull(BloodPressureSyncer.convertSample(bloodPressureSample(200, 180), offset, metadata, device))
+        assertNull(BloodPressureSyncer.convertSample(bloodPressureSample(19, 80), offset, metadata, device))
+        assertNull(BloodPressureSyncer.convertSample(bloodPressureSample(120, 181), offset, metadata, device))
+    }
+
+    @Test
+    fun bloodPressure_permissionRegistered() {
+        assertEquals(
+            setOf(HealthPermission.getWritePermission(BloodPressureRecord::class)),
+            HealthConnectPermissionManager.getRequiredPermissionsForDataType(
+                HealthConnectPermissionManager.HealthConnectDataType.BLOOD_PRESSURE
+            )
+        )
+    }
+
     // --- SpO2 ---
 
     private fun spo2Sample(spo2: Int, ts: Long = 1_700_000_000_000L): Spo2Sample =
@@ -217,6 +270,71 @@ class SyncerRangeValidationTest {
     @Test
     fun restingHr_negative_dropped() {
         assertNull(RestingHeartRateSyncer.convertSample(hrSample(-1), offset, metadata, device))
+    }
+
+    // --- Individual HR ---
+
+    @Test
+    fun individualHeartRate_preservesEveryMillisecondReading() {
+        val first = hrSample(61, 1_700_000_000_123L)
+        val second = hrSample(62, 1_700_000_000_987L)
+
+        val records = listOf(first, second).map {
+            HeartRateTimeSampleSyncer.convertSample(it, offset, metadata, device)!!
+        }
+
+        assertEquals(listOf(first.timestamp, second.timestamp),
+            records.map { it.samples.single().time.toEpochMilli() })
+        assertEquals(listOf(61L, 62L), records.map { it.samples.single().beatsPerMinute })
+    }
+
+    @Test
+    fun individualHeartRate_permissionRegistered() {
+        assertEquals(
+            setOf(HealthPermission.getWritePermission(HeartRateRecord::class)),
+            HealthConnectPermissionManager.getRequiredPermissionsForDataType(
+                HealthConnectPermissionManager.HealthConnectDataType.HEART_RATE
+            )
+        )
+    }
+
+    @Test
+    fun timeSampleIdentity_isStableAndDeviceSpecific() {
+        val firstDevice = GBDevice("00:11:22:33:44:55", "first", "first", "", DeviceType.TEST)
+        val secondDevice = GBDevice("00:11:22:33:44:66", "second", "second", "", DeviceType.TEST)
+        val timestamp = 1_700_000_000_123L
+
+        val first = timeSampleClientRecordMetadata(metadata, firstDevice, "heart-rate", timestamp, 1)
+        val replay = timeSampleClientRecordMetadata(metadata, firstDevice, "heart-rate", timestamp, 2)
+        val otherDevice = timeSampleClientRecordMetadata(metadata, secondDevice, "heart-rate", timestamp, 1)
+
+        assertEquals(first.clientRecordId, replay.clientRecordId)
+        assertNotEquals(first.clientRecordId, otherDevice.clientRecordId)
+        assertEquals(2L, replay.clientRecordVersion)
+    }
+
+    @Test
+    fun singletonPointRange_getsProcessedWithoutChangingLegacyRanges() {
+        val timestamp = Instant.ofEpochMilli(1_700_000_000_123L)
+
+        assertEquals(timestamp.plusMillis(1), HealthConnectUtils.effectiveSyncRangeEnd(
+            timestamp, timestamp, supportsSingletonRange = true
+        ))
+        assertEquals(timestamp, HealthConnectUtils.effectiveSyncRangeEnd(
+            timestamp, timestamp, supportsSingletonRange = false
+        ))
+    }
+
+    @Test
+    fun timeSampleRecords_areSplitIntoBoundedChunks() {
+        assertEquals(
+            listOf(200, 200, 1),
+            timeSampleRecordBatches((0..400).toList(), hasStableIdentity = true).map { it.size }
+        )
+        assertEquals(
+            listOf(401),
+            timeSampleRecordBatches((0..400).toList(), hasStableIdentity = false).map { it.size }
+        )
     }
 
     // --- Blood glucose ---

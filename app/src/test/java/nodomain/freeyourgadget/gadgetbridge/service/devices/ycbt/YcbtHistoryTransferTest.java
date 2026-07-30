@@ -206,7 +206,12 @@ public class YcbtHistoryTransferTest {
         assertEquals(YcbtHistoryTransfer.Status.IGNORED, inactivityTransfer.onTimeout(1_099).getStatus());
         final YcbtHistoryTransfer.Result inactivity = inactivityTransfer.onTimeout(1_100);
         assertEquals(YcbtHistoryTransfer.Status.INACTIVITY_TIMEOUT, inactivity.getStatus());
-        assertAction(inactivity, 0, YcbtHistoryTransfer.ActionType.REQUEST, VITALS_QUERY);
+        assertAction(inactivity, 0, YcbtHistoryTransfer.ActionType.NACK, ACK_CRC_FAILURE);
+        assertAction(inactivity, 1, YcbtHistoryTransfer.ActionType.REQUEST, HEART_QUERY);
+        final YcbtHistoryTransfer.Result repeatedInactivity = inactivityTransfer.onTimeout(1_200);
+        assertEquals(YcbtHistoryTransfer.Status.INACTIVITY_TIMEOUT, repeatedInactivity.getStatus());
+        assertAction(repeatedInactivity, 0, YcbtHistoryTransfer.ActionType.NACK, ACK_CRC_FAILURE);
+        assertAction(repeatedInactivity, 1, YcbtHistoryTransfer.ActionType.REQUEST, VITALS_QUERY);
 
         final YcbtHistoryTransfer typeTransfer = new YcbtHistoryTransfer(1_000, 300, 1024);
         typeTransfer.start(Collections.singletonList(YcbtHistoryTransfer.HistoryType.HEART_RATE), 2_000);
@@ -215,8 +220,13 @@ public class YcbtHistoryTransferTest {
 
         final YcbtHistoryTransfer.Result typeTimeout = typeTransfer.onTimeout(2_300);
         assertEquals(YcbtHistoryTransfer.Status.TYPE_TIMEOUT, typeTimeout.getStatus());
-        assertTrue(typeTimeout.isFinished());
-        assertTrue(typeTimeout.getActions().isEmpty());
+        assertFalse(typeTimeout.isFinished());
+        assertAction(typeTimeout, 0, YcbtHistoryTransfer.ActionType.NACK, ACK_CRC_FAILURE);
+        assertAction(typeTimeout, 1, YcbtHistoryTransfer.ActionType.REQUEST, HEART_QUERY);
+        final YcbtHistoryTransfer.Result repeatedTypeTimeout = typeTransfer.onTimeout(2_600);
+        assertEquals(YcbtHistoryTransfer.Status.TYPE_TIMEOUT, repeatedTypeTimeout.getStatus());
+        assertTrue(repeatedTypeTimeout.isFinished());
+        assertAction(repeatedTypeTimeout, 0, YcbtHistoryTransfer.ActionType.NACK, ACK_CRC_FAILURE);
     }
 
     @Test

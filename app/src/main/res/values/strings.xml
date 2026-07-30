@@ -782,11 +782,11 @@
     <string name="miband_prefs_alias">Name/Alias</string>
     <string name="pref_header_vibration_count">Vibration count</string>
     <string name="watch9_pairing_tap_hint">When your watch vibrates, shake the device or press its button.</string>
-    <string name="title_activity_ycbt_pairing">YCBT pairing diagnostics</string>
+    <string name="title_activity_ycbt_pairing">Pairing diagnostics</string>
     <string name="ycbt_pairing_force_stop_warning">Before retrying, force-stop PulseLoop and SmartHealth. Either app can keep the ring\'s Bluetooth connection and prevent Gadgetbridge from pairing.</string>
     <string name="ycbt_pairing_selected_device">Selected device\n%1$s\n%2$s</string>
     <string name="ycbt_pairing_history">Diagnostic history</string>
-    <string name="ycbt_pairing_diagnostics">YCBT pairing diagnostics</string>
+    <string name="ycbt_pairing_diagnostics">Pairing diagnostics</string>
     <string name="ycbt_pairing_ready">Ready to retry.</string>
     <string name="ycbt_pairing_connecting">Connecting and checking both indication channels. Keep this screen open.</string>
     <string name="ycbt_pairing_success">Pairing succeeded. Diagnostics remain available until you continue.</string>

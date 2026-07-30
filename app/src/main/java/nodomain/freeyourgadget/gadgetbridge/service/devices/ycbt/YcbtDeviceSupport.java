@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,9 +47,11 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
@@ -60,15 +61,19 @@ import nodomain.freeyourgadget.gadgetbridge.devices.ycbt.YcbtConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.ycbt.YcbtActivitySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
+import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericTemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GlucoseSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.YcbtActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
@@ -709,17 +714,18 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void persistCapabilities(final YcbtProtocol.Capabilities capabilities) {
         GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
-                .putBoolean(YcbtConstants.PREF_CAPABILITY_HEART_RATE, true)
-                .putBoolean(YcbtConstants.PREF_CAPABILITY_SPO2, true)
+                .putBoolean(YcbtConstants.PREF_CAPABILITY_HEART_RATE, capabilities.hasHeartRate())
+                .putBoolean(YcbtConstants.PREF_CAPABILITY_SPO2, capabilities.hasSpo2())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_HRV, capabilities.hasHrv())
-                .putBoolean(YcbtConstants.PREF_CAPABILITY_STEPS, true)
-                .putBoolean(YcbtConstants.PREF_CAPABILITY_SLEEP, true)
+                .putBoolean(YcbtConstants.PREF_CAPABILITY_STEPS, capabilities.hasSteps())
+                .putBoolean(YcbtConstants.PREF_CAPABILITY_SLEEP, capabilities.hasSleep())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_FIND_DEVICE, capabilities.hasFindDevice())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_BLOOD_PRESSURE, capabilities.hasBloodPressure())
-                .putBoolean(YcbtConstants.PREF_CAPABILITY_MANUAL_HEART_RATE, true)
+                .putBoolean(YcbtConstants.PREF_CAPABILITY_MANUAL_HEART_RATE,
+                        capabilities.hasManualHeartRate())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_MANUAL_BLOOD_PRESSURE,
                         capabilities.hasManualBloodPressure())
-                .putBoolean(YcbtConstants.PREF_CAPABILITY_MANUAL_SPO2, true)
+                .putBoolean(YcbtConstants.PREF_CAPABILITY_MANUAL_SPO2, capabilities.hasManualSpo2())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_MANUAL_HRV, capabilities.hasManualHrv())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_TEMPERATURE, capabilities.hasTemperature())
                 .putBoolean(YcbtConstants.PREF_CAPABILITY_BLOOD_SUGAR, capabilities.hasBloodSugar())
@@ -728,6 +734,9 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void requestLiveActivity() {
+        if (capabilities == null || !capabilities.hasSteps()) {
+            return;
+        }
         final BluetoothGattCharacteristic commandCharacteristic = getCharacteristic(
                 YcbtConstants.WRITE_CHARACTERISTIC_UUID
         );
@@ -758,13 +767,15 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void applyAutomaticMonitoringSettings() {
         final Prefs prefs = getDevicePrefs();
-        if (prefs.getBoolean(YcbtConstants.PREF_HEART_RATE_MONITORING_CONFIGURED, false)) {
+        if (capabilities != null && capabilities.hasHeartRate()
+                && prefs.getBoolean(YcbtConstants.PREF_HEART_RATE_MONITORING_CONFIGURED, false)) {
             queueHeartRateMonitoring(prefs.getInt(
                     DeviceSettingsPreferenceConst.PREF_HEARTRATE_MEASUREMENT_INTERVAL,
                     0
             ));
         }
-        if (prefs.getBoolean(YcbtConstants.PREF_SPO2_MONITORING_CONFIGURED, false)) {
+        if (capabilities != null && capabilities.hasSpo2()
+                && prefs.getBoolean(YcbtConstants.PREF_SPO2_MONITORING_CONFIGURED, false)) {
             final boolean enabled = prefs.getBoolean(
                     DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING,
                     false
@@ -825,20 +836,23 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 || dataTypes == RecordedDataTypes.TYPE_SYNC
                 || dataTypes == RecordedDataTypes.TYPE_ALL;
 
-        if (requested(dataTypes, RecordedDataTypes.TYPE_ACTIVITY, fullSync)) {
+        if (capabilities.hasSteps() && requested(dataTypes, RecordedDataTypes.TYPE_ACTIVITY, fullSync)) {
             types.add(YcbtHistoryTransfer.HistoryType.SPORT);
         }
-        if (requested(dataTypes, RecordedDataTypes.TYPE_SLEEP, fullSync)) {
+        if (capabilities.hasSleep() && requested(dataTypes, RecordedDataTypes.TYPE_SLEEP, fullSync)) {
             types.add(YcbtHistoryTransfer.HistoryType.SLEEP);
         }
-        if (requested(dataTypes, RecordedDataTypes.TYPE_HEART_RATE, fullSync)) {
+        if (capabilities.hasHeartRate()
+                && requested(dataTypes, RecordedDataTypes.TYPE_HEART_RATE, fullSync)) {
             types.add(YcbtHistoryTransfer.HistoryType.HEART_RATE);
         }
         if (fullSync && capabilities.hasBloodPressure()) {
             types.add(YcbtHistoryTransfer.HistoryType.BLOOD_PRESSURE);
         }
 
-        final boolean wantsVitals = requested(dataTypes, RecordedDataTypes.TYPE_SPO2, fullSync)
+        final boolean wantsVitals = (capabilities.hasSpo2()
+                && requested(dataTypes, RecordedDataTypes.TYPE_SPO2, fullSync))
+                || requested(dataTypes, RecordedDataTypes.TYPE_SLEEP_RESPIRATORY_RATE, fullSync)
                 || (capabilities.hasHrv() && requested(dataTypes, RecordedDataTypes.TYPE_HRV, fullSync));
         if (wantsVitals) {
             types.add(YcbtHistoryTransfer.HistoryType.VITALS);
@@ -998,7 +1012,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 getDevicePrefs().getPreferences().edit()
                         .putBoolean(YcbtConstants.PREF_SPO2_MONITORING_CONFIGURED, true)
                         .apply();
-                if (!isInitialized()) {
+                if (!isInitialized() || capabilities == null || !capabilities.hasSpo2()) {
                     return;
                 }
                 queueSpo2Monitoring(
@@ -1023,7 +1037,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             getDevicePrefs().getPreferences().edit()
                     .putBoolean(YcbtConstants.PREF_HEART_RATE_MONITORING_CONFIGURED, true)
                     .apply();
-            if (!isInitialized()) {
+            if (!isInitialized() || capabilities == null || !capabilities.hasHeartRate()) {
                 return;
             }
             queueHeartRateMonitoring(seconds);
@@ -1056,7 +1070,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onHeartRateTest() {
         synchronized (ConnectionMonitor) {
-            if (!isInitialized() || capabilities == null) {
+            if (!isInitialized() || capabilities == null || !capabilities.hasManualHeartRate()) {
                 diagnostic(YcbtDiagnostics.TYPE_FAILURE, "heart rate start ignored: unavailable");
                 return;
             }
@@ -1086,7 +1100,8 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onEnableRealtimeHeartRateMeasurement(final boolean enable) {
         synchronized (ConnectionMonitor) {
-            if (!isInitialized() || manualHeartRateActive || manualSpo2Active
+            if (!isInitialized() || capabilities == null || !capabilities.hasHeartRate()
+                    || manualHeartRateActive || manualSpo2Active
                     || pendingSpo2Control != Spo2Control.NONE
                     || bloodPressureOperation.getState() != YcbtBloodPressureOperation.State.IDLE) {
                 return;
@@ -1147,7 +1162,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onEnableRealtimeSteps(final boolean enable) {
-        if (enable) {
+        if (enable && capabilities != null && capabilities.hasSteps()) {
             requestLiveActivity();
         }
     }
@@ -1245,7 +1260,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void startSpo2Measurement() {
         synchronized (ConnectionMonitor) {
-            if (!isInitialized() || capabilities == null) {
+            if (!isInitialized() || capabilities == null || !capabilities.hasManualSpo2()) {
                 diagnostic(YcbtDiagnostics.TYPE_FAILURE, "SpO2 start ignored: unavailable");
                 return;
             }
@@ -1462,7 +1477,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         try (DBHandler handler = GBApplication.acquireDB()) {
             final DaoSession session = handler.getDaoSession();
-            if (heartRate > 0) {
+            if (heartRate > 0 && currentCapabilities.hasHeartRate()) {
                 final GenericHeartRateSample sample = new GenericHeartRateSample();
                 sample.setTimestamp(timestamp);
                 sample.setHeartRate(heartRate);
@@ -1476,7 +1491,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 new GenericHrvValueSampleProvider(getDevice(), session)
                         .persistSamples(List.of(sample), getContext());
             }
-            if (spo2 > 0) {
+            if (spo2 > 0 && currentCapabilities.hasSpo2()) {
                 final GenericSpo2Sample sample = new GenericSpo2Sample();
                 sample.setTimestamp(timestamp);
                 sample.setSpo2(spo2);
@@ -1510,6 +1525,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
         final List<GenericBloodPressureSample> bloodPressureSamples = new ArrayList<>();
         final List<GenericHeartRateSample> heartRateSamples = new ArrayList<>();
         final List<GenericHrvValueSample> hrvSamples = new ArrayList<>();
+        final List<GenericRespiratoryRateSample> respiratoryRateSamples = new ArrayList<>();
         final List<GenericSleepStageSample> sleepStageSamples = new ArrayList<>();
         final List<GenericSpo2Sample> spo2Samples = new ArrayList<>();
         final List<GenericStressSample> stressSamples = new ArrayList<>();
@@ -1536,6 +1552,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 sample.setRawIntensity(ActivitySample.NOT_MEASURED);
                 sample.setSteps(activity.getSteps());
                 sample.setDistanceCm(activity.getDistanceMeters() * 100);
+                sample.setActiveCalories(activity.getActiveCalories());
                 sample.setHeartRate(ActivitySample.NOT_MEASURED);
                 activitySamples.add(sample);
             } else if (record instanceof YcbtHealthRecordParser.SleepRecord) {
@@ -1571,7 +1588,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                         spo2Samples.add(spo2Sample);
                         break;
                     case RESPIRATORY_RATE:
-                        LOG.debug("YCBT respiratory-rate history is not exposed for this device family");
+                        respiratoryRateSamples.add(toGenericRespiratoryRateSample(measurement));
                         break;
                     case HRV:
                         final GenericHrvValueSample hrvSample = new GenericHrvValueSample();
@@ -1620,33 +1637,25 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     .persistSamples(heartRateSamples, getContext());
             persisted &= new GenericHrvValueSampleProvider(getDevice(), session)
                     .persistSamples(hrvSamples, getContext());
+            persisted &= new GenericRespiratoryRateSampleProvider(getDevice(), session)
+                    .persistSamples(respiratoryRateSamples, getContext());
             final GenericSleepStageSampleProvider sleepProvider =
                     new GenericSleepStageSampleProvider(getDevice(), session);
-            final List<GenericSleepStageSample> previousSleepStages = new ArrayList<>();
+            final List<long[]> sleepReplacementRanges = new ArrayList<>();
             for (final YcbtHealthRecordParser.SleepRecord sleepRecord : sleepRecords) {
                 if (!sleepRecord.isCompleteSession()) {
                     continue;
                 }
-                final long start = sleepRecord.getTimestamp().toEpochMilli();
-                final long packetEnd = sleepRecord.getEndTimestamp().toEpochMilli();
-                previousSleepStages.addAll(findOverlappingSleepSessionStages(
-                        sleepProvider,
-                        start,
-                        packetEnd
-                ));
+                sleepReplacementRanges.add(new long[]{
+                        sleepRecord.getTimestamp().toEpochMilli(),
+                        sleepRecord.getEndTimestamp().toEpochMilli()
+                });
             }
-            final boolean sleepPersisted = sleepProvider.persistSamples(sleepStageSamples, getContext());
-            persisted &= sleepPersisted;
-            if (sleepPersisted && !previousSleepStages.isEmpty()) {
-                final Set<Long> currentStageTimestamps = new HashSet<>();
-                for (final GenericSleepStageSample sample : sleepStageSamples) {
-                    currentStageTimestamps.add(sample.getTimestamp());
-                }
-                previousSleepStages.removeIf(sample -> currentStageTimestamps.contains(sample.getTimestamp()));
-                if (!previousSleepStages.isEmpty()) {
-                    sleepProvider.getSampleDao().deleteInTx(previousSleepStages);
-                }
-            }
+            persisted &= replaceSleepStageSamples(
+                    sleepProvider,
+                    sleepStageSamples,
+                    sleepReplacementRanges
+            );
             persisted &= new GenericSpo2SampleProvider(getDevice(), session)
                     .persistSamples(spo2Samples, getContext());
             persisted &= new GenericStressSampleProvider(getDevice(), session)
@@ -1711,6 +1720,7 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             case FATIGUE:
                 return true;
             case RESPIRATORY_RATE:
+                return true;
             case VO2_MAX:
                 return false;
             default:
@@ -1720,6 +1730,14 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     static boolean historyTimestampSupported(final long timestamp, final long now) {
         return timestamp <= now + HISTORY_MAX_FUTURE_MILLIS;
+    }
+
+    static GenericRespiratoryRateSample toGenericRespiratoryRateSample(
+            final YcbtHealthRecordParser.MeasurementRecord measurement) {
+        final GenericRespiratoryRateSample sample = new GenericRespiratoryRateSample();
+        sample.setTimestamp(measurement.getTimestamp().toEpochMilli());
+        sample.setRespiratoryRate((float) measurement.getValue());
+        return sample;
     }
 
     private static void appendSleepStageSamples(final List<GenericSleepStageSample> samples,
@@ -1763,6 +1781,57 @@ public class YcbtDeviceSupport extends AbstractBTLESingleDeviceSupport {
             coveredEnd = Math.max(coveredEnd, candidateEnd);
         }
         return overlappingSession;
+    }
+
+    static boolean replaceSleepStageSamples(final GenericSleepStageSampleProvider provider,
+                                            final List<GenericSleepStageSample> replacements,
+                                            final List<long[]> replacementRanges) {
+        try {
+            final Device device = DBHelper.findDevice(provider.getDevice(), provider.getSession());
+            final User user = DBHelper.getUser(provider.getSession());
+            if (device == null || user == null) {
+                return false;
+            }
+            for (final GenericSleepStageSample replacement : replacements) {
+                replacement.setDeviceId(device.getId());
+                replacement.setUserId(user.getId());
+            }
+            provider.getSession().runInTx(() -> {
+                final GenericSleepStageSampleDao dao =
+                        provider.getSession().getGenericSleepStageSampleDao();
+                for (final long[] range : replacementRanges) {
+                    final List<GenericSleepStageSample> previous = findOverlappingSleepSessionStages(
+                            provider,
+                            range[0],
+                            range[1]
+                    );
+                    if (previous.isEmpty()) {
+                        continue;
+                    }
+                    final long firstTimestamp = previous.get(0).getTimestamp();
+                    final long lastTimestamp = previous.get(previous.size() - 1).getTimestamp();
+                    dao.queryBuilder()
+                            .where(
+                                    GenericSleepStageSampleDao.Properties.DeviceId.eq(
+                                            previous.get(0).getDeviceId()
+                                    ),
+                                    GenericSleepStageSampleDao.Properties.Timestamp.between(
+                                            firstTimestamp,
+                                            lastTimestamp
+                                    )
+                            )
+                            .buildDelete()
+                            .executeDeleteWithoutDetachingEntities();
+                }
+                for (final GenericSleepStageSample replacement : replacements) {
+                    dao.insertOrReplace(replacement);
+                }
+            });
+            return true;
+        } catch (final Exception e) {
+            LOG.error("Could not replace YCBT sleep history stages", e);
+            return false;
+        }
     }
 
     private static int toGenericSleepStage(final YcbtHealthRecordParser.SleepStage stage) {

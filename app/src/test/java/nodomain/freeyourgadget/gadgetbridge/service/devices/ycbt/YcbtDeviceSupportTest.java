@@ -29,9 +29,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSample;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes;
+import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
 
-public class YcbtDeviceSupportTest {
+public class YcbtDeviceSupportTest extends TestBase {
     @Test
     public void requiresIndicateButAllowsNotifyAndIndicate() {
         assertTrue(YcbtDeviceSupport.supportsIndications(BluetoothGattCharacteristic.PROPERTY_INDICATE));
@@ -145,23 +152,47 @@ public class YcbtDeviceSupportTest {
             }
         }
 
-        assertEquals(Arrays.asList(YcbtHealthRecordParser.MeasurementKind.SPO2), acceptedKinds);
+        assertEquals(Arrays.asList(
+                YcbtHealthRecordParser.MeasurementKind.SPO2,
+                YcbtHealthRecordParser.MeasurementKind.RESPIRATORY_RATE
+        ), acceptedKinds);
     }
 
     @Test
-    public void requestsBaselineHistoryWithoutBitmapBits() {
+    public void skipsCapabilityGatedHistoryWithoutBitmapBits() {
         final YcbtProtocol.Capabilities capabilities = YcbtProtocol.parseCapabilities(
                 YcbtFrameCodec.decode(YcbtFrameCodec.encode(0x02, 0x01, new byte[24]))
         );
 
-        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.SPORT),
-                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_ACTIVITY, capabilities));
-        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.SLEEP),
-                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SLEEP, capabilities));
-        assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.HEART_RATE),
-                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_HEART_RATE, capabilities));
+        assertTrue(YcbtDeviceSupport.historyTypesFor(
+                RecordedDataTypes.TYPE_ACTIVITY, capabilities).isEmpty());
+        assertTrue(YcbtDeviceSupport.historyTypesFor(
+                RecordedDataTypes.TYPE_SLEEP, capabilities).isEmpty());
+        assertTrue(YcbtDeviceSupport.historyTypesFor(
+                RecordedDataTypes.TYPE_HEART_RATE, capabilities).isEmpty());
+        assertTrue(YcbtDeviceSupport.historyTypesFor(
+                RecordedDataTypes.TYPE_SPO2, capabilities).isEmpty());
         assertEquals(Arrays.asList(YcbtHistoryTransfer.HistoryType.VITALS),
-                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SPO2, capabilities));
+                YcbtDeviceSupport.historyTypesFor(RecordedDataTypes.TYPE_SLEEP_RESPIRATORY_RATE, capabilities));
+    }
+
+    @Test
+    public void mapsDecodedRespiratoryRateWithOriginalTimestamp() {
+        final List<YcbtHealthRecordParser.Record> records = YcbtHealthRecordParser.parse(
+                YcbtHealthRecordParser.HISTORY_COMBINED_VITALS,
+                bytes("1cf0de31721046764f610f3a0324061504370000")
+        );
+        final YcbtHealthRecordParser.MeasurementRecord respiratory = records.stream()
+                .filter(record -> record instanceof YcbtHealthRecordParser.MeasurementRecord)
+                .map(record -> (YcbtHealthRecordParser.MeasurementRecord) record)
+                .filter(record -> record.getKind() == YcbtHealthRecordParser.MeasurementKind.RESPIRATORY_RATE)
+                .findFirst()
+                .orElseThrow();
+
+        final GenericRespiratoryRateSample sample =
+                YcbtDeviceSupport.toGenericRespiratoryRateSample(respiratory);
+        assertEquals(respiratory.getTimestamp().toEpochMilli(), sample.getTimestamp());
+        assertEquals((float) respiratory.getValue(), sample.getRespiratoryRate(), 0.0f);
     }
 
     @Test
@@ -188,6 +219,51 @@ public class YcbtDeviceSupportTest {
         assertFalse(YcbtDeviceSupport.historyTimestampSupported(now + 60L * 60L * 1_000L + 1, now));
     }
 
+    @Test
+    public void replacesOverlappingSleepStagesWithoutTouchingOtherRowsOrDevices() {
+        final GBDevice device = new GBDevice(
+                "00:11:22:33:44:55", "R10M", "R10M", "", DeviceType.YCBT_R10M
+        );
+        final GBDevice otherDevice = new GBDevice(
+                "00:11:22:33:44:66", "R10M other", "R10M other", "", DeviceType.YCBT_R10M
+        );
+        DBHelper.getDevice(device, daoSession);
+        DBHelper.getDevice(otherDevice, daoSession);
+        final GenericSleepStageSampleProvider provider =
+                new GenericSleepStageSampleProvider(device, daoSession);
+        final GenericSleepStageSampleProvider otherProvider =
+                new GenericSleepStageSampleProvider(otherDevice, daoSession);
+        final long start = 1_700_000_000_000L;
+
+        assertTrue(provider.persistSamples(List.of(
+                sleepStage(start - 600_000L, 5, 2),
+                sleepStage(start, 5, 1),
+                sleepStage(start + 300_000L, 5, 2),
+                sleepStage(start + 900_000L, 5, 3)
+        ), getContext()));
+        assertTrue(otherProvider.persistSamples(List.of(
+                sleepStage(start, 5, 1),
+                sleepStage(start + 300_000L, 5, 2)
+        ), getContext()));
+
+        assertTrue(YcbtDeviceSupport.replaceSleepStageSamples(
+                provider,
+                List.of(sleepStage(start, 2, 4)),
+                List.of(new long[]{start, start + 120_000L})
+        ));
+
+        final List<GenericSleepStageSample> stored = provider.getAllSamples(
+                start - 600_000L, start + 900_000L
+        );
+        assertEquals(Arrays.asList(start - 600_000L, start, start + 900_000L),
+                stored.stream().map(GenericSleepStageSample::getTimestamp).toList());
+        assertEquals(2, stored.get(1).getDuration());
+        assertEquals(4, stored.get(1).getStage());
+        assertEquals(Arrays.asList(start, start + 300_000L),
+                otherProvider.getAllSamples(start, start + 300_000L).stream()
+                        .map(GenericSleepStageSample::getTimestamp).toList());
+    }
+
     private static YcbtHistoryTransfer.Result completedHistoryResult() {
         final YcbtHistoryTransfer transfer = new YcbtHistoryTransfer();
         transfer.start(Arrays.asList(
@@ -212,5 +288,15 @@ public class YcbtDeviceSupportTest {
             bytes[index] = (byte) Integer.parseInt(hex.substring(index * 2, index * 2 + 2), 16);
         }
         return bytes;
+    }
+
+    private static GenericSleepStageSample sleepStage(final long timestamp,
+                                                      final int duration,
+                                                      final int stage) {
+        final GenericSleepStageSample sample = new GenericSleepStageSample();
+        sample.setTimestamp(timestamp);
+        sample.setDuration(duration);
+        sample.setStage(stage);
+        return sample;
     }
 }

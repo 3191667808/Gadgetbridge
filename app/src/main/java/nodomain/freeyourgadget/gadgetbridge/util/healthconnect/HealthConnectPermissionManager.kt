@@ -51,6 +51,7 @@ object HealthConnectPermissionManager {
 
     enum class HealthConnectDataType {
         ACTIVITY,
+        HEART_RATE,
         SLEEP,
         VO2MAX,
         HRV,
@@ -59,6 +60,7 @@ object HealthConnectPermissionManager {
         TEMPERATURE,
         RESPIRATORY_RATE,
         RESTING_HEART_RATE,
+        BLOOD_PRESSURE,
         BLOOD_GLUCOSE,
         WORKOUTS
     }
@@ -73,6 +75,7 @@ object HealthConnectPermissionManager {
                 HealthPermission.getWritePermission(TotalCaloriesBurnedRecord::class),
                 HealthPermission.getWritePermission(DistanceRecord::class)
             )
+            HealthConnectDataType.HEART_RATE -> setOf(HealthPermission.getWritePermission(HeartRateRecord::class))
             HealthConnectDataType.SLEEP -> setOf(HealthPermission.getWritePermission(SleepSessionRecord::class))
             HealthConnectDataType.VO2MAX -> setOf(HealthPermission.getWritePermission(Vo2MaxRecord::class))
             HealthConnectDataType.HRV -> setOf(HealthPermission.getWritePermission(HeartRateVariabilityRmssdRecord::class))
@@ -80,6 +83,7 @@ object HealthConnectPermissionManager {
             HealthConnectDataType.SPO2 -> setOf(HealthPermission.getWritePermission(OxygenSaturationRecord::class))
             HealthConnectDataType.RESPIRATORY_RATE -> setOf(HealthPermission.getWritePermission(RespiratoryRateRecord::class))
             HealthConnectDataType.RESTING_HEART_RATE -> setOf(HealthPermission.getWritePermission(RestingHeartRateRecord::class))
+            HealthConnectDataType.BLOOD_PRESSURE -> setOf(HealthPermission.getWritePermission(BloodPressureRecord::class))
             HealthConnectDataType.BLOOD_GLUCOSE -> setOf(HealthPermission.getWritePermission(BloodGlucoseRecord::class))
             HealthConnectDataType.TEMPERATURE -> setOf(
                 HealthPermission.getWritePermission(BodyTemperatureRecord::class),

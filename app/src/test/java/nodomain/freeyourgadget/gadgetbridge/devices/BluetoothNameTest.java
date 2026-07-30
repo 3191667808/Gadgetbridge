@@ -45,6 +45,16 @@ public class BluetoothNameTest extends TestBase {
             put("L 70", DeviceType.L70);
             put("V73", DeviceType.COLMI_V73); // #5715
             put("R05_9805", DeviceType.YAWELL_R05); // #3896
+            put("R10M FCF4", DeviceType.YCBT_R10M); // #6462
+            put("R10M FCF3", DeviceType.YCBT_R10M); // #6462
+            put("R10M_FCF4", DeviceType.YCBT_R10M); // #6462
+            put("R11M 123A", DeviceType.YCBT_R10M); // #6462
+            put("R11M_ABCD", DeviceType.YCBT_R10M); // #6462
+            put("R11M", DeviceType.YCBT_R10M); // #6462
+            put("R10M fcf4", null); // #6462
+            put("R12M FCF4", null); // #6462
+            put(" R10M FCF4", null); // #6462
+            put("R10M FCF4 ", null); // #6462
             put("BT103(ID-AB01)", DeviceType.OUKITEL_BT103);
             put("P66D(ID-AB01)", DeviceType.DOTN_P66D);
             put("R1(ID-10B5)", DeviceType.R1); // #5621

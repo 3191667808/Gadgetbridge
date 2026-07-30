@@ -25,6 +25,7 @@ import java.util.Locale;
 
 public final class YcbtPairingTrace {
     private static final String HEADER = "YCBT pairing diagnostics";
+    private static final int MAX_LINES = 200;
 
     private final List<String> lines;
     private int attemptNumber;
@@ -39,16 +40,16 @@ public final class YcbtPairingTrace {
                             final List<String> lines) {
         this.attemptNumber = attemptNumber;
         this.eventNumber = eventNumber;
-        this.lines = new ArrayList<>(lines);
+        this.lines = new ArrayList<>(lines.subList(Math.max(0, lines.size() - MAX_LINES), lines.size()));
     }
 
     public void beginAttempt() {
         attemptNumber++;
         eventNumber = 0;
         if (!lines.isEmpty()) {
-            lines.add("");
+            appendLine("");
         }
-        lines.add("Attempt " + attemptNumber);
+        appendLine("Attempt " + attemptNumber);
     }
 
     public void append(final String event) {
@@ -60,7 +61,14 @@ public final class YcbtPairingTrace {
             beginAttempt();
         }
         eventNumber++;
-        lines.add(String.format(Locale.ROOT, "%02d. %s %s", eventNumber, timestamp, event));
+        appendLine(String.format(Locale.ROOT, "%02d. %s %s", eventNumber, timestamp, event));
+    }
+
+    private void appendLine(final String line) {
+        if (lines.size() == MAX_LINES) {
+            lines.remove(0);
+        }
+        lines.add(line);
     }
 
     public String format() {

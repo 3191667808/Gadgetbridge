@@ -83,6 +83,22 @@ public class YcbtFrameReassemblerTest {
         assertCapturedFrame(reassembler.accept(CAPTURED_FRAME));
     }
 
+    @Test
+    public void discardsStalePartialFrameBeforeProcessingNextFragment() {
+        final YcbtFrameReassembler reassembler = new YcbtFrameReassembler();
+
+        assertTrue(reassembler.acceptWithDiagnostics(
+                new byte[]{0x00, 0x00, (byte) 0xff, (byte) 0xff},
+                1_000L
+        ).getFrames().isEmpty());
+
+        final YcbtFrameReassembler.AcceptResult recovered =
+                reassembler.acceptWithDiagnostics(CAPTURED_FRAME, 6_001L);
+
+        assertEquals("Partial frame timed out", recovered.getMalformedReason());
+        assertCapturedFrame(recovered.getFrames());
+    }
+
     private static void assertCapturedFrame(final List<YcbtFrameCodec.Frame> frames) {
         assertEquals(1, frames.size());
         assertEquals(0x02, frames.get(0).getGroup());

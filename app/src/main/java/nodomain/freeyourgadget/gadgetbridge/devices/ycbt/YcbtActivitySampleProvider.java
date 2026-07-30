@@ -172,6 +172,7 @@ public class YcbtActivitySampleProvider extends AbstractSampleProvider<YcbtActiv
         sample.setRawIntensity(ActivitySample.NOT_MEASURED);
         sample.setSteps(0);
         sample.setDistanceCm(0);
+        sample.setActiveCalories(0);
         sample.setHeartRate(ActivitySample.NOT_MEASURED);
         return sample;
     }

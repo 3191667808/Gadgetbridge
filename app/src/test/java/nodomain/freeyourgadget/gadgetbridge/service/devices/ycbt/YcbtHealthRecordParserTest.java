@@ -69,6 +69,7 @@ public class YcbtHealthRecordParserTest {
         assertEquals(Instant.parse("2026-07-06T23:00:44Z"), activity.getTimestamp());
         assertEquals(640, activity.getSteps());
         assertEquals(480, activity.getDistanceMeters());
+        assertEquals(25, activity.getActiveCalories());
     }
 
     @Test

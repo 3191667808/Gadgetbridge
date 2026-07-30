@@ -98,10 +98,16 @@ public final class YcbtHealthRecordParser {
         for (int offset = 0; offset + 14 <= payload.length; offset += 14) {
             final int steps = readUnsignedShort(payload, offset + 8);
             final int distanceMeters = readUnsignedShort(payload, offset + 10);
+            final int activeCalories = readUnsignedShort(payload, offset + 12);
             if ((steps > 0 || distanceMeters > 0)
                     && steps <= 5_000
                     && distanceMeters <= 6_000) {
-                records.add(new ActivityRecord(timestamp(payload, offset, zoneId), steps, distanceMeters));
+                records.add(new ActivityRecord(
+                        timestamp(payload, offset, zoneId),
+                        steps,
+                        distanceMeters,
+                        activeCalories
+                ));
             }
         }
         return records;
@@ -451,11 +457,16 @@ public final class YcbtHealthRecordParser {
         private final Instant timestamp;
         private final int steps;
         private final int distanceMeters;
+        private final int activeCalories;
 
-        private ActivityRecord(final Instant timestamp, final int steps, final int distanceMeters) {
+        private ActivityRecord(final Instant timestamp,
+                               final int steps,
+                               final int distanceMeters,
+                               final int activeCalories) {
             this.timestamp = timestamp;
             this.steps = steps;
             this.distanceMeters = distanceMeters;
+            this.activeCalories = activeCalories;
         }
 
         @Override
@@ -469,6 +480,10 @@ public final class YcbtHealthRecordParser {
 
         public int getDistanceMeters() {
             return distanceMeters;
+        }
+
+        public int getActiveCalories() {
+            return activeCalories;
         }
     }
 

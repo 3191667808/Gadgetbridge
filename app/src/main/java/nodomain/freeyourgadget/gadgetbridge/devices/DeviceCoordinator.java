@@ -485,6 +485,12 @@ public interface DeviceCoordinator {
     TimeSampleProvider<? extends HeartRateSample> getHeartRateMaxSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
 
     /**
+     * Returns individual heart-rate readings stored independently from activity samples.
+     */
+    @Nullable
+    TimeSampleProvider<? extends HeartRateSample> getHeartRateSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
+
+    /**
      * Returns the sample provider for resting HR data, for the device being supported.
      */
     @Nullable

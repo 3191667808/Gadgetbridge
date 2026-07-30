@@ -43,6 +43,7 @@ import kotlin.reflect.KClass
 internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord : Record> : HealthConnectSyncer {
     protected abstract val logger: Logger
     protected abstract val recordClass: KClass<TRecord>
+    protected open val clientRecordType: String? = null
 
     protected abstract fun getSampleProvider(
         gbDevice: GBDevice,
@@ -101,6 +102,7 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         // Convert samples to records
         var skippedCount = 0
         var latestSyncedTimestamp: Instant? = null
+        val recordVersion = System.currentTimeMillis()
 
         val recordsToInsert = samples.filter {
             val timestamp = Instant.ofEpochMilli(it.timestamp)
@@ -116,10 +118,13 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
             return@filter true
         }.mapNotNull { sample ->
             val sampleOffset = offset.rules.getOffset(Instant.ofEpochMilli(sample.timestamp))
+            val sampleMetadata = clientRecordType?.let {
+                timeSampleClientRecordMetadata(metadata, gbDevice, it, sample.timestamp, recordVersion)
+            } ?: metadata
             convertSample(
                 sample,
                 sampleOffset,
-                metadata,
+                sampleMetadata,
                 deviceName
             )?.also {
                 val ts = Instant.ofEpochMilli(sample.timestamp)
@@ -139,7 +144,9 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
 
         // Insert records
         logger.info("Attempting to insert ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
-        HealthConnectUtils.insertRecords(recordsToInsert, healthConnectClient)
+        timeSampleRecordBatches(recordsToInsert, clientRecordType != null).forEach {
+            HealthConnectUtils.insertRecords(it, healthConnectClient)
+        }
 
         logger.info("Successfully inserted ${recordsToInsert.size} $recordTypeName(s) for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")
         return SyncerStatistics(
@@ -149,4 +156,13 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
             latestRecordTimestamp = latestSyncedTimestamp
         )
     }
+}
+
+internal fun <T> timeSampleRecordBatches(
+    records: List<T>,
+    hasStableIdentity: Boolean
+): List<List<T>> = if (hasStableIdentity) {
+    records.chunked(HealthConnectUtils.CHUNK_SIZE)
+} else {
+    listOf(records)
 }

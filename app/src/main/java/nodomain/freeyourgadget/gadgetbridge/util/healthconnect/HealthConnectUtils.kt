@@ -323,7 +323,14 @@ class HealthConnectUtils {
                 
                 var timestampToPersistForThisDataType = timestampRange.first
                 val currentDataTypeStartTsFromDb = timestampRange.first
-                val currentDataTypeEndTsFromDb = timestampRange.second
+                val rangeEndTsFromDb = timestampRange.second
+                val supportsSingletonRange = dataType == HealthConnectPermissionManager.HealthConnectDataType.HEART_RATE ||
+                    dataType == HealthConnectPermissionManager.HealthConnectDataType.BLOOD_PRESSURE
+                val currentDataTypeEndTsFromDb = effectiveSyncRangeEnd(
+                    currentDataTypeStartTsFromDb,
+                    rangeEndTsFromDb,
+                    supportsSingletonRange
+                )
 
                 if (currentDataTypeEndTsFromDb.isBefore(currentDataTypeStartTsFromDb) || currentDataTypeEndTsFromDb == currentDataTypeStartTsFromDb) {
                     LOG.info("$HC_SYNC_TAG No new data to sync for device {} and data type {}. Start: {}, End: {}", gbDevice.aliasOrName, dataType.name, currentDataTypeStartTsFromDb, currentDataTypeEndTsFromDb)
@@ -553,6 +560,12 @@ class HealthConnectUtils {
         private const val MIN_VALID_SAMPLE_SECONDS = 1420070400L // 2015-01-01T00:00:00Z
         private const val MIN_VALID_SAMPLE_MILLIS = MIN_VALID_SAMPLE_SECONDS * 1000
 
+        internal fun effectiveSyncRangeEnd(
+            start: Instant,
+            end: Instant,
+            supportsSingletonRange: Boolean
+        ): Instant = if (supportsSingletonRange && start == end) end.plusMillis(1) else end
+
         private fun getSyncTimestampRange(
             context: Context,
             gbDevice: GBDevice,
@@ -648,10 +661,12 @@ class HealthConnectUtils {
                             healthConnectClient, gbDevice, metadata, offset,
                             currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples
                         ))
-                        sliceStats.add(HeartRateSyncer.sync(
-                            healthConnectClient, gbDevice, metadata, offset,
-                            currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples
-                        ))
+                        if (!hasHeartRateTimeSampleProvider(gbDevice)) {
+                            sliceStats.add(HeartRateSyncer.sync(
+                                healthConnectClient, gbDevice, metadata, offset,
+                                currentSliceStartTs, currentSliceEndTs, grantedPermissions, activityBasedSamples
+                            ))
+                        }
                         if (gbDevice.deviceCoordinator.supportsActiveCalories(gbDevice)) {
                             sliceStats.add(ActiveCaloriesSyncer.sync(
                                 healthConnectClient, gbDevice, metadata, offset,
@@ -666,6 +681,10 @@ class HealthConnectUtils {
                         }
                     }
                 }
+                HealthConnectPermissionManager.HealthConnectDataType.HEART_RATE -> sliceStats.add(HeartRateTimeSampleSyncer.sync(
+                    healthConnectClient, gbDevice, metadata, offset,
+                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                ))
                 HealthConnectPermissionManager.HealthConnectDataType.SLEEP -> {
                     // Handled statefully in the slice loop; identity carried across slices.
                 }
@@ -697,6 +716,10 @@ class HealthConnectUtils {
                     healthConnectClient, gbDevice, metadata, offset,
                     currentSliceStartTs, currentSliceEndTs, grantedPermissions
                 ))
+                HealthConnectPermissionManager.HealthConnectDataType.BLOOD_PRESSURE -> sliceStats.add(BloodPressureSyncer.sync(
+                    healthConnectClient, gbDevice, metadata, offset,
+                    currentSliceStartTs, currentSliceEndTs, grantedPermissions
+                ))
                 HealthConnectPermissionManager.HealthConnectDataType.BLOOD_GLUCOSE -> sliceStats.add(BloodGlucoseSyncer.sync(
                     healthConnectClient, gbDevice, metadata, offset,
                     currentSliceStartTs, currentSliceEndTs, grantedPermissions
@@ -725,6 +748,11 @@ class HealthConnectUtils {
             }
             return provider.getAllActivitySamples(tsFrom, tsTo)
         }
+
+        private fun hasHeartRateTimeSampleProvider(device: GBDevice): Boolean =
+            GBApplication.acquireDbReadOnly().use { db ->
+                device.deviceCoordinator.getHeartRateSampleProvider(device, db.daoSession) != null
+            }
 
         private fun loadSleepRows(gbDevice: GBDevice): List<SleepSessionRow> {
             return GBApplication.acquireDbReadOnly().use { db ->
@@ -835,10 +863,12 @@ class HealthConnectUtils {
         ): Any? { // Return type is Any? as providers have different base types
             return when (dataType) {
                 HealthConnectPermissionManager.HealthConnectDataType.ACTIVITY, HealthConnectPermissionManager.HealthConnectDataType.SLEEP -> coordinator.getSampleProvider(device, db.daoSession)
+                HealthConnectPermissionManager.HealthConnectDataType.HEART_RATE -> coordinator.getHeartRateSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.VO2MAX -> coordinator.getVo2MaxSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.HRV -> coordinator.getHrvValueSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.RESPIRATORY_RATE -> coordinator.getRespiratoryRateSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.RESTING_HEART_RATE -> coordinator.getHeartRateRestingSampleProvider(device, db.daoSession)
+                HealthConnectPermissionManager.HealthConnectDataType.BLOOD_PRESSURE -> coordinator.getBloodPressureSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.BLOOD_GLUCOSE -> GlucoseSampleProvider(device, db.daoSession)
                 HealthConnectPermissionManager.HealthConnectDataType.WEIGHT -> coordinator.getWeightSampleProvider(device, db.daoSession)
                 // For SpO2 and Temperature, there might be a specific provider or fallback to general sample provider

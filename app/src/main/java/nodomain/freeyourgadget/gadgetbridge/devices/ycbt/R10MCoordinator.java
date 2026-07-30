@@ -43,6 +43,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProv
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHrvValueSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericRespiratoryRateSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider;
@@ -52,6 +53,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHrvValueSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericRespiratoryRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericStressSampleDao;
@@ -63,6 +65,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvValueSample;
+import nodomain.freeyourgadget.gadgetbridge.model.RespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.StressSample;
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
@@ -151,6 +154,7 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
         daoMap.put(session.getGenericBloodPressureSampleDao(), GenericBloodPressureSampleDao.Properties.DeviceId);
         daoMap.put(session.getGenericHeartRateSampleDao(), GenericHeartRateSampleDao.Properties.DeviceId);
         daoMap.put(session.getGenericHrvValueSampleDao(), GenericHrvValueSampleDao.Properties.DeviceId);
+        daoMap.put(session.getGenericRespiratoryRateSampleDao(), GenericRespiratoryRateSampleDao.Properties.DeviceId);
         daoMap.put(session.getGenericSleepStageSampleDao(), GenericSleepStageSampleDao.Properties.DeviceId);
         daoMap.put(session.getGenericSpo2SampleDao(), GenericSpo2SampleDao.Properties.DeviceId);
         daoMap.put(session.getGenericStressSampleDao(), GenericStressSampleDao.Properties.DeviceId);
@@ -179,7 +183,7 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
-    public TimeSampleProvider<? extends HeartRateSample> getHeartRateMaxSampleProvider(
+    public TimeSampleProvider<? extends HeartRateSample> getHeartRateSampleProvider(
             @NonNull final GBDevice device,
             @NonNull final DaoSession session) {
         return new GenericHeartRateSampleProvider(device, session);
@@ -214,6 +218,13 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public TimeSampleProvider<? extends RespiratoryRateSample> getRespiratoryRateSampleProvider(
+            @NonNull final GBDevice device,
+            @NonNull final DaoSession session) {
+        return new GenericRespiratoryRateSampleProvider(device, session);
+    }
+
+    @Override
     public TimeSampleProvider<? extends StressSample> getStressSampleProvider(
             @NonNull final GBDevice device,
             @NonNull final DaoSession session) {
@@ -239,22 +250,32 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsActivityTracking(@NonNull final GBDevice device) {
-        return true;
+        return capability(device, YcbtConstants.PREF_CAPABILITY_STEPS);
     }
 
     @Override
     public boolean supportsStepCounter(@NonNull final GBDevice device) {
-        return true;
+        return capability(device, YcbtConstants.PREF_CAPABILITY_STEPS);
+    }
+
+    @Override
+    public boolean supportsActiveCalories(@NonNull final GBDevice device) {
+        return capability(device, YcbtConstants.PREF_CAPABILITY_STEPS);
+    }
+
+    @Override
+    public boolean supportsActivityDistance(@NonNull final GBDevice device) {
+        return capability(device, YcbtConstants.PREF_CAPABILITY_STEPS);
     }
 
     @Override
     public boolean supportsHeartRateStats(@NonNull final GBDevice device) {
-        return true;
+        return capability(device, YcbtConstants.PREF_CAPABILITY_HEART_RATE);
     }
 
     @Override
     public boolean supportsHeartRateMeasurement(@NonNull final GBDevice device) {
-        return true;
+        return capability(device, YcbtConstants.PREF_CAPABILITY_HEART_RATE);
     }
 
     @Override
@@ -264,7 +285,7 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsRealtimeData(@NonNull final GBDevice device) {
-        return true;
+        return supportsStepCounter(device) || supportsHeartRateMeasurement(device);
     }
 
     @Override
@@ -274,6 +295,16 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsSpo2(@NonNull final GBDevice device) {
+        return capability(device, YcbtConstants.PREF_CAPABILITY_SPO2);
+    }
+
+    @Override
+    public boolean supportsRespiratoryRate(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsDayRespiratoryRate(@NonNull final GBDevice device) {
         return true;
     }
 
@@ -313,12 +344,12 @@ public class R10MCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsRemSleep(@NonNull final GBDevice device) {
-        return true;
+        return capability(device, YcbtConstants.PREF_CAPABILITY_SLEEP);
     }
 
     @Override
     public boolean supportsAwakeSleep(@NonNull final GBDevice device) {
-        return true;
+        return capability(device, YcbtConstants.PREF_CAPABILITY_SLEEP);
     }
 
     private static boolean capability(final GBDevice device, final String preference) {

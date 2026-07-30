@@ -57,7 +57,19 @@ object GadgetbridgeDataExporter {
             }
 
             data.put("steps", exportSteps(activitySamples))
-            data.put("heart_rate", exportHeartRate(activitySamples))
+            val heartRateProvider = coordinator.getHeartRateSampleProvider(gbDevice, db.daoSession)
+            data.put("heart_rate", if (heartRateProvider != null) {
+                exportTimeSamples(heartRateProvider, msFrom, msTo) { sample ->
+                    val bpm = (sample as? HeartRateSample)?.heartRate ?: return@exportTimeSamples null
+                    if (bpm !in 1..300 || bpm == 255) return@exportTimeSamples null
+                    JSONObject().apply {
+                        put("time", Instant.ofEpochMilli(sample.timestamp).toString())
+                        put("bpm", bpm)
+                    }
+                }
+            } else {
+                exportHeartRate(activitySamples)
+            })
             data.put("sleep", exportSleep(activitySamples))
             data.put("spo2", exportTimeSamples(coordinator.getSpo2SampleProvider(gbDevice, db.daoSession), msFrom, msTo) { sample ->
                 val spo2 = (sample as? Spo2Sample)?.spo2 ?: return@exportTimeSamples null
@@ -89,6 +101,14 @@ object GadgetbridgeDataExporter {
                 JSONObject().apply {
                     put("time", Instant.ofEpochMilli(sample.timestamp).toString())
                     put("bpm", bpm)
+                }
+            })
+            data.put("blood_pressure", exportTimeSamples(coordinator.getBloodPressureSampleProvider(gbDevice, db.daoSession), msFrom, msTo) { sample ->
+                val bloodPressure = sample as? BloodPressureSample ?: return@exportTimeSamples null
+                JSONObject().apply {
+                    put("time", Instant.ofEpochMilli(sample.timestamp).toString())
+                    put("systolic_mmhg", bloodPressure.bpSystolic)
+                    put("diastolic_mmhg", bloodPressure.bpDiastolic)
                 }
             })
             data.put("temperature", exportTimeSamples(coordinator.getTemperatureSampleProvider(gbDevice, db.daoSession), msFrom, msTo) { sample ->
@@ -217,4 +237,3 @@ object GadgetbridgeDataExporter {
         return arr
     }
 }
-

@@ -23,6 +23,9 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample
 import java.time.Instant
 import java.time.ZoneId
+import java.nio.charset.StandardCharsets
+import java.util.Locale
+import java.util.UUID
 
 // Deterministic clientRecordId so re-emitting an overlapping window upserts instead of duplicating.
 // version is the clientRecordVersion; HC keeps the highest on conflict (newVersion >= existing
@@ -37,6 +40,25 @@ internal fun clientRecordMetadata(
 ): Metadata {
     val device = base.device ?: return base
     val id = "gb-$type-${device.manufacturer ?: "unknown"}-${device.model ?: "unknown"}-$idKey"
+    return when (base.recordingMethod) {
+        Metadata.RECORDING_METHOD_ACTIVELY_RECORDED -> Metadata.activelyRecorded(device, id, version)
+        else -> Metadata.autoRecorded(device, id, version)
+    }
+}
+
+internal fun timeSampleClientRecordMetadata(
+    base: Metadata,
+    gbDevice: GBDevice,
+    type: String,
+    timestampMillis: Long,
+    version: Long
+): Metadata {
+    val device = base.device ?: return base
+    val normalizedAddress = gbDevice.address.uppercase(Locale.ROOT)
+    val sourceToken = UUID.nameUUIDFromBytes(
+        normalizedAddress.toByteArray(StandardCharsets.UTF_8)
+    )
+    val id = "gb-v1-$type-$sourceToken-$timestampMillis"
     return when (base.recordingMethod) {
         Metadata.RECORDING_METHOD_ACTIVELY_RECORDED -> Metadata.activelyRecorded(device, id, version)
         else -> Metadata.autoRecorded(device, id, version)

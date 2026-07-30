@@ -226,7 +226,7 @@ public final class YcbtHistoryTransfer {
         } else {
             return result(Status.IGNORED, Collections.emptyList(), null, null);
         }
-        return advance(status, new ArrayList<>(), null, null, nowMillis);
+        return retryOrSkip(status, nowMillis);
     }
 
     public synchronized void cancel() {

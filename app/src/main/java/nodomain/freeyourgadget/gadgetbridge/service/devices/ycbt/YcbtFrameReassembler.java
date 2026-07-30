@@ -22,7 +22,10 @@ import java.util.Collections;
 import java.util.List;
 
 public final class YcbtFrameReassembler {
+    private static final long FRAGMENT_TIMEOUT_MILLIS = 5_000L;
+
     private byte[] buffered = new byte[0];
+    private long lastFragmentAtMillis = -1L;
 
     public List<YcbtFrameCodec.Frame> accept(final byte[] fragment) {
         if (fragment == null) {
@@ -32,6 +35,10 @@ public final class YcbtFrameReassembler {
     }
 
     public AcceptResult acceptWithDiagnostics(final byte[] fragment) {
+        return acceptWithDiagnostics(fragment, System.nanoTime() / 1_000_000L);
+    }
+
+    public AcceptResult acceptWithDiagnostics(final byte[] fragment, final long nowMillis) {
         if (fragment == null) {
             return new AcceptResult(Collections.emptyList(), "Fragment must not be null");
         }
@@ -39,12 +46,19 @@ public final class YcbtFrameReassembler {
             return new AcceptResult(Collections.emptyList(), null);
         }
 
+        String malformedReason = null;
+        if (buffered.length > 0
+                && lastFragmentAtMillis >= 0
+                && nowMillis - lastFragmentAtMillis >= FRAGMENT_TIMEOUT_MILLIS) {
+            buffered = new byte[0];
+            malformedReason = "Partial frame timed out";
+        }
+
         final byte[] combined = Arrays.copyOf(buffered, buffered.length + fragment.length);
         System.arraycopy(fragment, 0, combined, buffered.length, fragment.length);
         buffered = combined;
 
         final List<YcbtFrameCodec.Frame> frames = new ArrayList<>();
-        String malformedReason = null;
         while (buffered.length >= YcbtFrameCodec.HEADER_LENGTH) {
             final int declaredLength = YcbtFrameCodec.readLittleEndianUnsignedShort(buffered, 2);
             if (declaredLength < YcbtFrameCodec.MINIMUM_FRAME_LENGTH) {
@@ -67,6 +81,8 @@ public final class YcbtFrameReassembler {
 
             buffered = Arrays.copyOfRange(buffered, declaredLength, buffered.length);
         }
+
+        lastFragmentAtMillis = buffered.length > 0 ? nowMillis : -1L;
 
         return new AcceptResult(frames, malformedReason);
     }
