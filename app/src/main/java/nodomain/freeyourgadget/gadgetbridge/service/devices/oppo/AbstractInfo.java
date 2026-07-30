@@ -16,10 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
-import androidx.annotation.NonNull;
 import android.content.Context;
 
-import java.util.List;
+import androidx.annotation.NonNull;
 
 public abstract class AbstractInfo {
     protected final Context context;

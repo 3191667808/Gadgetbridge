@@ -18,11 +18,9 @@ package nodomain.freeyourgadget.gadgetbridge.devices.oppo;
 
 import android.os.Parcel;
 import android.util.Pair;
-import android.content.Context;
 
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
-import androidx.preference.MultiSelectListPreference;
 
 import java.util.ArrayList;
 import java.util.Collections;

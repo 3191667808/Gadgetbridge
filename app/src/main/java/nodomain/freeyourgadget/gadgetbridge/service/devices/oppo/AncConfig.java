@@ -16,9 +16,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 
-import androidx.annotation.NonNull;
 import android.content.Context;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,23 +29,21 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferences;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.SubscriptionType;
+import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferences;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoCommand;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoMessage;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.OppoCommand;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class AncConfig extends AbstractConfig {

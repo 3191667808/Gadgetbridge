@@ -24,10 +24,8 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;

@@ -19,12 +19,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.oppo;
 import androidx.annotation.NonNull;
 import android.content.Context;
 
-import java.util.List;
-
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public abstract class AbstractConfig {

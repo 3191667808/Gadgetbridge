@@ -18,11 +18,9 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.oppo
 
 import android.bluetooth.BluetoothClass
-import android.bluetooth.BluetoothDevice
 import android.util.Pair
 import java.nio.ByteOrder
 import nodomain.freeyourgadget.gadgetbridge.R
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec
@@ -36,12 +34,12 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.OppoHeadphonesSupport
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue
 
 abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() {
     override fun getManufacturer(): String = "Oppo"

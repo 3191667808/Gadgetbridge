@@ -41,6 +41,7 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
         return Pattern.compile("realme Buds T200", Pattern.LITERAL);
     }
 
+    @NonNull
     @Override
     public String getManufacturer() {
         return "Realme";
@@ -51,8 +52,9 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
         return R.string.devicetype_realme_buds_t200;
     }
 
+    @NonNull
     @Override
-    public BatteryConfig[] getBatteryConfig(final GBDevice device) {
+    public BatteryConfig[] getBatteryConfig(@NonNull final GBDevice device) {
         final BatteryConfig battery1 = new BatteryConfig(0, R.drawable.ic_realme_buds_t300_l, R.string.left_earbud);
         final BatteryConfig battery2 = new BatteryConfig(1, R.drawable.ic_realme_buds_t300_r, R.string.right_earbud);
         final BatteryConfig battery3 = new BatteryConfig(2, R.drawable.ic_realme_buds_t300_case, R.string.battery_case);
@@ -104,6 +106,7 @@ public class RealmeBudsT200Coordinator extends OppoHeadphonesCoordinator {
         return true;
     }
 
+    @NonNull
     @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
         return new LinkedHashMap<>() {

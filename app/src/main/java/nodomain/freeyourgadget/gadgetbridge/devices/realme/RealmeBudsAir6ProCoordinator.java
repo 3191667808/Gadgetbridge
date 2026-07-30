@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.realme;
 
 import android.util.Pair;
+
 import androidx.annotation.NonNull;
 
 import java.nio.ByteOrder;
@@ -31,11 +32,11 @@ import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesCoordinat
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoSide;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.StatusInfoValue;
 
 public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
     @Override
@@ -43,6 +44,7 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
         return Pattern.compile("realme Buds Air6 Pro", Pattern.LITERAL);
     }
 
+    @NonNull
     @Override
     public String getManufacturer() {
         return "Realme";
@@ -53,6 +55,7 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
         return R.string.devicetype_realme_buds_air_6_pro;
     }
 
+    @NonNull
     @Override
     public BatteryConfig[] getBatteryConfig(final GBDevice device) {
         final BatteryConfig battery1 = new BatteryConfig(0, R.drawable.ic_realme_buds_t300_l, R.string.left_earbud);
@@ -110,6 +113,7 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
         return true;
     }
 
+    @NonNull
     @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
         return new LinkedHashMap<>() {
