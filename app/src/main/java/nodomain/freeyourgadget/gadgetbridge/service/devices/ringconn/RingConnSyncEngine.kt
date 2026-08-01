@@ -16,11 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
-/**
- * Pure orchestration for a RingConn Gen2 sync (connect -> auth -> record replay): given each inbound notification and an injected clock, returns commands to write and step buckets to persist. No Android/timers/I/O. Ack policy enforced here: EVERY stream is acked, including `4c` activity records, which advances the ring's shared replay cursor and makes GB the consuming reader.
- *
- * UNDER INVESTIGATION (2026-07-24): whether GB's `4c` acks starve the official app of the same records. Do not treat the cursor semantics below as settled.
- */
+/** Pure orchestration for a sync: turns each notification plus an injected clock into commands
+ *  to write and step buckets to persist. No Android, timers or I/O. Every stream is acked,
+ *  `4c` included, which advances the ring's shared replay cursor. */
 class RingConnSyncEngine @JvmOverloads constructor(
     private val mac: ByteArray,
     private val nowUnixSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
@@ -32,7 +30,7 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val still: Boolean,
         val asleep: Boolean = false,
         val spo2: Int? = null,
-        /** ALPHA. Live steps banked since the last record frame, attributed to this epoch. */
+        /** Live steps banked since the last record frame, attributed to this epoch. */
         val steps: Int = 0,
     )
     data class Actions(
@@ -40,7 +38,7 @@ class RingConnSyncEngine @JvmOverloads constructor(
         val bucketsToPersist: List<Bucket>,
         val activityDrained: Boolean,
         val battery: RingConnBatteryStatus? = null,
-        /** ALPHA. Steps accrued since the previous status frame; 0 when unknown. See [stepDeltaFrom]. */
+        /** Steps accrued since the previous status frame; 0 when unknown. See [stepDeltaFrom]. */
         val stepsDelta: Int = 0,
     )
 
@@ -50,11 +48,8 @@ class RingConnSyncEngine @JvmOverloads constructor(
     /** Steps counted since the last record frame, awaiting a real epoch to attribute them to. */
     private var bankedSteps: Int = 0
 
-    /**
-     * Carry step tracking across a re-sync. beginSync builds a fresh engine on every connect and
-     * every manual fetch, and banked steps are only attributed when a record frame arrives, so
-     * without this the steps taken while merely connected would be dropped before any epoch claims them.
-     */
+    /** Carry step tracking across a re-sync: a fresh engine is built on every connect and manual
+     *  fetch, and banked steps are only attributed once a record frame supplies a real epoch. */
     fun adoptStepState(previous: RingConnSyncEngine) {
         lastStepAccumulator = previous.lastStepAccumulator
         bankedSteps = previous.bankedSteps
@@ -77,9 +72,9 @@ class RingConnSyncEngine @JvmOverloads constructor(
         }
     }
 
-    /**
-     * ALPHA. Difference consecutive status-frame accumulators into steps taken; the deltas reconciled exactly against the accumulator on a measured walk (7 + 77 + 54 + 155 = 293). The accumulator resets to 0 on its own schedule, so a drop is read as "reset, and the new value is the count since it" - that would over-count if a reset landed mid-window, which has not been observed but is not ruled out. The first reading of a session yields 0: with no baseline its absolute value is not a delta we may claim.
-     */
+    /** Difference consecutive accumulators into steps taken. A drop is read as a reset, which
+     *  would over-count if one landed mid-window; the first reading of a session yields 0
+     *  because without a baseline its absolute value is not a delta we can claim. */
     private fun stepDeltaFrom(frame: ByteArray): Int {
         val current = RingConnRecordParser.parseStepAccumulator(frame) ?: return 0
         val previous = lastStepAccumulator

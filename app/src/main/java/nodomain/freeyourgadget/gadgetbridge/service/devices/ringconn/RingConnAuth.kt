@@ -16,10 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
-/** RingConn Gen2 per-connection auth. The ring answers `01 00 00` with `81 00 <challenge> <xor>`;
- *  the host replies `01 01 <r0 r1 r2> 00` where the three response bytes are the last three bytes
- *  of SM3(V, challenge) and V = XOR of the ring MAC's last three bytes. Only key material is the
- *  ring's own MAC — computable offline. Verified against a captured on-device pair. */
+/** RingConn Gen2 per-connection auth: answer the ring's `81 00 <challenge>` with the last three
+ *  bytes of SM3(V, challenge), where V is the XOR of the MAC's last three bytes. The only key
+ *  material is the ring's own MAC, so no pairing secret or vendor account is involved. */
 object RingConnAuth {
     private const val CMD = 0x01
     private const val SUB_AUTH = 0x01

@@ -16,9 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
-/**
- * One 2.5-minute activity bucket from a `4c` record frame. [confidence] is the ring's own sensor signal-quality byte (0..~12); [asleep] is GB's inference from it, not a flag the ring sends. [spo2] is null on epochs the ring did not measure.
- */
+/** One 2.5-minute activity bucket from a `4c` record frame. [confidence] is the ring's own
+ *  signal-quality byte; [asleep] is our inference from it, not a flag the ring sends. */
 data class RingConnActivityRecord(
     val unixSeconds: Long,
     val motionIndex: Int,
@@ -42,19 +41,16 @@ data class RingConnBatteryStatus(
     val charging: Boolean,
 )
 
-/**
- * Two skin-temperature channels from a `10`/`87` status frame, in RAW counts. [channelB] reads consistently warmer than [channelA] and the gap narrows as the ring warms, which is what two probes at different depths do. Observed 241-344, consistent with tenths of a degree C, but the scale is UNVERIFIED against a thermometer - do not convert to degrees until it is.
- */
+/** Two skin-temperature channels from a status frame, in RAW counts. The scale is unverified
+ *  against a thermometer, so callers must not convert these to degrees. */
 data class RingConnTemperature(
     val channelA: Int,
     val channelB: Int,
 )
 
-/**
- * Pure parser for RingConn Gen2 record frames: `0x4c` activity and `0x47` wellness (skipped). Both XOR-trailed; timestamp is u32-BE offset from 2020-01-01 00:00:00 UTC+8.
- *
- * `0x4c` record body layout, cross-checked against panther captures and the vendor APK field map published by OpenRingConn (docs/PROTOCOL.md 5.3): body[0] HR, body[1] HRV/RMSSD ms, body[2] sensor confidence 0..~12, body[3] respiratory rate x8, body[4] SpO2 (`12`/`13` = no sample this epoch), body[5] epoch marker, body[6:16] activity-magnitude blob, body[16] per-epoch flag. Only confidence and the activity blob are consumed here; HR, HRV, respiratory rate and SpO2 are identified but need DB entities before they can be stored.
- */
+/** Parser for `0x4c` activity and `0x47` wellness frames; both XOR-trailed, timestamps u32-BE
+ *  from 2020-01-01 UTC+8. Only sensor confidence and the activity blob are decoded; the other
+ *  body offsets carry values we do not claim to identify. */
 object RingConnRecordParser {
 
     /** Frame id of the activity record stream. */
@@ -74,15 +70,13 @@ object RingConnRecordParser {
     private const val CONFIDENCE_OFFSET_IN_BODY = 2
     private const val SPO2_OFFSET_IN_BODY = 4
 
-    /**
-     * SpO2 is sampled intermittently; unmeasured epochs carry the sentinels `12`/`13`, which read as a plausible 18-19%. Both fall below this floor, so one range check rejects them along with the occasional garbage byte (15 was observed twice on 2026-07-25).
-     */
+    /** Unmeasured epochs carry sentinels that read as a plausible 18-19%, so a range check
+     *  rejects them along with occasional garbage bytes. */
     private const val SPO2_MIN = 70
     private const val SPO2_MAX = 100
 
-    /**
-     * Confidence saturates at this value once the sensor has a clean signal. Measured over 371 records (panther, 2026-07-25): mean 9.3 while motionless vs 4.3 while moving, so it is a signal-quality byte, not a sleep flag - on its own it fires ~10x/day while awake and moving.
-     */
+    /** Saturation value once the sensor has a clean signal. Measured over 371 records: mean 9.3
+     *  motionless vs 4.3 moving, so this is signal quality, not a sleep flag. */
     private const val CONFIDENCE_SATURATED = 10
 
     /** Ring timestamps are seconds since 2020-01-01 00:00:00 UTC+8; add this for unix seconds. */
@@ -109,9 +103,7 @@ object RingConnRecordParser {
     private const val TIMESTAMP_OFFSET_2 = 2
     private const val TIMESTAMP_OFFSET_3 = 3
 
-    /**
-     * Parse a record frame, or null if invalid (bad frame id/length/XOR trailer, or too few records). Never throws.
-     */
+    /** Parse a record frame, or null on a bad id, length or XOR trailer. Never throws. */
     fun parse(frame: ByteArray): RingConnRecordFrame? {
         if (!isValidFrameStructure(frame)) return null
 
@@ -141,11 +133,8 @@ object RingConnRecordParser {
         return frameIdValid && lengthValid
     }
 
-    /**
-     * Build an ACK command `<id|0x80> 00 00` (`47` -> `c7 00 00`). Acking advances the ring's shared per-stream replay cursor; the engine acks every stream INCLUDING `4c` (see RingConnSyncEngine.onRecordFrame).
-     *
-     * UNDER INVESTIGATION (2026-07-24): effect of `4c` acks on the official app's own reads.
-     */
+    /** ACK for a stream (`47` -> `c7 00 00`). This advances the ring's shared replay cursor, so
+     *  Gadgetbridge becomes the consuming reader for every stream it acks. */
     fun ackCommand(frameId: Int): ByteArray {
         return byteArrayOf(
             ((frameId or ACK_MODE_BIT) and BYTE_MASK).toByte(),
@@ -154,9 +143,8 @@ object RingConnRecordParser {
         )
     }
 
-    /**
-     * Battery from a `10`/`87` status frame (byte[1] = percent 0-100, byte[2] == `04` while charging), or null if the frame isn't a valid status frame. Never throws.
-     */
+    /** Battery from a status frame: byte[1] is percent, byte[2] is `04` while charging.
+     *  Null if the frame is not a valid status frame. Never throws. */
     fun parseBattery(frame: ByteArray): RingConnBatteryStatus? {
         if (!isStatusFrame(frame)) return null
         val level = frame[BATTERY_OFFSET].toInt() and BYTE_MASK
@@ -165,9 +153,8 @@ object RingConnRecordParser {
         return RingConnBatteryStatus(level, charging)
     }
 
-    /**
-     * Skin temperature from a `10`/`87` status frame (u16-BE at bytes 6 and 8), or null if the frame isn't a valid status frame. Values are raw counts, deliberately not converted - see [RingConnTemperature]. Never throws.
-     */
+    /** Skin temperature from a status frame, as raw counts; see [RingConnTemperature] for why
+     *  they are not converted. Null if the frame is not a valid status frame. Never throws. */
     fun parseTemperature(frame: ByteArray): RingConnTemperature? {
         if (!isStatusFrame(frame)) return null
         return RingConnTemperature(
@@ -176,9 +163,8 @@ object RingConnRecordParser {
         )
     }
 
-    /**
-     * ALPHA. Raw step accumulator from a `10`/`87` status frame (u16-BE at byte 4), or null if the frame isn't a valid status frame. Confirmed on hardware 2026-07-26 to be a CUMULATIVE step count that RESETS to 0 on its own schedule: a measured 3-minute walk read 0 -> 7 -> 84 -> 138 -> 293 -> 350, about 98 steps/min, correct for 2 mph. It is therefore not a daily total - callers must difference consecutive readings (see RingConnSyncEngine.stepDeltaFrom). Still NOT cross-checked against an independent step counter. Never throws.
-     */
+    /** Raw step accumulator from a status frame. It is cumulative and resets on its own
+     *  schedule, so it is not a daily total: callers must difference consecutive readings. */
     fun parseStepAccumulator(frame: ByteArray): Int? {
         if (!isStatusFrame(frame)) return null
         return readU16BE(frame, STEPS_OFFSET)

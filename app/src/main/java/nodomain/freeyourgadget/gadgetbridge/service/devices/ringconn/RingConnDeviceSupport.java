@@ -59,11 +59,18 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final long READ_TIMEOUT_MS = 20_000L;
     private static final long REPLAY_WAIT_MS = 2_500L;
     private static final long DRAINED_QUIET_MS = 800L;
+    /** Auth is keyed on the ring's own MAC, so anything shorter cannot produce a response. */
+    private static final int MAC_LEN = 6;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private RingConnSyncEngine engine;
-    private boolean sawRecords = false;
-    private boolean completed = false;
+    // Written while building a transaction, read on the GATT callback thread.
+    private volatile RingConnSyncEngine engine;
+    private volatile boolean sawRecords = false;
+    private volatile boolean completed = false;
+    // Last battery snapshot actually reported; the ring pushes one every ~14s and GB inserts a
+    // BatteryLevel row per event, so unchanged values are dropped rather than stored.
+    private volatile int lastBatteryLevel = -1;
+    private volatile Boolean lastBatteryCharging = null;
 
     public RingConnDeviceSupport() {
         super(LOG);
@@ -99,8 +106,13 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Reset state, mark the device busy, and kick the auth+replay handshake on {@code builder}. */
     private void beginSync(final TransactionBuilder builder) {
+        final byte[] mac = macBytes(getDevice().getAddress());
+        if (mac == null || mac.length < MAC_LEN) {
+            LOG.error("Not syncing: {} is not a usable MAC for auth", getDevice().getAddress());
+            return;
+        }
         final RingConnSyncEngine previous = engine;
-        engine = new RingConnSyncEngine(macBytes(getDevice().getAddress()));
+        engine = new RingConnSyncEngine(mac);
         if (previous != null) {
             engine.adoptStepState(previous); // Banked steps outlive a re-sync; see adoptStepState.
         }
@@ -125,8 +137,8 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         final RingConnSyncEngine.Actions actions = engine.onNotification(value);
         if (actions.getBattery() != null) {
-            // ALPHA observability: keeps the accumulator falsifiable. A zero step total cannot
-            // otherwise be told apart from a wrong byte offset.
+            // Keeps the accumulator falsifiable: a zero step total cannot otherwise be told
+            // apart from a wrong byte offset.
             LOG.info("RingConn status: stepAccumulator={} delta={}",
                     RingConnRecordParser.INSTANCE.parseStepAccumulator(value), actions.getStepsDelta());
             dispatchBattery(actions.getBattery());
@@ -159,10 +171,11 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void finishSync() {
-        if (completed) {
+        final boolean firstCompletion = !completed;
+        completed = true;
+        if (!firstCompletion && !sawRecords) {
             return;
         }
-        completed = true;
         // Stay connected (like every other GB gadget). Self-disconnecting races the last in-flight
         // ack write — disconnect() closes the gatt before the write callback fires, wedging the
         // BtLEQueue out-thread on its latch so every later reconnect's init never runs. GB is sole consumer.
@@ -173,13 +186,23 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         // Broadcast ACTION_NEW_DATA so device-card steps, charts and dashboard recompute;
         // sendDeviceUpdateIntent only re-renders cached values, it does not recompute totals.
+        // Cleared so a later drain on this long-lived connection signals again instead of going quiet.
         if (sawRecords) {
+            sawRecords = false;
             GB.signalActivityDataFinish(getDevice());
         }
     }
 
     /** Report a battery snapshot; GB persists history and fires low/full notifications from here. */
     private void dispatchBattery(final RingConnBatteryStatus status) {
+        // Each event inserts a BatteryLevel row, and the ring pushes one every ~14s on a connection
+        // we deliberately keep open, so report only when the reading actually moves.
+        if (status.getLevel() == lastBatteryLevel
+                && Boolean.valueOf(status.getCharging()).equals(lastBatteryCharging)) {
+            return;
+        }
+        lastBatteryLevel = status.getLevel();
+        lastBatteryCharging = status.getCharging();
         final GBDeviceEventBatteryInfo evt = new GBDeviceEventBatteryInfo();
         evt.level = status.getLevel();
         evt.state = batteryState(status.getLevel(), status.getCharging());
@@ -262,11 +285,17 @@ public class RingConnDeviceSupport extends AbstractBTLESingleDeviceSupport {
         new GenericSpo2SampleProvider(getDevice(), session).addSamples(samples);
     }
 
+    /** Null for anything that is not a hex MAC; auth is keyed on it, so a bad address must not
+     *  surface later as a parse failure on the GATT callback thread. */
     private static byte[] macBytes(final String address) {
-        final String[] parts = address.split(":");
+        final String[] parts = address == null ? new String[0] : address.split(":");
         final byte[] mac = new byte[parts.length];
         for (int i = 0; i < parts.length; i++) {
-            mac[i] = (byte) Integer.parseInt(parts[i], 16);
+            try {
+                mac[i] = (byte) Integer.parseInt(parts[i], 16);
+            } catch (final NumberFormatException e) {
+                return null;
+            }
         }
         return mac;
     }

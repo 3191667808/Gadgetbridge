@@ -95,7 +95,7 @@ public class RingConnCoordinator extends AbstractBLEDeviceCoordinator {
         return true;
     }
 
-    /** ALPHA: steps come from the status-frame accumulator, not the per-epoch motion index. */
+    /** steps come from the status-frame accumulator, not the per-epoch motion index. */
     @Override
     public boolean supportsStepCounter(@NonNull final GBDevice device) {
         return true;

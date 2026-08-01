@@ -14,7 +14,6 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-@file:Suppress("MagicNumber") // GB/T 32905: algorithm constants
 package nodomain.freeyourgadget.gadgetbridge.service.devices.ringconn
 
 /** Pure Kotlin SM3 (GB/T 32905) 256-bit hash. Sole use: derive the RingConn per-connection auth
