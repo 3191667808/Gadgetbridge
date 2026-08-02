@@ -4850,6 +4850,12 @@
     <string name="auth_settings">Authentication settings</string>
     <string name="devicetype_shokz_openswim_pro" translatable="false">Shokz OpenSwim Pro</string>
     <string name="devicetype_battery_monitor" translatable="false">Battery Monitor</string>
+    <string name="prefs_bm6_battery_type_title">BM6 battery type</string>
+    <string name="prefs_bm6_battery_type_summary">Choose the BM6 battery profile used when the device is initialized.</string>
+    <string name="bm6_battery_type_lead_acid">Lead acid</string>
+    <string name="bm6_battery_type_agm">AGM</string>
+    <string name="bm6_battery_type_gel">Gel</string>
+    <string name="bm6_battery_type_lithium">Lithium</string>
     <string name="devicetype_victron_smartshunt" translatable="false">Victron SmartShunt</string>
     <string name="devicetype_sinilink" translatable="false">Sinilink</string>
     <string name="devicetype_onetouch" translatable="false">OneTouch Glucose Meter</string>

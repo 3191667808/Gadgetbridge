@@ -1,6 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.bm6
 
 import nodomain.freeyourgadget.gadgetbridge.R
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericTemperatureSampleProvider
@@ -21,6 +22,10 @@ class Bm6Coordinator : AbstractBLEDeviceCoordinator() {
 
     override fun getSupportedDeviceName(): Pattern {
         return Pattern.compile("^BM6$")
+    }
+
+    override fun getDeviceSpecificSettingsCustomizer(device: GBDevice): DeviceSpecificSettingsCustomizer {
+        return Bm6SettingsCustomizer(device)
     }
 
     override fun getManufacturer(): String {

@@ -5719,4 +5719,17 @@
         <item>MUSIC_CONTROL</item>
         <item>RING_PHONE</item>
     </string-array>
+
+    <string-array name="bm6_battery_type_entries">
+        <item>@string/bm6_battery_type_lead_acid</item>
+        <item>@string/bm6_battery_type_agm</item>
+        <item>@string/bm6_battery_type_gel</item>
+        <item>@string/bm6_battery_type_lithium</item>
+    </string-array>
+    <string-array name="bm6_battery_type_values">
+        <item>lead_acid</item>
+        <item>agm</item>
+        <item>gel</item>
+        <item>lithium</item>
+    </string-array>
 </resources>
