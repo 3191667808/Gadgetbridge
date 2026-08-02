@@ -4850,8 +4850,7 @@
     <string name="auth_settings">Authentication settings</string>
     <string name="devicetype_shokz_openswim_pro" translatable="false">Shokz OpenSwim Pro</string>
     <string name="devicetype_battery_monitor" translatable="false">Battery Monitor</string>
-    <string name="prefs_bm6_battery_type_title">BM6 battery type</string>
-    <string name="prefs_bm6_battery_type_summary">Choose the BM6 battery profile used when the device is initialized.</string>
+    <string name="prefs_bm6_battery_type_title">Battery type</string>
     <string name="bm6_battery_type_lead_acid">Lead acid</string>
     <string name="bm6_battery_type_agm">AGM</string>
     <string name="bm6_battery_type_gel">Gel</string>
