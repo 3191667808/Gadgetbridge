@@ -1,21 +1,28 @@
 on:
   workflow_dispatch:
+  pull_request:
+
+env:
+  # Explicitly enable filesystem watch, reduces build time by 1m30s
+  # https://stackoverflow.com/questions/71559269/why-does-gradle-initializing-sometimes-take-very-long
+  GRADLE_OPTS: "-Dorg.gradle.vfs.watch=true"
 
 jobs:
-  deploy:
-    runs-on: codeberg-medium-lazy
+  build:
+    runs-on: freeyourgadget-internal
     container:
-      image: codeberg.org/freeyourgadget/android-fdroid-tools:37.0.0-0
+      image: codeberg.org/freeyourgadget/android-fdroid-tools:37.0.0-0-nodejs
 
     steps:
-      # We can't use actions/checkout since the image does not have node
-      - name: git clone and checkout
-        run: |
-          set -eu
-          git config --global user.name "CODEBERG CI"
-          git config --global user.email "noreply@nodomain.nodomain"
+      - uses: actions/checkout@v7
 
-          git clone -q -b "${{ env.GITHUB_REF_NAME }}" https://${{ env.GITHUB_TOKEN}}@codeberg.org/${{ env.GITHUB_REPOSITORY }} .
+      - name: Set gradle properties
+        run: |
+          echo "org.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -XX:+UseSerialGC" >> gradle.properties
+          echo "org.gradle.daemon=false" >> gradle.properties
+          echo "org.gradle.parallel=false" >> gradle.properties
+          echo "org.gradle.workers.max=1" >> gradle.properties
+          echo "kotlin.daemon.jvmargs=-Xmx512m -XX:+UseSerialGC" >> gradle.properties
 
       - name: Build
         run: |
@@ -40,3 +47,6 @@ jobs:
           if [ -f .tests_failed ]; then
             echo "Tests failed"
           fi
+
+      - name: apk
+        run: find . -name "*.apk"
