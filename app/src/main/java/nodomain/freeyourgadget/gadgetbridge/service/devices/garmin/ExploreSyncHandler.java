@@ -648,19 +648,34 @@ class ExploreSyncHandler {
              * timestamp, plus per-point HR samples for indoor activities.
              */
             private void flush() throws Exception {
-                if (points.isEmpty() || alreadyImported(points.get(0).getTime().getTime() / 1000L)) {
-                    // Upfront skip-check matched in absorb().
-                    LOG.info("Historical line {}: skipped (already imported)", uuidHex);
+                if (points.isEmpty()) {
+                    LOG.debug("No points to flush");
                     return;
                 }
+                final long startTimeSeconds = points.get(0).getTime().getTime() / 1000L;
                 // GPX before DB: a file-write failure aborts the line
                 // without ever taking the DB write lock.
                 final String gpxPath = hasGpsPoints ? writeGpx() : null;
 
                 try (DBHandler dbHandler = GBApplication.acquireDB()) {
                     final DaoSession daoSession = dbHandler.getDaoSession();
+                    // Re-check here, under the same DB write lock as the
+                    // insert below: absorb()'s upfront alreadyImported()
+                    // call is a separate, already-closed transaction, so a
+                    // concurrent writer for this same activity (a FIT
+                    // import running on FitAsyncProcessor's own thread is
+                    // the common case) could have committed the
+                    // authoritative row in the gap. GBDatabaseManager
+                    // serializes all writers on one global lock, so
+                    // checking and inserting inside one acquireDB() call
+                    // is race-free.
+                    if (ActivitySummaryParser.findBaseActivitySummary(daoSession, deviceSupport.getDevice(),
+                            startTimeSeconds) != null) {
+                        LOG.info("Historical line {}: skipped (already imported)", uuidHex);
+                        return;
+                    }
                     final BaseActivitySummary summary = ActivitySummaryParser.createBaseActivitySummary(
-                            daoSession, deviceId, points.get(0).getTime().getTime() / 1000L);
+                            daoSession, deviceId, startTimeSeconds);
                     summary.setEndTime(points.get(points.size() - 1).getTime());
                     summary.setName(summaryName);
                     summary.setGpxTrack(gpxPath);
@@ -684,8 +699,8 @@ class ExploreSyncHandler {
                     // Insert last — the row appears in the workout list
                     // only after every field is set and the GPX exists.
                     daoSession.getBaseActivitySummaryDao().insertOrReplace(summary);
-                    LOG.info("Historical line {} → {} pts, summary id={}",
-                            uuidHex, points.size(), summary.getId());
+                    LOG.info("Historical line {} → {} pts, summary id={} timestamp={}",
+                            uuidHex, points.size(), summary.getId(), summary.getStartTime().getTime());
                 }
                 GB.signalActivityDataFinish(deviceSupport.getDevice());
             }
@@ -760,12 +775,25 @@ class ExploreSyncHandler {
     }
 
     /**
-     * Begin a historical-catalog sync: replace any prior session, send
-     * a {@code StartSyncRequest} so the watch starts pushing digests.
-     * Called by {@link GarminSupport} on initial connect and on user
-     * pull-to-refresh.
+     * Begin a historical-catalog sync: send a {@code StartSyncRequest} so
+     * the watch starts pushing digests. Called by {@link GarminSupport} on
+     * initial connect, after every FIT-file fetch cycle drains, and on user
+     * pull-to-refresh - so this fires far more often than a sync actually
+     * needs to restart.
      */
     void startSession() {
+        if (state != null) {
+            // A session is already walking the catalog (possibly a
+            // slow multi-thousand-point activity). Tearing it down here
+            // to start fresh would discard its in-flight buffer, and a
+            // stale reply for it (e.g. its SyncFinishedNotification)
+            // would then land on the new session instead and kill it
+            // before it even gets a digest. Let the active session run
+            // to completion; it re-arms itself via the next
+            // finishFileSync()/pull-to-refresh call.
+            LOG.warn("Session already in progress, not starting a new one");
+            return;
+        }
         if (!replaceSession()) {
             return;
         }
@@ -794,11 +822,15 @@ class ExploreSyncHandler {
         if (req.hasStartSyncRequest()) {
             // Watch-initiated session. The watch rejects the response
             // (SYNC_FINISHED_FAILED) without an echoed app_uuid.
+            // Reject outright (rather than replaceSession()) if we're
+            // already mid-session — see startSession() for why tearing
+            // down an active session here is unsafe.
+            final boolean accepted = state == null && replaceSession();
             return ExploreSyncService.newBuilder()
                     .setStartSyncResponse(GdiExploreSyncService.StartSyncResponse.newBuilder()
                             .setSupportedProtocolVersion(PROTOCOL_VERSION)
                             .setAppUuid(APP_UUID)
-                            .setStatus(replaceSession()
+                            .setStatus(accepted
                                     ? StartSyncStatus.START_SYNC_ACCEPTED
                                     : StartSyncStatus.START_SYNC_REJECTED))
                     .build();

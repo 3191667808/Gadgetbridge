@@ -143,9 +143,7 @@ public class ExploreSyncHandlerTest extends TestBase {
     }
 
     @Test
-    public void watchInitiatedStartSync_replacesExistingSession() {
-        handler.startSession();
-
+    public void watchInitiatedStartSync_noActiveSession_isAccepted() {
         final ExploreSyncService resp = handler.handle(ExploreSyncService.newBuilder()
                 .setStartSyncRequest(StartSyncRequest.newBuilder()
                         .setSyncType(SyncType.SYNC_TYPE_FULL)
@@ -156,6 +154,39 @@ public class ExploreSyncHandlerTest extends TestBase {
         final StartSyncResponse sr = resp.getStartSyncResponse();
         Assert.assertEquals(StartSyncStatus.START_SYNC_ACCEPTED, sr.getStatus());
         Assert.assertEquals(16, sr.getAppUuid().size());
+    }
+
+    @Test
+    public void watchInitiatedStartSync_whileSessionActive_isRejected() {
+        // Regression: this used to unconditionally replaceSession(),
+        // discarding our own in-flight session (possibly mid-transfer of
+        // a large activity) with no way to tell a stale reply for the
+        // discarded session apart from one for its replacement. This
+        // cross-talk was behind an ExploreSync/FIT duplicate-activity bug.
+        handler.startSession();
+
+        final ExploreSyncService resp = handler.handle(ExploreSyncService.newBuilder()
+                .setStartSyncRequest(StartSyncRequest.newBuilder()
+                        .setSyncType(SyncType.SYNC_TYPE_FULL)
+                        .setProtocolVersion(2))
+                .build());
+
+        Assert.assertEquals(StartSyncStatus.START_SYNC_REJECTED,
+                resp.getStartSyncResponse().getStatus());
+        // Our own session must still be intact, not torn down.
+        Assert.assertNotNull(handler.handle(emptyLineDigestWrite()));
+    }
+
+    @Test
+    public void startSession_calledWhileSessionActive_doesNotRestart() {
+        // GarminSupport.finishFileSync() re-arms ExploreSync after every
+        // FIT-fetch cycle drains - far more often than a sync actually
+        // needs restarting. A second call while one is already in-flight
+        // must not tear it down and send another StartSyncRequest.
+        handler.startSession();
+        handler.startSession();
+
+        Assert.assertEquals(1, support.outgoing.size());
     }
 
     @Test
