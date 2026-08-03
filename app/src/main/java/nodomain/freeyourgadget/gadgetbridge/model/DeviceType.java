@@ -350,6 +350,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.huaweiwatchultimate2.
 import nodomain.freeyourgadget.gadgetbridge.devices.id115.ID115Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.idasen.IdasenCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportBiNaviAirCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportBiNaviCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportBSC200Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportBSC200SCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportBSC300Coordinator;
