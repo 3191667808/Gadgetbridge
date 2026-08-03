@@ -1050,6 +1050,7 @@ public enum DeviceType {
     IGPSPORT_IGS630S(IGPSportiGS630SCoordinator.class),
     IGPSPORT_IGS800(IGPSportiGS800Coordinator.class),
     IGPSPORT_BINAVI_AIR(IGPSportBiNaviAirCoordinator.class),
+    IGPSPORT_BINAVI(IGPSportBiNaviCoordinator.class),
     OLLEE_WATCH_ONE(OlleeDeviceCoordinator.class),
     UNA_WATCH(UnaDeviceCoordinator.class),
     TEST(TestDeviceCoordinator.class);
