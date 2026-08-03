@@ -68,6 +68,7 @@ class FileSyncServiceHandler(val deviceSupport: GarminSupport) {
         nextPageId = fileListResponse.nextPageId
 
         // Only the first entry for a type seems to contain the type name, so keep track of them
+        var maxPageId = nextPageId ?: 0
         val codeMap: MutableMap<Int?, String?> = HashMap()
         for (file in fileListResponse.fileList) {
             if (!file.hasType() || !file.type.hasCode()) {
@@ -89,7 +90,10 @@ class FileSyncServiceHandler(val deviceSupport: GarminSupport) {
                 continue
             }
 
-            LOG.debug("Adding to download: {}/{} ({})", file.id.id1, file.id.id2, typeName)
+            LOG.debug("Adding to download: {} {}/{} ({})", file.pageId, file.id.id1, file.id.id2, typeName)
+            if (file.pageId != null && file.pageId > maxPageId) {
+                maxPageId = file.pageId
+            }
             deviceSupport.addFileToDownloadList(file)
         }
 
@@ -97,9 +101,14 @@ class FileSyncServiceHandler(val deviceSupport: GarminSupport) {
         // however, from previous logs, it always seems to match the max seen across all sent items, so attempt
         // to fall back to that as a workaround so we can fetch the subsequent files
         if (fileListResponse.nextPageId == 0) {
-            nextPageId = fileListResponse.fileList
-                .mapNotNull { it.pageId }
-                .maxOrNull() ?: 0
+            if (maxPageId > 0) {
+                nextPageId = maxPageId + 1
+            } else {
+                nextPageId = fileListResponse.fileList
+                    .mapNotNull { it.pageId }
+                    .maxOrNull() ?: 0
+            }
+            LOG.debug("Set nexPageId = {}", nextPageId)
         }
 
         return null
