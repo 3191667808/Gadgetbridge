@@ -159,6 +159,20 @@ abstract class SonyHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
         return false
     }
 
+    override fun supportsMultipointActiveDevice(device: GBDevice): Boolean =
+        getCapabilities(device).contains(SonyHeadphonesCapabilities.ConnectTwoDevices)
+
+    open fun getGeneralSettingType(capability: SonyHeadphonesCapabilities): Int = when (capability) {
+        SonyHeadphonesCapabilities.WideAreaTap,
+        SonyHeadphonesCapabilities.ConnectTwoDevices -> 0xd1
+
+        SonyHeadphonesCapabilities.TouchSensorSingle -> 0xd2
+        SonyHeadphonesCapabilities.CaptureVoiceDuringCall -> 0xd3
+        else -> -1
+    }
+
+    open fun connectTwoDevicesNeedsApply(): Boolean = true
+
     override fun getDeviceSupportClass(device: GBDevice): Class<out DeviceSupport> {
         return SonyHeadphonesSupport::class.java
     }

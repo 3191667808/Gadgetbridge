@@ -678,6 +678,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsMultipointActiveDevice(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean supportsDataFetching(@NonNull final GBDevice device) {
         return false;
     }

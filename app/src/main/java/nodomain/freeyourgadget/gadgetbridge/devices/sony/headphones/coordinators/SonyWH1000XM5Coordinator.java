@@ -44,7 +44,6 @@ public class SonyWH1000XM5Coordinator extends SonyHeadphonesCoordinator {
     @Override
     public Set<SonyHeadphonesCapabilities> getDefaultCapabilities() {
         return new HashSet<>(Arrays.asList(
-                // TODO R.xml.devicesettings_connect_two_devices,
                 // TODO automatic ANC depending on state (might need phone?)
                 SonyHeadphonesCapabilities.BatterySingle,
                 SonyHeadphonesCapabilities.PowerOffFromPhone,
@@ -57,10 +56,26 @@ public class SonyWH1000XM5Coordinator extends SonyHeadphonesCoordinator {
                 SonyHeadphonesCapabilities.VoiceNotifications,
                 SonyHeadphonesCapabilities.AutomaticPowerOffWhenTakenOff,
                 // TODO SonyHeadphonesCapabilities.TouchSensorSingle,
+                SonyHeadphonesCapabilities.ConnectTwoDevices,
                 SonyHeadphonesCapabilities.EqualizerWithCustomBands,
                 SonyHeadphonesCapabilities.QuickAccess,
                 SonyHeadphonesCapabilities.PauseWhenTakenOff
         ));
+    }
+
+    @Override
+    public int getGeneralSettingType(@NonNull final SonyHeadphonesCapabilities capability) {
+        switch (capability) {
+            case ConnectTwoDevices:
+                return 0xd2;
+            default:
+                return super.getGeneralSettingType(capability);
+        }
+    }
+
+    @Override
+    public boolean connectTwoDevicesNeedsApply() {
+        return false;
     }
 
     @Override

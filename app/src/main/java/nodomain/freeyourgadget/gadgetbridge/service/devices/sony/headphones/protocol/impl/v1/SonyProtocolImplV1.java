@@ -406,6 +406,11 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
     }
 
     @Override
+    public Request applyConnectTwoDevices() {
+        return null;
+    }
+
+    @Override
     public Request getButtonModes() {
         return new Request(
                 PayloadTypeV1.AUTOMATIC_POWER_OFF_BUTTON_MODE_GET.getMessageType(),
@@ -809,6 +814,10 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
             if (supports(capabilityEntry.getKey())) {
                 capabilityRequests.add(capabilityEntry.getValue());
             }
+        }
+
+        if (supports(SonyHeadphonesCapabilities.ConnectTwoDevices)) {
+            capabilityRequests.addAll(getMultipointDevices());
         }
 
         // Remove any requests that are not supported by other protocol version

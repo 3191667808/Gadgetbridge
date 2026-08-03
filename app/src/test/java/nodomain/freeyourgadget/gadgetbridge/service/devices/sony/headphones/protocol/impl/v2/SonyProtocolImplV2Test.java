@@ -17,7 +17,10 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.SonyTestUtils.assertPrefs;
 import static nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.SonyTestUtils.assertRequest;
@@ -28,12 +31,15 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCapabilities;
@@ -41,6 +47,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphon
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControlButtonMode;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioUpsampling;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ConnectTwoDevices;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerCustomBands;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerPreset;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.PauseWhenTakenOff;
@@ -48,7 +55,10 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.QuickA
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakToChatConfig;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakToChatEnabled;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.VoiceNotifications;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.deviceevents.SonyHeadphonesMultipointEvent;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.MessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2.params.MultipointAction;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.MockSonyCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.params.BatteryType;
 
@@ -338,6 +348,134 @@ public class SonyProtocolImplV2Test {
     }
 
     @Test
+    public void connectTwoDevicesUsesXm5GeneralSetting() {
+        coordinator.setGeneralSettingType(SonyHeadphonesCapabilities.ConnectTwoDevices, 0xd2);
+        coordinator.setConnectTwoDevicesNeedsApply(false);
+
+        assertRequest(protocol.getConnectTwoDevices(), 0x0c, "d6:d2");
+        assertRequests(protocol::setConnectTwoDevices, new LinkedHashMap<ConnectTwoDevices, String>() {{
+            put(new ConnectTwoDevices(true), "d8:d2:00:00");
+            put(new ConnectTwoDevices(false), "d8:d2:00:01");
+        }});
+        assertNull(protocol.applyConnectTwoDevices());
+    }
+
+    @Test
+    public void connectTwoDevicesKeepsLegacyApplySequence() {
+        assertRequests(protocol::setConnectTwoDevices, new LinkedHashMap<ConnectTwoDevices, String>() {{
+            put(new ConnectTwoDevices(true), "d8:d1:00:00");
+            put(new ConnectTwoDevices(false), "d8:d1:00:01");
+        }});
+        assertRequest(protocol.applyConnectTwoDevices(), 0x0c, "98:00:06:01");
+    }
+
+    @Test
+    public void multipointDeviceRequests() {
+        final String address = "AA:BB:CC:DD:EE:FF";
+        final String addressHex = "41:41:3a:42:42:3a:43:43:3a:44:44:3a:45:45:3a:46:46";
+
+        final List<Request> deviceListRequests = protocol.getMultipointDevices();
+        assertEquals("Expect 1 request", 1, deviceListRequests.size());
+        assertRequest(deviceListRequests.get(0), 0x0e, "36:00");
+
+        final List<Request> connectRequests = protocol.setMultipointConnection(address, MultipointAction.CONNECT);
+        assertEquals("Expect 1 request", 1, connectRequests.size());
+        assertRequest(connectRequests.get(0), 0x0e, "3c:00:01:" + addressHex);
+
+        final List<Request> disconnectRequests = protocol.setMultipointConnection(address, MultipointAction.DISCONNECT);
+        assertRequest(disconnectRequests.get(0), 0x0e, "3c:00:00:" + addressHex);
+
+        assertTrue(protocol.setMultipointConnection("not an address", MultipointAction.CONNECT).isEmpty());
+
+        final List<Request> activeRequests = protocol.setMultipointActiveDevice(address);
+        assertEquals("Expect 1 request", 1, activeRequests.size());
+        assertRequest(activeRequests.get(0), 0x0e, "3c:01:" + addressHex);
+
+        assertRequest(protocol.setMultipointActiveDeviceFixed(true), 0x0e, "38:01:00");
+        assertRequest(protocol.setMultipointActiveDeviceFixed(false), 0x0e, "38:01:01");
+        assertTrue(protocol.handleMultipointActiveDeviceFixed(new byte[]{0x39, 0x01, 0x01, 0x00}).isEmpty());
+
+        assertRequest(protocol.setMultipointPairingMode(true), 0x0e, "34:00:01:00");
+        assertRequest(protocol.setMultipointPairingMode(false), 0x0e, "34:00:00:00");
+    }
+
+    @Test
+    public void handleMultipointDevices() {
+        for (final int statusLength : new int[]{1, 4}) {
+            final List<? extends GBDeviceEvent> events = protocol.handlePayload(
+                    MessageType.COMMAND_2,
+                    multipointDeviceListPayload(statusLength)
+            );
+
+            assertEquals("Expect 1 event", 1, events.size());
+            final SonyHeadphonesMultipointEvent event = (SonyHeadphonesMultipointEvent) events.get(0);
+            assertEquals(SonyHeadphonesMultipointEvent.Type.DEVICE_LIST, event.getType());
+
+            final List<MultipointDevice> devices = event.getDevices();
+            assertEquals("Expect 2 devices", 2, devices.size());
+
+            assertEquals("AA:BB:CC:DD:EE:FF", devices.get(0).getAddress());
+            assertEquals("Phone", devices.get(0).getName());
+            assertTrue("Expect device to be connected", devices.get(0).isConnected());
+
+            assertEquals("11:22:33:44:55:66", devices.get(1).getAddress());
+            assertEquals("Laptop", devices.get(1).getName());
+            assertFalse("Expect device to not be connected", devices.get(1).isConnected());
+
+            assertFalse("Expect no device to be fixed", devices.get(0).isActive());
+        }
+    }
+
+    @Test
+    public void handleMultipointPairingMode() {
+        List<? extends GBDeviceEvent> events = protocol.handlePayload(
+                MessageType.COMMAND_2,
+                new byte[]{0x33, 0x00, 0x01, 0x01}
+        );
+        assertEquals("Expect 1 event", 1, events.size());
+        assertTrue(((SonyHeadphonesMultipointEvent) events.get(0)).isEnabled());
+
+        events = protocol.handlePayload(
+                MessageType.COMMAND_2,
+                new byte[]{0x33, 0x00, 0x00, 0x01}
+        );
+        assertEquals("Expect 1 event", 1, events.size());
+        assertFalse(((SonyHeadphonesMultipointEvent) events.get(0)).isEnabled());
+    }
+
+    private static byte[] multipointDeviceListPayload(final int statusLength) {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(0x37);
+        out.write(0x00);
+        out.write(0x02);
+
+        writeMultipointDevice(out, "11:22:33:44:55:66", 0, "Laptop", statusLength);
+        writeMultipointDevice(out, "AA:BB:CC:DD:EE:FF", 1, "Phone", statusLength);
+
+        out.write(0x01);
+
+        return out.toByteArray();
+    }
+
+    private static void writeMultipointDevice(final ByteArrayOutputStream out,
+                                              final String address,
+                                              final int slot,
+                                              final String name,
+                                              final int statusLength) {
+        final byte[] addressBytes = address.getBytes(StandardCharsets.US_ASCII);
+        out.write(addressBytes, 0, addressBytes.length);
+
+        out.write(slot);
+        for (int i = 1; i < statusLength; i++) {
+            out.write(0x00);
+        }
+
+        final byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        out.write(nameBytes.length);
+        out.write(nameBytes, 0, nameBytes.length);
+    }
+
+    @Test
     @Ignore("Not implemented on V2")
     public void getVoiceNotifications() {
     }
@@ -507,8 +645,15 @@ public class SonyProtocolImplV2Test {
     }
 
     @Test
-    @Ignore("Not implemented on V2")
     public void handleTouchSensor() {
+        coordinator.addCapability(SonyHeadphonesCapabilities.ConnectTwoDevices);
+        coordinator.setGeneralSettingType(SonyHeadphonesCapabilities.ConnectTwoDevices, 0xd2);
+
+        final List<? extends GBDeviceEvent> events = protocol.handlePayload(
+                MessageType.COMMAND_1,
+                new byte[]{(byte) 0xd7, (byte) 0xd2, 0x00, 0x00}
+        );
+        assertPrefs(events, new ConnectTwoDevices(true).toPreferences());
     }
 
     @Test

@@ -244,6 +244,8 @@ public interface DeviceCoordinator {
      */
     boolean supportsDebugLogs(@NonNull final GBDevice device);
 
+    boolean supportsMultipointActiveDevice(@NonNull final GBDevice device);
+
     /**
      * Returns true if data fetching (activity or otherwise) is supported by the device
      * (with this coordinator).

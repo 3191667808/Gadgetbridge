@@ -16,15 +16,21 @@ class MultipointDeviceAdapter(
 
     var allowAction = false
 
+    var allowSetActive = false
+
     enum class Action {
         CONNECT,
-        DISCONNECT
+        DISCONNECT,
+        SET_ACTIVE,
+        UNSET_ACTIVE
     }
 
     class DeviceViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val deviceIcon: ImageView = itemView.findViewById(R.id.device_icon)
         val deviceName: TextView = itemView.findViewById(R.id.device_name)
         val deviceAddress: TextView = itemView.findViewById(R.id.device_address)
+        val deviceActive: TextView = itemView.findViewById(R.id.device_active)
+        val setActiveButton: Button = itemView.findViewById(R.id.set_active_button)
         val connectionButton: Button = itemView.findViewById(R.id.connection_button)
     }
 
@@ -63,9 +69,30 @@ class MultipointDeviceAdapter(
         holder.connectionButton.isEnabled = when (action) {
             Action.CONNECT -> allowConnect
             Action.DISCONNECT -> allowDisconnect
+            else -> allowAction
         }
         holder.connectionButton.setOnClickListener {
             onAction(device, action)
+        }
+
+        val showActive = allowSetActive && allowAction
+
+        holder.deviceActive.visibility =
+            if (showActive && device.isActive) View.VISIBLE else View.GONE
+        holder.setActiveButton.visibility =
+            if (showActive && device.isConnected) View.VISIBLE else View.GONE
+        holder.setActiveButton.text = context.getString(
+            if (device.isActive) {
+                R.string.bluetooth_multipoint_unfix_device
+            } else {
+                R.string.bluetooth_multipoint_fix_device
+            }
+        )
+        holder.setActiveButton.setOnClickListener {
+            onAction(
+                device,
+                if (device.isActive) Action.UNSET_ACTIVE else Action.SET_ACTIVE
+            )
         }
     }
 

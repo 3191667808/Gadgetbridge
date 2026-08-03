@@ -58,8 +58,13 @@ class MultipointPairingActivity : AbstractGBActivity() {
             when (action) {
                 MultipointDeviceAdapter.Action.CONNECT -> connectToDevice(device.address)
                 MultipointDeviceAdapter.Action.DISCONNECT -> disconnectFromDevice(device.address)
+                MultipointDeviceAdapter.Action.SET_ACTIVE -> setActiveDevice(device.address)
+                MultipointDeviceAdapter.Action.UNSET_ACTIVE -> unsetActiveDevice(device.address)
             }
         }
+
+        deviceAdapter.allowSetActive =
+            gbDevice.deviceCoordinator.supportsMultipointActiveDevice(gbDevice)
 
         binding.devicesRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.devicesRecyclerView.adapter = deviceAdapter
@@ -196,6 +201,18 @@ class MultipointPairingActivity : AbstractGBActivity() {
         sendDeviceIntent(intent)
     }
 
+    private fun unsetActiveDevice(deviceAddress: String) {
+        val intent = Intent(ACTION_MULTIPOINT_UNSET_ACTIVE_DEVICE)
+        intent.putExtra(EXTRA_DEVICE_ADDRESS, deviceAddress)
+        sendDeviceIntent(intent)
+    }
+
+    private fun setActiveDevice(deviceAddress: String) {
+        val intent = Intent(ACTION_MULTIPOINT_SET_ACTIVE_DEVICE)
+        intent.putExtra(EXTRA_DEVICE_ADDRESS, deviceAddress)
+        sendDeviceIntent(intent)
+    }
+
     private fun sendDeviceIntent(intent: Intent) {
         intent.putExtra(GBDevice.EXTRA_DEVICE, gbDevice)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
@@ -222,6 +239,10 @@ class MultipointPairingActivity : AbstractGBActivity() {
             "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_CONNECT_DEVICE"
         const val ACTION_MULTIPOINT_DISCONNECT_DEVICE =
             "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_DISCONNECT_DEVICE"
+        const val ACTION_MULTIPOINT_SET_ACTIVE_DEVICE =
+            "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_SET_ACTIVE_DEVICE"
+        const val ACTION_MULTIPOINT_UNSET_ACTIVE_DEVICE =
+            "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_UNSET_ACTIVE_DEVICE"
         const val ACTION_MULTIPOINT_START_PAIRING =
             "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_START_PAIRING"
 

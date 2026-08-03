@@ -17,24 +17,40 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones;
 
 import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.ParcelUuid;
+
+import androidx.annotation.Nullable;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.SonyHeadphonesCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.deviceevents.SonyHeadphonesEnqueueRequestEvent;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.deviceevents.SonyHeadphonesMultipointEvent;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Message;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2.params.MultipointAction;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.AbstractHeadphoneSerialDeviceSupportV2;
 
 public class SonyHeadphonesSupport extends AbstractHeadphoneSerialDeviceSupportV2<SonyHeadphonesProtocol> {
@@ -48,6 +64,11 @@ public class SonyHeadphonesSupport extends AbstractHeadphoneSerialDeviceSupportV
     private int initRetries = 0;
 
     private final ByteBuffer packetBuffer = ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN);
+
+    private final List<MultipointDevice> lastKnownMultipointDevices = new ArrayList<>();
+
+    @Nullable
+    private String fixedMultipointDevice = null;
 
     /**
      * Sometimes the headphones will ignore the first init request, so we retry a few times
@@ -78,6 +99,183 @@ public class SonyHeadphonesSupport extends AbstractHeadphoneSerialDeviceSupportV
     };
 
     @Override
+    public void setContext(final GBDevice gbDevice, final BluetoothAdapter btAdapter, final Context context) {
+        super.setContext(gbDevice, btAdapter, context);
+
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_SET_ACTIVE_DEVICE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_UNSET_ACTIVE_DEVICE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
+
+        LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, intentFilter);
+    }
+
+    private final BroadcastReceiver multipointReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, final Intent intent) {
+            final GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+            if (device == null || !device.getAddress().equals(getDevice().getAddress())) {
+                return;
+            }
+
+            final String action = intent.getAction();
+            if (action == null) {
+                return;
+            }
+
+            switch (action) {
+                case MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE:
+                    setConnectTwoDevices(true);
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE:
+                    setConnectTwoDevices(false);
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS:
+                    broadcastMultipointStatus(isConnectTwoDevicesEnabled());
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES:
+                    if (!lastKnownMultipointDevices.isEmpty()) {
+                        broadcastMultipointDevices();
+                    }
+
+                    LOG.info("Requesting multipoint device list");
+
+                    sendMultipointRequests(mDeviceProtocol.buildMultipointDeviceListRequest());
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE:
+                case MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE: {
+                    final String address = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
+                    if (address == null) {
+                        LOG.warn("No device address in {}", action);
+                        break;
+                    }
+
+                    final MultipointAction multipointAction =
+                            MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE.equals(action)
+                                    ? MultipointAction.DISCONNECT
+                                    : MultipointAction.CONNECT;
+
+                    LOG.info("Multipoint {} for {}", multipointAction, address);
+
+                    sendMultipointRequests(mDeviceProtocol.buildMultipointConnectionRequest(address, multipointAction));
+                    break;
+                }
+                case MultipointPairingActivity.ACTION_MULTIPOINT_SET_ACTIVE_DEVICE: {
+                    final String address = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
+                    if (address == null) {
+                        LOG.warn("No device address in {}", action);
+                        break;
+                    }
+
+                    LOG.info("Fixing multipoint audio to {}", address);
+
+                    fixedMultipointDevice = address;
+                    broadcastMultipointDevices();
+
+                    sendMultipointRequests(mDeviceProtocol.buildMultipointActiveDeviceRequest(address));
+                    break;
+                }
+                case MultipointPairingActivity.ACTION_MULTIPOINT_UNSET_ACTIVE_DEVICE:
+                    LOG.info("Unfixing multipoint audio");
+
+                    final String previouslyFixedDevice = fixedMultipointDevice;
+                    fixedMultipointDevice = null;
+                    broadcastMultipointDevices();
+
+                    final List<Request> unfixRequests = new ArrayList<>();
+
+                    for (final MultipointDevice multipointDevice : lastKnownMultipointDevices) {
+                        if (multipointDevice.isConnected()
+                                && !multipointDevice.getAddress().equalsIgnoreCase(previouslyFixedDevice)) {
+                            LOG.info("Switching multipoint audio to {} before releasing fixation",
+                                    multipointDevice.getAddress());
+                            unfixRequests.addAll(
+                                    mDeviceProtocol.buildMultipointActiveDeviceRequest(multipointDevice.getAddress())
+                            );
+                            break;
+                        }
+                    }
+
+                    unfixRequests.addAll(mDeviceProtocol.buildMultipointActiveDeviceFixedRequest(false));
+                    sendMultipointRequests(unfixRequests);
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING: {
+                    final boolean enabled = intent.getBooleanExtra(
+                            MultipointPairingActivity.EXTRA_PAIRING_ENABLED, false
+                    );
+
+                    LOG.info("Multipoint pairing mode: {}", enabled);
+
+                    sendMultipointRequests(mDeviceProtocol.buildMultipointPairingModeRequest(enabled));
+                    break;
+                }
+            }
+        }
+    };
+
+    private void sendMultipointRequests(final List<Request> requests) {
+        if (requests.isEmpty()) {
+            return;
+        }
+
+        if (!getDevice().isInitialized()) {
+            LOG.warn("Device is not initialized, ignoring multipoint request");
+            return;
+        }
+
+        if (requests.size() > 1) {
+            mDeviceProtocol.enqueueRequests(requests.subList(1, requests.size()));
+        }
+
+        final TransactionBuilder builder = createTransactionBuilder("multipoint request");
+        builder.write(mDeviceProtocol.encodeRequest(requests.get(0)));
+        builder.queue();
+    }
+
+    private boolean isConnectTwoDevicesEnabled() {
+        return GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getBoolean(DeviceSettingsPreferenceConst.PREF_SONY_CONNECT_TWO_DEVICES, false);
+    }
+
+    private void setConnectTwoDevices(final boolean enabled) {
+        LOG.info("Setting connect to two devices: {}", enabled);
+
+        GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .edit()
+                .putBoolean(DeviceSettingsPreferenceConst.PREF_SONY_CONNECT_TWO_DEVICES, enabled)
+                .apply();
+
+        onSendConfiguration(DeviceSettingsPreferenceConst.PREF_SONY_CONNECT_TWO_DEVICES);
+
+        broadcastMultipointStatus(enabled);
+    }
+
+    private void broadcastMultipointDevices() {
+        final List<MultipointDevice> devices = new ArrayList<>(lastKnownMultipointDevices.size());
+
+        for (final MultipointDevice device : lastKnownMultipointDevices) {
+            devices.add(new MultipointDevice(
+                    device.getAddress(),
+                    device.getName(),
+                    device.isConnected(),
+                    device.getAddress().equalsIgnoreCase(fixedMultipointDevice)
+            ));
+        }
+
+        SonyHeadphonesMultipointEvent.deviceList(devices).evaluate(getContext(), getDevice());
+    }
+
+    private void broadcastMultipointStatus(final boolean enabled) {
+        SonyHeadphonesMultipointEvent.status(enabled).evaluate(getContext(), getDevice());
+    }
+
+    @Override
     protected SonyHeadphonesProtocol createDeviceProtocol() {
         return new SonyHeadphonesProtocol(getDevice());
     }
@@ -90,10 +288,27 @@ public class SonyHeadphonesSupport extends AbstractHeadphoneSerialDeviceSupportV
 
     @Override
     public void evaluateGBDeviceEvent(GBDeviceEvent deviceEvent) {
+        if (deviceEvent instanceof SonyHeadphonesMultipointEvent multipointEvent
+                && multipointEvent.getType() == SonyHeadphonesMultipointEvent.Type.DEVICE_LIST) {
+            lastKnownMultipointDevices.clear();
+            lastKnownMultipointDevices.addAll(multipointEvent.getDevices());
+
+            if (fixedMultipointDevice != null
+                    && lastKnownMultipointDevices.stream().noneMatch(
+                            d -> d.isConnected() && d.getAddress().equalsIgnoreCase(fixedMultipointDevice))) {
+                LOG.info("Fixed multipoint device {} is gone", fixedMultipointDevice);
+                fixedMultipointDevice = null;
+            }
+
+            broadcastMultipointDevices();
+            return;
+        }
+
         if (deviceEvent instanceof SonyHeadphonesEnqueueRequestEvent enqueueRequestEvent) {
             mDeviceProtocol.enqueueRequests(enqueueRequestEvent.getRequests());
 
-            if (mDeviceProtocol.getPendingAcks() == 0) {
+            if (mDeviceProtocol.getPendingAcks() == 0
+                    || GBDevice.State.INITIALIZED.equals(getDevice().getState())) {
                 // There are no pending acks, send one request from the queue
                 // TODO: A more elegant way of scheduling these?
                 final TransactionBuilder builder = createTransactionBuilder("enqueue request");
@@ -120,6 +335,8 @@ public class SonyHeadphonesSupport extends AbstractHeadphoneSerialDeviceSupportV
     public void dispose() {
         synchronized (ConnectionMonitor) {
             handler.removeCallbacksAndMessages(null);
+            fixedMultipointDevice = null;
+            LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(multipointReceiver);
             super.dispose();
         }
     }

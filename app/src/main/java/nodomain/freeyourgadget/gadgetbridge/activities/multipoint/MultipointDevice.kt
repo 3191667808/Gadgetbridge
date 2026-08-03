@@ -7,5 +7,6 @@ import kotlinx.parcelize.Parcelize
 data class MultipointDevice(
     val address: String,
     val name: String?,
-    val isConnected: Boolean = false
+    val isConnected: Boolean = false,
+    val isActive: Boolean = false
 ) : Parcelable

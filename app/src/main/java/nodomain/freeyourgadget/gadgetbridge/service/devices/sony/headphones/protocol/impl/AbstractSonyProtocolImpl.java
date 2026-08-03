@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl;
 
+import java.util.Collections;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
@@ -48,6 +49,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.MessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.params.BatteryType;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2.params.MultipointAction;
 import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 
 public abstract class AbstractSonyProtocolImpl {
@@ -123,6 +125,28 @@ public abstract class AbstractSonyProtocolImpl {
     public abstract Request setConnectTwoDevices(final ConnectTwoDevices config);
 
     public abstract Request getConnectTwoDevices();
+
+    public abstract Request applyConnectTwoDevices();
+
+    public List<Request> getMultipointDevices() {
+        return Collections.emptyList();
+    }
+
+    public List<Request> setMultipointConnection(final String address, final MultipointAction action) {
+        return Collections.emptyList();
+    }
+
+    public List<Request> setMultipointActiveDevice(final String address) {
+        return Collections.emptyList();
+    }
+
+    public Request setMultipointActiveDeviceFixed(final boolean fixed) {
+        return null;
+    }
+
+    public Request setMultipointPairingMode(final boolean enabled) {
+        return null;
+    }
 
     public abstract Request getButtonModes();
 

@@ -66,6 +66,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.prot
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.AbstractSonyProtocolImpl;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.SonyProtocolImplV1;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2.SonyProtocolImplV2;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2.params.MultipointAction;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
@@ -319,12 +320,11 @@ public class SonyHeadphonesProtocol extends GBDeviceProtocol {
                 break;
             case DeviceSettingsPreferenceConst.PREF_SONY_CONNECT_TWO_DEVICES: {
                 final ConnectTwoDevices connectTwoDevices = ConnectTwoDevices.fromPreferences(prefs);
-                // Both ON and OFF: set WAT to same state first, then send fixed apply commit
-                final Request ctdRequest = protocolImpl.setConnectTwoDevices(connectTwoDevices);
-                if (ctdRequest != null) {
-                    enqueueRequests(Collections.singletonList(ctdRequest));
+                configRequest = protocolImpl.setConnectTwoDevices(connectTwoDevices);
+                final Request applyRequest = protocolImpl.applyConnectTwoDevices();
+                if (applyRequest != null) {
+                    enqueueRequests(Collections.singletonList(applyRequest));
                 }
-                configRequest = protocolImpl.setWideAreaTap(new WideAreaTap(connectTwoDevices.isEnabled()));
                 break;
             }
             case DeviceSettingsPreferenceConst.PREF_SONY_SPEAK_TO_CHAT:
@@ -439,6 +439,63 @@ public class SonyHeadphonesProtocol extends GBDeviceProtocol {
         ).encode();
     }
 
+    public List<Request> buildMultipointDeviceListRequest() {
+        if (protocolImpl == null) {
+            LOG.error("No protocol implementation, ignoring multipoint request");
+            return Collections.emptyList();
+        }
+
+        return checkSupported(protocolImpl.getMultipointDevices());
+    }
+
+    public List<Request> buildMultipointConnectionRequest(final String address, final MultipointAction action) {
+        if (protocolImpl == null) {
+            LOG.error("No protocol implementation, ignoring multipoint request");
+            return Collections.emptyList();
+        }
+
+        return checkSupported(protocolImpl.setMultipointConnection(address, action));
+    }
+
+    public List<Request> buildMultipointActiveDeviceRequest(final String address) {
+        if (protocolImpl == null) {
+            LOG.error("No protocol implementation, ignoring multipoint request");
+            return Collections.emptyList();
+        }
+
+        return checkSupported(protocolImpl.setMultipointActiveDevice(address));
+    }
+
+    public List<Request> buildMultipointActiveDeviceFixedRequest(final boolean fixed) {
+        if (protocolImpl == null) {
+            LOG.error("No protocol implementation, ignoring multipoint request");
+            return Collections.emptyList();
+        }
+
+        final Request request = protocolImpl.setMultipointActiveDeviceFixed(fixed);
+
+        return checkSupported(request != null ? Collections.singletonList(request) : Collections.emptyList());
+    }
+
+    public List<Request> buildMultipointPairingModeRequest(final boolean enabled) {
+        if (protocolImpl == null) {
+            LOG.error("No protocol implementation, ignoring multipoint request");
+            return Collections.emptyList();
+        }
+
+        final Request request = protocolImpl.setMultipointPairingMode(enabled);
+
+        return checkSupported(request != null ? Collections.singletonList(request) : Collections.emptyList());
+    }
+
+    private List<Request> checkSupported(final List<Request> requests) {
+        if (requests.isEmpty()) {
+            LOG.warn("Multipoint is not supported by this protocol implementation");
+        }
+
+        return requests;
+    }
+
     public void enqueueRequests(final List<Request> requests) {
         LOG.debug("Enqueueing {} requests", requests.size());
 
@@ -455,6 +512,12 @@ public class SonyHeadphonesProtocol extends GBDeviceProtocol {
 
     public byte[] getFromQueue() {
         return requestQueue.remove().encode(sequenceNumber);
+    }
+
+    public byte[] encodeRequest(final Request request) {
+        pendingAcks++;
+
+        return request.encode(sequenceNumber);
     }
 
     public boolean hasProtocolImplementation() {

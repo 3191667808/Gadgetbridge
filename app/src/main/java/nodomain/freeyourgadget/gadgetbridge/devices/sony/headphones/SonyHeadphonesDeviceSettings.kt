@@ -8,6 +8,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.components.enumList
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.components.multipointPairing
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.deviceSettings
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControl
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AmbientSoundControlButtonMode
@@ -403,6 +404,10 @@ fun sonyHeadphonesDeviceSettings(
                 icon = R.drawable.ic_devices_other,
                 defaultValue = false,
             )
+
+            multipointPairing(visibleWhen = { prefs ->
+                prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SONY_CONNECT_TWO_DEVICES, false)
+            })
         }
 
         if (capabilities.contains(SonyHeadphonesCapabilities.WideAreaTap)) {

@@ -23,11 +23,14 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.TextSe
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs
 
-fun DeviceSettingsScope.multipointPairing() {
+fun DeviceSettingsScope.multipointPairing(
+    visibleWhen: ((Prefs) -> Boolean)? = null,
+) {
     externalSettings(
         key = DeviceSettingsPreferenceConst.PREF_MULTIPOINT,
         title = R.string.bluetooth_multipoint_pairing,
         icon = R.drawable.ic_bluetooth_searching,
+        visibleWhen = visibleWhen,
         activityClass = MultipointPairingActivity::class.java,
     )
 }

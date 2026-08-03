@@ -18,7 +18,9 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.pro
 
 import androidx.annotation.NonNull;
 
+import java.util.EnumMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -29,6 +31,9 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 
 public class MockSonyCoordinator extends SonyHeadphonesCoordinator {
     private final Set<SonyHeadphonesCapabilities> capabilities = new LinkedHashSet<>();
+    private final Map<SonyHeadphonesCapabilities, Integer> generalSettingTypes =
+            new EnumMap<>(SonyHeadphonesCapabilities.class);
+    private boolean connectTwoDevicesNeedsApply = true;
 
     @Override
     public boolean supports(@NonNull final GBDeviceCandidate candidate) {
@@ -47,6 +52,25 @@ public class MockSonyCoordinator extends SonyHeadphonesCoordinator {
 
     public void addCapability(final SonyHeadphonesCapabilities capability) {
         capabilities.add(capability);
+    }
+
+    public void setGeneralSettingType(final SonyHeadphonesCapabilities capability, final int type) {
+        generalSettingTypes.put(capability, type);
+    }
+
+    @Override
+    public int getGeneralSettingType(@NonNull final SonyHeadphonesCapabilities capability) {
+        final Integer type = generalSettingTypes.get(capability);
+        return type != null ? type : super.getGeneralSettingType(capability);
+    }
+
+    public void setConnectTwoDevicesNeedsApply(final boolean needsApply) {
+        connectTwoDevicesNeedsApply = needsApply;
+    }
+
+    @Override
+    public boolean connectTwoDevicesNeedsApply() {
+        return connectTwoDevicesNeedsApply;
     }
 
     @NonNull

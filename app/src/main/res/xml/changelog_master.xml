@@ -91,6 +91,7 @@
         <change>Improve connection to low power devices</change>
         <change>Mi Band 6: Hide some invalid workout summary values</change>
         <change>Shokz: Fix reading language from device</change>
+        <change>Sony: Manage the devices connected over multipoint and fix the audio to one of them</change>
         <change>Soundcore Q30: Add some other device names</change>
     </release>
     <release version="0.92.1" versioncode="250">

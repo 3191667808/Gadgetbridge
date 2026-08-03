@@ -16,17 +16,24 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2;
 
+import androidx.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdateDeviceInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
@@ -56,16 +63,26 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.Servic
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.WideAreaTap;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.deviceevents.SonyHeadphonesEnqueueRequestEvent;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.deviceevents.SonyHeadphonesMultipointEvent;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.MessageType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.PayloadTypeV1;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.SonyProtocolImplV1;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.params.AudioCodec;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v1.params.BatteryType;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.impl.v2.params.MultipointAction;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
     private static final Logger LOG = LoggerFactory.getLogger(SonyProtocolImplV2.class);
+
+    private static final byte PERIPHERAL_PAIRING_DEVICE_MANAGEMENT = 0x00;
+    private static final byte PERIPHERAL_ACTIVE_DEVICE = 0x01;
+
+    private static final int PERIPHERAL_ADDRESS_LENGTH = 17;
+
+    private static final Pattern PERIPHERAL_ADDRESS_PATTERN =
+            Pattern.compile("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}");
 
     public SonyProtocolImplV2(final GBDevice device) {
         super(device);
@@ -391,8 +408,15 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
 
     @Override
     public Request setConnectTwoDevices(final ConnectTwoDevices config) {
-        // 0x98 00 06 01 is a fixed "apply" commit sent for both ON and OFF;
-        // the actual state change is driven by the preceding setWideAreaTap call.
+        return setGeneralSetting(SonyHeadphonesCapabilities.ConnectTwoDevices, config.isEnabled());
+    }
+
+    @Override
+    public Request applyConnectTwoDevices() {
+        if (!getCoordinator().connectTwoDevicesNeedsApply()) {
+            return null;
+        }
+
         return new Request(
                 PayloadTypeV2.SYSTEM_CONTROL_SET.getMessageType(),
                 new byte[]{
@@ -406,12 +430,82 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
 
     @Override
     public Request getConnectTwoDevices() {
-        // In V2, the actual CTD state is carried by the WideAreaTap (TOUCH_SENSOR) response.
-        // Delegate to getWideAreaTap() so the init capabilityRequestMap sends a TOUCH_SENSOR_GET,
-        // whose TOUCH_SENSOR_RET reply is handled by handleTouchSensor(), which updates both
-        // WideAreaTap and ConnectTwoDevices preferences with the correct co-directional value.
-        // (SYSTEM_CONTROL_RET always returns value=01 regardless of actual CTD state.)
-        return getWideAreaTap();
+        return getGeneralSetting(SonyHeadphonesCapabilities.ConnectTwoDevices);
+    }
+
+    @Override
+    public List<Request> getMultipointDevices() {
+        return Collections.singletonList(new Request(
+                PayloadTypeV2.PERIPHERAL_DEVICES_GET.getMessageType(),
+                new byte[]{
+                        PayloadTypeV2.PERIPHERAL_DEVICES_GET.getCode(),
+                        PERIPHERAL_PAIRING_DEVICE_MANAGEMENT
+                }
+        ));
+    }
+
+    @Override
+    public List<Request> setMultipointConnection(final String address, final MultipointAction action) {
+        final byte[] addressBytes = address.getBytes(StandardCharsets.US_ASCII);
+        if (addressBytes.length != PERIPHERAL_ADDRESS_LENGTH) {
+            LOG.error("Unexpected bluetooth address {}", address);
+            return Collections.emptyList();
+        }
+
+        final ByteBuffer buf = ByteBuffer.allocate(3 + PERIPHERAL_ADDRESS_LENGTH);
+        buf.put(PayloadTypeV2.PERIPHERAL_CONNECTION_SET.getCode());
+        buf.put(PERIPHERAL_PAIRING_DEVICE_MANAGEMENT);
+        buf.put(action.getCode());
+        buf.put(addressBytes);
+
+        return Collections.singletonList(new Request(
+                PayloadTypeV2.PERIPHERAL_CONNECTION_SET.getMessageType(),
+                buf.array()
+        ));
+    }
+
+    @Override
+    public List<Request> setMultipointActiveDevice(final String address) {
+        final byte[] addressBytes = address.getBytes(StandardCharsets.US_ASCII);
+        if (addressBytes.length != PERIPHERAL_ADDRESS_LENGTH) {
+            LOG.error("Unexpected bluetooth address {}", address);
+            return Collections.emptyList();
+        }
+
+        final ByteBuffer buf = ByteBuffer.allocate(2 + PERIPHERAL_ADDRESS_LENGTH);
+        buf.put(PayloadTypeV2.PERIPHERAL_CONNECTION_SET.getCode());
+        buf.put(PERIPHERAL_ACTIVE_DEVICE);
+        buf.put(addressBytes);
+
+        return Collections.singletonList(new Request(
+                PayloadTypeV2.PERIPHERAL_CONNECTION_SET.getMessageType(),
+                buf.array()
+        ));
+    }
+
+    @Override
+    public Request setMultipointActiveDeviceFixed(final boolean fixed) {
+        return new Request(
+                PayloadTypeV2.PERIPHERAL_PARAMETER_SET.getMessageType(),
+                new byte[]{
+                        PayloadTypeV2.PERIPHERAL_PARAMETER_SET.getCode(),
+                        PERIPHERAL_ACTIVE_DEVICE,
+                        (byte) (fixed ? 0x00 : 0x01)
+                }
+        );
+    }
+
+    @Override
+    public Request setMultipointPairingMode(final boolean enabled) {
+        return new Request(
+                PayloadTypeV2.PERIPHERAL_STATUS_SET.getMessageType(),
+                new byte[]{
+                        PayloadTypeV2.PERIPHERAL_STATUS_SET.getCode(),
+                        PERIPHERAL_PAIRING_DEVICE_MANAGEMENT,
+                        (byte) (enabled ? 0x01 : 0x00),
+                        (byte) 0x00
+                }
+        );
     }
 
     @Override
@@ -606,6 +700,40 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
         );
     }
 
+    private Request getGeneralSetting(final SonyHeadphonesCapabilities capability) {
+        final int type = getCoordinator().getGeneralSettingType(capability);
+        if (type < 0) {
+            LOG.warn("No general setting type for {}", capability);
+            return null;
+        }
+
+        return new Request(
+                PayloadTypeV1.TOUCH_SENSOR_GET.getMessageType(),
+                new byte[]{
+                        PayloadTypeV1.TOUCH_SENSOR_GET.getCode(),
+                        (byte) type
+                }
+        );
+    }
+
+    private Request setGeneralSetting(final SonyHeadphonesCapabilities capability, final boolean enabled) {
+        final int type = getCoordinator().getGeneralSettingType(capability);
+        if (type < 0) {
+            LOG.warn("No general setting type for {}", capability);
+            return null;
+        }
+
+        return new Request(
+                PayloadTypeV1.TOUCH_SENSOR_SET.getMessageType(),
+                new byte[]{
+                        PayloadTypeV1.TOUCH_SENSOR_SET.getCode(),
+                        (byte) type,
+                        (byte) 0x00,
+                        (byte) (enabled ? 0x00 : 0x01)
+                }
+        );
+    }
+
     @Override
     public Request getVoiceAssistant() {
         return new Request(
@@ -753,6 +881,14 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
             case SERVICE_LINK_RET:
             case SERVICE_LINK_NOTIFY:
                 return handleServiceLink(payload);
+            case PERIPHERAL_DEVICES_RET:
+            case PERIPHERAL_DEVICES_NOTIFY:
+                return handleMultipointDevices(payload);
+            case PERIPHERAL_CONNECTION_NOTIFY:
+                return handleMultipointConnectionResult(payload);
+            case PERIPHERAL_STATUS_RET:
+            case PERIPHERAL_STATUS_NOTIFY:
+                return handleMultipointStatus(payload);
         }
 
         return super.handlePayload(messageType, payload);
@@ -1230,32 +1366,196 @@ public class SonyProtocolImplV2 extends SonyProtocolImplV1 {
             return Collections.emptyList();
         }
 
-        final boolean enabled = payload[3] == (byte) 0x00;
-        switch (payload[1]) {
-            case (byte) 0xd1: {
-                // WideAreaTap / ConnectTwoDevices — reversed logic in V2
-                LOG.debug("Wide Area Tap: {}", enabled);
-                // WAT and ConnectTwoDevices are co-directional: WAT=enabled ↔ CTD=enabled
-                return Collections.singletonList(new GBDeviceEventUpdatePreferences()
-                        .withPreferences(new WideAreaTap(enabled).toPreferences())
-                        .withPreferences(new ConnectTwoDevices(enabled).toPreferences()));
-            }
-            case (byte) 0xd2: {
-                // Touch Sensor Control Panel
-                LOG.debug("Touch Sensor: {}", enabled);
-                return Collections.singletonList(new GBDeviceEventUpdatePreferences()
-                        .withPreferences(new TouchSensor(enabled).toPreferences()));
-            }
-            case (byte) 0xd3: {
-                // Capture Voice During Call
-                LOG.debug("Capture Voice During Call: {}", enabled);
-                return Collections.singletonList(new GBDeviceEventUpdatePreferences()
-                        .withPreferences(new CaptureVoiceDuringCall(enabled).toPreferences()));
-            }
-            default:
-                LOG.warn("Unknown touch sensor subtype {}", String.format("%02x", payload[1]));
-                return Collections.emptyList();
+        if (payload[2] != (byte) 0x00 || (payload[3] != (byte) 0x00 && payload[3] != (byte) 0x01)) {
+            LOG.warn("Unexpected general setting payload {}", GB.hexdump(payload));
+            return Collections.emptyList();
         }
+
+        final int type = Byte.toUnsignedInt(payload[1]);
+        final boolean enabled = payload[3] == (byte) 0x00;
+        final GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
+        boolean handled = false;
+
+        if (matchesGeneralSetting(SonyHeadphonesCapabilities.WideAreaTap, type)) {
+            LOG.debug("Wide Area Tap: {}", enabled);
+            event.withPreferences(new WideAreaTap(enabled).toPreferences());
+            handled = true;
+        }
+        if (matchesGeneralSetting(SonyHeadphonesCapabilities.ConnectTwoDevices, type)) {
+            LOG.debug("Connect Two Devices: {}", enabled);
+            event.withPreferences(new ConnectTwoDevices(enabled).toPreferences());
+            handled = true;
+        }
+        if (matchesGeneralSetting(SonyHeadphonesCapabilities.TouchSensorSingle, type)) {
+            LOG.debug("Touch Sensor: {}", enabled);
+            event.withPreferences(new TouchSensor(enabled).toPreferences());
+            handled = true;
+        }
+        if (matchesGeneralSetting(SonyHeadphonesCapabilities.CaptureVoiceDuringCall, type)) {
+            LOG.debug("Capture Voice During Call: {}", enabled);
+            event.withPreferences(new CaptureVoiceDuringCall(enabled).toPreferences());
+            handled = true;
+        }
+
+        if (!handled) {
+            LOG.warn("Unknown general setting type {}", String.format("%02x", type));
+            return Collections.emptyList();
+        }
+
+        return Collections.singletonList(event);
+    }
+
+    public List<? extends GBDeviceEvent> handleMultipointDevices(final byte[] payload) {
+        if (payload.length < 3) {
+            LOG.warn("Unexpected multipoint device list payload length {}", payload.length);
+            return Collections.emptyList();
+        }
+
+        if (payload[1] == PERIPHERAL_ACTIVE_DEVICE) {
+            return handleMultipointActiveDeviceFixed(payload);
+        }
+
+        final int deviceCount = Byte.toUnsignedInt(payload[2]);
+
+        LOG.debug("Multipoint device list, inquired type {}, {} devices",
+                String.format("0x%02x", payload[1]), deviceCount);
+
+        if (deviceCount == 0) {
+            return Collections.emptyList();
+        }
+
+        List<MultipointDevice> devices = parseMultipointDevices(payload, deviceCount, 1);
+        if (devices == null) {
+            devices = parseMultipointDevices(payload, deviceCount, 4);
+        }
+
+        if (devices == null) {
+            LOG.warn("Failed to parse multipoint device list from {}", GB.hexdump(payload));
+            return Collections.emptyList();
+        }
+
+        LOG.debug("Got {} multipoint devices", devices.size());
+
+        return Collections.singletonList(SonyHeadphonesMultipointEvent.deviceList(devices));
+    }
+
+    public List<? extends GBDeviceEvent> handleMultipointActiveDeviceFixed(final byte[] payload) {
+        if (payload.length != 4 || (payload[2] != 0x00 && payload[2] != 0x01)) {
+            LOG.warn("Unexpected multipoint fixation payload {}", GB.hexdump(payload));
+            return Collections.emptyList();
+        }
+
+        final boolean fixed = payload[2] == 0x00;
+        final int result = Byte.toUnsignedInt(payload[3]);
+
+        LOG.debug("Multipoint audio fixation: {}, result: {}", fixed,
+                String.format("0x%02x", result));
+
+        return Collections.emptyList();
+    }
+
+    @Nullable
+    private List<MultipointDevice> parseMultipointDevices(final byte[] payload,
+                                                          final int deviceCount,
+                                                          final int statusLength) {
+        final List<MultipointDevice> devices = new ArrayList<>(deviceCount);
+        final Map<String, Integer> slotByAddress = new HashMap<>(deviceCount);
+
+        int i = 3;
+
+        for (int d = 0; d < deviceCount; d++) {
+            if (i + PERIPHERAL_ADDRESS_LENGTH + statusLength + 1 > payload.length) {
+                return null;
+            }
+
+            final String address = new String(
+                    payload, i, PERIPHERAL_ADDRESS_LENGTH, StandardCharsets.US_ASCII
+            );
+            if (!PERIPHERAL_ADDRESS_PATTERN.matcher(address).matches()) {
+                return null;
+            }
+            i += PERIPHERAL_ADDRESS_LENGTH;
+
+            final int slot = Byte.toUnsignedInt(payload[i]);
+            i += statusLength;
+
+            final int nameLength = Byte.toUnsignedInt(payload[i++]);
+            if (i + nameLength > payload.length) {
+                return null;
+            }
+
+            final String name = new String(payload, i, nameLength, StandardCharsets.UTF_8);
+            i += nameLength;
+
+            slotByAddress.put(address, slot);
+            devices.add(new MultipointDevice(address, name, slot != 0, false));
+        }
+
+        Collections.sort(devices, (a, b) -> {
+            final int slotA = slotByAddress.get(a.getAddress());
+            final int slotB = slotByAddress.get(b.getAddress());
+
+            if ((slotA == 0) != (slotB == 0)) {
+                return slotA == 0 ? 1 : -1;
+            }
+
+            return Integer.compare(slotA, slotB);
+        });
+
+        return devices;
+    }
+
+    public List<? extends GBDeviceEvent> handleMultipointConnectionResult(final byte[] payload) {
+        if (payload.length < 2) {
+            LOG.warn("Unexpected multipoint connection payload length {}", payload.length);
+            return Collections.emptyList();
+        }
+
+        final int addressOffset = payload[1] == PERIPHERAL_ACTIVE_DEVICE ? 3 : 4;
+
+        if (payload.length < addressOffset + PERIPHERAL_ADDRESS_LENGTH) {
+            LOG.warn("Unexpected multipoint connection payload {}", GB.hexdump(payload));
+            return Collections.emptyList();
+        }
+
+        final String address = new String(
+                payload, addressOffset, PERIPHERAL_ADDRESS_LENGTH, StandardCharsets.US_ASCII
+        );
+
+        final int result = Byte.toUnsignedInt(payload[addressOffset - 1]);
+
+        LOG.debug("Multipoint result for {}: {}", address, String.format("0x%02x", result));
+
+        if (payload[1] != PERIPHERAL_ACTIVE_DEVICE || result != 0x00) {
+            return Collections.emptyList();
+        }
+
+        return Collections.singletonList(
+                new SonyHeadphonesEnqueueRequestEvent(getMultipointDevices())
+        );
+    }
+
+    public List<? extends GBDeviceEvent> handleMultipointStatus(final byte[] payload) {
+        if (payload.length < 3) {
+            LOG.warn("Unexpected multipoint status payload length {}", payload.length);
+            return Collections.emptyList();
+        }
+
+        if (payload[1] == PERIPHERAL_ACTIVE_DEVICE) {
+            LOG.debug("Multipoint fixing: {}", GB.hexdump(payload));
+            return Collections.emptyList();
+        }
+
+        final boolean pairing = payload[2] == (byte) 0x01
+                && (payload.length < 4 || payload[3] == (byte) 0x01);
+
+        LOG.debug("Multipoint pairing mode: {}", pairing);
+
+        return Collections.singletonList(SonyHeadphonesMultipointEvent.pairing(pairing));
+    }
+
+    private boolean matchesGeneralSetting(final SonyHeadphonesCapabilities capability, final int type) {
+        return supports(capability) && getCoordinator().getGeneralSettingType(capability) == type;
     }
 
     public List<? extends GBDeviceEvent> handleSystemControl(final byte[] payload) {
