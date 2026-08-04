@@ -30,7 +30,7 @@ public class IGPSportBiNaviCoordinator extends IGPSportAbstractCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("(?i)(?:iGPSPORT\\s*)?BiNavi");
+        return Pattern.compile("BiNavi");
     }
 
     @Override
