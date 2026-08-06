@@ -76,7 +76,7 @@ public class Huami2021ChunkedEncoder {
         if (extended_flags && encrypt) {
             final byte[] messageKey = new byte[16];
             for (int i = 0; i < 16; i++) {
-                messageKey[i] = (byte) (sharedSessionKey[i] ^ writeHandle);
+                messageKey[i] = (byte) (sharedSessionKey[i] ^ (type & 0xff));
             }
             int encrypted_length = length + 8;
             int overflow = encrypted_length % 16;
@@ -137,7 +137,7 @@ public class Huami2021ChunkedEncoder {
             chunk[1] = flags;
             if (extended_flags) {
                 chunk[2] = 0;
-                chunk[3] = writeHandle;
+                chunk[3] = (byte) (type & 0xff);
                 chunk[4] = count;
             } else {
                 chunk[2] = writeHandle;
