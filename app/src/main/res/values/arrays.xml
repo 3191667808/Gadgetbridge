@@ -800,6 +800,7 @@
         <item>@string/menuitem_flashlight</item>
         <item>@string/menuitem_alipay</item>
         <item>@string/menuitem_nfc</item>
+        <item>@string/menuitem_alexa</item>
     </string-array>
 
     <string-array name="pref_miband6_display_items_values">
@@ -829,6 +830,7 @@
         <item>@string/p_menuitem_flashlight</item>
         <item>@string/p_menuitem_alipay</item>
         <item>@string/p_menuitem_nfc</item>
+        <item>@string/p_menuitem_alexa</item>
     </string-array>
 
     <string-array name="pref_miband6_display_items_default">
@@ -883,6 +885,7 @@
         <item>@string/menuitem_flashlight</item>
         <item>@string/menuitem_alipay</item>
         <item>@string/menuitem_nfc</item>
+        <item>@string/menuitem_alexa</item>
     </string-array>
 
     <string-array name="pref_miband6_shortcuts_values">
@@ -910,6 +913,7 @@
         <item>@string/p_menuitem_flashlight</item>
         <item>@string/p_menuitem_alipay</item>
         <item>@string/p_menuitem_nfc</item>
+        <item>@string/p_menuitem_alexa</item>
     </string-array>
 
     <string-array name="pref_miband6_shortcuts_default">

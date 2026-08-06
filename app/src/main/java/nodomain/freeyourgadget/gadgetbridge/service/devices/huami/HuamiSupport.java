@@ -283,6 +283,7 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
         implements Huami2021Handler, HuamiFetcher.HuamiFetchSupport {
 
     public static final short CHUNKED2021_ENDPOINT_COMPAT = 0x0090;
+    public static final short CHUNKED2021_ENDPOINT_ALEXA = 0x0011;
 
     // We introduce key press counter for notification purposes
     private static int currentButtonActionId = 0;
@@ -295,6 +296,7 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
 
     private static final Logger LOG = LoggerFactory.getLogger(HuamiSupport.class);
     private final DeviceInfoProfile<HuamiSupport> deviceInfoProfile;
+    private HuamiVoiceAssistantHandler voiceAssistantHandler;
     private final IntentListener mListener = new IntentListener() {
         @Override
         public void notify(Intent intent) {
@@ -3947,6 +3949,11 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
 
         requestAlarms(builder);
         sendPhoneSilentMode(builder);
+
+        if (voiceAssistantHandler == null) {
+            voiceAssistantHandler = new HuamiVoiceAssistantHandler(this);
+        }
+        voiceAssistantHandler.requestCapabilities();
     }
 
     public abstract HuamiFWHelper createFWHelper(Uri uri, Context context) throws IOException;
@@ -3993,6 +4000,13 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
 
     @Override
     public void handle2021Payload(short type, byte[] payload) {
+        if (type == CHUNKED2021_ENDPOINT_ALEXA) {
+            if (voiceAssistantHandler == null) {
+                voiceAssistantHandler = new HuamiVoiceAssistantHandler(this);
+            }
+            voiceAssistantHandler.handlePayload(payload);
+            return;
+        }
         if (type == CHUNKED2021_ENDPOINT_COMPAT) {
             LOG.info("got configuration data");
             type = 0;
