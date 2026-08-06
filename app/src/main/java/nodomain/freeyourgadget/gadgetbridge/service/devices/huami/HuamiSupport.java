@@ -2816,6 +2816,12 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
 
     @Override
     public void onTestNewFunction(@Nullable Bundle options) {
+        if (options != null && options.containsKey("voice_reply_text")) {
+            if (this.voiceAssistantHandler != null) {
+                this.voiceAssistantHandler.sendReply(options.getString("voice_reply_text"));
+            }
+            return;
+        }
         try {
             final TransactionBuilder builder = performInitialized("test request");
             writeToConfiguration(builder, HuamiService.COMMAND_REQUEST_WORKOUT_ACTIVITY_TYPES);
