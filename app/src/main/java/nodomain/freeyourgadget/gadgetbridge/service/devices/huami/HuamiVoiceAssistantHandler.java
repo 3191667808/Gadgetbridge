@@ -52,12 +52,28 @@ public class HuamiVoiceAssistantHandler {
     private static final int CHANNELS = 1;
     private static final int MAX_FRAME_SIZE = 6 * 960;
 
+    // The band does not send an explicit end-of-recording marker, so the end of the
+    // voice stream is detected via an idle timeout (observed in Notify's behavior).
+    // The reply is sent as soon as the stream ends - no enforced delay, as the gap
+    // observed in Notify was just the time spent processing the recorded chunks.
+    private static final long VOICE_IDLE_TIMEOUT_MS = 1000;
+
+    // The band's reply text buffer is byte-limited (verified on hardware): replies near 650 bytes
+    // were cut mid-text with stale-memory garbage after them, and a ~2KB reply crashed the band.
+    // Total rendered budget (text + ellipsis) is capped at 600, a round safe margin below the cut.
+    private static final int MAX_REPLY_TEXT_BYTES = 600;
+
     private final HuamiSupport support;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private OpusDecoder opusDecoder;
     private AudioTrack audioTrack;
     private final ByteBuffer voiceBuffer = ByteBuffer.allocate(4096).order(ByteOrder.BIG_ENDIAN);
     private int mVersion = -1;
+    private final Runnable voiceIdleTimeoutRunnable = () -> {
+        LOG.info("Voice recording finished, sending reply");
+        write(new byte[]{0x06});
+        sendReply("Test!");
+    };
 
     public HuamiVoiceAssistantHandler(final HuamiSupport support) {
         this.support = support;
@@ -90,10 +106,13 @@ public class HuamiVoiceAssistantHandler {
                 break;
             case CMD_END:
                 LOG.info("Assistant ending");
+                write(new byte[]{0x06});
                 dispose();
                 break;
             case CMD_VOICE_DATA:
                 handleVoiceData(payload);
+                handler.removeCallbacks(voiceIdleTimeoutRunnable);
+                handler.postDelayed(voiceIdleTimeoutRunnable, VOICE_IDLE_TIMEOUT_MS);
                 break;
             case CMD_CAPABILITIES_RESPONSE:
                 mVersion = payload[1] & 0xFF;
@@ -184,14 +203,47 @@ public class HuamiVoiceAssistantHandler {
     }
 
     public void sendStartAck() {
-        write(new byte[]{CMD_START_ACK, 0x00});
+        // Notify sends a single 0x03 byte; the trailing 0x00 is rejected by the band,
+        // which then times out and shows an error on the band display
+        write(new byte[]{CMD_START_ACK});
+    }
+
+    public void sendReplyComplex(final String title, final String subtitle, final String text) {
+        final byte[] titleBytes = StringUtils.ensureNotNull(title).getBytes(StandardCharsets.UTF_8);
+        final byte[] subtitleBytes = StringUtils.ensureNotNull(subtitle).getBytes(StandardCharsets.UTF_8);
+        final byte[] textBytes = StringUtils.ensureNotNull(text).getBytes(StandardCharsets.UTF_8);
+
+        final int messageLength = titleBytes.length + subtitleBytes.length + textBytes.length + 3;
+        final ByteBuffer buf = ByteBuffer.allocate(1 + 2 + 4 + messageLength).order(ByteOrder.LITTLE_ENDIAN);
+        buf.put((byte)0x08);
+        buf.putShort((short)0x06);
+        buf.putInt(messageLength);
+        buf.put(titleBytes);
+        buf.put((byte) 0);
+        buf.put(subtitleBytes);
+        buf.put((byte) 0);
+        buf.put(textBytes);
+        buf.put((byte) 0);
+        write(buf.array());
     }
 
     public void sendReply(final String text) {
         final byte[] textBytes = StringUtils.ensureNotNull(text).getBytes(StandardCharsets.UTF_8);
-        final ByteBuffer buf = ByteBuffer.allocate(textBytes.length + 2).order(ByteOrder.LITTLE_ENDIAN);
+        final byte[] ellipsis = "…".getBytes(StandardCharsets.UTF_8);
+        final boolean truncated = textBytes.length > MAX_REPLY_TEXT_BYTES - ellipsis.length;
+        int textLength = Math.min(textBytes.length, MAX_REPLY_TEXT_BYTES - ellipsis.length);
+        if (truncated) {
+            while (textLength > 0 && (textBytes[textLength] & 0xC0) == 0x80) {
+                textLength--;
+            }
+            LOG.warn("Reply text truncated from {} to {} bytes (band display limit)", textBytes.length, textLength);
+        }
+        final ByteBuffer buf = ByteBuffer.allocate(textLength + (truncated ? ellipsis.length : 0) + 2).order(ByteOrder.LITTLE_ENDIAN);
         buf.put(CMD_REPLY_SIMPLE);
-        buf.put(textBytes);
+        buf.put(textBytes, 0, textLength);
+        if (truncated) {
+            buf.put(ellipsis);
+        }
         buf.put((byte) 0);
         write(buf.array());
     }
