@@ -43,6 +43,7 @@ public class HuamiVoiceAssistantHandler {
     private static final byte CMD_START_ACK = 0x03;
     private static final byte CMD_VOICE_DATA = 0x05;
     private static final byte CMD_REPLY_SIMPLE = 0x09;
+    private static final byte CMD_REPLY_ERROR = 0x0F;
     private static final byte CMD_LANGUAGES_REQUEST = 0x10;
     private static final byte CMD_LANGUAGES_RESPONSE = 0x11;
     private static final byte CMD_SET_LANGUAGE_ACK = 0x13;
@@ -52,11 +53,13 @@ public class HuamiVoiceAssistantHandler {
     private static final int CHANNELS = 1;
     private static final int MAX_FRAME_SIZE = 6 * 960;
 
-    // The band does not send an explicit end-of-recording marker, so the end of the
-    // voice stream is detected via an idle timeout (observed in Notify's behavior).
-    // The reply is sent as soon as the stream ends - no enforced delay, as the gap
-    // observed in Notify was just the time spent processing the recorded chunks.
-    private static final long VOICE_IDLE_TIMEOUT_MS = 1000;
+    // The band does not send an explicit end-of-recording marker and pressing stoprec
+    // emits no wire command (hardware-verified, Test C), so the end of the voice stream
+    // can only be detected via an idle timeout. The band streams audio frames
+    // continuously while recording (no VAD pause), so the timeout only fires at true
+    // stream end. 300ms was hardware-verified (Test C): no premature reply during ~10s
+    // of silence, reply delivered ~330ms after the last frame.
+    private static final long VOICE_IDLE_TIMEOUT_MS = 300;
 
     // The band's reply text buffer is byte-limited (verified on hardware): replies near 650 bytes
     // were cut mid-text with stale-memory garbage after them, and a ~2KB reply crashed the band.
@@ -69,6 +72,7 @@ public class HuamiVoiceAssistantHandler {
     private AudioTrack audioTrack;
     private final ByteBuffer voiceBuffer = ByteBuffer.allocate(4096).order(ByteOrder.BIG_ENDIAN);
     private int mVersion = -1;
+
     private final Runnable voiceIdleTimeoutRunnable = () -> {
         LOG.info("Voice recording finished, sending reply");
         write(new byte[]{0x06});
@@ -87,6 +91,7 @@ public class HuamiVoiceAssistantHandler {
                     opusDecoder = new OpusDecoder(16000, 1);
                 } catch (final OpusException e) {
                     LOG.error("Failed to initialize opus decoder", e);
+                    sendErrorReply("Failed to initialize audio decoder");
                     return;
                 }
                 audioTrack = new AudioTrack(
@@ -121,6 +126,7 @@ public class HuamiVoiceAssistantHandler {
                 LOG.info("Assistant capabilities version={}, var1={}, var2={}", mVersion, var1, var2);
                 if (mVersion != 3 && mVersion != 5) {
                     LOG.warn("Unsupported assistant service version {}", mVersion);
+                    sendErrorReply("Unsupported assistant version " + mVersion);
                     return;
                 }
                 if (mVersion == 3) {
@@ -228,6 +234,20 @@ public class HuamiVoiceAssistantHandler {
     }
 
     public void sendReply(final String text) {
+        sendTextPayload(new byte[]{CMD_REPLY_SIMPLE}, text);
+    }
+
+    /**
+     * Send an error message to the band, using the NACK/error command prefix
+     * ({@code 0x0F 0x09}) as used by Notify for Mi Band on setup/plugin/auth
+     * failures. The error text is displayed by the band exactly like a normal
+     * reply, but with the error prefix.
+     */
+    public void sendErrorReply(final String text) {
+        sendTextPayload(new byte[]{CMD_REPLY_ERROR, CMD_REPLY_SIMPLE}, text);
+    }
+
+    private void sendTextPayload(final byte[] header, final String text) {
         final byte[] textBytes = StringUtils.ensureNotNull(text).getBytes(StandardCharsets.UTF_8);
         final byte[] ellipsis = "…".getBytes(StandardCharsets.UTF_8);
         final boolean truncated = textBytes.length > MAX_REPLY_TEXT_BYTES - ellipsis.length;
@@ -238,8 +258,8 @@ public class HuamiVoiceAssistantHandler {
             }
             LOG.warn("Reply text truncated from {} to {} bytes (band display limit)", textBytes.length, textLength);
         }
-        final ByteBuffer buf = ByteBuffer.allocate(textLength + (truncated ? ellipsis.length : 0) + 2).order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_REPLY_SIMPLE);
+        final ByteBuffer buf = ByteBuffer.allocate(header.length + textLength + (truncated ? ellipsis.length : 0) + 1).order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(header);
         buf.put(textBytes, 0, textLength);
         if (truncated) {
             buf.put(ellipsis);
