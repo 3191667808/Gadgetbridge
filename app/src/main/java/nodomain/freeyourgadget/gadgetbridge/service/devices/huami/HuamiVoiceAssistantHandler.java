@@ -55,11 +55,12 @@ public class HuamiVoiceAssistantHandler {
 
     // The band does not send an explicit end-of-recording marker and pressing stoprec
     // emits no wire command (hardware-verified, Test C), so the end of the voice stream
-    // can only be detected via an idle timeout. The band streams audio frames
-    // continuously while recording (no VAD pause), so the timeout only fires at true
-    // stream end. 300ms was hardware-verified (Test C): no premature reply during ~10s
-    // of silence, reply delivered ~330ms after the last frame.
-    private static final long VOICE_IDLE_TIMEOUT_MS = 300;
+    // can only be detected via a timeout with no incoming VOICE_DATA. The band streams
+    // audio frames continuously while recording (no VAD pause), and VOICE_DATA messages
+    // arrive every ~200ms (151-277ms observed), so the timeout is re-armed well before it
+    // fires mid-stream. 300ms was hardware-verified (Test C): no premature reply during
+    // ~10s of silence, reply delivered ~330ms after the last frame.
+    private static final long VOICE_STREAM_END_TIMEOUT_MS = 300;
 
     // The band's reply text buffer is byte-limited (verified on hardware): replies near 650 bytes
     // were cut mid-text with stale-memory garbage after them, and a ~2KB reply crashed the band.
@@ -73,7 +74,7 @@ public class HuamiVoiceAssistantHandler {
     private final ByteBuffer voiceBuffer = ByteBuffer.allocate(4096).order(ByteOrder.BIG_ENDIAN);
     private int mVersion = -1;
 
-    private final Runnable voiceIdleTimeoutRunnable = () -> {
+    private final Runnable voiceStreamEndTimeoutRunnable = () -> {
         LOG.info("Voice recording finished, sending reply");
         write(new byte[]{0x06});
         sendReply("Test!");
@@ -116,8 +117,8 @@ public class HuamiVoiceAssistantHandler {
                 break;
             case CMD_VOICE_DATA:
                 handleVoiceData(payload);
-                handler.removeCallbacks(voiceIdleTimeoutRunnable);
-                handler.postDelayed(voiceIdleTimeoutRunnable, VOICE_IDLE_TIMEOUT_MS);
+                handler.removeCallbacks(voiceStreamEndTimeoutRunnable);
+                handler.postDelayed(voiceStreamEndTimeoutRunnable, VOICE_STREAM_END_TIMEOUT_MS);
                 break;
             case CMD_CAPABILITIES_RESPONSE:
                 mVersion = payload[1] & 0xFF;
