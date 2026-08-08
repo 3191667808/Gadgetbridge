@@ -74,19 +74,19 @@ public class HuamiVoiceAssistantHandler {
      * sending the ID is enough - no i18n is needed on our side.
      */
     public enum AssistantError {
-        /** "Controlla la connessione di rete e riprova" - network connection failed */
+        /** "Check the network connection and try again" - network connection failed */
         NETWORK(0x02),
-        /** "Impossibile utilizzare Amazon Alexa senza smartphone connesso" - Alexa needs the phone */
+        /** "Cannot use Amazon Alexa without a connected smartphone" - Alexa needs the phone */
         ALEXA_NO_PHONE(0x05),
-        /** "Impossibile autorizzare, riprova" - authorization failed */
+        /** "Authorization failed, try again" - authorization failed */
         AUTH(0x06),
         /** Blank display */
         BLANK(0x07),
-        /** "Scusa, potresti ripetere?" - could not understand, ask the user to repeat */
+        /** "Sorry, could you repeat that?" - could not understand, ask the user to repeat */
         REPEAT(0x08),
         /** "Server is busy, try again later" */
         SERVER_BUSY(0x09),
-        /** "Impossibile completare l'azione, riprova" - action could not be completed */
+        /** "Could not complete the action, try again" - action could not be completed */
         ACTION_FAILED(0x0B);
 
         private final byte id;
