@@ -67,6 +67,34 @@ public class HuamiVoiceAssistantHandler {
     // Total rendered budget (text + ellipsis) is capped at 600, a round safe margin below the cut.
     private static final int MAX_REPLY_TEXT_BYTES = 600;
 
+    /**
+     * Predefined error replies rendered by the band itself (all hardware-verified
+     * on a v2 band). The band carries its own localized strings for each ID, so
+     * sending the ID is enough - no i18n is needed on our side.
+     */
+    public enum AssistantError {
+        /** "Controlla la connessione di rete e riprova" - network connection failed */
+        NETWORK(0x02),
+        /** "Impossibile utilizzare Amazon Alexa senza smartphone connesso" - Alexa needs the phone */
+        ALEXA_NO_PHONE(0x05),
+        /** "Impossibile autorizzare, riprova" - authorization failed */
+        AUTH(0x06),
+        /** Blank display */
+        BLANK(0x07),
+        /** "Scusa, potresti ripetere?" - could not understand, ask the user to repeat */
+        REPEAT(0x08),
+        /** "Server is busy, try again later" */
+        SERVER_BUSY(0x09),
+        /** "Impossibile completare l'azione, riprova" - action could not be completed */
+        ACTION_FAILED(0x0B);
+
+        private final byte id;
+
+        AssistantError(final int id) {
+            this.id = (byte) id;
+        }
+    }
+
     private final HuamiSupport support;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private OpusDecoder opusDecoder;
@@ -92,8 +120,8 @@ public class HuamiVoiceAssistantHandler {
                     opusDecoder = new OpusDecoder(16000, 1);
                 } catch (final OpusException e) {
                     LOG.error("Failed to initialize opus decoder", e);
-                    sendErrorReply("Failed to initialize audio decoder");
-                    return;
+                    sendErrorReply(AssistantError.ACTION_FAILED);
+                    break;
                 }
                 audioTrack = new AudioTrack(
                         AudioManager.STREAM_MUSIC,
@@ -125,11 +153,6 @@ public class HuamiVoiceAssistantHandler {
                 final byte var1 = payload[2];
                 final byte var2 = payload[3];
                 LOG.info("Assistant capabilities version={}, var1={}, var2={}", mVersion, var1, var2);
-                if (mVersion != 3 && mVersion != 5) {
-                    LOG.warn("Unsupported assistant service version {}", mVersion);
-                    sendErrorReply("Unsupported assistant version " + mVersion);
-                    return;
-                }
                 if (mVersion == 3) {
                     requestLanguages();
                 }
@@ -238,14 +261,8 @@ public class HuamiVoiceAssistantHandler {
         sendTextPayload(new byte[]{CMD_REPLY_SIMPLE}, text);
     }
 
-    /**
-     * Send an error message to the band, using the NACK/error command prefix
-     * ({@code 0x0F 0x09}) as used by Notify for Mi Band on setup/plugin/auth
-     * failures. The error text is displayed by the band exactly like a normal
-     * reply, but with the error prefix.
-     */
-    public void sendErrorReply(final String text) {
-        sendTextPayload(new byte[]{CMD_REPLY_ERROR, CMD_REPLY_SIMPLE}, text);
+    public void sendErrorReply(final AssistantError error) {
+        write(new byte[]{CMD_REPLY_ERROR, error.id, 0x00});
     }
 
     private void sendTextPayload(final byte[] header, final String text) {
