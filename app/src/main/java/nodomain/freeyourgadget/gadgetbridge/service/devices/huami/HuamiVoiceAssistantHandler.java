@@ -42,6 +42,7 @@ public class HuamiVoiceAssistantHandler {
     private static final byte CMD_END = 0x02;
     private static final byte CMD_START_ACK = 0x03;
     private static final byte CMD_VOICE_DATA = 0x05;
+    private static final byte CMD_END_ACK = 0x06;
     private static final byte CMD_REPLY_SIMPLE = 0x09;
     private static final byte CMD_REPLY_ERROR = 0x0F;
     private static final byte CMD_LANGUAGES_REQUEST = 0x10;
@@ -53,18 +54,18 @@ public class HuamiVoiceAssistantHandler {
     private static final int CHANNELS = 1;
     private static final int MAX_FRAME_SIZE = 6 * 960;
 
-    // The band does not send an explicit end-of-recording marker and pressing stoprec
-    // emits no wire command (hardware-verified, Test C), so the end of the voice stream
-    // can only be detected via a timeout with no incoming VOICE_DATA. The band streams
-    // audio frames continuously while recording (no VAD pause), and VOICE_DATA messages
-    // arrive every ~200ms (151-277ms observed), so the timeout is re-armed well before it
-    // fires mid-stream. 300ms was hardware-verified (Test C): no premature reply during
-    // ~10s of silence, reply delivered ~330ms after the last frame.
+    // No explicit end-of-recording markers have been observed: the band streams audio
+    // frames continuously while recording, and pressing stoprec emits no command, so
+    // the end of the voice stream is detected via a timeout with no incoming VOICE_DATA.
+    // Messages arrive roughly every 200ms, so the timeout is re-armed well before it
+    // would fire mid-stream; 300ms leaves a comfortable margin over the observed
+    // inter-message gaps.
     private static final long VOICE_STREAM_END_TIMEOUT_MS = 300;
 
-    // The band's reply text buffer is byte-limited (verified on hardware): replies near 650 bytes
-    // were cut mid-text with stale-memory garbage after them, and a ~2KB reply crashed the band.
-    // Total rendered budget (text + ellipsis) is capped at 600, a round safe margin below the cut.
+    // The band's reply text buffer is byte-limited: replies near 650 bytes were cut
+    // mid-text with stale-memory garbage after them, and a ~2KB reply crashed the band.
+    // Total rendered budget (text + ellipsis) is capped at 600, a round safe margin
+    // below the cut.
     private static final int MAX_REPLY_TEXT_BYTES = 600;
 
     /**
@@ -104,7 +105,7 @@ public class HuamiVoiceAssistantHandler {
 
     private final Runnable voiceStreamEndTimeoutRunnable = () -> {
         LOG.info("Voice recording finished, sending reply");
-        write(new byte[]{0x06});
+        write(new byte[]{CMD_END_ACK});
         sendReply("Test!");
     };
 
@@ -141,7 +142,7 @@ public class HuamiVoiceAssistantHandler {
                 break;
             case CMD_END:
                 LOG.info("Assistant ending");
-                write(new byte[]{0x06});
+                write(new byte[]{CMD_END_ACK});
                 dispose();
                 break;
             case CMD_VOICE_DATA:
@@ -189,6 +190,8 @@ public class HuamiVoiceAssistantHandler {
 
         while (voiceBuffer.remaining() > 0) {
             voiceBuffer.mark();
+            // Frame-size layout: 1-byte lengths on older bands, 4-byte on v5+;
+            // not verified on real devices.
             final int frameSizeBytes = mVersion >= 5 ? 4 : 1;
 
             if (voiceBuffer.remaining() < frameSizeBytes) {
@@ -238,8 +241,6 @@ public class HuamiVoiceAssistantHandler {
     }
 
     public void sendStartAck() {
-        // Notify sends a single 0x03 byte; the trailing 0x00 is rejected by the band,
-        // which then times out and shows an error on the band display
         write(new byte[]{CMD_START_ACK});
     }
 
