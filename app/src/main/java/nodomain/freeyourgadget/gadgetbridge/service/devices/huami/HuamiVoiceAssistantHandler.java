@@ -116,6 +116,7 @@ public class HuamiVoiceAssistantHandler {
         switch (payload[0]) {
             case CMD_START:
                 LOG.info("Assistant starting");
+                dispose();
                 try {
                     opusDecoder = new OpusDecoder(16000, 1);
                 } catch (final OpusException e) {
