@@ -150,9 +150,13 @@ public class HuamiVoiceAssistantHandler {
                 break;
             case CMD_CAPABILITIES_RESPONSE:
                 mVersion = payload[1] & 0xFF;
-                final byte var1 = payload[2];
-                final byte var2 = payload[3];
+                // Older bands reply with just {0x21, version, var1} (v2 verified as
+                // 3 bytes on hardware), so guard reads of the optional var2 byte.
+                final byte var1 = payload.length > 2 ? payload[2] : 0;
+                final byte var2 = payload.length > 3 ? payload[3] : 0;
                 LOG.info("Assistant capabilities version={}, var1={}, var2={}", mVersion, var1, var2);
+                // The v3 language request and v5 frame-size layout below have not
+                // been verified on real devices.
                 if (mVersion == 3) {
                     requestLanguages();
                 }
