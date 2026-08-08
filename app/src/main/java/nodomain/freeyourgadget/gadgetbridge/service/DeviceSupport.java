@@ -154,6 +154,12 @@ public interface DeviceSupport extends EventHandler {
     String customStringFilter(String inputString);
 
     /**
+     * Whether this device supports background notifications. Frequent notifications will be sent
+     * as background notifications, without disturbing the user.
+     */
+    boolean supportsBackgroundNotifications(GBDevice device);
+
+    /**
      * can this DeviceSupport instance's {@link #connect} be used to re-establish a
      * lost connection or must {@link DeviceCommunicationService#connectToDevice} call
      * {@link #dispose}, {@link DeviceSupportFactory#createDeviceSupport} and only

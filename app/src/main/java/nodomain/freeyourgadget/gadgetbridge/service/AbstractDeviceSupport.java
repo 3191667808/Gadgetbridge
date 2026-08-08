@@ -169,6 +169,10 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
         return inputString;
     }
 
+    @Override
+    public boolean supportsBackgroundNotifications(final GBDevice device) {
+        return false;
+    }
 
     // Empty functions following, leaving optional implementation up to child classes
 

@@ -143,6 +143,7 @@ public class DeviceActionHandler {
                 notificationSpec.iconPackageId = intentCopy.getStringExtra(EXTRA_NOTIFICATION_ICONPACKAGEID);
                 notificationSpec.picturePath = intent.getStringExtra(NOTIFICATION_PICTURE_PATH);
                 notificationSpec.dndSuppressed = intentCopy.getIntExtra(EXTRA_NOTIFICATION_DNDSUPPRESSED, 0);
+                notificationSpec.frequencySuppressed = intentCopy.getBooleanExtra(EXTRA_NOTIFICATION_FREQUENCY_SUPPRESSED, false);
                 notificationSpec.channelId = intentCopy.getStringExtra(EXTRA_NOTIFICATION_CHANNEL_ID);
                 notificationSpec.category = intentCopy.getStringExtra(EXTRA_NOTIFICATION_CATEGORY);
 
@@ -166,6 +167,9 @@ public class DeviceActionHandler {
                     notificationSpec.cannedReplies = replies.toArray(new String[0]);
                 }
 
+                if (notificationSpec.frequencySuppressed && !deviceSupport.supportsBackgroundNotifications(device)) {
+                    break;
+                }
                 deviceSupport.onNotification(notificationSpec);
                 break;
             }

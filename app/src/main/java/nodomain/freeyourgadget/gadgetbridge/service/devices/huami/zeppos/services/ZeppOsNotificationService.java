@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCallControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventNotificationControl;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
@@ -80,6 +81,8 @@ public class ZeppOsNotificationService extends AbstractZeppOsService {
     public static final byte NOTIFICATION_CALL_STATE_END = 0x02;
 
     private static final boolean FORCE_RELOAD_NOTIFICATION_ICON = false;
+
+    public static final String PREF_VERSION = "zepp_os_notifications_version";
 
     private int version = -1;
     private boolean supportsPictures = false;
@@ -145,7 +148,10 @@ public class ZeppOsNotificationService extends AbstractZeppOsService {
                         final byte unk3 = buf.get();
                     }
                 }
+
                 LOG.info("Notification service version={}, supportsPictures={}", version, supportsPictures);
+
+                getSupport().evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(PREF_VERSION, version));
                 break;
             }
             case NOTIFICATION_CMD_REPLY: {
@@ -363,7 +369,7 @@ public class ZeppOsNotificationService extends AbstractZeppOsService {
 
             baos.write((byte) (hasReply ? 1 : 0));
             if (version >= 5) {
-                baos.write(0); // 1 for silent
+                baos.write(notificationSpec.frequencySuppressed ? 1 : 0); // 1 for silent
             }
             if (supportsPictures) {
                 baos.write((byte) (notificationSpec.picturePath != null ? 1 : 0));

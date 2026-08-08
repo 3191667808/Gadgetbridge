@@ -190,6 +190,7 @@ public class GBDeviceService implements DeviceService {
                 .putExtra(EXTRA_NOTIFICATION_ICONPACKAGEID, notificationSpec.iconPackageId)
                 .putExtra(NOTIFICATION_PICTURE_PATH, notificationSpec.picturePath)
                 .putExtra(EXTRA_NOTIFICATION_DNDSUPPRESSED, notificationSpec.dndSuppressed)
+                .putExtra(EXTRA_NOTIFICATION_FREQUENCY_SUPPRESSED, notificationSpec.frequencySuppressed)
                 .putExtra(EXTRA_NOTIFICATION_CHANNEL_ID, notificationSpec.channelId)
                 .putExtra(EXTRA_NOTIFICATION_CATEGORY, notificationSpec.category);
         invokeService(intent);

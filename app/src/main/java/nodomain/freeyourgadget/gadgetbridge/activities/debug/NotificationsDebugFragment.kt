@@ -88,6 +88,7 @@ class NotificationsDebugFragment : AbstractDebugFragment() {
         }
 
         notificationSpec.dndSuppressed = if (sharedPreferences.getBoolean(PREF_DEBUG_NOTIFICATIONS_DNDSUPPRESSED, false)) 1 else 0
+        notificationSpec.frequencySuppressed = sharedPreferences.getBoolean(PREF_DEBUG_NOTIFICATIONS_FREQUENCY_SUPPRESSED, false)
         // TODO notificationSpec.cannedReplies = sharedPreferences.getString(PREF_DEBUG_NOTIFICATIONS_CANNEDREPLIES, null)
         notificationSpec.attachedActions = ArrayList<NotificationSpec.Action?>()
 
@@ -271,5 +272,6 @@ class NotificationsDebugFragment : AbstractDebugFragment() {
         private const val PREF_DEBUG_NOTIFICATIONS_ICONID = "pref_debug_notifications_iconId"
         private const val PREF_DEBUG_NOTIFICATIONS_PICTUREPATH_BOOL = "pref_debug_notifications_picturePath_bool"
         private const val PREF_DEBUG_NOTIFICATIONS_DNDSUPPRESSED = "pref_debug_notifications_dndSuppressed"
+        private const val PREF_DEBUG_NOTIFICATIONS_FREQUENCY_SUPPRESSED = "pref_debug_notifications_frequencySuppressed"
     }
 }

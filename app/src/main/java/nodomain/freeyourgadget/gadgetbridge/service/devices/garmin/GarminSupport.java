@@ -300,6 +300,11 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         return new GarminPrefs(GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()), gbDevice);
     }
 
+    @Override
+    public boolean supportsBackgroundNotifications(final GBDevice device) {
+        return true;
+    }
+
     @NonNull
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {

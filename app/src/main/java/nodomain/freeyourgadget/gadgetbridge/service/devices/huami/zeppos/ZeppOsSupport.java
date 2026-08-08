@@ -974,6 +974,11 @@ public class ZeppOsSupport extends AbstractDeviceSupport
         return sleepAsAndroidSender;
     }
 
+    @Override
+    public boolean supportsBackgroundNotifications(final GBDevice device) {
+        return getDevicePrefs().getInt(ZeppOsNotificationService.PREF_VERSION, -1) >= 5;
+    }
+
     private void setRawSensor(final boolean enable) {
         LOG.info("Set raw sensor to {}", enable);
         rawSensor = enable;

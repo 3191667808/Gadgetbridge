@@ -442,6 +442,8 @@ public class NotificationListener extends NotificationListenerService {
         long curTime = System.nanoTime();
         Long notificationBurstPreventionValue = notificationBurstPrevention.get(source);
 
+        NotificationSpec notificationSpec = new NotificationSpec(-1, notification.when);
+
         // If this notification contains a picture, and we did not yet send a picture inside the timeout interval,
         // we should still send it (eg. notification updates)
         final boolean newPicture = hasPicture &&
@@ -451,15 +453,15 @@ public class NotificationListener extends NotificationListenerService {
             long diff = curTime - notificationBurstPreventionValue;
             if (diff < TimeUnit.SECONDS.toNanos(notificationsTimeoutSeconds)) {
                 if (!newPicture) {
-                    LOG.info("Ignoring frequent notification, last one was {} ms ago", TimeUnit.NANOSECONDS.toMillis(diff));
-                    return;
+                    LOG.info("Marking frequent notification, last one was {} ms ago", TimeUnit.NANOSECONDS.toMillis(diff));
+                    // Actually ignoring it is a per-device decision on DeviceActionHandler
+                    notificationSpec.frequencySuppressed = true;
                 } else {
                     LOG.info("Allowing frequent notification, last one was {} ms ago", TimeUnit.NANOSECONDS.toMillis(diff));
                 }
             }
         }
 
-        NotificationSpec notificationSpec = new NotificationSpec(-1, notification.when);
         notificationSpec.key = sbn.getKey();
 
         // determinate Source App Name ("Label")

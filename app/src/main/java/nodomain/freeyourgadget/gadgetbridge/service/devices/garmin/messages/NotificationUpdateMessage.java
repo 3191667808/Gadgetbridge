@@ -14,9 +14,10 @@ public class NotificationUpdateMessage extends GFDIMessage {
     final private int notificationId;
     final private boolean hasActions;
     final private boolean hasPicture;
+    final private boolean isBackground;
     final private boolean useLegacyActions = false;
 
-    public NotificationUpdateMessage(NotificationUpdateType notificationUpdateType, NotificationType notificationType, int count, int notificationId, boolean hasActions, boolean hasPicture) {
+    public NotificationUpdateMessage(NotificationUpdateType notificationUpdateType, NotificationType notificationType, int count, int notificationId, boolean hasActions, boolean hasPicture, boolean isBackground) {
         this.garminMessage = GarminMessage.NOTIFICATION_UPDATE;
         this.notificationUpdateType = notificationUpdateType;
         this.notificationType = notificationType;
@@ -24,6 +25,7 @@ public class NotificationUpdateMessage extends GFDIMessage {
         this.notificationId = notificationId;
         this.hasActions = hasActions;
         this.hasPicture = hasPicture;
+        this.isBackground = isBackground;
     }
 
     @Override
@@ -61,21 +63,26 @@ public class NotificationUpdateMessage extends GFDIMessage {
         }
         flags.add(NotificationFlag.ACTION_DECLINE);
 
-        switch (notificationType.getGenericType()) {
-            case "generic_phone":
-            case "generic_email":
-            case "generic_sms":
-            case "generic_chat":
-                flags.add(NotificationFlag.FOREGROUND);
-                break;
-            case "generic_navigation":
-            case "generic_social":
-            case "generic_alarm_clock":
-            case "generic":
-                // TODO: Maybe make this configurable, but most users expect all notifications
-                // to be foreground, sending them as background was generating bug reports.
-                flags.add(NotificationFlag.FOREGROUND);
+        if (isBackground) {
+            flags.add(NotificationFlag.BACKGROUND);
+        } else {
+            switch (notificationType.getGenericType()) {
+                case "generic_phone":
+                case "generic_email":
+                case "generic_sms":
+                case "generic_chat":
+                    flags.add(NotificationFlag.FOREGROUND);
+                    break;
+                case "generic_navigation":
+                case "generic_social":
+                case "generic_alarm_clock":
+                case "generic":
+                    // TODO: Maybe make this configurable, but most users expect all notifications
+                    // to be foreground, sending them as background was generating bug reports.
+                    flags.add(NotificationFlag.FOREGROUND);
+            }
         }
+
         return (int) EnumUtils.generateBitVector(NotificationFlag.class, flags);
     }
 

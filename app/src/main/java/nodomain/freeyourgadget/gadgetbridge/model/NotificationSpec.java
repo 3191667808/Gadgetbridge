@@ -59,6 +59,11 @@ public class NotificationSpec {
 
     public int dndSuppressed;
 
+    /**
+     * Whether this notification would have been suppressed for been a too high frequency notification.
+     */
+    public boolean frequencySuppressed;
+
     public NotificationSpec() {
         this(-1);
     }

@@ -144,6 +144,11 @@ public class ServiceDeviceSupport implements DeviceSupport {
     }
 
     @Override
+    public boolean supportsBackgroundNotifications(final GBDevice device) {
+        return delegate.supportsBackgroundNotifications(device);
+    }
+
+    @Override
     public boolean useAutoConnect() {
         return delegate.useAutoConnect();
     }
