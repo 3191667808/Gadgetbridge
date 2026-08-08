@@ -46,7 +46,9 @@ public class OauthInterceptor implements HttpInterceptor {
 
     @Override
     public boolean supports(@NonNull final GarminHttpRequest request) {
-        return request.getPath().startsWith("/api/oauth") || request.getPath().startsWith("/oauthTokenExchangeService");
+        return request.getPath().startsWith("/api/oauth/") ||
+                request.getPath().startsWith("/oauth/") ||
+                request.getPath().startsWith("/oauthTokenExchangeService/");
     }
 
     @Override
@@ -60,7 +62,9 @@ public class OauthInterceptor implements HttpInterceptor {
         final GarminPrefs devicePrefs = deviceSupport.getDevicePrefs();
         if (!devicePrefs.fakeOauthEnabled()) {
             LOG.warn("Got OAuth HTTP request, but fake OAuth is disabled");
-            if (request.getPath().equals("/oauthTokenExchangeService/connectToIT") || request.getPath().equals("/api/oauth/token")) {
+            if (request.getPath().equals("/oauthTokenExchangeService/connectToIT") ||
+                    request.getPath().equals("/oauth/refresh_token/token") ||
+                    request.getPath().equals("/api/oauth/token")) {
                 showAuthExpiredNotification();
             }
             return null;
@@ -96,7 +100,7 @@ public class OauthInterceptor implements HttpInterceptor {
             response.setBody(GSON.toJson(authorizationResponse).getBytes(StandardCharsets.UTF_8));
             response.getHeaders().put("Content-Type", "application/json");
             return response;
-        } else if (request.getPath().equals("/api/oauth/token")) {
+        } else if (request.getPath().equals("/api/oauth/token") || request.getPath().equals("/oauth/refresh_token/token")) {
             // Attempt to keep the same refresh token
             final String refreshToken;
             if (request.getRawRequest().hasRawBody()) {
