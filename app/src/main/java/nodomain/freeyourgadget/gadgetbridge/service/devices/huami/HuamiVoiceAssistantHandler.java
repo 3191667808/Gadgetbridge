@@ -106,7 +106,7 @@ public class HuamiVoiceAssistantHandler {
     private final Runnable voiceStreamEndTimeoutRunnable = () -> {
         LOG.info("Voice recording finished, sending reply");
         write(new byte[]{CMD_END_ACK});
-        sendReply("Test!");
+        sendReply("Loud and clear!");
     };
 
     public HuamiVoiceAssistantHandler(final HuamiSupport support) {
