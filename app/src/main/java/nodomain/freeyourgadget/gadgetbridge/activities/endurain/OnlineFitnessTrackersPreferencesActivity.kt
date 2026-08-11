@@ -87,6 +87,16 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     updateLogoutPreferenceVisibility()
                 }
             }
+            parentFragmentManager.setFragmentResultListener(
+                "ridehub_login_result",
+                this
+            ) { _, bundle ->
+                val success = bundle.getBoolean("success", false)
+                if (success) {
+                    updateStatus()
+                    updateLogoutPreferenceVisibility()
+                }
+            }
         }
 
         override fun onResume() {
@@ -109,6 +119,11 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
             findPreference<Preference>("pref_key_wanderer_log_in")?.setOnPreferenceClickListener {
                 WandererSetupBottomSheet()
                     .show(parentFragmentManager, "wanderer_setup")
+                true
+            }
+            findPreference<Preference>("pref_key_ridehub_log_in")?.setOnPreferenceClickListener {
+                RideHubSetupBottomSheet()
+                    .show(parentFragmentManager, "ridehub_setup")
                 true
             }
         }
@@ -138,6 +153,16 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
 
                 true
             }
+            findPreference<Preference>("pref_key_ridehub_log_out")?.setOnPreferenceClickListener {
+                RideHubTokenManager(requireContext()).clearTokens()
+                activity?.runOnUiThread {
+                    GB.toast(getString(R.string.endurain_logged_out_successfully), Toast.LENGTH_SHORT, GB.INFO)
+                    updateStatus()
+                    updateLogoutPreferenceVisibility()
+                }
+
+                true
+            }
         }
 
         private fun updateLogoutPreferenceVisibility() {
@@ -145,6 +170,8 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
             findPreference<Preference>("pref_key_endurain_log_in")?.isVisible = !vm.endurainTokenManager.isLoggedIn()
             findPreference<Preference>("pref_key_wanderer_log_out")?.isVisible = WandererTokenManager(requireContext()).isLoggedIn()
             findPreference<Preference>("pref_key_wanderer_log_in")?.isVisible = !WandererTokenManager(requireContext()).isLoggedIn()
+            findPreference<Preference>("pref_key_ridehub_log_out")?.isVisible = RideHubTokenManager(requireContext()).isLoggedIn()
+            findPreference<Preference>("pref_key_ridehub_log_in")?.isVisible = !RideHubTokenManager(requireContext()).isLoggedIn()
         }
 
         private fun updateStatus() {
@@ -173,6 +200,13 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     getString(R.string.wanderer_logged_in).format(wandererServer)
             }
             wandererStatusPref?.summary = summaryText
+
+            // Update RideHub preferences
+            summaryText = getString(R.string.endurain_not_logged_in_integration_disabled)
+            if (RideHubTokenManager(requireContext()).isLoggedIn()) {
+                summaryText = getString(R.string.ridehub_logged_in)
+            }
+            findPreference<Preference>("pref_key_ridehub_status")?.summary = summaryText
         }
     }
 }

@@ -62,6 +62,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.ActivitySummariesChartFra
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DurationXLabelFormatter
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainApiClient
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainSetupViewModel
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.RideHubApiClient
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.RideHubTokenManager
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererApiClient
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererTokenManager
 import nodomain.freeyourgadget.gadgetbridge.activities.fit.FitViewerActivity
@@ -571,6 +573,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 true
             }
 
+            R.id.activity_action_upload_to_ridehub -> {
+                uploadToRideHub()
+                true
+            }
+
             R.id.activity_action_dev_inspect_file -> {
                 val intent = Intent(requireContext(), FitViewerActivity::class.java).apply {
                     putExtra(FitViewerActivity.EXTRA_PATH, File(workout.summary.rawDetailsPath).absolutePath)
@@ -698,6 +705,9 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         val wandererServer = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
         overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
         overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+        // RideHub accepts FIT (built from the summary alone if needed), so it is
+        // offered for any workout — same as Endurain, unlike GPX-only Wanderer.
+        overflowMenu?.findItem(R.id.activity_action_upload_to_ridehub)?.isVisible = RideHubTokenManager(requireContext()).isLoggedIn()
     }
 
     private fun takeSharedScreenshot() {
@@ -862,6 +872,61 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 GB.toast(
                     getString(R.string.endurain_unable_to_upload_gpx_file_toast, e.localizedMessage),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+            }
+        }
+    }
+
+    private fun uploadToRideHub() {
+        val workout = currentWorkout ?: return
+        val activityKind = ActivityKind.fromCode(workout.summary.activityKind)
+        val workoutName = workout.summary.name ?: activityKind.getLabel(requireContext())
+
+        lifecycleScope.launch {
+            // FIT rather than GPX: it carries heart rate, power and cadence, which
+            // RideHub uses for its analytics. The server decides the format from the
+            // file name extension, so the extension must survive the upload.
+            val activityFile = try {
+                buildFitFile(workout)
+            } catch (e: Exception) {
+                LOG.error("Failed to build FIT for RideHub upload", e)
+                GB.toast(
+                    getString(R.string.ridehub_unable_to_upload_file_toast, e.localizedMessage),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+                return@launch
+            }
+
+            try {
+                val apiClient = RideHubApiClient(RideHubTokenManager(requireContext()))
+                LOG.info("Uploading workout '{}' (type {}) to RideHub", workoutName, activityKind)
+                apiClient.uploadActivity(activityFile) { newId, message ->
+                    if (newId != null && message == null) {
+                        LOG.info("Uploaded activity to RideHub, ID $newId")
+                    }
+                    activity?.runOnUiThread {
+                        if (newId != null && message == null)
+                            GB.toast(
+                                getString(R.string.ridehub_toast_successfully_uploaded),
+                                Toast.LENGTH_LONG,
+                                GB.INFO
+                            )
+                        else
+                            GB.toast(
+                                getString(R.string.ridehub_toast_upload_error, message),
+                                Toast.LENGTH_LONG,
+                                GB.INFO
+                            )
+                    }
+                }
+            } catch (e: Exception) {
+                GB.toast(
+                    getString(R.string.ridehub_unable_to_upload_file_toast, e.localizedMessage),
                     Toast.LENGTH_LONG,
                     GB.ERROR,
                     e

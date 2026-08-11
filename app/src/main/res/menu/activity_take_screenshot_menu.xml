@@ -74,6 +74,12 @@
                 app:showAsAction="never" />
 
             <item
+                android:id="@+id/activity_action_upload_to_ridehub"
+                android:icon="@drawable/ic_file_upload"
+                android:title="@string/activity_detail_upload_to_ridehub"
+                app:showAsAction="never" />
+
+            <item
                 android:id="@+id/activity_action_share_fit"
                 android:icon="@drawable/ic_share"
                 android:title="@string/activity_detail_export_fit"

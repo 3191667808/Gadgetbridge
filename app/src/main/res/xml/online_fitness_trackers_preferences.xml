@@ -42,4 +42,22 @@
             android:title="@string/pref_wanderer_log_out_title"
             android:summary="@string/pref_endurain_log_out_summary" />
     </PreferenceCategory>
+    <PreferenceCategory
+        android:title="@string/pref_category_ridehub">
+        <Preference
+            android:icon="@drawable/ic_info"
+            android:key="pref_key_ridehub_status"
+            android:title="@string/pref_ridehub_status_title"
+            android:summary="@string/endurain_not_logged_in_integration_disabled" />
+        <Preference
+            android:icon="@drawable/ic_language"
+            android:key="pref_key_ridehub_log_in"
+            android:title="@string/pref_ridehub_enter_api_token_title"
+            android:summary="@string/pref_ridehub_enter_api_token_summary" />
+        <Preference
+            android:icon="@drawable/ic_language"
+            android:key="pref_key_ridehub_log_out"
+            android:title="@string/pref_ridehub_log_out_title"
+            android:summary="@string/pref_endurain_log_out_summary" />
+    </PreferenceCategory>
 </PreferenceScreen>
