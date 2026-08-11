@@ -46,5 +46,5 @@ class RideHubTokenManager(context: Context) {
 
     fun getAPIToken(): String? = tokenPreferences.getString("api_token", null)
 
-    fun isLoggedIn(): Boolean = getAPIToken()?.startsWith(RideHubApiClient.TOKEN_PREFIX) == true
+    fun isLoggedIn(): Boolean = !getAPIToken().isNullOrBlank()
 }

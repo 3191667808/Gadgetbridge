@@ -34,13 +34,6 @@ class RideHubApiClient(private val tokenManager: RideHubTokenManager) {
 
     companion object {
         const val BASE_URL = "https://ridehub.bike"
-
-        /**
-         * Upload tokens are `rh_` followed by 43 URL-safe base64 characters.
-         * Checking the prefix before saving turns a mistyped or wrong-service
-         * string into an error during setup instead of a lost first upload.
-         */
-        const val TOKEN_PREFIX = "rh_"
     }
 
     private fun buildHeaders(): MutableMap<String, String> {

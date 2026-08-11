@@ -5211,7 +5211,6 @@
     <string name="pref_category_wanderer" translatable="false">Wanderer</string>
     <string name="activity_detail_upload_to_wanderer">Upload GPX to Wanderer</string>
     <string name="ridehub_logged_in">Upload token saved</string>
-    <string name="ridehub_setup_api_token_error">Upload token should start with rh_</string>
     <string name="ridehub_setup_missing_token">Please enter the upload token</string>
     <string name="ridehub_setup_hint">Create an upload token in RideHub: Settings → External uploaders. It is shown only once.</string>
     <string name="ridehub_toast_successfully_uploaded">Successfully uploaded to RideHub</string>

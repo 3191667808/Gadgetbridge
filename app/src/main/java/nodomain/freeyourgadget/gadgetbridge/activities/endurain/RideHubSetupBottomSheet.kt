@@ -55,13 +55,13 @@ class RideHubSetupBottomSheet : BottomSheetDialogFragment() {
                 GB.toast(getString(R.string.ridehub_setup_missing_token), Toast.LENGTH_SHORT, GB.WARN)
                 return@setOnClickListener
             }
-            if (!apiToken.startsWith(RideHubApiClient.TOKEN_PREFIX)) {
-                GB.toast(getString(R.string.ridehub_setup_api_token_error), Toast.LENGTH_SHORT, GB.WARN)
-                return@setOnClickListener
-            }
 
-            // Verify the token is accepted before saving, so a mistyped or revoked
-            // token is reported now instead of silently at the first upload.
+            // The server is the judge of whether a token is valid — no client-side
+            // format check. Tokens carry an "rh_" prefix, but hard-coding that here
+            // would tie the client to one server version and reject perfectly good
+            // tokens issued before the prefix existed. The round-trip below reports
+            // a mistyped or revoked token during setup rather than at the first
+            // upload, which is the outcome that actually matters.
             saveButton.isEnabled = false
             RideHubApiClient(RideHubTokenManager(requireContext())).checkServerReachable(apiToken) { reachable, reason ->
                 activity?.runOnUiThread {
