@@ -1441,7 +1441,7 @@ public class DeviceConfig {
             public void parseTlv() throws ParseException {
                 // Huawei HiChain framing carries an explicit type tag (0x04); the JSON
                 // payload lives in tag 0x01. Kept for devices that still use it. This framing is
-                // only produced by classic Huawei HiChain devices (i.e. !supportsHiChainPake),
+                // only produced by classic Huawei HiChain devices, not by the Honor PAKE flow,
                 // so its JSON goes through the classic step router.
                 if (this.tlv.contains(0x04)) {
                     this.type = this.tlv.getByte(0x04);
@@ -1456,7 +1456,7 @@ public class DeviceConfig {
 
                 // Honor MBB HiChain framing (packHiChainData): tag 0x01 = dataType, tag 0x02 = payload.
                 //   dataType 1 = X25519 pubkey exchange, 2 = PAKE JSON passthrough, 3 = device identity.
-                // This framing is only produced by Honor PAKE devices (supportsHiChainPake), so its
+                // This framing is only produced by Honor connections running PAKE, so its
                 // JSON goes through the PAKE/STS step router.
                 byte dataType = this.tlv.getByte(0x01);
                 if (dataType == 0x01) {

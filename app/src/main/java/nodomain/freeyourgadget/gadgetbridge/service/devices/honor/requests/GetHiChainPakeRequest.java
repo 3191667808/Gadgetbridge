@@ -28,7 +28,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTLV;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.DeviceConfig;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.DeviceConfig.HiChain;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.honor.HiChainPakeUtils;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupportProvider;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.honor.HonorSupportProvider;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.Request;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
@@ -76,6 +76,9 @@ public class GetHiChainPakeRequest extends Request {
     private static final byte DATA_DH = 0x01;      // X25519 pubkey exchange
     private static final byte DATA_HICHAIN = 0x02; // PAKE JSON passthrough
 
+    /** Same instance as {@code supportProvider}, typed for the Honor-only PAKE identity storage. */
+    private final HonorSupportProvider honorSupport;
+
     private byte operationCode = 0x01; // BIND
     private byte step;
 
@@ -107,8 +110,9 @@ public class GetHiChainPakeRequest extends Request {
      *   DH-derived, so re-binding needs no user interaction. The 0x33 pairType dispatch
      *   (FIRST_PAIR vs RECONNECT) is observed from the pairing capture.
      */
-    public GetHiChainPakeRequest(HuaweiSupportProvider support, boolean stsReconnect) {
+    public GetHiChainPakeRequest(HonorSupportProvider support, boolean stsReconnect) {
         super(support);
+        this.honorSupport = support;
         this.serviceId = DeviceConfig.id;
         this.commandId = HiChain.id;
         this.operationCode = stsReconnect ? (byte) 0x02 : (byte) 0x01;
@@ -119,11 +123,9 @@ public class GetHiChainPakeRequest extends Request {
         this.pakeState = new HiChainPakeUtils.PakeState();
     }
 
-    // Takes the previous request typed as GetHiChainPakeRequest rather than Request: the
-    // protected supportProvider of Request is only accessible through a subclass-typed
-    // expression now that this class lives in another package.
     public GetHiChainPakeRequest(GetHiChainPakeRequest hcReq) {
-        super(hcReq.supportProvider);
+        super(hcReq.honorSupport);
+        this.honorSupport = hcReq.honorSupport;
         this.serviceId = DeviceConfig.id;
         this.commandId = HiChain.id;
         this.operationCode = hcReq.operationCode;
@@ -261,7 +263,7 @@ public class GetHiChainPakeRequest extends Request {
                 // where info = {"authId","authPk"} JSON and sig = Ed25519 over
                 // sha256(pakeChallenge || info). Follows the HiChain key-exchange request step.
                 byte[] selfAuthId = supportProvider.getAndroidId();
-                byte[] seed = supportProvider.getPakeIdentitySeed();
+                byte[] seed = honorSupport.getPakeIdentitySeed();
                 byte[] publicKey = HiChainPakeUtils.ed25519PublicKey(seed);
 
                 JSONObject info = new JSONObject();
@@ -398,7 +400,7 @@ public class GetHiChainPakeRequest extends Request {
                 pakeState.peerAuthId = peerAuthId;
                 // Persist the watch identity so the STS reconnect (operationCode 2) can re-auth
                 // against it without a fresh PIN.
-                supportProvider.savePakePeerIdentity(peerAuthId, peerPubKey);
+                honorSupport.savePakePeerIdentity(peerAuthId, peerPubKey);
                 // No advance(): the request chain finalizes here and init proceeds (configureReq).
 
             } else if (step == HiChain.Response.STEP_STS_START) {
@@ -465,8 +467,8 @@ public class GetHiChainPakeRequest extends Request {
         if (response.stsStartData == null) {
             throw new ResponseParseException("Expected STS start response (challenge/salt/epk/nonce)");
         }
-        byte[] seed = supportProvider.getPakeIdentitySeed();
-        byte[] peerAuthPk = supportProvider.getPakePeerAuthPk();
+        byte[] seed = honorSupport.getPakeIdentitySeed();
+        byte[] peerAuthPk = honorSupport.getPakePeerAuthPk();
         if (peerAuthPk == null) {
             throw new ResponseParseException(
                     "No stored peer identity for STS reconnect - the watch must be re-paired");
