@@ -20,18 +20,19 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.honor;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.honor.HonorConstants;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiBRSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiLESupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupportProvider;
 
 /**
- * BT classic transport for the newer Honor protocol: the Honor SDP service instead of the Huawei
- * one, driven by {@link HonorSupportProvider} instead of {@link HuaweiSupportProvider}.
+ * BTLE transport for the newer Honor protocol: the Honor GATT service and characteristics instead
+ * of the Huawei ones, driven by {@link HonorSupportProvider} instead of
+ * {@link HuaweiSupportProvider}.
  */
-public class HonorBRSupport extends HuaweiBRSupport {
+public class HonorLESupport extends HuaweiLESupport {
 
     @Override
-    protected UUID getSdpService() {
-        return HonorConstants.UUID_SERVICE_HONOR_SDP;
+    protected UUID getProtocolService() {
+        return HonorConstants.UUID_SERVICE_HONOR_SERVICE;
     }
 
     @Override

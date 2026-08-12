@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCrypto;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.DataSync;
@@ -346,11 +345,7 @@ public class Request {
         if (!this.supportProvider.isBLE()) {
             this.builderBr.write(data);
         } else {
-            if (supportProvider.getCoordinator().isNewHonorProtocol()) {
-                this.builderLe.write(HuaweiConstants.UUID_CHARACTERISTIC_HONOR_WRITE, data);
-            } else {
-                this.builderLe.write(HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_WRITE, data);
-            }
+            this.builderLe.write(supportProvider.getWriteCharacteristicUuid(), data);
         }
     }
 

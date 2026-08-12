@@ -489,11 +489,25 @@ public class HuaweiSupportProvider {
         this.gpsParametersResponse = response;
     }
 
+    /**
+     * The characteristic the device notifies incoming packets on. HonorSupportProvider
+     * overrides this with the Honor characteristic.
+     */
+    public UUID getReadCharacteristicUuid() {
+        return HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ;
+    }
+
+    /**
+     * The characteristic outgoing packets are written to. HonorSupportProvider overrides
+     * this with the Honor characteristic.
+     */
+    public UUID getWriteCharacteristicUuid() {
+        return HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_WRITE;
+    }
+
     protected nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder initializeDevice(nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder builder) {
         builder.setCallback(leSupport);
-        final BluetoothGattCharacteristic characteristicRead = leSupport.getCharacteristic(
-                getCoordinator().isNewHonorProtocol() ? HuaweiConstants.UUID_CHARACTERISTIC_HONOR_READ : HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ
-        );
+        final BluetoothGattCharacteristic characteristicRead = leSupport.getCharacteristic(getReadCharacteristicUuid());
         if (characteristicRead == null) {
             LOG.warn("Read characteristic is null, will attempt to reconnect");
             builder.setDeviceState(GBDevice.State.WAITING_FOR_RECONNECT);
@@ -785,11 +799,7 @@ public class HuaweiSupportProvider {
             nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder leBuilder = createLeTransactionBuilder("Initializing");
             leBuilder.setCallback(leSupport);
             if (!GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).getBoolean("force_new_protocol", false)) {
-                if (getCoordinator().isNewHonorProtocol()) {
-                    leBuilder.notify(HuaweiConstants.UUID_CHARACTERISTIC_HONOR_READ, true);
-                } else {
-                    leBuilder.notify(HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ, true);
-                }
+                leBuilder.notify(getReadCharacteristicUuid(), true);
             }
             leBuilder.setDeviceState(GBDevice.State.INITIALIZING);
         } else {

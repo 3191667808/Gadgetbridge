@@ -20,22 +20,33 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.honor;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.honor.HonorConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.honor.HonorCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiBRSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiLESupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupportProvider;
 
 /**
- * BT classic transport for the newer Honor protocol: the Honor SDP service instead of the Huawei
- * one, driven by {@link HonorSupportProvider} instead of {@link HuaweiSupportProvider}.
+ * Protocol implementation for Honor devices speaking the newer Honor protocol, i.e. those whose
+ * coordinator implements {@link HonorCoordinator}. It differs from {@link HuaweiSupportProvider} in
+ * the transport characteristics it reads from and writes to.
  */
-public class HonorBRSupport extends HuaweiBRSupport {
+public class HonorSupportProvider extends HuaweiSupportProvider {
 
-    @Override
-    protected UUID getSdpService() {
-        return HonorConstants.UUID_SERVICE_HONOR_SDP;
+    public HonorSupportProvider(HuaweiBRSupport support) {
+        super(support);
+    }
+
+    public HonorSupportProvider(HuaweiLESupport support) {
+        super(support);
     }
 
     @Override
-    protected HuaweiSupportProvider createSupportProvider() {
-        return new HonorSupportProvider(this);
+    public UUID getReadCharacteristicUuid() {
+        return HonorConstants.UUID_CHARACTERISTIC_HONOR_READ;
+    }
+
+    @Override
+    public UUID getWriteCharacteristicUuid() {
+        return HonorConstants.UUID_CHARACTERISTIC_HONOR_WRITE;
     }
 }

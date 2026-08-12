@@ -105,10 +105,6 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
         return true;
     }
 
-    public boolean isNewHonorProtocol() {
-        return false;
-    }
-
     /**
      * Whether this device authenticates with the HiChain PSK-SPEKE PAKE / STS flow
      * (as used by the Honor Watch 5) instead of the standard Huawei HiChain / HiChainLite

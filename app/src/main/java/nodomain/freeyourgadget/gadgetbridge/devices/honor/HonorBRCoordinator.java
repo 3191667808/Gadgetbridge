@@ -24,8 +24,14 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiBRCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.honor.HonorBRSupport;
 
-
-public abstract class  HonorBRCoordinator extends  HuaweiBRCoordinator {
+/**
+ * BT classic coordinator for Honor devices speaking the newer Honor protocol: the Honor SDP
+ * service of {@link HonorConstants} instead of the Huawei one, and Honor authentication (simple or
+ * PAKE, never HiChain / HiChain Lite).
+ * <p>
+ * Older Honor watches that speak the plain Huawei protocol stay on {@link HuaweiBRCoordinator}.
+ */
+public abstract class HonorBRCoordinator extends HuaweiBRCoordinator implements HonorCoordinator {
 
     @NonNull
     @Override

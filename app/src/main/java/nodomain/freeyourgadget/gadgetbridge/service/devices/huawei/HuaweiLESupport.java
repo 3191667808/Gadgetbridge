@@ -60,9 +60,28 @@ public class HuaweiLESupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ATTRIBUTE);
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
         addSupportedService(GattService.UUID_SERVICE_HUMAN_INTERFACE_DEVICE);
-        addSupportedService(HuaweiConstants.UUID_SERVICE_HUAWEI_SERVICE);
-        addSupportedService(HuaweiConstants.UUID_SERVICE_HONOR_SERVICE);
-        supportProvider = new HuaweiSupportProvider(this);
+        addSupportedService(getProtocolService());
+        supportProvider = createSupportProvider();
+    }
+
+    /**
+     * The GATT service carrying the protocol characteristics. HonorLESupport overrides this
+     * with the Honor service.
+     */
+    protected UUID getProtocolService() {
+        return HuaweiConstants.UUID_SERVICE_HUAWEI_SERVICE;
+    }
+
+    /**
+     * The provider implementing the protocol on top of this transport. HonorLESupport
+     * overrides this with the Honor provider, which authenticates differently.
+     */
+    protected HuaweiSupportProvider createSupportProvider() {
+        return new HuaweiSupportProvider(this);
+    }
+
+    protected HuaweiSupportProvider getSupportProvider() {
+        return supportProvider;
     }
 
     @Override

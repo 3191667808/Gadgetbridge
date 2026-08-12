@@ -51,8 +51,24 @@ public class HuaweiBRSupport extends AbstractBTBRDeviceSupport {
 
     public HuaweiBRSupport() {
         super(LOG, 1032);
-        addSupportedService(HuaweiConstants.UUID_SERVICE_HUAWEI_SDP);
-        supportProvider = new HuaweiSupportProvider(this);
+        addSupportedService(getSdpService());
+        supportProvider = createSupportProvider();
+    }
+
+    /**
+     * The SDP service to connect the RFCOMM socket to. HonorBRSupport overrides this with
+     * the Honor service.
+     */
+    protected UUID getSdpService() {
+        return HuaweiConstants.UUID_SERVICE_HUAWEI_SDP;
+    }
+
+    /**
+     * The provider implementing the protocol on top of this transport. HonorBRSupport
+     * overrides this with the Honor provider, which authenticates differently.
+     */
+    protected HuaweiSupportProvider createSupportProvider() {
+        return new HuaweiSupportProvider(this);
     }
 
     protected HuaweiSupportProvider getSupportProvider() {

@@ -23,10 +23,10 @@ import java.util.regex.Pattern;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLECoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.honor.HonorLECoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
-public class HonorBand7Coordinator extends HuaweiLECoordinator {
+public class HonorBand7Coordinator extends HonorLECoordinator {
     @Override
     public boolean isExperimental() {
         // #6027
@@ -53,10 +53,6 @@ public class HonorBand7Coordinator extends HuaweiLECoordinator {
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
 
-    @Override
-    public boolean isNewHonorProtocol() {
-        return true;
-    }
 
     @Override
     public boolean supportsVO2Max(@NonNull final GBDevice device) {

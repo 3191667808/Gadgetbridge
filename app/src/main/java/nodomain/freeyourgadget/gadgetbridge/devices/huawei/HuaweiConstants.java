@@ -26,12 +26,9 @@ public final class HuaweiConstants {
     public static final UUID UUID_CHARACTERISTIC_HUAWEI_WRITE = UUID.fromString(String.format(BASE_UUID, "FE01"));
     public static final UUID UUID_CHARACTERISTIC_HUAWEI_READ = UUID.fromString(String.format(BASE_UUID, "FE02"));
 
-    public static final UUID UUID_SERVICE_HONOR_SERVICE = UUID.fromString("c5f0ad48-cc27-48fd-9f67-8dc8e8f4a9cb");
-    public static final UUID UUID_CHARACTERISTIC_HONOR_WRITE = UUID.fromString("2a5fc8bd-3de4-43cb-9449-354bcdeccc70");
-    public static final UUID UUID_CHARACTERISTIC_HONOR_READ = UUID.fromString("a563d757-b216-48bc-8a0f-e8dde1f916aa");
-
     public static final UUID UUID_SERVICE_HUAWEI_SDP = UUID.fromString("82FF3820-8411-400C-B85A-55BDB32CF060");
-    public static final UUID UUID_SERVICE_HONOR_SDP = UUID.fromString("C9770A18-4C3D-453A-8AAF-D7EC7BBD2785");
+
+    // The UUIDs of the newer Honor protocol variant live in HonorConstants.
 
     public static final String GROUP_ID = "7B0BC0CBCE474F6C238D9661C63400B797B166EA7849B3A370FC73A9A236E989";
     public static final byte[] KEY_TYPE = new byte[]{0x00, 0x07};
