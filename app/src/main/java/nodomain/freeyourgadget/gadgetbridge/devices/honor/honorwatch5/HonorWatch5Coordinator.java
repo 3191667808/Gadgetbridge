@@ -1,4 +1,4 @@
-/*  Copyright (C) 2026 Vitalii Tomin
+/*  Copyright (C) 2025 Vitalii Tomin
 
     This file is part of Gadgetbridge.
 
@@ -14,19 +14,19 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.devices.huawei.honorwatch5pro;
+package nodomain.freeyourgadget.gadgetbridge.devices.honor.honorwatch5;
 
 import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HonorBRCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.honor.HonorBRCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 
-public class HonorWatch5ProCoordinator extends HonorBRCoordinator {
+public class HonorWatch5Coordinator extends HonorBRCoordinator {
     @Override
     public boolean isTransactionCrypted() {
         return false;
@@ -44,12 +44,12 @@ public class HonorWatch5ProCoordinator extends HonorBRCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile(HuaweiConstants.HO_WATCH5PRO_NAME + ".*", Pattern.CASE_INSENSITIVE);
+        return Pattern.compile(HuaweiConstants.HO_WATCH5_NAME + ".*", Pattern.CASE_INSENSITIVE);
     }
 
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_honor_watch5_pro;
+        return R.string.devicetype_honor_watch5;
     }
 
     @Override

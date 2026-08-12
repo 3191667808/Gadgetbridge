@@ -15,20 +15,14 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-package nodomain.freeyourgadget.gadgetbridge.devices.huawei;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.honor;
 
-import androidx.annotation.NonNull;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiBRSupport;
 
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HonorBRSupport;
-
-
-public abstract class  HonorBRCoordinator extends  HuaweiBRCoordinator {
-
-    @NonNull
-    @Override
-    public Class<? extends DeviceSupport> getDeviceSupportClass(final GBDevice device) {
-        return HonorBRSupport.class;
+public class HonorBRSupport extends HuaweiBRSupport {
+    public HonorBRSupport() {
+        super();
+        addSupportedService(HuaweiConstants.UUID_SERVICE_HONOR_SDP);
     }
 }

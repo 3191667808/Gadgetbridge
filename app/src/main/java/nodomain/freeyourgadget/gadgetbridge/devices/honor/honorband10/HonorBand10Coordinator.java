@@ -14,7 +14,7 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.devices.huawei.honorband9;
+package nodomain.freeyourgadget.gadgetbridge.devices.honor.honorband10;
 
 import androidx.annotation.NonNull;
 
@@ -25,7 +25,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLECoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
-public class HonorBand9Coordinator extends HuaweiLECoordinator {
+public class HonorBand10Coordinator extends HuaweiLECoordinator {
     @Override
     public boolean isExperimental() {
         // #6027
@@ -39,12 +39,12 @@ public class HonorBand9Coordinator extends HuaweiLECoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile(HuaweiConstants.HO_BAND9_NAME + ".*", Pattern.CASE_INSENSITIVE);
+        return Pattern.compile(HuaweiConstants.HO_BAND10_NAME + ".*", Pattern.CASE_INSENSITIVE);
     }
 
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_honor_band9;
+        return R.string.devicetype_honor_band10;
     }
 
     @Override

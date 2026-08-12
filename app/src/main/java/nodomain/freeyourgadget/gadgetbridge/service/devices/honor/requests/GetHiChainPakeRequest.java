@@ -14,7 +14,7 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.honor.requests;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -27,8 +27,9 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTLV;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.DeviceConfig;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.DeviceConfig.HiChain;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HiChainPakeUtils;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.honor.HiChainPakeUtils;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.HuaweiSupportProvider;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.Request;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
 
@@ -118,11 +119,13 @@ public class GetHiChainPakeRequest extends Request {
         this.pakeState = new HiChainPakeUtils.PakeState();
     }
 
-    public GetHiChainPakeRequest(Request prevReq) {
-        super(prevReq.supportProvider);
+    // Takes the previous request typed as GetHiChainPakeRequest rather than Request: the
+    // protected supportProvider of Request is only accessible through a subclass-typed
+    // expression now that this class lives in another package.
+    public GetHiChainPakeRequest(GetHiChainPakeRequest hcReq) {
+        super(hcReq.supportProvider);
         this.serviceId = DeviceConfig.id;
         this.commandId = HiChain.id;
-        GetHiChainPakeRequest hcReq = (GetHiChainPakeRequest) prevReq;
         this.operationCode = hcReq.operationCode;
         this.step = hcReq.step;
         this.devicePrivateKey = hcReq.devicePrivateKey;

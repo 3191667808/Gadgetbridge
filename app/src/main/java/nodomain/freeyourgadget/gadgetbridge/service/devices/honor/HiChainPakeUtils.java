@@ -14,7 +14,7 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.service.devices.huawei;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.honor;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

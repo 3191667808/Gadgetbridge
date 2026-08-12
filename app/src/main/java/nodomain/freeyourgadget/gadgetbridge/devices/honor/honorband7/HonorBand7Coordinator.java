@@ -1,4 +1,4 @@
-/*  Copyright (C) 2025 Vitalii Tomin
+/*  Copyright (C) 2024 Damien Gaignon, Martin.JM
 
     This file is part of Gadgetbridge.
 
@@ -14,26 +14,22 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.devices.huawei.honorwatch5;
+package nodomain.freeyourgadget.gadgetbridge.devices.honor.honorband7;
 
 import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HonorBRCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLECoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 
-public class HonorWatch5Coordinator extends HonorBRCoordinator {
+public class HonorBand7Coordinator extends HuaweiLECoordinator {
     @Override
-    public boolean isTransactionCrypted() {
-        return false;
-    }
-
-    @Override
-    public boolean supportsHiChainPake() {
+    public boolean isExperimental() {
+        // #6027
         return true;
     }
 
@@ -44,16 +40,26 @@ public class HonorWatch5Coordinator extends HonorBRCoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile(HuaweiConstants.HO_WATCH5_NAME + ".*", Pattern.CASE_INSENSITIVE);
+        return Pattern.compile(HuaweiConstants.HO_BAND7_NAME + ".*", Pattern.CASE_INSENSITIVE);
     }
 
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_honor_watch5;
+        return R.string.devicetype_honor_band7;
     }
 
     @Override
-    public DeviceKind getDeviceKind(@NonNull GBDevice device) {
-        return DeviceKind.WATCH;
+    public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
+        return DeviceCoordinator.DeviceKind.FITNESS_BAND;
+    }
+
+    @Override
+    public boolean isNewHonorProtocol() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsVO2Max(@NonNull final GBDevice device) {
+        return false;
     }
 }

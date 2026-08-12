@@ -1,4 +1,4 @@
-/*  Copyright (C) 2024 Damien Gaignon, Martin.JM
+/*  Copyright (C) 2025 Vitalii Tomin
 
     This file is part of Gadgetbridge.
 
@@ -14,22 +14,21 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.devices.huawei.honorband10;
+package nodomain.freeyourgadget.gadgetbridge.devices.honor.honorwatch4;
 
 import androidx.annotation.NonNull;
 
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.honor.HonorBRCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiLECoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
-public class HonorBand10Coordinator extends HuaweiLECoordinator {
+public class HonorWatch4Coordinator extends HonorBRCoordinator {
     @Override
-    public boolean isExperimental() {
-        // #6027
-        return true;
+    public boolean isTransactionCrypted() {
+        return false;
     }
 
     @Override
@@ -39,21 +38,16 @@ public class HonorBand10Coordinator extends HuaweiLECoordinator {
 
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile(HuaweiConstants.HO_BAND10_NAME + ".*", Pattern.CASE_INSENSITIVE);
+        return Pattern.compile("(" + HuaweiConstants.HO_WATCH4_NAME + "|" + HuaweiConstants.HO_WATCH4PRO_NAME + ").*", Pattern.CASE_INSENSITIVE);
     }
 
     @Override
     public int getDeviceNameResource() {
-        return R.string.devicetype_honor_band10;
+        return R.string.devicetype_honor_watch4;
     }
 
     @Override
     public DeviceKind getDeviceKind(@NonNull GBDevice device) {
-        return DeviceKind.FITNESS_BAND;
-    }
-
-    @Override
-    public boolean isNewHonorProtocol() {
-        return true;
+        return DeviceKind.WATCH;
     }
 }

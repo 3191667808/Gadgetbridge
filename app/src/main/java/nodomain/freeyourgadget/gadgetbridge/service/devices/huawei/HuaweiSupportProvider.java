@@ -189,7 +189,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetT
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.StopFindPhoneRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.StopNotificationRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetFitnessTotalsRequest;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetHiChainPakeRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.honor.requests.GetHiChainPakeRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetHiChainRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetSleepDataCountRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetStepDataCountRequest;
