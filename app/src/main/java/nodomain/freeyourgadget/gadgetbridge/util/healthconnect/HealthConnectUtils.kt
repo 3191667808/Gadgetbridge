@@ -564,7 +564,11 @@ class HealthConnectUtils {
             start: Instant,
             end: Instant,
             supportsSingletonRange: Boolean
-        ): Instant = if (supportsSingletonRange && start == end) end.plusMillis(1) else end
+        ): Instant {
+            // A first sync can resolve both bounds to the only point sample. Widen its exclusive
+            // upper bound so the generic empty-range check does not skip that HR or BP reading.
+            return if (supportsSingletonRange && start == end) end.plusMillis(1) else end
+        }
 
         private fun getSyncTimestampRange(
             context: Context,
@@ -819,7 +823,7 @@ class HealthConnectUtils {
                         ?.startTime?.toInstant()
                 }
                 else -> {
-                    CompanionLogger.error("No suitable provider found or provider is null for getFirstSampleTimestamp, dataType: {}, device: {}", dataType, device.name)
+                    CompanionLogger.debug("No suitable provider found or provider is null for getFirstSampleTimestamp, dataType: {}, device: {}", dataType, device.name)
                     null
                 }
             }
@@ -849,7 +853,7 @@ class HealthConnectUtils {
                         ?.endTime?.toInstant()
                 }
                 else -> {
-                    CompanionLogger.error("No suitable provider found or provider is null for getLastSampleTimestamp, dataType: {}, device: {}", dataType, device.name)
+                    CompanionLogger.debug("No suitable provider found or provider is null for getLastSampleTimestamp, dataType: {}, device: {}", dataType, device.name)
                     null
                 }
             }
