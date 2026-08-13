@@ -87,7 +87,7 @@ public class DeviceInformationMessage extends GFDIMessage {
             bluetoothName = null;
         }
         if (StringUtils.isBlank(bluetoothName)) {
-            bluetoothName = "GadgetBridge";
+            bluetoothName = "Gadgetbridge";
         }
         writer.writeString(bluetoothName);
         writer.writeString(Build.MANUFACTURER);
