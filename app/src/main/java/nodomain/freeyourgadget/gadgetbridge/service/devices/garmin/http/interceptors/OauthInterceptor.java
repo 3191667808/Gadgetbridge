@@ -16,8 +16,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -70,7 +71,7 @@ public class OauthInterceptor implements HttpInterceptor {
             return null;
         }
 
-        final List<String> scopes = Arrays.asList(
+        final Set<String> scopes = new LinkedHashSet<>(Arrays.asList(
                 // Swim 2
                 "GCS_EPHEMERIS_SONY_READ",
                 // Venu 3
@@ -82,10 +83,43 @@ public class OauthInterceptor implements HttpInterceptor {
                 "GCS_LIVETRACK_FIT_READ",
                 "GCS_LIVETRACK_FIT_UPDATE",
                 "OMT_GOLF_SUBSCRIPTION_READ",
-                "OMT_SUBSCRIPTION_READ"
-        );
+                "OMT_SUBSCRIPTION_READ",
+                // Enduro 3
+                "CSE_CDS_ACCOUNT_READ",
+                "GCS_CIQ_APPSTORE_MOBILE_READ",
+                "GCS_DEVICE_INSTRUCTION_OUTDOOR_READ",
+                "GCS_EMERGENCY_ASSISTANCE_CREATE",
+                "GCS_EPHEMERIS_SONY_READ",
+                "GCS_GEOLOCATION_ELEVATION_READ",
+                "GCS_IMAGE_STORAGE_READ",
+                "GCS_LIVETRACK_FIT_CREATE",
+                "GCS_LIVETRACK_FIT_READ",
+                "GCS_LIVETRACK_FIT_UPDATE",
+                "GCS_LIVE_EVENT_SHARING_CREATE",
+                "GCS_LTE_SIGNAL_UPDATE",
+                "GCS_MESSAGING_FITNESS_CREATE",
+                "GCS_MESSAGING_FITNESS_READ",
+                "GCS_MESSAGING_FITNESS_UPDATE",
+                "GCS_STOCKS_READ",
+                "GCS_TIDE_READ",
+                "GCS_WEATHER_RACEDAY_READ",
+                "MARINE_SERVER_ACCESS",
+                "MARINE_SERVER_CHARTS_SUBSCRIPTION_READ",
+                "MARINE_SERVER_CHARTS_SUBSCRIPTION_WRITE",
+                "OMT_BIRDSEYE_READ",
+                "OMT_OUTDOOR_MAP_SUBSCRIPTION_CREATE",
+                "OMT_OUTDOOR_MAP_SUBSCRIPTION_DELETE",
+                "OMT_OUTDOOR_MAP_SUBSCRIPTION_READ",
+                "OMT_SUBSCRIPTION_READ",
+                "YAR_BILLING_SUBSCRIBER_READ",
+                "YAR_INREACH_HERMES_READ",
+                "YAR_INREACH_IRIS_CREATE",
+                "YAR_INREACH_IRIS_READ",
+                "YAR_INREACH_IRIS_UPDATE",
+                "YAR_INREACH_VOICE_EVENT_CREATE"
+        ));
 
-        if (request.getPath().equals("/oauthTokenExchangeService/connectToIT")) {
+        if (request.getPath().equals("/oauthTokenExchangeService/connectToIT") || request.getPath().equals("/oauth/connect_exchange/token")) {
             final AuthorizationResponse authorizationResponse = new AuthorizationResponse();
             authorizationResponse.accessToken = UUID.randomUUID().toString();
             authorizationResponse.tokenType = "Bearer";
