@@ -32,7 +32,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -48,9 +51,13 @@ public class ConfigureAlarms extends AbstractGBActivity {
     private static final Logger LOG = LoggerFactory.getLogger(ConfigureAlarms.class);
 
     private static final int REQ_CONFIGURE_ALARM = 1;
+    private static final String STATE_CONFIGURED_ALARM_POSITION = "configured_alarm_position";
+    private static final String STATE_MODIFIED_ALARM_POSITIONS = "modified_alarm_positions";
 
     private GBAlarmListAdapter mGBAlarmListAdapter;
     private boolean avoidSendAlarmsToDevice;
+    private final Set<Integer> locallyModifiedAlarmPositions = new HashSet<>();
+    private int configuredAlarmPosition = -1;
     private GBDevice gbDevice;
 
     @Override
@@ -64,6 +71,17 @@ public class ConfigureAlarms extends AbstractGBActivity {
         LocalBroadcastManager.getInstance(this).registerReceiver(mReceiver, filterLocal);
 
         gbDevice = getIntent().getParcelableExtra(GBDevice.EXTRA_DEVICE);
+        if (savedInstanceState != null) {
+            configuredAlarmPosition = savedInstanceState.getInt(
+                    STATE_CONFIGURED_ALARM_POSITION,
+                    -1
+            );
+            final ArrayList<Integer> modifiedPositions =
+                    savedInstanceState.getIntegerArrayList(STATE_MODIFIED_ALARM_POSITIONS);
+            if (modifiedPositions != null) {
+                locallyModifiedAlarmPositions.addAll(modifiedPositions);
+            }
+        }
 
         mGBAlarmListAdapter = new GBAlarmListAdapter(this);
 
@@ -75,8 +93,19 @@ public class ConfigureAlarms extends AbstractGBActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (!avoidSendAlarmsToDevice) {
+            requestAlarmsFromDevice();
+        }
+    }
+
+    @Override
     protected void onPause() {
-        if (!avoidSendAlarmsToDevice && gbDevice.isInitialized()) {
+        if (!avoidSendAlarmsToDevice &&
+                (!supportsAlarmListSynchronization() ||
+                        !locallyModifiedAlarmPositions.isEmpty()) &&
+                gbDevice.isInitialized()) {
             sendAlarmsToDevice();
         }
         super.onPause();
@@ -87,6 +116,8 @@ public class ConfigureAlarms extends AbstractGBActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_CONFIGURE_ALARM) {
             avoidSendAlarmsToDevice = false;
+            onAlarmChangedByUser(configuredAlarmPosition);
+            configuredAlarmPosition = -1;
             updateAlarmsFromDB();
         }
     }
@@ -125,6 +156,7 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
     public void configureAlarm(Alarm alarm) {
         avoidSendAlarmsToDevice = true;
+        configuredAlarmPosition = alarm.getPosition();
         Intent startIntent = new Intent(getApplicationContext(), AlarmDetails.class);
         startIntent.putExtra(Alarm.EXTRA_ALARM, alarm);
         startIntent.putExtra(GBDevice.EXTRA_DEVICE, getGbDevice());
@@ -136,7 +168,39 @@ public class ConfigureAlarms extends AbstractGBActivity {
     }
 
     private void sendAlarmsToDevice() {
+        if (supportsAlarmListSynchronization() && !locallyModifiedAlarmPositions.isEmpty()) {
+            for (final Alarm alarm : mGBAlarmListAdapter.getAlarmList()) {
+                if (locallyModifiedAlarmPositions.contains(alarm.getPosition())) {
+                    DBHelper.store(alarm);
+                }
+            }
+            updateAlarmsFromDB();
+        }
         GBApplication.deviceService(gbDevice).onSetAlarms(mGBAlarmListAdapter.getAlarmList());
+        locallyModifiedAlarmPositions.clear();
+    }
+
+    private void requestAlarmsFromDevice() {
+        if (gbDevice.isInitialized() && supportsAlarmListSynchronization()) {
+            GBApplication.deviceService(gbDevice).onReadConfiguration(DeviceService.CONFIG_ALARMS);
+        }
+    }
+
+    public void onAlarmChangedByUser(final Alarm alarm) {
+        onAlarmChangedByUser(alarm.getPosition());
+    }
+
+    private void onAlarmChangedByUser(final int position) {
+        if (!supportsAlarmListSynchronization()) {
+            return;
+        }
+        if (position >= 0) {
+            locallyModifiedAlarmPositions.add(position);
+        }
+    }
+
+    public boolean supportsAlarmListSynchronization() {
+        return gbDevice.getDeviceCoordinator().supportsAlarmListSynchronization(gbDevice);
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -146,12 +210,34 @@ public class ConfigureAlarms extends AbstractGBActivity {
 
             switch (action) {
                 case DeviceService.ACTION_SAVE_ALARMS: {
+                    if (!supportsAlarmListSynchronization()) {
+                        updateAlarmsFromDB();
+                        break;
+                    }
+                    final GBDevice sourceDevice = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+                    if (sourceDevice != null && !gbDevice.equals(sourceDevice)) {
+                        break;
+                    }
+                    if (!locallyModifiedAlarmPositions.isEmpty()) {
+                        LOG.debug("Ignoring alarm screen refresh because local changes are pending");
+                        break;
+                    }
                     updateAlarmsFromDB();
                     break;
                 }
             }
         }
     };
+
+    @Override
+    protected void onSaveInstanceState(final Bundle outState) {
+        outState.putInt(STATE_CONFIGURED_ALARM_POSITION, configuredAlarmPosition);
+        outState.putIntegerArrayList(
+                STATE_MODIFIED_ALARM_POSITIONS,
+                new ArrayList<>(locallyModifiedAlarmPositions)
+        );
+        super.onSaveInstanceState(outState);
+    }
 
     @Override
     protected void onDestroy() {

@@ -56,6 +56,15 @@ public abstract class AbstractXiaomiService {
         return false;
     }
 
+    /**
+     * Handle an explicit configuration read.
+     * @param config the configuration key
+     * @return true if the configuration read was handled, false otherwise
+     */
+    public boolean onReadConfiguration(final String config) {
+        return false;
+    }
+
     public XiaomiSupport getSupport() {
         return mSupport;
     }

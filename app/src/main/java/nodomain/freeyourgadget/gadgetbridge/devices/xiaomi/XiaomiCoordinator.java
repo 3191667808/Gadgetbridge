@@ -85,6 +85,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.activity.impl
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
+    private static final int DEFAULT_ALARM_SLOTS = 10;
+
     // On plaintext devices, user id is used as auth key - numeric
     private static final Pattern AUTH_KEY_PATTERN = Pattern.compile("^[0-9]+$");
 
@@ -221,7 +223,11 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getAlarmSlotCount(@NonNull final GBDevice device) {
-        return getPrefs(device).getInt(XiaomiPreferences.PREF_ALARM_SLOTS, 0);
+        final int alarmSlots = getPrefs(device).getInt(XiaomiPreferences.PREF_ALARM_SLOTS, 0);
+        if (alarmSlots <= 0 && supportsAlarmListSynchronization(device)) {
+            return DEFAULT_ALARM_SLOTS;
+        }
+        return alarmSlots;
     }
 
     @Override

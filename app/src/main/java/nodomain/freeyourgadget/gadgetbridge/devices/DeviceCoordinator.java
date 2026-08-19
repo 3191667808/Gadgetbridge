@@ -61,6 +61,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.BodyEnergySample;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
@@ -572,6 +573,13 @@ public interface DeviceCoordinator {
      * @return
      */
     int getAlarmSlotCount(@NonNull final GBDevice device);
+
+    /**
+     * Returns true if alarms can be read back before editing and use device-assigned IDs. The
+     * device support must handle {@link DeviceService#CONFIG_ALARMS} and broadcast
+     * {@link DeviceService#ACTION_SAVE_ALARMS} with {@link GBDevice#EXTRA_DEVICE} after every read.
+     */
+    boolean supportsAlarmListSynchronization(@NonNull final GBDevice device);
 
     /**
      * Returns true if this device/coordinator supports an alarm with smart wakeup for the current position

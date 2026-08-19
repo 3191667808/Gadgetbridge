@@ -33,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public final class XiaomiPreferences {
+    public static final String PREF_ALARM_DEVICE_IDS = "xiaomi_alarm_device_ids";
     public static final String PREF_ALARM_SLOTS = "alarm_slots";
     public static final String PREF_REMINDER_SLOTS = "reminder_slots";
     public static final String PREF_CANNED_MESSAGES_MIN = "canned_messages_min";

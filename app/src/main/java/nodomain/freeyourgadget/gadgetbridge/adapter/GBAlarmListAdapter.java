@@ -85,9 +85,16 @@ public class GBAlarmListAdapter extends RecyclerView.Adapter<GBAlarmListAdapter.
         holder.alarmDaySaturday.setChecked(alarm.getRepetition(Alarm.ALARM_SAT));
         holder.alarmDaySunday.setChecked(alarm.getRepetition(Alarm.ALARM_SUN));
         holder.container.setAlpha(alarm.getUnused() ? 0.5f : 1.0f);
+        final boolean synchronizeAlarmList =
+                ((ConfigureAlarms) mContext).supportsAlarmListSynchronization();
+        if (synchronizeAlarmList) {
+            holder.isEnabled.setOnCheckedChangeListener(null);
+            holder.isEnabled.setChecked(alarm.getEnabled());
+        }
         holder.isEnabled.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                ((ConfigureAlarms) mContext).onAlarmChangedByUser(alarm);
                 if (isChecked) {
                     alarm.setUnused(false);
                     holder.container.setAlpha(1.0f);
@@ -106,7 +113,11 @@ public class GBAlarmListAdapter extends RecyclerView.Adapter<GBAlarmListAdapter.
         holder.container.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
+                ((ConfigureAlarms) mContext).onAlarmChangedByUser(alarm);
                 alarm.setUnused(!alarm.getUnused());
+                if (synchronizeAlarmList) {
+                    alarm.setEnabled(false);
+                }
                 holder.container.setAlpha(alarm.getUnused() ? 0.5f : 1.0f);
                 holder.isEnabled.setChecked(false); // This falls through to the onCheckChanged function
                 updateInDB(alarm);
@@ -115,7 +126,9 @@ public class GBAlarmListAdapter extends RecyclerView.Adapter<GBAlarmListAdapter.
         });
 
         holder.alarmTime.setText(DateTimeUtils.formatTime(alarm.getHour(), alarm.getMinute()));
-        holder.isEnabled.setChecked(alarm.getEnabled());
+        if (!synchronizeAlarmList) {
+            holder.isEnabled.setChecked(alarm.getEnabled());
+        }
         if (alarm.getSmartWakeup()) {
             holder.isSmartWakeup.setVisibility(TextView.VISIBLE);
         } else {

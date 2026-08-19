@@ -55,4 +55,5 @@ public class MiBand9Coordinator extends XiaomiCoordinator {
     public DeviceCoordinator.DeviceKind getDeviceKind(@NonNull GBDevice device) {
         return DeviceCoordinator.DeviceKind.FITNESS_BAND;
     }
+
 }
