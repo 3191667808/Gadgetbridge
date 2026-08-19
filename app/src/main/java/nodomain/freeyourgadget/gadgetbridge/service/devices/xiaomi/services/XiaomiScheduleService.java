@@ -442,7 +442,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
 
             if (alarm.getUnused() && watchAlarm != null) {
                 // Delete from watch
-                alarmsToDelete.add(watchAlarm.getPosition() + 1); // watch positions, not GB
+                alarmsToDelete.add(getCoordinator().alarmPositionToId(watchAlarm.getPosition()));
                 watchAlarms.remove(alarm.getPosition());
                 LOG.debug("Delete alarm {} from watch", alarm.getPosition());
                 continue;
@@ -484,7 +484,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
                 watchAlarms.put(alarm.getPosition(), alarm);
                 schedule.setEditAlarm(
                         XiaomiProto.Alarm.newBuilder()
-                                .setId(alarm.getPosition() + 1)
+                                .setId(getCoordinator().alarmPositionToId(alarm.getPosition()))
                                 .setAlarmDetails(alarmDetails)
                                 .build()
                 );
@@ -541,7 +541,7 @@ public class XiaomiScheduleService extends AbstractXiaomiService {
         for (final XiaomiProto.Alarm alarm : alarms.getAlarmList()) {
             final nodomain.freeyourgadget.gadgetbridge.entities.Alarm gbAlarm = new nodomain.freeyourgadget.gadgetbridge.entities.Alarm();
             gbAlarm.setUnused(false); // If the band sent it, it's not unused
-            gbAlarm.setPosition(alarm.getId() - 1); // band id starts at 1
+            gbAlarm.setPosition(getCoordinator().alarmIdToPosition(alarm.getId()));
             gbAlarm.setEnabled(alarm.getAlarmDetails().getEnabled());
             gbAlarm.setSmartWakeup(alarm.getAlarmDetails().getSmart() == ALARM_SMART);
             gbAlarm.setHour(alarm.getAlarmDetails().getTime().getHour());

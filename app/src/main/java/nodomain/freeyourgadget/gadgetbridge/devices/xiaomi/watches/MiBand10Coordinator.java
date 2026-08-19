@@ -57,6 +57,11 @@ public class MiBand10Coordinator extends XiaomiCoordinator {
     }
 
     @Override
+    public int getAlarmIdOffset() {
+        return 0;
+    }
+
+    @Override
     public boolean supportsCustomVibrationPatterns(@NonNull final GBDevice device) {
         return true;
     }

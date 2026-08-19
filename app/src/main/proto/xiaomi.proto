@@ -956,7 +956,7 @@ message Schedule {
   optional Alarms alarms = 1;
   // 17, 1
   optional AlarmDetails createAlarm = 2;
-  // 17, 3 -> returns 17, 5
+  // 17, 2 -> returns 17, 5
   optional Alarm editAlarm = 3;
 
   optional uint32 ackId = 4; // id of created or edited alarm and reminder
@@ -993,7 +993,7 @@ message Alarms {
 }
 
 message Alarm {
-  optional uint32 id = 1; // starts at 1
+  optional uint32 id = 1; // starts at 1 on most devices, 0 on Mi Band 10
   optional AlarmDetails alarmDetails = 2;
 }
 
