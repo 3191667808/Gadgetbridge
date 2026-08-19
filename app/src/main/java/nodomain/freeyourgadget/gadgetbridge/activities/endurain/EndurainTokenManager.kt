@@ -43,7 +43,7 @@ class EndurainTokenManager(context: Context) {
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
         } catch (e: GeneralSecurityException) {
-            LOG.warn("Unable to decrypt endurain token preferences, resetting them instead")
+            LOG.warn("Unable to decrypt endurain token preferences, resetting them instead\n", e)
             context.deleteSharedPreferences("endurain_tokens")
             EncryptedSharedPreferences.create(
                 context,

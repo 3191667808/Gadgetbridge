@@ -43,7 +43,7 @@ class WandererTokenManager(context: Context) {
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
         } catch (e: GeneralSecurityException) {
-            LOG.warn("Unable to decrypt wanderer token preferences, resetting them instead")
+            LOG.warn("Unable to decrypt wanderer token preferences, resetting them instead\n", e)
             context.deleteSharedPreferences("wanderer_tokens")
             EncryptedSharedPreferences.create(
                 context,
