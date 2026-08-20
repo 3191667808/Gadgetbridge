@@ -87,8 +87,12 @@ public class WithingsUUIDs {
      * Scanwatch Light UUID set.
      * The Scanwatch Light is a pared-back version of the Scanwatch 2.
      * It lacks some features of the full model, such as ECG support.
+     *
+     * <p>Confirmed via BLE HCI capture against the official Health Mate app: the ANCS-style
+     * notification service uses suffix "0037", same as every other Withings model, even though
+     * the main protocol service uses "005f".
      */
-    public static final WithingsUUIDs SCANWATCH_LIGHT = new WithingsUUIDs("005f");
+    public static final WithingsUUIDs SCANWATCH_LIGHT = new WithingsUUIDs("005f", "0037");
 
     /** Scanwatch 2 UUID set */
     public static final String V2_BASE_SUFFIX = "-0000-5749-5448-494e47530000";

@@ -17,7 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 import org.junit.Test;
 
@@ -40,10 +39,12 @@ public class UUIDTest {
     }
 
     @Test
-    public void scanwatchLightUses005fProtocolAndAncs() {
+    public void scanwatchLightUses005fProtocolAnd0037Ancs() {
+        // Confirmed via BLE HCI capture against the official Health Mate app: ScanWatch Light
+        // uses its own "005f" suffix for the main protocol service, but the ANCS-style
+        // notification service uses "0037", same as every other Withings model.
         assertEquals(uuid("00000020-5749-5448-005f-000000000000"), WithingsUUIDs.SCANWATCH_LIGHT.WITHINGS_SERVICE_UUID);
-        assertEquals(uuid("10000058-5749-5448-005f-000000000000"), WithingsUUIDs.SCANWATCH_LIGHT.CONTROL_POINT_CHARACTERISTIC_UUID);
-        assertNotEquals(WithingsUUIDs.SCANWATCH.CONTROL_POINT_CHARACTERISTIC_UUID, WithingsUUIDs.SCANWATCH_LIGHT.CONTROL_POINT_CHARACTERISTIC_UUID);
+        assertEquals(uuid("10000058-5749-5448-0037-000000000000"), WithingsUUIDs.SCANWATCH_LIGHT.CONTROL_POINT_CHARACTERISTIC_UUID);
     }
 
     private static UUID uuid(final String value) {
