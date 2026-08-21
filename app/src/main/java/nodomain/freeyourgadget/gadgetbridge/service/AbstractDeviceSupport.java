@@ -250,7 +250,7 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
      * @param location {@link android.location.Location} object containing the current GPS coordinates
      */
     @Override
-    public void onSetGpsLocation(Location location) {
+    public void onSetGpsLocation(@NonNull final Location location) {
 
     }
 

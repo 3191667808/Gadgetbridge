@@ -1,3 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- DJI RC-N1 / RC-N1C -->
+    <usb-accessory
+        manufacturer="DJI"
+        model="com.dji.logiclink"/>
 </resources>

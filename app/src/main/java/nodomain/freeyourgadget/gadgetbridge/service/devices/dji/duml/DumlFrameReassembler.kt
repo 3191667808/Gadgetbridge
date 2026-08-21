@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
  * one frame split across several notifications, and several frames
  * delivered in a single notification.
  */
-class DumlFrameReassembler(private val maxBufferSize: Int = 4096) {
+class DumlFrameReassembler {
     private var buffer = ByteArray(0)
 
     /** Feeds newly received bytes; returns any packets that could be fully decoded so far. */
@@ -35,7 +35,7 @@ class DumlFrameReassembler(private val maxBufferSize: Int = 4096) {
 
         buffer = if (offset > 0) buffer.copyOfRange(offset, buffer.size) else buffer
 
-        if (buffer.size > maxBufferSize) {
+        if (buffer.size > MAX_BUFFER_SIZE) {
             LOG.error("DUML frame buffer overflow, resetting")
             buffer = ByteArray(0)
         }
@@ -49,5 +49,7 @@ class DumlFrameReassembler(private val maxBufferSize: Int = 4096) {
 
     companion object {
         private val LOG = LoggerFactory.getLogger(DumlFrameReassembler::class.java)
+
+        private const val MAX_BUFFER_SIZE = 4096
     }
 }

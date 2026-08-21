@@ -18,6 +18,9 @@
 
     <color name="divider" type="color">#1f000000</color>
 
+    <color name="dji_hud_error" type="color">#ff5252</color>
+    <color name="dji_hud_warning" type="color">#ffd740</color>
+
     <color name="chart_heartrate" type="color">#ffab40</color>
     <color name="chart_heartrate_alternative" type="color">#8B0000</color>
     <color name="chart_heartrate_fill" type="color">#fadab1</color>

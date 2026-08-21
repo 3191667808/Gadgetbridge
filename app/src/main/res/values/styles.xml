@@ -244,4 +244,18 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_rowWeight">1</item>
     </style>
+
+    <style name="DjiHudText">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:shadowColor">@android:color/black</item>
+        <item name="android:shadowDx">0</item>
+        <item name="android:shadowDy">0</item>
+        <item name="android:shadowRadius">3</item>
+    </style>
+
+    <style name="DjiHudText.Small">
+        <item name="android:textSize">10sp</item>
+    </style>
 </resources>

@@ -344,6 +344,12 @@
             android:label="@string/devicetype_vesc"
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
+            android:name=".devices.dji.DjiVideoActivity"
+            android:label="@string/activity_live_video_stream"
+            android:parentActivityName=".activities.ControlCenterv2"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+        <activity
             android:name=".activities.UsbAccessoryConnectActivity"
             android:label="@string/usb_connect_title"
             android:launchMode="singleTop" />

@@ -16,7 +16,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlFrameRe
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlPacket
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlPacketType
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.messages.DumlCommand
-import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.messages.DumlEncodable
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.messages.Wifi
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.messages.toPacket
 import org.slf4j.LoggerFactory
@@ -119,30 +118,30 @@ class DjiBleSupport : AbstractBTLESingleDeviceSupport(LOG) {
         builder.write(UUID_CHARACTERISTIC_DJI_FFF5, *DumlCodec.encode(packet))
     }
 
-    private fun <T> sendPacket(
+    private fun sendPacket(
         builder: TransactionBuilder,
         sender: DumlAddress = DumlAddress.APP,
         receiver: DumlAddress,
         seq: Int = allocateSeq(),
         ack: DumlAck = DumlAck.ACK_AFTER_EXEC,
         packetType: DumlPacketType = DumlPacketType.REQUEST,
-        command: T
-    ) where T : DumlCommand, T : DumlEncodable {
+        command: DumlCommand
+    ) {
         sendPacket(
             builder,
             command.toPacket(sender = sender, receiver = receiver, seq = seq, ack = ack, packetType = packetType)
         )
     }
 
-    private fun <T> sendPacket(
+    private fun sendPacket(
         taskName: String,
         sender: DumlAddress = DumlAddress.APP,
         receiver: DumlAddress,
         seq: Int = allocateSeq(),
         ack: DumlAck = DumlAck.ACK_AFTER_EXEC,
         packetType: DumlPacketType = DumlPacketType.REQUEST,
-        command: T
-    ) where T : DumlCommand, T : DumlEncodable {
+        command: DumlCommand
+    ) {
         sendPacket(
             taskName,
             command.toPacket(sender = sender, receiver = receiver, seq = seq, ack = ack, packetType = packetType)

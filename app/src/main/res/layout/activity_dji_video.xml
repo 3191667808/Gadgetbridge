@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <SurfaceView
+        android:id="@+id/surface_video"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Top-left: flight mode and status -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="16dp"
+        android:background="@drawable/background_dji_hud_panel"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:id="@+id/text_flight_mode"
+            style="@style/DjiHudText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/dji_hud_placeholder" />
+
+        <TextView
+            style="@style/DjiHudText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="6dp"
+            android:text="|"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/text_status"
+            style="@style/DjiHudText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/dji_hud_placeholder" />
+
+    </LinearLayout>
+
+    <!-- Top-right: batteries, runtime, signal strength, GPS satellites -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:background="@drawable/background_dji_hud_panel"
+        android:gravity="end"
+        android:orientation="vertical"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/text_battery_phone"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+            <TextView
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="6dp"
+                android:text="|"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/text_battery_rc"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+            <TextView
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="6dp"
+                android:text="|"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/text_battery_drone"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/text_runtime"
+            style="@style/DjiHudText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/dji_hud_placeholder" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/text_signal"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+            <TextView
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="6dp"
+                android:text="|"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/text_video"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/text_gps"
+            style="@style/DjiHudText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/dji_hud_placeholder" />
+
+    </LinearLayout>
+
+    <!-- Bottom-left: altitude (vertical speed) and distance (horizontal speed) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="16dp"
+        android:background="@drawable/background_dji_hud_panel"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/text_vertical_speed"
+                style="@style/DjiHudText.Small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+            <TextView
+                android:id="@+id/text_altitude"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/text_horizontal_speed"
+                style="@style/DjiHudText.Small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+            <TextView
+                android:id="@+id/text_distance"
+                style="@style/DjiHudText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dji_hud_placeholder" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Bottom-right: debug info (camera status later?) -->
+    <TextView
+        android:id="@+id/text_debug"
+        style="@style/DjiHudText.Small"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:background="@drawable/background_dji_hud_panel"
+        android:gravity="end"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp"
+        android:text="@string/dji_hud_placeholder" />
+
+</FrameLayout>
