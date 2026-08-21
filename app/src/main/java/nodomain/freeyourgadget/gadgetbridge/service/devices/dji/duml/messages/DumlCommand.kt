@@ -2,7 +2,6 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.messages
 
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlAck
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlAddress
-import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlCmdSet
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlPacket
 import nodomain.freeyourgadget.gadgetbridge.service.devices.dji.duml.DumlPacketType
 import nodomain.freeyourgadget.gadgetbridge.util.GB
@@ -13,13 +12,16 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB
  * do not share a payload shape - a query carries little, the answer carries
  * the actual data, so each direction still gets its own type.
  *
- * Subclasses live in per-cmdSet files (DumlCommandWifi.kt, etc.) rather than
- * all here. Each such file contributes its own decoders to [DECODERS] below;
- * add the new file's map there when it's created.
+ * Subclasses are generated from the .ksy schemas under
+ * `KaitaiCodeGenerator/src/main/resources/duml` (see `:KaitaiCodeGenerator:genDuml`);
+ * each schema file contributes its own decoders, merged into [DECODERS]
+ * below as `GENERATED_DUML_DECODERS`.
  *
  * Unknown payloads are decoded to [Unknown].
  */
 sealed class DumlCommand(val cmdSet: Int, val cmd: Int) {
+
+    abstract fun encode(): ByteArray
 
     /** Anything not (yet) modeled - carries whichever direction was observed. */
     class Unknown(
@@ -28,6 +30,8 @@ sealed class DumlCommand(val cmdSet: Int, val cmd: Int) {
         val packetType: DumlPacketType,
         val rawPayload: ByteArray,
     ) : DumlCommand(cmdSet, cmd) {
+        override fun encode(): ByteArray = rawPayload
+
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is Unknown) return false
@@ -46,12 +50,9 @@ sealed class DumlCommand(val cmdSet: Int, val cmd: Int) {
         // Outer key is cmdSet, inner key is (cmd, packetType) - the two
         // directions of an exchange aren't guaranteed to share a payload
         // shape, so a decoder registered for one packetType must never also
-        // match the other. One entry per cmdSet file; each such file's
-        // own map only needs (cmd, packetType) keys since its cmdSet is
-        // fixed.
-        private val DECODERS: Map<Int, Map<Pair<Int, DumlPacketType>, (ByteArray) -> DumlCommand>> = mapOf(
-            DumlCmdSet.WIFI to WIFI_DECODERS,
-        )
+        // match the other.
+        private val DECODERS: Map<Int, Map<Pair<Int, DumlPacketType>, (ByteArray) -> DumlCommand>> =
+            GENERATED_DUML_DECODERS
 
         fun decode(cmdSet: Int, cmd: Int, packetType: DumlPacketType, payload: ByteArray): DumlCommand =
             DECODERS[cmdSet]?.get(cmd to packetType)?.invoke(payload) ?: Unknown(cmdSet, cmd, packetType, payload)
@@ -61,19 +62,14 @@ sealed class DumlCommand(val cmdSet: Int, val cmd: Int) {
     }
 }
 
-/** Implemented by whichever [DumlCommand] variant represents something the phone sends. */
-interface DumlEncodable {
-    fun encode(): ByteArray
-}
-
-/** Wraps an encodable command in a full [DumlPacket] envelope. */
-fun <T> T.toPacket(
+/** Wraps a command in a full [DumlPacket] envelope. */
+fun DumlCommand.toPacket(
     sender: DumlAddress,
     receiver: DumlAddress,
     seq: Int,
     ack: DumlAck = DumlAck.ACK_AFTER_EXEC,
     packetType: DumlPacketType = DumlPacketType.REQUEST,
-): DumlPacket where T : DumlCommand, T : DumlEncodable = DumlPacket(
+): DumlPacket = DumlPacket(
     sender = sender,
     receiver = receiver,
     seq = seq,

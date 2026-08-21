@@ -4881,6 +4881,28 @@
     <string name="devicetype_battery_monitor" translatable="false">Battery Monitor</string>
     <string name="devicetype_victron_smartshunt" translatable="false">Victron SmartShunt</string>
     <string name="devicetype_dji_osmo_action_4" translatable="false">DJI Osmo Action 4</string>
+    <string name="devicetype_dji_rc_n1c" translatable="false">DJI RC-N1C</string>
+    <string name="devicetype_dji_rc_n1" translatable="false">DJI RC-N1</string>
+    <string name="activity_live_video_stream" translatable="false">Live Video Stream</string>
+    <string name="drone">Drone</string>
+    <string name="dji_hud_placeholder" translatable="false">--</string>
+    <string name="dji_hud_battery_phone">Phone %1$s</string>
+    <string name="dji_hud_battery_rc">RC %1$s</string>
+    <string name="dji_hud_battery_drone">Drone %1$s</string>
+    <string name="dji_hud_runtime">Runtime %1$s</string>
+    <string name="dji_hud_video_connected">Video OK</string>
+    <string name="dji_hud_video_lost">Video Lost</string>
+    <string name="dji_hud_bitrate">Bitrate %1$s</string>
+    <string name="dji_hud_gps">GPS %1$s</string>
+    <string name="dji_hud_vspeed">V %1$s</string>
+    <string name="dji_hud_hspeed">H %1$s</string>
+    <string name="dji_hud_altitude">Alt %1$s</string>
+    <string name="dji_hud_distance">Dist %1$s</string>
+    <string name="dji_hud_status_flying">Flying</string>
+    <string name="dji_hud_status_armed">Armed</string>
+    <string name="dji_hud_status_ground">Ground</string>
+    <string name="dji_developer_write_stream">Dump video stream to storage</string>
+    <string name="dji_developer_reassemble_stream_title">Reassemble video stream</string>
     <string name="devicetype_sinilink" translatable="false">Sinilink</string>
     <string name="devicetype_onetouch" translatable="false">OneTouch Glucose Meter</string>
     <string name="equalizer_preset_standard">Standard</string>

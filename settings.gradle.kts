@@ -35,3 +35,4 @@ rootProject.name = "Gadgetbridge"
 include(":app")
 include(":GBDaoGenerator")
 include(":FitCodeGenerator")
+include(":KaitaiCodeGenerator")

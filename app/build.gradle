@@ -178,6 +178,7 @@ android {
         main {
             java.srcDirs += "build/generated/sources/gbdao"
             java.srcDirs += "build/generated/sources/fit"
+            kotlin.srcDirs += "build/generated/sources/kaitai"
             res.srcDirs += "build/generated/res/changelog"
         }
         test {
@@ -340,11 +341,13 @@ dependencies {
 
 preBuild.dependsOn(":GBDaoGenerator:genSources")
 preBuild.dependsOn(':FitCodeGenerator:genFit')
+preBuild.dependsOn(':KaitaiCodeGenerator:genKaitai')
 preBuild.dependsOn(tasks.buildGitChangelog)
 
 gradle.beforeProject {
     preBuild.dependsOn(":GBDaoGenerator:genSources")
     preBuild.dependsOn(':FitCodeGenerator:genFit')
+    preBuild.dependsOn(':KaitaiCodeGenerator:genKaitai')
 }
 
 tasks.register('cleanGenerated', Delete) {
