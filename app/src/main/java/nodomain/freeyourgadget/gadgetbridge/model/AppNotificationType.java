@@ -39,6 +39,10 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("com.fsck.k9.material", NotificationType.GENERIC_EMAIL);
         put("com.imaeses.squeaky", NotificationType.GENERIC_EMAIL);
         put("com.android.email", NotificationType.GENERIC_EMAIL);
+        put("com.blackberry.hub", NotificationType.GENERIC_EMAIL);
+        put("com.samsung.android.email.provider", NotificationType.GENERIC_EMAIL);
+        put("com.samsung.android.galaxycontinuity", NotificationType.GENERIC_EMAIL);
+        put("com.sec.android.email", NotificationType.GENERIC_EMAIL);
         put("ch.protonmail.android", NotificationType.GENERIC_EMAIL);
         put("security.pEp", NotificationType.GENERIC_EMAIL);
         put("eu.faircode.email", NotificationType.GENERIC_EMAIL);
@@ -47,36 +51,53 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("net.thunderbird.android.daily", NotificationType.GENERIC_EMAIL);
         put("net.thunderbird.android.debug", NotificationType.GENERIC_EMAIL);
 
+        // Generic Phone Dialer
+        put("com.android.dialer", NotificationType.GENERIC_PHONE);
+        put("com.android.incallui", NotificationType.GENERIC_PHONE);
+        put("com.google.android.dialer", NotificationType.GENERIC_PHONE);
+        put("com.oplus.dialer", NotificationType.GENERIC_PHONE);
+        put("com.samsung.android.dialer", NotificationType.GENERIC_PHONE);
+        put("org.fossify.phone", NotificationType.GENERIC_PHONE);
+
         // Generic SMS
         put("com.moez.QKSMS", NotificationType.GENERIC_SMS);
         put("com.android.mms", NotificationType.GENERIC_SMS);
         put("com.android.messaging", NotificationType.GENERIC_SMS);
+        put("com.oplus.mms", NotificationType.GENERIC_SMS);
+        put("com.samsung.android.messaging", NotificationType.GENERIC_SMS);
         put("com.sonyericsson.conversations", NotificationType.GENERIC_SMS);
+        put("org.fossify.messages", NotificationType.GENERIC_SMS);
         put("org.smssecure.smssecure", NotificationType.GENERIC_SMS);
 
         // Generic Calendar
         put("com.android.calendar", NotificationType.GENERIC_CALENDAR);
+        put("com.samsung.android.calendar", NotificationType.GENERIC_EMAIL);
+        put("com.xiaomi.calendar", NotificationType.GENERIC_EMAIL);
+        put("org.fossify.calendar", NotificationType.GENERIC_CALENDAR);
         put("mikado.bizcalpro", NotificationType.BUSINESS_CALENDAR);
-
+        
         // Google
         put("com.google.android.gm", NotificationType.GMAIL);
         put("com.google.android.apps.inbox", NotificationType.GOOGLE_INBOX);
-        put("com.google.android.calendar", NotificationType.GENERIC_CALENDAR);
-        put("com.google.android.apps.messaging", NotificationType.GOOGLE_MESSENGER);
+        put("com.google.android.calendar", NotificationType.GOOGLE_CALENDAR);
+        put("com.google.android.apps.dynamite", NotificationType.GOOGLE_CHAT);
         put("com.google.android.talk", NotificationType.GOOGLE_HANGOUTS);
         put("com.google.android.apps.maps", NotificationType.GOOGLE_MAPS);
+        put("com.google.android.apps.messaging", NotificationType.GOOGLE_MESSENGER);
         put("com.google.android.apps.photos", NotificationType.GOOGLE_PHOTOS);
         put("com.google.android.apps.googlevoice", NotificationType.GENERIC_SMS);
 
         // Conversations
+        put("com.cisco.wx2.android", NotificationType.CONVERSATIONS);
+        put("com.google.android.apps.tachyon", NotificationType.CONVERSATIONS);
+        put("com.larksuite.suite", NotificationType.LARK);
+        put("com.microsoft.teams", NotificationType.MICROSOFT_TEAMS);
+        put("com.nextcloud.talk2", NotificationType.CONVERSATIONS);
         put("eu.siacs.conversations", NotificationType.CONVERSATIONS);
         put("de.pixart.messenger", NotificationType.CONVERSATIONS);
         put("org.jitsi.meet", NotificationType.CONVERSATIONS);
-        put("com.microsoft.teams", NotificationType.CONVERSATIONS);
-        put("us.zoom.videomeetings", NotificationType.CONVERSATIONS);
-        put("com.nextcloud.talk2", NotificationType.CONVERSATIONS);
-        put("com.cisco.wx2.android", NotificationType.CONVERSATIONS);
-        put("com.google.android.apps.tachyon", NotificationType.CONVERSATIONS);
+        put("us.zoom.videomeetings", NotificationType.ZOOM);
+        put("uxpp.uc", NotificationType.NATEON);
 
         // Element, ElementX, SchildiChat, FluffyChat
         // (making the last two an extra Notification Type to give them distinct colors is debatable)
@@ -119,6 +140,8 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         // Twitter
         put("org.mariotaku.twidere", NotificationType.TWITTER);
         put("com.twitter.android", NotificationType.TWITTER);
+        put("com.twitter.android.lite", NotificationType.TWITTER);
+        put("com.x.chat", NotificationType.TWITTER);
         put("org.andstatus.app", NotificationType.TWITTER);
         put("org.mustard.android", NotificationType.TWITTER);
 
@@ -127,14 +150,21 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("it.rignanese.leo.slimfacebook", NotificationType.FACEBOOK);
         put("me.jakelane.wrapperforfacebook", NotificationType.FACEBOOK);
         put("com.facebook.katana", NotificationType.FACEBOOK);
+        put("com.facebook.lite", NotificationType.FACEBOOK);
         put("org.indywidualni.fblite", NotificationType.FACEBOOK);
 
         // Facebook Messenger
         put("com.facebook.orca", NotificationType.FACEBOOK_MESSENGER);
         put("com.facebook.mlite", NotificationType.FACEBOOK_MESSENGER);
 
+        // Reddit
+        put("com.reddit.frontpage", NotificationType.REDDIT);
+
         // WhatsApp
         put("com.whatsapp", NotificationType.WHATSAPP);
+
+        // WhatsApp Business
+        put("com.whatsapp.w4b", NotificationType.WHATSAPP_BUSINESS);
 
         // HipChat
         put("com.hipchat", NotificationType.HIPCHAT);
@@ -181,8 +211,41 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         // Kakao Talk
         put("com.kakao.talk", NotificationType.KAKAO_TALK);
 
+        // Zalo
+        put("com.zing.zalo", NotificationType.ZOMATO);
+
         // Amazon
         put("com.amazon.mshop.android.shopping", NotificationType.AMAZON);
+
+        // Shopee
+        // TODO: Add more Shopee package IDs and partner apps by country
+        put("com.shopee.id", NotificationType.SHOPEE);
+        put("com.shopee.my", NotificationType.SHOPEE);
+        put("com.shopee.sg", NotificationType.SHOPEE);
+        put("com.shopee.th", NotificationType.SHOPEE);
+        put("com.shopee.vn", NotificationType.SHOPEE);
+
+        // Tokopedia (excludes TikTok Shop)
+        put("com.tokopedia.localservice.business", NotificationType.TOKOPEDIA);
+        put("com.tokopedia.tkpd", NotificationType.TOKOPEDIA);
+        put("com.tokopedia.tokopro", NotificationType.TOKOPEDIA);
+
+        // TikTok
+        put("com.ss.android.ugc.aweme", NotificationType.TIKTOK);
+        put("com.ss.android.ugc.aweme.mobile", NotificationType.TIKTOK);
+        put("com.ss.android.ugc.trill", NotificationType.TIKTOK);
+        
+        // TikTok Lite
+        put("com.ss.android.ugc.aweme.lite", NotificationType.TIKTOK_LITE);
+        put("com.zhiliaoapp.musically.go", NotificationType.TIKTOK_LITE);
+
+        // TikTok Shop
+        // TODO: Checkout other regional variants for TikTok Shop
+        put("com.ss.android.merchant", NotificationType.TIKTOK_SHOP);
+        put("com.tiktokshop.seller", NotificationType.TIKTOK_SHOP);
+        
+        // Zomato
+        put("com.application.zomato", NotificationType.ZOMATO);
 
         // LinkedIn
         put("com.linkedin.android", NotificationType.LINKEDIN);
@@ -230,11 +293,61 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("com.motorola.timeweatherwidget", NotificationType.WEATHER);
         put("com.google.android.apps.weather", NotificationType.WEATHER);
 
+        // A/V Streaming and VOD
+        put("com.amazon.avod.thirdpartyclient", NotificationType.AMAZON_PRIME_VIDEO);
+        put("com.gaana", NotificationType.GAANA);
+        put("in.startv.hotstar", NotificationType.HOTSTAR);
+        put("com.netflix.mediaclient", NotificationType.NETFLIX);
+        put("com.bsbportal.music", NotificationType.WYNK);
+        put("com.google.android.youtube", NotificationType.YOUTUBE);
+        put("com.google.android.youtube.tv", NotificationType.YOUTUBE);
+        put("com.google.android.apps.youtube.kids", NotificationType.YOUTUBE_KIDS);
+        put("com.google.android.apps.youtube.music", NotificationType.YOUTUBE_MUSIC);
+        put("com.google.android.apps.youtube.music.pwa", NotificationType.YOUTUBE_MUSIC);
+
+        // News
+        put("com.eterno", NotificationType.DAILYHUNT);
+        put("com.nis.app", NotificationType.INSHORTS);
+
+        // Ride-hailing and Delivery (includes merchant apps)
+        put("com.didapinche.booking", NotificationType.DIDA_CHUXING);
+        put("com.didapinche.booking.driver", NotificationType.DIDA_CHUXING);
+        put("com.didapinche.taxidriver", NotificationType.DIDA_CHUXING);
+        put("com.didiglobal.driver", NotificationType.DIDI_CHUXING);
+        put("com.didiglobal.driver.au", NotificationType.DIDI_CHUXING);
+        put("com.didiglobal.passenger", NotificationType.DIDI_CHUXING);
+        put("com.sdu.didi.psnger", NotificationType.DIDI_CHUXING);
+        put("com.gojek.app", NotificationType.GOJEK);
+        put("com.gojek.agent", NotificationType.GOJEK);
+        put("com.gojek.gopaymerchant", NotificationType.GOJEK);
+        put("com.gojek.resto", NotificationType.GOJEK);
+        put("com.grab.merchant", NotificationType.GRAB);
+        put("com.grabtaxi.driver2", NotificationType.GRAB);
+        put("com.grabtaxi.passenger", NotificationType.GRAB);
+        put("me.lyft.android", NotificationType.LYFT);
+        put("com.lyft.android.driver", NotificationType.LYFT);
+        put("com.olacabs.customer", NotificationType.OLA);
+        put("com.olacabs.oladriver", NotificationType.OLA);
+        put("in.swiggy.android", NotificationType.SWIGGY);
+        put("in.swiggy.deliveryapp", NotificationType.SWIGGY);
+        put("in.swiggy.partnerapp", NotificationType.SWIGGY);
+        put("com.ubercab", NotificationType.UBER);
+        put("com.ubercab.driver", NotificationType.UBER);
+
+        // Finance
+        put("net.one97.paytm", NotificationType.PAYTM);
+        put("com.paytm.business", NotificationType.PAYTM);
+        put("com.phonepe.app", NotificationType.PHONEPE);
+        put("com.phonepe.app.business", NotificationType.PHONEPE);
+
+        // Gadget vendor-specific apps
+        put("br.com.grupotechnos.mormaiismartwatches", NotificationType.VENDOR_MORMAII);
+        put("com.keephealthpro.android", NotificationType.VENDOR_KEEP_HEALTH);
+
         // Others
         put("com.tencent.mobileqq", NotificationType.QQ);
         put("com.tumblr", NotificationType.TUMBLR);
         put("com.pinterest", NotificationType.PINTEREST);
-        put("com.google.android.youtube", NotificationType.YOUTUBE);
     }
 
 }

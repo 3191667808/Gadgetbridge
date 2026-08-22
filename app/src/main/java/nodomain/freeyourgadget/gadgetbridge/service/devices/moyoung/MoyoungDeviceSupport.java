@@ -82,6 +82,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.samples.MoyoungActiv
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungEnumDeviceVersion;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungEnumLanguage;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungEnumMetricSystem;
+import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungEnumNotificationSource;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungEnumTimeSystem;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungSetting;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.settings.MoyoungSettingEnum;
@@ -664,15 +665,16 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
 
         // The notification is split at first : into sender and text
-        sendNotification(MoyoungConstants.notificationType(notificationSpec.type), message);
+        MoyoungEnumNotificationSource source = MoyoungEnumNotificationSource.fromNotificationType(notificationSpec.type);
+        sendNotification(source.value, message);
     }
 
     @Override
     public void onSetCallState(CallSpec callSpec) {
         if (callSpec.command == CallSpec.CALL_INCOMING)
-            sendNotification(MoyoungConstants.NOTIFICATION_TYPE_CALL, NotificationUtils.getPreferredTextFor(callSpec));
+            sendNotification(MoyoungEnumNotificationSource.CALL.value, NotificationUtils.getPreferredTextFor(callSpec));
         else
-            sendNotification(MoyoungConstants.NOTIFICATION_TYPE_CALL_OFF_HOOK, "");
+            sendNotification(MoyoungEnumNotificationSource.CALL_OFF_HOOK.value, "");
     }
 
     private void setMeasurementSystem(TransactionBuilder builder) {
