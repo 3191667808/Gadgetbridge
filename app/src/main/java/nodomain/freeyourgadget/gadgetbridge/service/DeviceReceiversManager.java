@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.Stack;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothPairingRequestReceiver;
@@ -226,6 +227,8 @@ class DeviceReceiversManager {
         mReceiversEnabled = enable;
         mCurrentFeatureSet = features;
 
+        updateSleepAsAndroidReceiver();
+
         if (enable && initialized && features.supports(Feature.CALENDAR)) {
             for (final GBDevice deviceWithCalendar : devicesWithCalendar) {
                 if (!deviceHasCalendarReceiverRegistered(deviceWithCalendar)) {
@@ -350,13 +353,6 @@ class DeviceReceiversManager {
                 }
             }
 
-            if (features.supports(Feature.SLEEP_AS_ANDROID)) {
-                if (mSleepAsAndroidReceiver == null) {
-                    mSleepAsAndroidReceiver = new SleepAsAndroidReceiver();
-                    ContextCompat.registerReceiver(service, mSleepAsAndroidReceiver, mSleepAsAndroidReceiver.getIntentFilter(), ContextCompat.RECEIVER_EXPORTED);
-                }
-            }
-
             if (features.supports(Feature.DATA_FETCHING) && mGBAutoFetchReceiver == null) {
                 mGBAutoFetchReceiver = new GBAutoFetchReceiver();
                 ContextCompat.registerReceiver(service, mGBAutoFetchReceiver, new IntentFilter("android.intent.action.USER_PRESENT"), ContextCompat.RECEIVER_EXPORTED);
@@ -430,16 +426,35 @@ class DeviceReceiversManager {
                 service.unregisterReceiver(mGBAutoFetchReceiver);
                 mGBAutoFetchReceiver = null;
             }
-            if (mSleepAsAndroidReceiver != null) {
-                service.unregisterReceiver(mSleepAsAndroidReceiver);
-                mSleepAsAndroidReceiver = null;
-            }
         }
     }
 
-    @SuppressWarnings("SwitchStatementWithTooFewBranches")
+    /**
+     * Sleep as Android can start tracking while every device is disconnected, and the receiver is
+     * how the connect gets triggered, so it stays registered independently of the connection state.
+     */
+    private void updateSleepAsAndroidReceiver() {
+        final Prefs prefs = GBApplication.getPrefs();
+        // Deliberately not gated on the feature set: that is built from connected devices, and
+        // the whole point is to be listening while the provider is still disconnected. Only
+        // coordinators that support the integration can be picked in the settings, and
+        // DeviceActionHandler re-checks support before the action reaches the device.
+        final boolean wanted = mCurrentFeatureSet != null
+                && prefs.getBoolean("pref_key_sleepasandroid_enable", false)
+                && !prefs.getString("sleepasandroid_device", "").isEmpty();
+
+        if (wanted && mSleepAsAndroidReceiver == null) {
+            mSleepAsAndroidReceiver = new SleepAsAndroidReceiver();
+            ContextCompat.registerReceiver(service, mSleepAsAndroidReceiver, mSleepAsAndroidReceiver.getIntentFilter(), ContextCompat.RECEIVER_EXPORTED);
+        } else if (!wanted && mSleepAsAndroidReceiver != null) {
+            service.unregisterReceiver(mSleepAsAndroidReceiver);
+            mSleepAsAndroidReceiver = null;
+        }
+    }
+
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         switch (key) {
+            case "pref_key_sleepasandroid_enable", "sleepasandroid_device" -> updateSleepAsAndroidReceiver();
             case GBPrefs.NAVIGATION_APP_COMAPS -> {
                 if (mReceiversEnabled && mCurrentFeatureSet != null && mCurrentFeatureSet.supports(Feature.NAVIGATION)) {
                     boolean enable = sharedPreferences.getBoolean(GBPrefs.NAVIGATION_APP_COMAPS, false);

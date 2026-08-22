@@ -30,6 +30,8 @@ import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.ACTION_CO
 import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.ACTION_DELETE_NOTIFICATION;
 import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.ACTION_DISCONNECT;
 import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.ACTION_NOTIFICATION;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.ACTION_SLEEP_AS_ANDROID;
+import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.EXTRA_SLEEP_AS_ANDROID_ACTION;
 import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.EXTRA_CONNECT_FIRST_TIME;
 import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.EXTRA_NOTIFICATION_ID;
 
@@ -69,6 +71,7 @@ import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction;
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
@@ -143,6 +146,11 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     private final HashMap<String, Long> deviceLastScannedTimestamps = new HashMap<>();
 
     private final int NOTIFICATIONS_CACHE_MAX = 10;  // maximum amount of notifications to cache per device while disconnected
+
+    // Sleep as Android gives the wearable about two minutes before falling back to phone sensors.
+    private static final long SLEEP_AS_ANDROID_PENDING_TIMEOUT_MS = 90_000L;
+    private Intent pendingSleepAsAndroidIntent = null;
+    private long pendingSleepAsAndroidDeadline = 0;
     private boolean allowBluetoothIntentApi = false;
     private boolean reconnectViaScan = GBPrefs.RECONNECT_SCAN_DEFAULT;
 
@@ -267,6 +275,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                             .apply();
                     sendDeviceConnectedBroadcast(device.getAddress());
                     sendCachedNotifications(device);
+                    sendPendingSleepAsAndroidAction(device);
                 } else if (subject == GBDevice.DeviceUpdateSubject.DEVICE_STATE && (device.getState() == GBDevice.State.SCANNED)) {
                     sendDeviceAPIBroadcast(device.getAddress(), API_LEGACY_ACTION_DEVICE_SCANNED);
                 }
@@ -392,6 +401,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         }
 
         startForeground();
+        updateReceiversState();
         if (reconnectViaScan) {
             scanAllDevices();
 
@@ -620,6 +630,15 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 ArrayList<GBDevice> targetedDevices = new ArrayList<>();
                 if (targetDevice != null) {
                     targetedDevices.add(targetDevice);
+                } else if (ACTION_SLEEP_AS_ANDROID.equals(action)) {
+                    final GBDevice saaDevice = getSleepAsAndroidDevice();
+                    if (saaDevice == null) {
+                        LOG.debug("No device configured for Sleep as Android, dropping {}", action);
+                    } else if (isDeviceInitialized(saaDevice)) {
+                        targetedDevices.add(saaDevice);
+                    } else {
+                        connectForSleepAsAndroid(intent, saaDevice);
+                    }
                 } else {
                     for (GBDevice device : getGBDevices()) {
                         if (isDeviceInitialized(device)) {
@@ -811,6 +830,65 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             }
         } catch (DeviceNotFoundException e) {
             LOG.error("Error while sending cached notifications to {}", device.getAliasOrName(), e);
+        }
+    }
+
+    @Nullable
+    private GBDevice getSleepAsAndroidDevice() {
+        final String address = GBApplication.getPrefs().getString("sleepasandroid_device", "");
+        if (address.isEmpty()) {
+            return null;
+        }
+        // Every known device is searched, not only the ones this service currently holds: those
+        // cover connected devices and Bluetooth LE reconnect candidates, so a disconnected
+        // wearable would never be found and so could never be connected on demand.
+        final List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
+        if (devices == null) {
+            return null;
+        }
+        for (final GBDevice device : devices) {
+            if (address.equals(device.getAddress())) {
+                return device;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Sleep as Android starts tracking whether or not the wearable happens to be connected, so a
+     * disconnected provider is connected on demand. Only START_TRACKING is held across the
+     * connect: CHECK_CONNECTED is repeated by Sleep as Android every few seconds, and the other
+     * actions are meaningless without an active session.
+     */
+    private void connectForSleepAsAndroid(final Intent intent, final GBDevice device) {
+        final String sleepAsAndroidAction = intent.getStringExtra(EXTRA_SLEEP_AS_ANDROID_ACTION);
+
+        if (SleepAsAndroidAction.START_TRACKING.equals(sleepAsAndroidAction)) {
+            pendingSleepAsAndroidIntent = new Intent(intent);
+            pendingSleepAsAndroidDeadline = System.currentTimeMillis() + SLEEP_AS_ANDROID_PENDING_TIMEOUT_MS;
+        }
+
+        LOG.info("Connecting to {} for Sleep as Android action {}", device.getAliasOrName(), sleepAsAndroidAction);
+        connectToDevice(device, false);
+    }
+
+    private void sendPendingSleepAsAndroidAction(final GBDevice device) {
+        final Intent pending = pendingSleepAsAndroidIntent;
+        if (pending == null || !device.getAddress().equals(GBApplication.getPrefs().getString("sleepasandroid_device", ""))) {
+            return;
+        }
+
+        pendingSleepAsAndroidIntent = null;
+
+        if (System.currentTimeMillis() > pendingSleepAsAndroidDeadline) {
+            LOG.info("Sleep as Android tracking request expired before {} connected", device.getAliasOrName());
+            return;
+        }
+
+        try {
+            handleAction(pending, ACTION_SLEEP_AS_ANDROID, device);
+        } catch (final Exception e) {
+            LOG.error("Error while replaying Sleep as Android action to {}", device.getAliasOrName(), e);
         }
     }
 
