@@ -30,7 +30,7 @@ public class SleepAsAndroidReceiver extends BroadcastReceiver {
     // the received Bundle as-is into an Intent that starts our own service trips StrictMode's
     // unsafe intent launch detection, since the taint follows the Bundle even into a new Intent.
     // Copying only the known keys into a fresh Bundle breaks that taint.
-    private static Bundle sanitizeExtras(Intent intent) {
+    static Bundle sanitizeExtras(Intent intent) {
         final Bundle extras = intent.getExtras();
         if (extras == null) {
             return null;
@@ -38,16 +38,16 @@ public class SleepAsAndroidReceiver extends BroadcastReceiver {
 
         final Bundle sanitized = new Bundle();
         if (extras.containsKey("TIMESTAMP")) {
-            sanitized.putLong("TIMESTAMP", extras.getLong("TIMESTAMP"));
+            sanitized.putLong("TIMESTAMP", getLong(extras, "TIMESTAMP", 0L));
         }
         if (extras.containsKey("SUSPENDED")) {
             sanitized.putBoolean("SUSPENDED", extras.getBoolean("SUSPENDED", false));
         }
         if (extras.containsKey("SIZE")) {
-            sanitized.putLong("SIZE", extras.getLong("SIZE", 12L));
+            sanitized.putLong("SIZE", getLong(extras, "SIZE", 12L));
         }
         if (extras.containsKey("REPEAT")) {
-            sanitized.putInt("REPEAT", extras.getInt("REPEAT", 1));
+            sanitized.putInt("REPEAT", (int) getLong(extras, "REPEAT", 1L));
         }
         if (extras.containsKey("TITLE")) {
             sanitized.putString("TITLE", extras.getString("TITLE"));
@@ -56,15 +56,7 @@ public class SleepAsAndroidReceiver extends BroadcastReceiver {
             sanitized.putString("TEXT", extras.getString("TEXT"));
         }
         if (extras.containsKey("DELAY")) {
-            sanitized.putInt("DELAY", extras.getInt("DELAY", 60000));
-        }
-        // Sleep as Android signals the sensors it wants by the presence of these two, not by
-        // their value.
-        if (extras.containsKey("DO_HR_MONITORING")) {
-            sanitized.putBoolean("DO_HR_MONITORING", true);
-        }
-        if (extras.containsKey("DO_OXIMETER_MONITORING")) {
-            sanitized.putBoolean("DO_OXIMETER_MONITORING", true);
+            sanitized.putInt("DELAY", (int) getLong(extras, "DELAY", 60000L));
         }
         // Sleep as Android signals the sensors it wants by the presence of these two, not by
         // their value.
@@ -75,6 +67,20 @@ public class SleepAsAndroidReceiver extends BroadcastReceiver {
             sanitized.putBoolean("DO_OXIMETER_MONITORING", true);
         }
         return sanitized;
+    }
+
+    /**
+     * Sleep as Android is inconsistent about the width of its numeric extras, and
+     * {@link Bundle#getLong} does not widen an Integer: it logs a type mismatch and returns the
+     * default, which would silently pin the batch size or the alarm delay to a wrong value.
+     */
+    private static long getLong(final Bundle extras, final String key, final long fallback) {
+        final Object value = extras.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        LOG.warn("Extra {} is {}, expected a number", key, value != null ? value.getClass().getSimpleName() : "absent");
+        return fallback;
     }
 
     public IntentFilter getIntentFilter() {

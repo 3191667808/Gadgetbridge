@@ -1,4 +1,4 @@
-/*  Copyright (C) 2023-2024 JosÃ© Rebelo, Yoran Vulker
+/*  Copyright (C) 2023-2024 José Rebelo, Yoran Vulker
 
     This file is part of Gadgetbridge.
 
@@ -116,6 +116,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final long SAA_KEEPALIVE_INTERVAL_MS = 24_000L;
     // Raw sensor batches arrive continuously; a longer gap means the band dropped the session.
     private static final long SAA_STALL_TIMEOUT_MS = 30_000L;
+    // A band that answers none of the restarts will not answer the next one either, and the
+    // session has to stop rather than reopen a workout every half minute until morning.
+    private static final int SAA_MAX_RESTART_ATTEMPTS = 3;
     // The band ignores a finish that follows the preceding status too closely, and keeps the
     // workout open. A later start is then rejected until the band is power-cycled.
     private static final long SAA_FINISH_DELAY_MS = 500L;
@@ -149,6 +152,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final int WORKOUT_RESUMED = 2;
     private static final int WORKOUT_FINISHED = 3;
 
+    // Guarded by itself: consumers are added and released from the handler thread and from the
+    // Bluetooth callback thread.
     private final Set<RealtimeConsumer> realtimeConsumers = EnumSet.noneOf(RealtimeConsumer.class);
     private int previousSteps = -1;
 
@@ -156,12 +161,18 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private boolean gpsFixAcquired = false;
     private boolean workoutStarted = false;
     private final Handler gpsTimeoutHandler = new Handler();
-    private boolean saaRawSensorActive = false;
-    private boolean saaHeartRateRequested = false;
-    private long saaWorkoutStartedMs = 0;
-    private long saaStatsActiveUntilMs = 0;
-    private long lastRawSensorBatchMs = 0;
-    private int lastHeartRate = HEART_RATE_UNKNOWN;
+    // The Sleep as Android session is driven from the handler thread and fed from the Bluetooth
+    // callback thread, so every field both of them touch is published.
+    private volatile boolean saaRawSensorActive = false;
+    // Covers the whole Sleep as Android session, including the gap between closing a stale workout
+    // and opening the new one, where no workout is active yet.
+    private volatile boolean saaSessionRequested = false;
+    private volatile boolean saaHeartRateRequested = false;
+    private volatile long saaWorkoutStartedMs = 0;
+    private volatile long saaStatsActiveUntilMs = 0;
+    private volatile long lastRawSensorBatchMs = 0;
+    private volatile int saaRestartAttempts = 0;
+    private volatile int lastHeartRate = HEART_RATE_UNKNOWN;
     private final Handler saaWorkoutStatsHandler = new Handler();
     private final Handler saaKeepaliveHandler = new Handler();
     private final Handler saaWorkoutStatusHandler = new Handler();
@@ -265,8 +276,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         gpsStarted = false;
         gpsFixAcquired = false;
         workoutStarted = false;
-        realtimeConsumers.clear();
+        synchronized (realtimeConsumers) {
+            realtimeConsumers.clear();
+        }
         saaRawSensorActive = false;
+        saaSessionRequested = false;
         gpsTimeoutHandler.removeCallbacksAndMessages(null);
 
         setUserInfo();
@@ -288,8 +302,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         gpsStarted = false;
         gpsFixAcquired = false;
         workoutStarted = false;
-        realtimeConsumers.clear();
+        synchronized (realtimeConsumers) {
+            realtimeConsumers.clear();
+        }
         saaRawSensorActive = false;
+        saaSessionRequested = false;
         activityFetcher.dispose();
     }
 
@@ -800,7 +817,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleWorkoutStatus(final XiaomiProto.WorkoutStatusWatch workoutStatus) {
         LOG.debug("Got workout status: {}, sport={}", workoutStatus.getStatus(), workoutStatus.getSport());
 
-        // Ignore the synthetic SaA workout â€” it must not trigger OpenTracks or
+        // Ignore the synthetic SaA workout — it must not trigger OpenTracks or
         // any GPS bookkeeping.
         if (saaRawSensorActive || workoutStatus.getSport() == SAA_SYNTHETIC_SPORT) {
             return;
@@ -1004,14 +1021,18 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void setRealtimeConsumer(final RealtimeConsumer consumer, final boolean enable) {
         LOG.debug("Realtime stats consumer {}: {}", consumer, enable);
 
-        final boolean wasStreaming = !realtimeConsumers.isEmpty();
-        final boolean changed = enable ? realtimeConsumers.add(consumer) : realtimeConsumers.remove(consumer);
-        if (!changed || wasStreaming == !realtimeConsumers.isEmpty()) {
-            return;
+        final boolean streaming;
+        synchronized (realtimeConsumers) {
+            final boolean wasStreaming = !realtimeConsumers.isEmpty();
+            final boolean changed = enable ? realtimeConsumers.add(consumer) : realtimeConsumers.remove(consumer);
+            streaming = !realtimeConsumers.isEmpty();
+            if (!changed || wasStreaming == streaming) {
+                return;
+            }
         }
 
         previousSteps = -1;
-        sendRealtimeStats(!realtimeConsumers.isEmpty());
+        sendRealtimeStats(streaming);
     }
 
     private void sendRealtimeStats(final boolean enable) {
@@ -1027,13 +1048,20 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleRealtimeStats(final XiaomiProto.RealTimeStats realTimeStats) {
         LOG.debug("Got realtime stats");
 
-        if (realtimeConsumers.isEmpty()) {
+        final boolean noConsumers;
+        final boolean oneShot;
+        synchronized (realtimeConsumers) {
+            noConsumers = realtimeConsumers.isEmpty();
+            oneShot = realtimeConsumers.contains(RealtimeConsumer.ONE_SHOT);
+        }
+
+        if (noConsumers) {
             // Failsafe in case it gets out of sync, stop it
             sendRealtimeStats(false);
             return;
         }
 
-        if (realtimeConsumers.contains(RealtimeConsumer.ONE_SHOT)) {
+        if (oneShot) {
             if (realTimeStats.getHeartRate() <= 10) {
                 return;
             }
@@ -1092,6 +1120,12 @@ public class XiaomiHealthService extends AbstractXiaomiService {
      *     subtype-53 raw accel batches.
      */
     public void startRawSensor(final boolean withHeartRate) {
+        saaSessionRequested = true;
+        saaRestartAttempts = 0;
+        startRawSensor(withHeartRate, false);
+    }
+
+    private void startRawSensor(final boolean withHeartRate, final boolean rearmRealtime) {
         saaHeartRateRequested = withHeartRate;
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
         stopKeepalive();
@@ -1100,10 +1134,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         // Close a workout the band may still hold open from an earlier session, otherwise it
         // rejects the one opened below.
         sendWorkoutStatus(WORKOUT_FINISHED);
-        saaWorkoutStatusHandler.postDelayed(this::openRawSensorWorkout, SAA_FINISH_DELAY_MS);
+        saaWorkoutStatusHandler.postDelayed(() -> openRawSensorWorkout(rearmRealtime), SAA_FINISH_DELAY_MS);
     }
 
-    private void openRawSensorWorkout() {
+    private void openRawSensorWorkout(final boolean rearmRealtime) {
         saaRawSensorActive = true;
         saaWorkoutStartedMs = SystemClock.elapsedRealtime();
         lastRawSensorBatchMs = saaWorkoutStartedMs;
@@ -1111,7 +1145,18 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         lastHeartRate = HEART_RATE_UNKNOWN;
 
         if (saaHeartRateRequested) {
-            setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, true);
+            if (rearmRealtime) {
+                // The band dropped the whole session, realtime stream included, so the consumer
+                // bookkeeping no longer reflects what it is actually doing. Re-send the start
+                // instead of trusting it.
+                synchronized (realtimeConsumers) {
+                    realtimeConsumers.add(RealtimeConsumer.SLEEP_AS_ANDROID);
+                }
+                previousSteps = -1;
+                sendRealtimeStats(true);
+            } else {
+                setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, true);
+            }
         }
         sendWorkoutStatus(WORKOUT_STARTED);
         startWorkoutStatsTicker();
@@ -1129,8 +1174,16 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
                 final long sinceLastBatch = SystemClock.elapsedRealtime() - lastRawSensorBatchMs;
                 if (sinceLastBatch > SAA_STALL_TIMEOUT_MS) {
-                    LOG.warn("No raw sensor batch for {}ms, restarting the synthetic workout", sinceLastBatch);
-                    startRawSensor(saaHeartRateRequested);
+                    if (++saaRestartAttempts > SAA_MAX_RESTART_ATTEMPTS) {
+                        LOG.warn("No raw sensor batch for {}ms after {} restarts, giving up on the synthetic workout",
+                                sinceLastBatch, SAA_MAX_RESTART_ATTEMPTS);
+                        stopRawSensor();
+                        return;
+                    }
+
+                    LOG.warn("No raw sensor batch for {}ms, restarting the synthetic workout ({}/{})",
+                            sinceLastBatch, saaRestartAttempts, SAA_MAX_RESTART_ATTEMPTS);
+                    startRawSensor(saaHeartRateRequested, true);
                     return;
                 }
 
@@ -1151,6 +1204,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
      *  3. WORKOUT_WATCH_STATUS(status=FINISHED, ...) -- final close
      */
     public void stopRawSensor() {
+        if (!saaSessionRequested) {
+            return;
+        }
+
+        saaSessionRequested = false;
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
         stopKeepalive();
         stopWorkoutStatsTicker();
@@ -1235,6 +1293,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         final int n = batch.getAccelCount();
         LOG.debug("Got raw sensor batch: {} accel samples", n);
         lastRawSensorBatchMs = SystemClock.elapsedRealtime();
+        saaRestartAttempts = 0;
         if (sleepAsAndroidSender != null && n > 0) {
             for (int i = 0; i < n; i++) {
                 final XiaomiProto.AxisSensor s = batch.getAccel(i);

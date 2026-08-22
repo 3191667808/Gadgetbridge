@@ -431,17 +431,22 @@ class DeviceReceiversManager {
 
     /**
      * Sleep as Android can start tracking while every device is disconnected, and the receiver is
-     * how the connect gets triggered, so it stays registered independently of the connection state.
+     * how the connect gets triggered, so it stays registered independently of the connection state
+     * and of the feature set, which only covers connected devices. Support is still enforced
+     * elsewhere: only coordinators that support the integration can be picked in the settings, and
+     * DeviceActionHandler re-checks it before the action reaches the device.
+     *
+     * @param serviceRunning false while the service is tearing down, when nothing may stay
+     *                       registered regardless of the preferences
      */
-    private void updateSleepAsAndroidReceiver() {
-        final Prefs prefs = GBApplication.getPrefs();
-        // Deliberately not gated on the feature set: that is built from connected devices, and
-        // the whole point is to be listening while the provider is still disconnected. Only
-        // coordinators that support the integration can be picked in the settings, and
-        // DeviceActionHandler re-checks support before the action reaches the device.
-        final boolean wanted = mCurrentFeatureSet != null
+    static boolean shouldRegisterSleepAsAndroidReceiver(final Prefs prefs, final boolean serviceRunning) {
+        return serviceRunning
                 && prefs.getBoolean(GBPrefs.SLEEP_AS_ANDROID_ENABLED, false)
                 && !prefs.getString(GBPrefs.SLEEP_AS_ANDROID_DEVICE, "").isEmpty();
+    }
+
+    private void updateSleepAsAndroidReceiver() {
+        final boolean wanted = shouldRegisterSleepAsAndroidReceiver(GBApplication.getPrefs(), mCurrentFeatureSet != null);
 
         if (wanted && mSleepAsAndroidReceiver == null) {
             mSleepAsAndroidReceiver = new SleepAsAndroidReceiver();

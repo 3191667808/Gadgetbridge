@@ -18,18 +18,13 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
-import org.robolectric.annotation.Config;
 
-import nodomain.freeyourgadget.gadgetbridge.test.GBTestApplication;
+import nodomain.freeyourgadget.gadgetbridge.test.TestBase;
 
 /**
  * Frame layout is {@code a5 a5 | type | seq | len (LE) | crc (LE) | payload}.
  */
-@RunWith(RobolectricTestRunner.class)
-@Config(sdk = 23, application = GBTestApplication.class)
-public class XiaomiSppPacketV2Test {
+public class XiaomiSppPacketV2Test extends TestBase {
 
     /** Empty payload, so the CRC is zero. */
     private static byte[] emptyFrame(final int type, final int sequenceNumber) {

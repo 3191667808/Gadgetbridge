@@ -27,7 +27,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
 public class SleepAsAndroidSender {
 
-    private final Logger LOG = LoggerFactory.getLogger(SleepAsAndroidSender.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SleepAsAndroidSender.class);
     private final String PACKAGE_SLEEP_AS_ANDROID = "com.urbandroid.sleep";
     private final String ACTION_EXTRA_DATA_UPDATE = "com.urbandroid.sleep.ACTION_EXTRA_DATA_UPDATE";
     private final String ACTION_MOVEMENT_DATA_UPDATE = "com.urbandroid.sleep.watch.DATA_UPDATE";
@@ -81,8 +81,12 @@ public class SleepAsAndroidSender {
     private Set<SleepAsAndroidFeature> features;
 
     public SleepAsAndroidSender(GBDevice gbDevice) {
+        this(gbDevice, gbDevice.getDeviceCoordinator().getSleepAsAndroidFeatures(gbDevice));
+    }
+
+    public SleepAsAndroidSender(GBDevice gbDevice, Set<SleepAsAndroidFeature> features) {
         this.device = gbDevice;
-        this.features = gbDevice.getDeviceCoordinator().getSleepAsAndroidFeatures(gbDevice);
+        this.features = features;
     }
 
     /**
@@ -96,34 +100,40 @@ public class SleepAsAndroidSender {
     }
 
     /**
-     * Check if a SleepAsAndroid feature is enabled
-     * @param feature
-     * @return
+     * Check if a SleepAsAndroid feature is enabled.
+     *
+     * <p>The per-feature toggles default to true, matching sleepasandroid_preferences.xml. Those
+     * defaults are only persisted when the user toggles a switch, and the movement, heart rate, RR
+     * and oximetry switches are not user-toggleable, so a false fallback would report those
+     * features as disabled.
+     *
+     * @param feature the feature
+     * @return true if the feature is enabled
      */
     public boolean isFeatureEnabled(SleepAsAndroidFeature feature) {
         boolean enabled = isSleepAsAndroidEnabled();
         if (enabled) {
             switch (feature) {
                 case ACCELEROMETER:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_movement", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_movement", true);
                     break;
                 case HEART_RATE:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_hr", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_hr", true);
                     break;
                 case RR_INTERVALS:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_rr_intervals", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_rr_intervals", true);
                     break;
                 case SPO2:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_spo2", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_spo2", true);
                     break;
                 case OXIMETRY:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_oximetry", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_oximetry", true);
                     break;
                 case NOTIFICATIONS:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_notifications", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_notifications", true);
                     break;
                 case ALARMS:
-                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_alarms", false);
+                    enabled = GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_feat_alarms", true);
                     break;
                 default:
                     break;
@@ -373,7 +383,7 @@ public class SleepAsAndroidSender {
     /**
      * Aggregate and send the acceleration data
      */
-    private void aggregateAndSendAccelData() {
+    void aggregateAndSendAccelData() {
         if (!trackingOngoing || trackingPaused) return;
         final float windowMax;
         final float windowMin;
@@ -756,11 +766,17 @@ public class SleepAsAndroidSender {
      * @return the alarm slot to be used for setting alarms on the watch
      */
     public static int getAlarmSlot() {
-        Prefs prefs = GBApplication.getPrefs();
-        String slotString = prefs.getString(GBPrefs.SLEEP_AS_ANDROID_ALARM_SLOT, "");
-        if (!slotString.isEmpty()) {
-            return Integer.parseInt(slotString);
+        final Prefs prefs = GBApplication.getPrefs();
+        final String slotString = prefs.getString(GBPrefs.SLEEP_AS_ANDROID_ALARM_SLOT, "");
+        if (slotString.isEmpty()) {
+            return 0;
         }
-        return 0;
+        try {
+            return Integer.parseInt(slotString);
+        } catch (final NumberFormatException e) {
+            // Losing the configured slot is better than aborting the alarm entirely.
+            LOG.warn("Invalid Sleep as Android alarm slot {}, falling back to the first slot", slotString);
+            return 0;
+        }
     }
 }
