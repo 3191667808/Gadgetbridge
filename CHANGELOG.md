@@ -56,6 +56,7 @@
 * UNA Watch: Connection improvements
 * UNA Watch: Faster workout and health sync
 * UNA Watch: Import workouts as soon as they are saved on the watch
+* UNA Watch: Phone notifications
 * UNA Watch: Per-minute heart rate and honest daily totals
 * WeatherSpec: Add atmospheric pressure, cloud cover and dew point forecasts
 * Xiaomi-protobuf: Fix crash on resting heart rate query
