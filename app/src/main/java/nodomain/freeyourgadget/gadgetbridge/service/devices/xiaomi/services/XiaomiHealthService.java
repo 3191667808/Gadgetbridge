@@ -32,6 +32,7 @@ import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -127,13 +128,24 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final int GENDER_MALE = 1;
     private static final int GENDER_FEMALE = 2;
 
+    /**
+     * The band has a single realtime stats stream shared by everything that needs live readings.
+     * It is stopped only once every consumer has released it.
+     */
+    private enum RealtimeConsumer {
+        /** Live activity charts and the device list heart rate badge. */
+        UI,
+        SLEEP_AS_ANDROID,
+        /** A single heart rate measurement, released as soon as a reading arrives. */
+        ONE_SHOT,
+    }
+
     private static final int WORKOUT_STARTED = 0;
     private static final int WORKOUT_PAUSED = 1;
     private static final int WORKOUT_RESUMED = 2;
     private static final int WORKOUT_FINISHED = 3;
 
-    private boolean realtimeStarted = false;
-    private boolean realtimeOneShot = false;
+    private final Set<RealtimeConsumer> realtimeConsumers = EnumSet.noneOf(RealtimeConsumer.class);
     private int previousSteps = -1;
 
     private boolean gpsStarted = false;
@@ -247,6 +259,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         gpsStarted = false;
         gpsFixAcquired = false;
         workoutStarted = false;
+        realtimeConsumers.clear();
+        saaRawSensorActive = false;
         gpsTimeoutHandler.removeCallbacksAndMessages(null);
 
         setUserInfo();
@@ -268,6 +282,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         gpsStarted = false;
         gpsFixAcquired = false;
         workoutStarted = false;
+        realtimeConsumers.clear();
+        saaRawSensorActive = false;
         activityFetcher.dispose();
     }
 
@@ -972,30 +988,27 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     public void onHeartRateTest() {
         LOG.debug("Trigger heart rate one-shot test");
 
-        realtimeStarted = true;
-        realtimeOneShot = true;
-
-        getSupport().sendCommand(
-                "heart rate test",
-                XiaomiProto.Command.newBuilder()
-                        .setType(COMMAND_TYPE)
-                        .setSubtype(CMD_REALTIME_STATS_START)
-                        .build()
-        );
+        setRealtimeConsumer(RealtimeConsumer.ONE_SHOT, true);
     }
 
     public void enableRealtimeStats(final boolean enable) {
-        LOG.debug("Enable realtime stats: {}", enable);
+        setRealtimeConsumer(RealtimeConsumer.UI, enable);
+    }
 
-        if (realtimeStarted == enable) {
-            // same state, ignore
+    private void setRealtimeConsumer(final RealtimeConsumer consumer, final boolean enable) {
+        LOG.debug("Realtime stats consumer {}: {}", consumer, enable);
+
+        final boolean wasStreaming = !realtimeConsumers.isEmpty();
+        final boolean changed = enable ? realtimeConsumers.add(consumer) : realtimeConsumers.remove(consumer);
+        if (!changed || wasStreaming == !realtimeConsumers.isEmpty()) {
             return;
         }
 
-        realtimeStarted = enable;
-        realtimeOneShot = false;
         previousSteps = -1;
+        sendRealtimeStats(!realtimeConsumers.isEmpty());
+    }
 
+    private void sendRealtimeStats(final boolean enable) {
         getSupport().sendCommand(
                 "realtime data",
                 XiaomiProto.Command.newBuilder()
@@ -1008,17 +1021,17 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleRealtimeStats(final XiaomiProto.RealTimeStats realTimeStats) {
         LOG.debug("Got realtime stats");
 
-        if (!realtimeOneShot && !realtimeStarted) {
+        if (realtimeConsumers.isEmpty()) {
             // Failsafe in case it gets out of sync, stop it
-            enableRealtimeStats(false);
+            sendRealtimeStats(false);
             return;
         }
 
-        if (realtimeOneShot) {
+        if (realtimeConsumers.contains(RealtimeConsumer.ONE_SHOT)) {
             if (realTimeStats.getHeartRate() <= 10) {
                 return;
             }
-            enableRealtimeStats(false);
+            setRealtimeConsumer(RealtimeConsumer.ONE_SHOT, false);
         }
 
         if (previousSteps == -1) {
@@ -1089,7 +1102,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         lastRawSensorBatchMs = saaWorkoutStartedMs;
         lastHeartRate = HEART_RATE_UNKNOWN;
 
-        enableRealtimeStats(true);
+        setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, true);
         sendWorkoutStatus(WORKOUT_STARTED);
         startWorkoutStatsTicker();
         startKeepalive();
@@ -1131,7 +1144,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
         stopKeepalive();
         stopWorkoutStatsTicker();
-        enableRealtimeStats(false);
+        setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, false);
         sendWorkoutStatus(WORKOUT_PAUSED);
         saaRawSensorActive = false;
 
