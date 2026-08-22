@@ -105,8 +105,13 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private static final int CMD_RAW_SENSOR_BATCH = 53;     // FitnessID.WEAR_SENSOR_DATA
     // Synthetic-sport id used to mark the workout as hidden / non-persistent
     private static final int SAA_SYNTHETIC_SPORT = 810;     // AstroBox SportType.MOTION_SENSING_GAME
-    // The band blanks its workout screen unless the phone keeps pushing stats at this rate.
+    // The band renders these values on its workout screen and blanks it if the stream stops
+    // altogether. The full rate is only worth its radio traffic while the screen is likely to be
+    // on, which for a sleep session is the first few seconds; the rest of the night runs at the
+    // idle rate. Keeping the workout open is the keepalive's job, not this stream's.
     private static final long WORKOUT_STATS_INTERVAL_MS = 1_000L;
+    private static final long WORKOUT_STATS_IDLE_INTERVAL_MS = 5_000L;
+    private static final long WORKOUT_STATS_ACTIVE_WINDOW_MS = 10_000L;
     // The band closes the synthetic workout on its own unless the start status is repeated.
     private static final long SAA_KEEPALIVE_INTERVAL_MS = 24_000L;
     // Raw sensor batches arrive continuously; a longer gap means the band dropped the session.
@@ -154,6 +159,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private boolean saaRawSensorActive = false;
     private boolean saaHeartRateRequested = false;
     private long saaWorkoutStartedMs = 0;
+    private long saaStatsActiveUntilMs = 0;
     private long lastRawSensorBatchMs = 0;
     private int lastHeartRate = HEART_RATE_UNKNOWN;
     private final Handler saaWorkoutStatsHandler = new Handler();
@@ -1101,6 +1107,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         saaRawSensorActive = true;
         saaWorkoutStartedMs = SystemClock.elapsedRealtime();
         lastRawSensorBatchMs = saaWorkoutStartedMs;
+        saaStatsActiveUntilMs = saaWorkoutStartedMs + WORKOUT_STATS_ACTIVE_WINDOW_MS;
         lastHeartRate = HEART_RATE_UNKNOWN;
 
         if (saaHeartRateRequested) {
@@ -1163,9 +1170,15 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                     return;
                 }
                 sendWorkoutStats();
-                saaWorkoutStatsHandler.postDelayed(this, WORKOUT_STATS_INTERVAL_MS);
+                saaWorkoutStatsHandler.postDelayed(this, workoutStatsIntervalMs());
             }
         });
+    }
+
+    private long workoutStatsIntervalMs() {
+        return SystemClock.elapsedRealtime() < saaStatsActiveUntilMs
+                ? WORKOUT_STATS_INTERVAL_MS
+                : WORKOUT_STATS_IDLE_INTERVAL_MS;
     }
 
     private void stopWorkoutStatsTicker() {
