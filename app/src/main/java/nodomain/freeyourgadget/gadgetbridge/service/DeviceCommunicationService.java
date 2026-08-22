@@ -835,7 +835,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
     @Nullable
     private GBDevice getSleepAsAndroidDevice() {
-        final String address = GBApplication.getPrefs().getString("sleepasandroid_device", "");
+        final String address = GBApplication.getPrefs().getString(GBPrefs.SLEEP_AS_ANDROID_DEVICE, "");
         if (address.isEmpty()) {
             return null;
         }
@@ -874,7 +874,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
     private void sendPendingSleepAsAndroidAction(final GBDevice device) {
         final Intent pending = pendingSleepAsAndroidIntent;
-        if (pending == null || !device.getAddress().equals(GBApplication.getPrefs().getString("sleepasandroid_device", ""))) {
+        if (pending == null || !device.getAddress().equals(GBApplication.getPrefs().getString(GBPrefs.SLEEP_AS_ANDROID_DEVICE, ""))) {
             return;
         }
 

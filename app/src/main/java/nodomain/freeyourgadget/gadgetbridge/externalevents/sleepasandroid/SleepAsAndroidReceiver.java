@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 
 public class SleepAsAndroidReceiver extends BroadcastReceiver {
     private static final Logger LOG = LoggerFactory.getLogger(SleepAsAndroidReceiver.class);
@@ -20,7 +21,7 @@ public class SleepAsAndroidReceiver extends BroadcastReceiver {
 
         LOG.debug("Got Sleep as Android action {}", action);
 
-        if (action != null && GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_enable", false)) {
+        if (action != null && GBApplication.getPrefs().getBoolean(GBPrefs.SLEEP_AS_ANDROID_ENABLED, false)) {
             GBApplication.deviceService().onSleepAsAndroidAction(action, sanitizeExtras(intent));
         }
     }

@@ -440,8 +440,8 @@ class DeviceReceiversManager {
         // coordinators that support the integration can be picked in the settings, and
         // DeviceActionHandler re-checks support before the action reaches the device.
         final boolean wanted = mCurrentFeatureSet != null
-                && prefs.getBoolean("pref_key_sleepasandroid_enable", false)
-                && !prefs.getString("sleepasandroid_device", "").isEmpty();
+                && prefs.getBoolean(GBPrefs.SLEEP_AS_ANDROID_ENABLED, false)
+                && !prefs.getString(GBPrefs.SLEEP_AS_ANDROID_DEVICE, "").isEmpty();
 
         if (wanted && mSleepAsAndroidReceiver == null) {
             mSleepAsAndroidReceiver = new SleepAsAndroidReceiver();
@@ -454,7 +454,7 @@ class DeviceReceiversManager {
 
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         switch (key) {
-            case "pref_key_sleepasandroid_enable", "sleepasandroid_device" -> updateSleepAsAndroidReceiver();
+            case GBPrefs.SLEEP_AS_ANDROID_ENABLED, GBPrefs.SLEEP_AS_ANDROID_DEVICE -> updateSleepAsAndroidReceiver();
             case GBPrefs.NAVIGATION_APP_COMAPS -> {
                 if (mReceiversEnabled && mCurrentFeatureSet != null && mCurrentFeatureSet.supports(Feature.NAVIGATION)) {
                     boolean enable = sharedPreferences.getBoolean(GBPrefs.NAVIGATION_APP_COMAPS, false);

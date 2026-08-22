@@ -13,6 +13,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.devices.SleepAsAndroidFeature;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction;
@@ -641,13 +642,13 @@ public class SleepAsAndroidSender {
     public boolean isDeviceDefault() {
         if (device == null || !device.isInitialized()) return false;
         if (isSleepAsAndroidEnabled()) {
-            return device.getAddress().equals(GBApplication.getPrefs().getString("sleepasandroid_device", ""));
+            return device.getAddress().equals(GBApplication.getPrefs().getString(GBPrefs.SLEEP_AS_ANDROID_DEVICE, ""));
         }
         return false;
     }
 
     public boolean isSleepAsAndroidEnabled() {
-        return GBApplication.getPrefs().getBoolean("pref_key_sleepasandroid_enable", false);
+        return GBApplication.getPrefs().getBoolean(GBPrefs.SLEEP_AS_ANDROID_ENABLED, false);
     }
 
     /**
@@ -716,7 +717,7 @@ public class SleepAsAndroidSender {
      */
     public static int getAlarmSlot() {
         Prefs prefs = GBApplication.getPrefs();
-        String slotString = prefs.getString("sleepasandroid_alarm_slot", "");
+        String slotString = prefs.getString(GBPrefs.SLEEP_AS_ANDROID_ALARM_SLOT, "");
         if (!slotString.isEmpty()) {
             return Integer.parseInt(slotString);
         }
