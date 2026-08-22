@@ -1113,8 +1113,8 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 sleepAsAndroidSender.confirmConnected();
                 break;
             case SleepAsAndroidAction.START_TRACKING:
+                sleepAsAndroidSender.startTracking(extras);
                 toggleSleepAsAndroidRealtimeData(true);
-                sleepAsAndroidSender.startTracking();
                 break;
             case SleepAsAndroidAction.STOP_TRACKING:
                 toggleSleepAsAndroidRealtimeData(false);
@@ -1171,11 +1171,13 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             communicator.onEnableRealtimeAccelerometer(enable);
         }
         if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.HEART_RATE)
-                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.HEART_RATE)) {
+                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.HEART_RATE)
+                && sleepAsAndroidSender.isHeartRateRequested()) {
             communicator.onEnableRealtimeHeartRateMeasurement(enable);
         }
         if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.SPO2)
-                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.SPO2)) {
+                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.SPO2)
+                && sleepAsAndroidSender.isOximetryRequested()) {
             communicator.onEnableRealtimeSpo2(enable);
         }
         if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.RR_INTERVALS)

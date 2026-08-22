@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services;
 import android.content.Intent;
 import android.location.Location;
 import android.os.Handler;
+import android.os.SystemClock;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -151,6 +152,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private boolean workoutStarted = false;
     private final Handler gpsTimeoutHandler = new Handler();
     private boolean saaRawSensorActive = false;
+    private boolean saaHeartRateRequested = false;
     private long saaWorkoutStartedMs = 0;
     private long lastRawSensorBatchMs = 0;
     private int lastHeartRate = HEART_RATE_UNKNOWN;
@@ -1083,7 +1085,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
      *     replies (0, 2, 2) when saaRawSensorActive is true and the band starts streaming
      *     subtype-53 raw accel batches.
      */
-    public void startRawSensor() {
+    public void startRawSensor(final boolean withHeartRate) {
+        saaHeartRateRequested = withHeartRate;
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
         stopKeepalive();
         stopWorkoutStatsTicker();
@@ -1096,11 +1099,13 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
     private void openRawSensorWorkout() {
         saaRawSensorActive = true;
-        saaWorkoutStartedMs = System.currentTimeMillis();
+        saaWorkoutStartedMs = SystemClock.elapsedRealtime();
         lastRawSensorBatchMs = saaWorkoutStartedMs;
         lastHeartRate = HEART_RATE_UNKNOWN;
 
-        setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, true);
+        if (saaHeartRateRequested) {
+            setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, true);
+        }
         sendWorkoutStatus(WORKOUT_STARTED);
         startWorkoutStatsTicker();
         startKeepalive();
@@ -1115,10 +1120,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                     return;
                 }
 
-                if (System.currentTimeMillis() - lastRawSensorBatchMs > SAA_STALL_TIMEOUT_MS) {
-                    LOG.warn("No raw sensor batch for {}ms, restarting the synthetic workout",
-                            System.currentTimeMillis() - lastRawSensorBatchMs);
-                    startRawSensor();
+                final long sinceLastBatch = SystemClock.elapsedRealtime() - lastRawSensorBatchMs;
+                if (sinceLastBatch > SAA_STALL_TIMEOUT_MS) {
+                    LOG.warn("No raw sensor batch for {}ms, restarting the synthetic workout", sinceLastBatch);
+                    startRawSensor(saaHeartRateRequested);
                     return;
                 }
 
@@ -1173,7 +1178,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
      * figures that were never measured.
      */
     private void sendWorkoutStats() {
-        final int elapsedSeconds = (int) ((System.currentTimeMillis() - saaWorkoutStartedMs) / 1000);
+        final int elapsedSeconds = (int) ((SystemClock.elapsedRealtime() - saaWorkoutStartedMs) / 1000);
 
         getSupport().sendCommand(
                 "saa workout stats",
@@ -1216,7 +1221,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleRawSensorBatch(final XiaomiProto.RawSensorBatch batch) {
         final int n = batch.getAccelCount();
         LOG.debug("Got raw sensor batch: {} accel samples", n);
-        lastRawSensorBatchMs = System.currentTimeMillis();
+        lastRawSensorBatchMs = SystemClock.elapsedRealtime();
         if (sleepAsAndroidSender != null && n > 0) {
             for (int i = 0; i < n; i++) {
                 final XiaomiProto.AxisSensor s = batch.getAccel(i);

@@ -58,6 +58,22 @@ public class SleepAsAndroidReceiver extends BroadcastReceiver {
         if (extras.containsKey("DELAY")) {
             sanitized.putInt("DELAY", extras.getInt("DELAY", 60000));
         }
+        // Sleep as Android signals the sensors it wants by the presence of these two, not by
+        // their value.
+        if (extras.containsKey("DO_HR_MONITORING")) {
+            sanitized.putBoolean("DO_HR_MONITORING", true);
+        }
+        if (extras.containsKey("DO_OXIMETER_MONITORING")) {
+            sanitized.putBoolean("DO_OXIMETER_MONITORING", true);
+        }
+        // Sleep as Android signals the sensors it wants by the presence of these two, not by
+        // their value.
+        if (extras.containsKey("DO_HR_MONITORING")) {
+            sanitized.putBoolean("DO_HR_MONITORING", true);
+        }
+        if (extras.containsKey("DO_OXIMETER_MONITORING")) {
+            sanitized.putBoolean("DO_OXIMETER_MONITORING", true);
+        }
         return sanitized;
     }
 

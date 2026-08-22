@@ -50,6 +50,7 @@ import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.os.IBinder;
 import android.widget.Toast;
 
@@ -865,7 +866,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
         if (SleepAsAndroidAction.START_TRACKING.equals(sleepAsAndroidAction)) {
             pendingSleepAsAndroidIntent = new Intent(intent);
-            pendingSleepAsAndroidDeadline = System.currentTimeMillis() + SLEEP_AS_ANDROID_PENDING_TIMEOUT_MS;
+            pendingSleepAsAndroidDeadline = SystemClock.elapsedRealtime() + SLEEP_AS_ANDROID_PENDING_TIMEOUT_MS;
         }
 
         LOG.info("Connecting to {} for Sleep as Android action {}", device.getAliasOrName(), sleepAsAndroidAction);
@@ -880,7 +881,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
         pendingSleepAsAndroidIntent = null;
 
-        if (System.currentTimeMillis() > pendingSleepAsAndroidDeadline) {
+        if (SystemClock.elapsedRealtime() > pendingSleepAsAndroidDeadline) {
             LOG.info("Sleep as Android tracking request expired before {} connected", device.getAliasOrName());
             return;
         }
