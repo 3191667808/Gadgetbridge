@@ -117,12 +117,19 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     // Reported to the band until a real reading arrives.
     private static final int HEART_RATE_UNKNOWN = 255;
 
+    private static final int WORKOUT_OPEN_OK = 0;
+    private static final int WORKOUT_OPEN_NO_PERMISSION = 3;
+    // Picked from the versions the watch offers when it asks to open a workout.
+    private static final int WORKOUT_PROTOCOL_VERSION = 2;
+    private static final int GPS_ACCURACY_HIGH = 2;
+    private static final int GPS_ACCURACY_UNKNOWN = 10;
+
     private static final int GENDER_MALE = 1;
     private static final int GENDER_FEMALE = 2;
 
     private static final int WORKOUT_STARTED = 0;
-    private static final int WORKOUT_RESUMED = 1;
-    private static final int WORKOUT_PAUSED = 2;
+    private static final int WORKOUT_PAUSED = 1;
+    private static final int WORKOUT_RESUMED = 2;
     private static final int WORKOUT_FINISHED = 3;
 
     private boolean realtimeStarted = false;
@@ -717,9 +724,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                             .setSubtype(CMD_WORKOUT_WATCH_OPEN)
                             .setHealth(XiaomiProto.Health.newBuilder().setWorkoutOpenReply(
                                     XiaomiProto.WorkoutOpenReply.newBuilder()
-                                            .setUnknown1(0)
-                                            .setUnknown2(2)
-                                            .setUnknown3(2)
+                                            .setCode(WORKOUT_OPEN_OK)
+                                            .setSelectedVersion(WORKOUT_PROTOCOL_VERSION)
+                                            .setGpsAccuracy(GPS_ACCURACY_HIGH)
                             ))
                             .build()
             );
@@ -736,9 +743,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                             .setSubtype(CMD_WORKOUT_WATCH_OPEN)
                             .setHealth(XiaomiProto.Health.newBuilder().setWorkoutOpenReply(
                                     XiaomiProto.WorkoutOpenReply.newBuilder()
-                                            .setUnknown1(3)
-                                            .setUnknown2(2)
-                                            .setUnknown3(10)
+                                            .setCode(WORKOUT_OPEN_NO_PERMISSION)
+                                            .setSelectedVersion(WORKOUT_PROTOCOL_VERSION)
+                                            .setGpsAccuracy(GPS_ACCURACY_UNKNOWN)
                             ))
                             .build()
             );
@@ -787,8 +794,8 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                     OpenTracksController.startRecording(getSupport().getContext(), sportToActivityKind(workoutStatus.getSport()));
                 }
                 break;
-            case WORKOUT_RESUMED:
             case WORKOUT_PAUSED:
+            case WORKOUT_RESUMED:
                 break;
             case WORKOUT_FINISHED:
                 gpsStarted = false;
@@ -811,9 +818,9 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                             .setSubtype(CMD_WORKOUT_WATCH_OPEN)
                             .setHealth(XiaomiProto.Health.newBuilder().setWorkoutOpenReply(
                                     XiaomiProto.WorkoutOpenReply.newBuilder()
-                                            .setUnknown1(0)
-                                            .setUnknown2(2)
-                                            .setUnknown3(2)
+                                            .setCode(WORKOUT_OPEN_OK)
+                                            .setSelectedVersion(WORKOUT_PROTOCOL_VERSION)
+                                            .setGpsAccuracy(GPS_ACCURACY_HIGH)
                             ))
                             .build()
             );
@@ -1117,7 +1124,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     /**
      * Tear down the SaA synthetic workout. Sequence:
      *  1. REALTIME_STATS_STOP
-     *  2. WORKOUT_WATCH_STATUS(status=RESUMED, ...) -- semantics unclear but required by the band
+     *  2. WORKOUT_WATCH_STATUS(status=PAUSED, ...)
      *  3. WORKOUT_WATCH_STATUS(status=FINISHED, ...) -- final close
      */
     public void stopRawSensor() {
@@ -1125,7 +1132,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         stopKeepalive();
         stopWorkoutStatsTicker();
         enableRealtimeStats(false);
-        sendWorkoutStatus(WORKOUT_RESUMED);
+        sendWorkoutStatus(WORKOUT_PAUSED);
         saaRawSensorActive = false;
 
         saaWorkoutStatusHandler.postDelayed(() -> sendWorkoutStatus(WORKOUT_FINISHED), SAA_FINISH_DELAY_MS);
@@ -1187,7 +1194,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                                                 .setType(SAA_SPORT_INFO_TYPE))
                                         .setSport(SAA_SYNTHETIC_SPORT)
                                         .setStatus(status)
-                                        .setUnknown6(3)
+                                        .setSupportedVersions(3)
                         ))
                         .build()
         );
