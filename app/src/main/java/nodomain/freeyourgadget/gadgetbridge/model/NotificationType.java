@@ -197,6 +197,8 @@ public enum NotificationType {
             case FACEBOOK:
             case REDDIT:
             case SNAPCHAT:
+            case TIKTOK:
+            case TIKTOK_LITE:
             case TWITTER:
             case VK:
                 return "generic_social";
@@ -207,6 +209,7 @@ public enum NotificationType {
             case AMAZON:
             case FLIPKART:
             case SHOPEE:
+            case TIKTOK_SHOP:
             case TOKOPEDIA:
                 return "generic_shopping";
             case DIDA_CHUXING:
