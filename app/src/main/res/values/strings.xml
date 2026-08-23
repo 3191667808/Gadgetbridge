@@ -1911,6 +1911,7 @@
     <string name="hrv_status_daily_range_legend">Daily range</string>
     <string name="training_acute_load">Acute Load</string>
     <string name="training_chronic_load">Chronic Load</string>
+    <string name="training_optimal_load">Optimal Load</string>
     <string name="this_week_total">This week total</string>
     <string name="last_week_total">Last week total</string>
     <string name="low">Low</string>
