@@ -27,11 +27,11 @@ jobs:
 
       - name: Set gradle properties
         run: |
-          echo "org.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -XX:+UseSerialGC" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
           echo "org.gradle.daemon=false" >> gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "org.gradle.workers.max=1" >> gradle.properties
-          echo "kotlin.daemon.jvmargs=-Xmx512m -XX:+UseSerialGC" >> gradle.properties
+          echo "kotlin.daemon.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
 
       - name: Build
         run: |
@@ -59,3 +59,10 @@ jobs:
 
       - name: apk
         run: find . -name "*.apk"
+
+      - uses: https://data.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: apks
+          path: ./app/build/outputs/apk/*/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
