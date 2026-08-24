@@ -87,6 +87,16 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     updateLogoutPreferenceVisibility()
                 }
             }
+            parentFragmentManager.setFragmentResultListener(
+                "dreeve_login_result",
+                this
+            ) { _, bundle ->
+                val success = bundle.getBoolean("success", false)
+                if (success) {
+                    updateStatus()
+                    updateLogoutPreferenceVisibility()
+                }
+            }
         }
 
         override fun onResume() {
@@ -109,6 +119,11 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
             findPreference<Preference>("pref_key_wanderer_log_in")?.setOnPreferenceClickListener {
                 WandererSetupBottomSheet()
                     .show(parentFragmentManager, "wanderer_setup")
+                true
+            }
+            findPreference<Preference>("pref_key_dreeve_log_in")?.setOnPreferenceClickListener {
+                DreeveSetupBottomSheet()
+                    .show(parentFragmentManager, "dreeve_setup")
                 true
             }
         }
@@ -138,6 +153,16 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
 
                 true
             }
+            findPreference<Preference>("pref_key_dreeve_log_out")?.setOnPreferenceClickListener {
+                DreeveTokenManager(requireContext()).clearTokens()
+                activity?.runOnUiThread {
+                    GB.toast("Logged out successfully", Toast.LENGTH_SHORT, GB.INFO)
+                    updateStatus()
+                    updateLogoutPreferenceVisibility()
+                }
+
+                true
+            }
         }
 
         private fun updateLogoutPreferenceVisibility() {
@@ -145,15 +170,22 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
             findPreference<Preference>("pref_key_endurain_log_in")?.isVisible = !vm.endurainTokenManager.isLoggedIn()
             findPreference<Preference>("pref_key_wanderer_log_out")?.isVisible = WandererTokenManager(requireContext()).isLoggedIn()
             findPreference<Preference>("pref_key_wanderer_log_in")?.isVisible = !WandererTokenManager(requireContext()).isLoggedIn()
+            findPreference<Preference>("pref_key_dreeve_log_out")?.isVisible = DreeveTokenManager(requireContext()).isLoggedIn()
+            findPreference<Preference>("pref_key_dreeve_log_in")?.isVisible = !DreeveTokenManager(requireContext()).isLoggedIn()
         }
 
         private fun updateStatus() {
             val endurainStatusPref = findPreference<Preference>("pref_key_endurain_status")
             val endurainServer = GBApplication.getPrefs().preferences.getString("endurain_server", null)
             val endurainTokenExpiresAt = DateTimeUtils.parseTimeStamp(vm.endurainTokenManager.getRefreshTokenExpiresAt())
+
             val wandererStatusPref = findPreference<Preference>("pref_key_wanderer_status")
             val wandererServer = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
             val wandererAPITokenAvailable = WandererTokenManager(requireContext()).isLoggedIn()
+
+            val dreeveStatusPref = findPreference<Preference>("pref_key_dreeve_status")
+            val dreeveServer = GBApplication.getPrefs().preferences.getString("dreeve_server", null)
+            val dreeveAPITokenAvailable = DreeveTokenManager(requireContext()).isLoggedIn()
 
             // Update Endurain preferences
             var summaryText = getString(R.string.endurain_not_logged_in_integration_disabled)
@@ -173,6 +205,14 @@ class OnlineFitnessTrackersPreferencesActivity : AbstractSettingsActivityV2() {
                     getString(R.string.wanderer_logged_in).format(wandererServer)
             }
             wandererStatusPref?.summary = summaryText
+
+            // Update Dreeve preferences
+            summaryText = "Not logged in, integration is disabled"
+            if (dreeveAPITokenAvailable) {
+                summaryText =
+                    "Logged in to %s".format(dreeveServer)
+            }
+            dreeveStatusPref?.summary = summaryText
         }
     }
 }

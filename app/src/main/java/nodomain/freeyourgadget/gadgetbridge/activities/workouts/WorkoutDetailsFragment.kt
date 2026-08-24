@@ -60,6 +60,8 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.ActivitySummariesChartFragment
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DurationXLabelFormatter
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.DreeveApiClient
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.DreeveTokenManager
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainApiClient
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainSetupViewModel
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererApiClient
@@ -570,6 +572,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 true
             }
 
+            R.id.activity_action_upload_to_dreeve -> {
+                uploadToDreeve()
+                true
+            }
+
             R.id.activity_action_dev_inspect_file -> {
                 val rawDetailsPath = workout.summary.rawDetailsPath ?: return true
                 val intent = Intent(requireContext(), FitViewerActivity::class.java).apply {
@@ -696,8 +703,10 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         val endurainVm: EndurainSetupViewModel by viewModels()
         val endurainServer = GBApplication.getPrefs().preferences.getString("endurain_server", null)
         val wandererServer = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
+        val dreeveServer = GBApplication.getPrefs().preferences.getString("dreeve_server", null)
         overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
         overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+        overflowMenu?.findItem(R.id.activity_action_upload_to_dreeve)?.isVisible = dreeveServer != null && DreeveTokenManager(requireContext()).isLoggedIn()
     }
 
     private fun takeSharedScreenshot() {
@@ -913,6 +922,56 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 GB.ERROR,
                 e
             )
+        }
+    }
+
+    private fun uploadToDreeve() {
+        val workout = currentWorkout ?: return
+
+        lifecycleScope.launch {
+            val activityFile = try {
+                buildFitFile(workout)
+            } catch (e: Exception) {
+                LOG.error("Failed to build FIT for Dreeve upload", e)
+                GB.toast(
+                    getString(R.string.dreeve_unable_to_upload_gpx_file_toast, e.localizedMessage),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+                return@launch
+            }
+
+            try {
+                val serverUrl = GBApplication.getPrefs().preferences.getString("dreeve_server", null)
+                val apiClient = DreeveApiClient(serverUrl!!, DreeveTokenManager(requireContext()))
+                apiClient.uploadActivity(activityFile) { success, message ->
+                    if (success) {
+                        LOG.info("Uploaded FIT file to Dreeve successfully")
+                    }
+                    activity?.runOnUiThread {
+                        if (success)
+                            GB.toast(
+                                getString(R.string.dreeve_toast_successfully_uploaded),
+                                Toast.LENGTH_LONG,
+                                GB.INFO
+                            )
+                        else
+                            GB.toast(
+                                getString(R.string.dreeve_toast_upload_error, message),
+                                Toast.LENGTH_LONG,
+                                GB.INFO
+                            )
+                    }
+                }
+            } catch (e: Exception) {
+                GB.toast(
+                    getString(R.string.dreeve_unable_to_upload_gpx_file_toast, e.localizedMessage),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+            }
         }
     }
 

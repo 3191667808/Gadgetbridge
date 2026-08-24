@@ -42,4 +42,23 @@
             android:title="@string/pref_wanderer_log_out_title"
             android:summary="@string/pref_endurain_log_out_summary" />
     </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/pref_category_dreeve">
+        <Preference
+            android:icon="@drawable/ic_info"
+            android:key="pref_key_dreeve_status"
+            android:title="@string/pref_dreeve_status_title"
+            android:summary="Logged in on dreeve.example.com" />
+        <Preference
+            android:icon="@drawable/ic_language"
+            android:key="pref_key_dreeve_log_in"
+            android:title="@string/pref_dreeve_enter_api_token_title"
+            android:summary="@string/pref_dreeve_enter_api_token_summary" />
+        <Preference
+            android:icon="@drawable/ic_language"
+            android:key="pref_key_dreeve_log_out"
+            android:title="@string/pref_dreeve_log_out_title"
+            android:summary="@string/pref_endurain_log_out_summary" />
+    </PreferenceCategory>
 </PreferenceScreen>
