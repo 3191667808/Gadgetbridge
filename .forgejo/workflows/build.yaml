@@ -37,19 +37,19 @@ jobs:
           echo "kotlin.daemon.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
           ./gradlew assembleDebug --stacktrace || touch .build_failed
 
-      - name: Lint
-        run: |
-          sed -i '/^org.gradle.jvmargs=/d;/^kotlin.daemon.jvmargs=/d' gradle.properties
-          echo "org.gradle.jvmargs=-Xmx1792m -XX:MaxMetaspaceSize=256m -XX:+UseSerialGC" >> gradle.properties
-          echo "kotlin.daemon.jvmargs=-Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC" >> gradle.properties
-          ./gradlew lint || touch .lint_failed
-
       - name: Test
         run: |
           sed -i '/^org.gradle.jvmargs=/d;/^kotlin.daemon.jvmargs=/d' gradle.properties
           echo "org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
           echo "kotlin.daemon.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
           ./gradlew test || touch .tests_failed
+
+      - name: Lint
+        run: |
+          sed -i '/^org.gradle.jvmargs=/d;/^kotlin.daemon.jvmargs=/d' gradle.properties
+          echo "org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
+          echo "kotlin.daemon.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC" >> gradle.properties
+          ./gradlew lint || touch .lint_failed
 
       - name: Healthcheck
         run: |
