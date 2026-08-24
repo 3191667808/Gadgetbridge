@@ -266,6 +266,25 @@ public class SleepAsAndroidSenderSessionTest extends TestBase {
     // --- accelerometer batching -----------------------------------------------------------
 
     @Test
+    public void samplesAreOnlyAcceptedWhileTrackingRuns() {
+        Assert.assertFalse(sender.acceptsAccelSamples());
+
+        sender.startTracking(trackingExtras(false, false));
+        Assert.assertTrue(sender.acceptsAccelSamples());
+
+        sender.stopTracking();
+        Assert.assertFalse(sender.acceptsAccelSamples());
+    }
+
+    @Test
+    public void samplesAreNotAcceptedByADeviceWithoutTheSensor() {
+        final SleepAsAndroidSender heartRateOnly = senderWith(SleepAsAndroidFeature.HEART_RATE);
+        heartRateOnly.startTracking(trackingExtras(true, false));
+
+        Assert.assertFalse(heartRateOnly.acceptsAccelSamples());
+    }
+
+    @Test
     public void accelBatchLengthMatchesRequestedBatchSize() {
         sender.setBatchSize(3);
         sender.startTracking(trackingExtras(false, false));

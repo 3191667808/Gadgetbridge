@@ -1338,12 +1338,13 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         LOG.debug("Got raw sensor batch: {} accel samples", n);
         lastRawSensorBatchMs = SystemClock.elapsedRealtime();
         saaRestartAttempts = 0;
-        if (sleepAsAndroidSender != null && n > 0) {
+        // Batches carry ten samples and arrive ten times a second, so whether Sleep as Android
+        // wants them is decided once for the batch rather than once per sample.
+        if (sleepAsAndroidSender != null && n > 0 && sleepAsAndroidSender.acceptsAccelSamples()) {
             for (int i = 0; i < n; i++) {
                 final XiaomiProto.AxisSensor s = batch.getAccel(i);
-                sleepAsAndroidSender.onAccelChanged(s.getX(), s.getY(), s.getZ());
+                sleepAsAndroidSender.submitAccelSample(s.getX(), s.getY(), s.getZ());
             }
         }
-
     }
 }
