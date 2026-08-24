@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi;
 
+import android.location.Location;
 import android.os.Looper;
 
 import org.junit.Assert;
@@ -46,6 +47,7 @@ public class XiaomiSleepAsAndroidWorkoutTest extends TestBase {
     private static final int CMD_WORKOUT_WATCH_OPEN = 30;
     private static final int CMD_REALTIME_STATS_START = 45;
     private static final int CMD_REALTIME_STATS_STOP = 46;
+    private static final int CMD_WORKOUT_LOCATION = 48;
     private static final int CMD_WORKOUT_STATS_PHONE = 49;
     private static final int CMD_RAW_SENSOR_BATCH = 53;
 
@@ -55,6 +57,8 @@ public class XiaomiSleepAsAndroidWorkoutTest extends TestBase {
 
     private static final int SAA_SYNTHETIC_SPORT = 810;
     private static final int SPORT_OUTDOOR_RUNNING = 1;
+    /** The band leaves the sport out of the status it echoes back. */
+    private static final int SPORT_UNSET = 0;
 
     private static final long OPEN_DELAY_MS = 500L;
     private static final long KEEPALIVE_MS = 24_000L;
@@ -82,7 +86,7 @@ public class XiaomiSleepAsAndroidWorkoutTest extends TestBase {
 
     /** Opens the synthetic workout and leaves every command it sent in the history. */
     private void openSession(final boolean withHeartRate) {
-        health.startRawSensor(withHeartRate);
+        health.startRawSensor(withHeartRate, false);
         idle(OPEN_DELAY_MS);
     }
 
@@ -215,7 +219,7 @@ public class XiaomiSleepAsAndroidWorkoutTest extends TestBase {
 
     @Test
     public void startClosesAnyWorkoutLeftOpenBeforeOpeningANewOne() {
-        health.startRawSensor(true);
+        health.startRawSensor(true, false);
 
         // Immediately: only the defensive finish, so a session left open by an earlier process is
         // closed before the band is asked to open another.
@@ -275,7 +279,7 @@ public class XiaomiSleepAsAndroidWorkoutTest extends TestBase {
         final TimeZone original = TimeZone.getDefault();
         try {
             TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kathmandu")); // UTC+05:45
-            health.startRawSensor(true);
+            health.startRawSensor(true, false);
 
             final XiaomiProto.Command status = sentOfSubtype(CMD_WORKOUT_WATCH_STATUS).get(0);
             Assert.assertEquals(23, status.getHealth().getWorkoutStatusWatch().getSportInfo().getTzOffsetQuarterHours());
@@ -414,6 +418,65 @@ public class XiaomiSleepAsAndroidWorkoutTest extends TestBase {
 
         // It read the device preferences, so it did not take the synthetic short circuit.
         Mockito.verify(support, Mockito.atLeastOnce()).getDevice();
+    }
+
+    @Test
+    public void syntheticOpenIsAcknowledgedBetweenWorkouts() {
+        // The band repeats the request every few seconds for as long as its workout is open, so
+        // one lands in every gap the session leaves: the rebuild after a stall, and the window
+        // after a reconnect. Answering it as a real workout is what starts the phone GPS.
+        deliverWorkoutOpen(SAA_SYNTHETIC_SPORT);
+
+        final List<XiaomiProto.Command> replies = sentOfSubtype(CMD_WORKOUT_WATCH_OPEN);
+        Assert.assertEquals(1, replies.size());
+        Assert.assertEquals(0, replies.get(0).getHealth().getWorkoutOpenReply().getCode());
+    }
+
+    @Test
+    public void nothingElseCanOpenAWorkoutDuringASession() {
+        openSessionAndClearHistory(true);
+
+        deliverWorkoutOpen(SPORT_OUTDOOR_RUNNING);
+
+        final List<XiaomiProto.Command> replies = sentOfSubtype(CMD_WORKOUT_WATCH_OPEN);
+        Assert.assertEquals(1, replies.size());
+        Assert.assertEquals("the band cannot hold a second workout, so this is still the synthetic one",
+                0, replies.get(0).getHealth().getWorkoutOpenReply().getCode());
+    }
+
+    @Test
+    public void statusEchoedWhileTheSessionClosesIsNotAUserWorkout() {
+        openSessionAndClearHistory(true);
+        health.stopRawSensor();
+        Mockito.clearInvocations(support);
+
+        deliverWorkoutStatus(SPORT_UNSET, WORKOUT_STARTED);
+
+        Mockito.verify(support, Mockito.never()).getDevice();
+    }
+
+    @Test
+    public void statusEchoedAfterADroppedLinkIsNotAUserWorkout() {
+        openSession(true);
+        // The link drops and comes back; the band still has the synthetic workout open.
+        health.dispose();
+        Mockito.clearInvocations(support);
+
+        deliverWorkoutStatus(SPORT_UNSET, WORKOUT_STARTED);
+
+        Mockito.verify(support, Mockito.never()).getDevice();
+    }
+
+    @Test
+    public void aFinishedWorkoutIsNoLongerFedLocations() {
+        deliverWorkoutStatus(SPORT_OUTDOOR_RUNNING, WORKOUT_STARTED);
+        deliverWorkoutStatus(SPORT_OUTDOOR_RUNNING, WORKOUT_FINISHED);
+        Mockito.clearInvocations(support);
+
+        health.onSetGpsLocation(new Location("test"));
+
+        Assert.assertTrue("locations belong to the workout that asked for them",
+                sentOfSubtype(CMD_WORKOUT_LOCATION).isEmpty());
     }
 
     @Test

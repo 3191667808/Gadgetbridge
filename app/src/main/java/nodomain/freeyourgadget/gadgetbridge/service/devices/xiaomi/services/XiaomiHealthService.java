@@ -164,10 +164,16 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     // The Sleep as Android session is driven from the handler thread and fed from the Bluetooth
     // callback thread, so every field both of them touch is published.
     private volatile boolean saaRawSensorActive = false;
-    // Covers the whole Sleep as Android session, including the gap between closing a stale workout
-    // and opening the new one, where no workout is active yet.
+    // Covers the whole Sleep as Android session: the gap between closing a stale workout and
+    // opening the new one, and the gap between the closing pause and the closing finish. The band
+    // echoes its workout status without a sport id, so this is the only way to tell those echoes
+    // apart from a workout started on the band itself. It survives a reconnect, because the band
+    // keeps the workout open across one and goes on echoing it.
     private volatile boolean saaSessionRequested = false;
     private volatile boolean saaHeartRateRequested = false;
+    // Whether the session wants the phone to feed the band a route. Sleep as Android never does,
+    // and a session that does not ask for one must never leave a location provider running.
+    private volatile boolean saaGpsRequested = false;
     private volatile long saaWorkoutStartedMs = 0;
     private volatile long saaStatsActiveUntilMs = 0;
     private volatile long lastRawSensorBatchMs = 0;
@@ -280,7 +286,6 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             realtimeConsumers.clear();
         }
         saaRawSensorActive = false;
-        saaSessionRequested = false;
         gpsTimeoutHandler.removeCallbacksAndMessages(null);
 
         setUserInfo();
@@ -295,18 +300,17 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
     @Override
     public void dispose() {
-        gpsTimeoutHandler.removeCallbacksAndMessages(null);
+        // The location provider is owned by a service that outlives the connection, so a workout
+        // that ends by losing the link has to release it here or it runs until the app is killed.
+        stopGps();
         saaKeepaliveHandler.removeCallbacksAndMessages(null);
         saaWorkoutStatsHandler.removeCallbacksAndMessages(null);
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
-        gpsStarted = false;
-        gpsFixAcquired = false;
         workoutStarted = false;
         synchronized (realtimeConsumers) {
             realtimeConsumers.clear();
         }
         saaRawSensorActive = false;
-        saaSessionRequested = false;
         activityFetcher.dispose();
     }
 
@@ -745,17 +749,21 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
     private void handleWorkoutOpen(final XiaomiProto.WorkoutOpenWatch workoutOpenWatch) {
         LOG.debug(
-                "Workout open on watch: {}, workoutStarted={}, gpsStarted={}, gpsFixAcquired={}, saa={}",
+                "Workout open on watch: {}, workoutStarted={}, gpsStarted={}, gpsFixAcquired={}, saaSession={}, saaStream={}",
                 workoutOpenWatch.getSport(),
                 workoutStarted,
                 gpsStarted,
                 gpsFixAcquired,
+                saaSessionRequested,
                 saaRawSensorActive
         );
 
-        // SaA synthetic mode: the band is asking us to confirm a hidden workout. Reply
-        // (0, 2, 2) immediately without starting GPS so the band proceeds to stream raw accel.
-        if (saaRawSensorActive) {
+        // Raw sensor mode: the band is asking us to confirm a hidden workout. Reply (0, 2, 2)
+        // immediately so it proceeds to stream raw accel. The band repeats the request every few
+        // seconds for as long as the workout is open, so the sport it carries also has to be
+        // honoured on its own: a request that arrives while the session is between workouts must
+        // not be mistaken for one the user started on the band.
+        if (saaSessionRequested || workoutOpenWatch.getSport() == SAA_SYNTHETIC_SPORT) {
             getSupport().sendCommand(
                     "saa raw-sensor open ack",
                     XiaomiProto.Command.newBuilder()
@@ -769,6 +777,11 @@ public class XiaomiHealthService extends AbstractXiaomiService {
                             ))
                             .build()
             );
+            if (saaGpsRequested) {
+                // The route travels over the same workout channel a band-started workout uses.
+                workoutStarted = true;
+                startGps();
+            }
             return;
         }
 
@@ -791,11 +804,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             return;
         }
 
-        if (!gpsStarted) {
-            gpsStarted = true;
-            gpsFixAcquired = false;
-            GBLocationService.start(getSupport().getContext(), getSupport().getDevice(), GBLocationProviderType.GPS, 1000);
-        }
+        startGps();
 
         if (!workoutStarted) {
             // Only schedule the timeout while we are still waiting for the watch to confirm
@@ -807,9 +816,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             gpsTimeoutHandler.removeCallbacksAndMessages(null);
             gpsTimeoutHandler.postDelayed(() -> {
                 LOG.debug("Timed out waiting for workout");
-                gpsStarted = false;
-                gpsFixAcquired = false;
-                GBLocationService.stop(getSupport().getContext(), getSupport().getDevice());
+                stopGps();
             }, timeout);
         }
     }
@@ -817,9 +824,10 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     private void handleWorkoutStatus(final XiaomiProto.WorkoutStatusWatch workoutStatus) {
         LOG.debug("Got workout status: {}, sport={}", workoutStatus.getStatus(), workoutStatus.getSport());
 
-        // Ignore the synthetic SaA workout — it must not trigger OpenTracks or
-        // any GPS bookkeeping.
-        if (saaRawSensorActive || workoutStatus.getSport() == SAA_SYNTHETIC_SPORT) {
+        // Ignore the synthetic SaA workout, it must not trigger OpenTracks or any GPS bookkeeping.
+        // The band echoes the status it was given with the sport field left empty, so a session in
+        // progress is what identifies those echoes rather than the sport.
+        if (saaSessionRequested || workoutStatus.getSport() == SAA_SYNTHETIC_SPORT) {
             return;
         }
 
@@ -837,14 +845,32 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             case WORKOUT_RESUMED:
                 break;
             case WORKOUT_FINISHED:
-                gpsStarted = false;
-                gpsFixAcquired = false;
-                GBLocationService.stop(getSupport().getContext(), getSupport().getDevice());
+                workoutStarted = false;
+                stopGps();
                 if (startOnPhone) {
                     OpenTracksController.stopRecording(getSupport().getContext());
                 }
                 break;
         }
+    }
+
+    private void startGps() {
+        if (gpsStarted || !GBLocationService.isGpsSupportedAndEnabled()) {
+            return;
+        }
+        gpsStarted = true;
+        gpsFixAcquired = false;
+        GBLocationService.start(getSupport().getContext(), getSupport().getDevice(), GBLocationProviderType.GPS, 1000);
+    }
+
+    private void stopGps() {
+        gpsTimeoutHandler.removeCallbacksAndMessages(null);
+        if (!gpsStarted) {
+            return;
+        }
+        gpsStarted = false;
+        gpsFixAcquired = false;
+        GBLocationService.stop(getSupport().getContext(), getSupport().getDevice());
     }
 
     public void onSetGpsLocation(final Location location) {
@@ -1116,16 +1142,27 @@ public class XiaomiHealthService extends AbstractXiaomiService {
      *  1. REALTIME_STATS_START -- enables HR/steps stream (existing path)
      *  2. WORKOUT_WATCH_STATUS(status=STARTED, sport=SAA_SYNTHETIC_SPORT) -- tells the band to
      *     open a hidden workout. Band then sends WORKOUT_WATCH_OPEN to us; handleWorkoutOpen
-     *     replies (0, 2, 2) when saaRawSensorActive is true and the band starts streaming
-     *     subtype-53 raw accel batches.
+     *     replies (0, 2, 2) while the session is open and the band starts streaming subtype-53 raw
+     *     accel batches.
+     *
+     * @param withGps whether the phone feeds locations into the workout. Sleep as Android has no
+     *                use for a route, and leaving a location provider running costs a night of
+     *                phone battery.
      */
-    public void startRawSensor(final boolean withHeartRate) {
+    public void startRawSensor(final boolean withHeartRate, final boolean withGps) {
         saaSessionRequested = true;
+        saaGpsRequested = withGps;
         saaRestartAttempts = 0;
-        startRawSensor(withHeartRate, false);
+        if (!withGps) {
+            // The band cannot hold a real workout open at the same time, so a location provider
+            // still running belongs to a workout that has ended.
+            stopGps();
+            workoutStarted = false;
+        }
+        closeThenOpenRawSensorWorkout(withHeartRate, false);
     }
 
-    private void startRawSensor(final boolean withHeartRate, final boolean rearmRealtime) {
+    private void closeThenOpenRawSensorWorkout(final boolean withHeartRate, final boolean rearmRealtime) {
         saaHeartRateRequested = withHeartRate;
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
         stopKeepalive();
@@ -1183,7 +1220,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
                     LOG.warn("No raw sensor batch for {}ms, restarting the synthetic workout ({}/{})",
                             sinceLastBatch, saaRestartAttempts, SAA_MAX_RESTART_ATTEMPTS);
-                    startRawSensor(saaHeartRateRequested, true);
+                    closeThenOpenRawSensorWorkout(saaHeartRateRequested, true);
                     return;
                 }
 
@@ -1208,15 +1245,22 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             return;
         }
 
-        saaSessionRequested = false;
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
         stopKeepalive();
         stopWorkoutStatsTicker();
         setRealtimeConsumer(RealtimeConsumer.SLEEP_AS_ANDROID, false);
         sendWorkoutStatus(WORKOUT_PAUSED);
         saaRawSensorActive = false;
+        saaGpsRequested = false;
+        workoutStarted = false;
+        stopGps();
 
-        saaWorkoutStatusHandler.postDelayed(() -> sendWorkoutStatus(WORKOUT_FINISHED), SAA_FINISH_DELAY_MS);
+        // The session owns the workout until the close has actually gone out: the band keeps
+        // echoing the status it was given until then.
+        saaWorkoutStatusHandler.postDelayed(() -> {
+            sendWorkoutStatus(WORKOUT_FINISHED);
+            saaSessionRequested = false;
+        }, SAA_FINISH_DELAY_MS);
     }
 
     private void startWorkoutStatsTicker() {
