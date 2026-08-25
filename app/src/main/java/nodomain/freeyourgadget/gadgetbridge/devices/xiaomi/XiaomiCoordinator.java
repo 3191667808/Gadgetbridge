@@ -220,6 +220,11 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public int getAlarmSlotCount(@NonNull final GBDevice device) {
         return getPrefs(device).getInt(XiaomiPreferences.PREF_ALARM_SLOTS, 0);
     }

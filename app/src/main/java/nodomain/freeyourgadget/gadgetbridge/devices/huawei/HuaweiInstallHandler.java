@@ -344,6 +344,11 @@ public class HuaweiInstallHandler implements InstallHandler {
     }
 
     @Override
+    public boolean isApp(@NonNull final GBDevice device) {
+        return helper.isAPP();
+    }
+
+    @Override
     public void onStartInstall(@NonNull GBDevice device) {
         helper.unsetFwBytes();
     }

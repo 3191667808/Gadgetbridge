@@ -245,6 +245,11 @@ public class QHybridCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return isHybridHR(device);
+    }
+
+    @Override
     public boolean supportsCalendarEvents(final GBDevice device) {
         return isHybridHR(device);
     }

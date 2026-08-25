@@ -61,6 +61,36 @@ public class PBWInstallHandler implements InstallHandler {
         mUri = uri;
     }
 
+    @NonNull
+    private PBWReader createReader(@NonNull final GBDevice device) throws IOException {
+        final String platformName = PebbleHardware.getPlatformName(device.getModel());
+        final Integer targetSlot = (Integer) device.getExtraInfo(GBDeviceEventVersionInfo.EXTRA_FW_UPDATE_TARGET_SLOT);
+        return new PBWReader(mUri, mContext, platformName, targetSlot);
+    }
+
+    @Override
+    public boolean isApp(@NonNull final GBDevice device) {
+        final PBWReader reader;
+        try {
+            reader = createReader(device);
+        } catch (final IOException e) {
+            LOG.debug("Failed to open {} as Pebble app", mUri, e);
+            return false;
+        }
+
+        if (!reader.isValid() || reader.isFirmware() || reader.isLanguage()) {
+            return false;
+        }
+
+        final GBDeviceApp app = reader.getGBDeviceApp();
+        if (app == null) {
+            return false;
+        }
+
+        return app.getType() == GBDeviceApp.Type.APP_GENERIC
+                || app.getType() == GBDeviceApp.Type.APP_ACTIVITYTRACKER;
+    }
+
     @Override
     public void validateInstallation(@NonNull InstallActivity installActivity, @NonNull GBDevice device) {
         if (device.isBusy()) {
@@ -74,11 +104,8 @@ public class PBWInstallHandler implements InstallHandler {
             return;
         }
 
-        String platformName = PebbleHardware.getPlatformName(device.getModel());
-        Integer targetSlot = (Integer) device.getExtraInfo(GBDeviceEventVersionInfo.EXTRA_FW_UPDATE_TARGET_SLOT);
-
         try {
-            mPBWReader = new PBWReader(mUri, mContext, platformName, targetSlot);
+            mPBWReader = createReader(device);
         } catch (FileNotFoundException e) {
             installActivity.setInfoText("file not found");
             installActivity.setInstallEnabled(false);

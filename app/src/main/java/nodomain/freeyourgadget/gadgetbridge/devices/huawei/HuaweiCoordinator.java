@@ -290,6 +290,11 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return supportsAppsManagement(device);
+    }
+
+    @Override
     public int getAlarmSlotCount(GBDevice device) {
         return HuaweiDeviceStateManager.get(device).getAlarmSlotCount(device);
     }

@@ -68,6 +68,11 @@ public class FossilHRInstallHandler implements InstallHandler {
     }
 
     @Override
+    public boolean isApp(@NonNull final GBDevice device) {
+        return fossilFile != null && fossilFile.isApp();
+    }
+
+    @Override
     public void validateInstallation(@NonNull InstallActivity installActivity, @NonNull GBDevice device) {
         if (device.isBusy()) {
             installActivity.setInfoText(device.getBusyTask());

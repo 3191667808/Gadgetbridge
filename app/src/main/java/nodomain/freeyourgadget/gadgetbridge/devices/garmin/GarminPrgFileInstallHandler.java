@@ -58,6 +58,11 @@ public class GarminPrgFileInstallHandler implements InstallHandler {
     }
 
     @Override
+    public boolean isApp(@NonNull final GBDevice device) {
+        return prgFile.isValid();
+    }
+
+    @Override
     public void validateInstallation(@NonNull final InstallActivity installActivity, @NonNull final GBDevice device) {
         if (device.isBusy()) {
             installActivity.setInfoText(device.getBusyTask());

@@ -50,6 +50,7 @@ import java.util.Stack;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.AppInstallReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothPairingRequestReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CMWeatherReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CalendarReceiver;
@@ -199,6 +200,11 @@ class DeviceReceiversManager {
         final IntentApiReceiver intentApiReceiver = new IntentApiReceiver();
         ContextCompat.registerReceiver(service, intentApiReceiver, intentApiReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);
         globalReceivers.add(intentApiReceiver);
+
+        final AppInstallReceiver appInstallReceiver = new AppInstallReceiver();
+        ContextCompat.registerReceiver(service, appInstallReceiver, appInstallReceiver.buildFilter(), ContextCompat.RECEIVER_EXPORTED);
+        globalReceivers.add(appInstallReceiver);
+        AppInstallReceiver.scheduleCacheCleanup(service);
 
         mKeyMissingReceiver = new KeyMissingReceiver();
         ContextCompat.registerReceiver(service, mKeyMissingReceiver, new IntentFilter(KeyMissingReceiver.ACTION_KEY_MISSING), ContextCompat.RECEIVER_EXPORTED);

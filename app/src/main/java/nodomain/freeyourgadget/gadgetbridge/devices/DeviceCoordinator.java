@@ -551,6 +551,11 @@ public interface DeviceCoordinator {
     boolean supportsFlashing(@NonNull final GBDevice device);
 
     /**
+     * Returns true if this device/coordinator supports installing application files.
+     */
+    boolean supportsAppInstallation(@NonNull final GBDevice device);
+
+    /**
      * Finds an {@link InstallHandler} for the given {@link Uri} that can install the given
      * uri on the device being managed.
      * @return the {@link InstallHandler} or {@code null} if the {@link Uri} cannot be installed

@@ -276,6 +276,11 @@ public abstract class ZeppOsCoordinator extends HuamiCoordinator {
     }
 
     @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public Class<? extends Activity> getAppsManagementActivity(final GBDevice device) {
         return AppManagerActivity.class;
     }

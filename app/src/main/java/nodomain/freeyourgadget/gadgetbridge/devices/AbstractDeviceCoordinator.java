@@ -543,6 +543,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         return false;
     }
 
+    @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return false;
+    }
+
     @Nullable
     @Override
     public InstallHandler findInstallHandler(final Uri uri, final Bundle options, final Context context) {

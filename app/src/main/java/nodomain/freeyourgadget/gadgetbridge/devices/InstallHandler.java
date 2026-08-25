@@ -39,6 +39,16 @@ public interface InstallHandler {
     boolean isValid();
 
     /**
+     * Returns true if the element handled by this instance is an application.
+     *
+     * The default is deliberately false so that new install handlers cannot be
+     * used for unattended installs until they explicitly opt in.
+     */
+    default boolean isApp(@NonNull GBDevice device) {
+        return false;
+    }
+
+    /**
      * Checks whether the installation of the 'element' on the device is possible
      * and configures the InstallActivity accordingly (sets helpful texts,
      * enables/disables the "Install" button, etc.)

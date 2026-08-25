@@ -450,6 +450,12 @@ public abstract class GarminCoordinator extends AbstractBLEDeviceCoordinator {
         return true;
     }
 
+    @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return supports(device, GarminCapability.CONNECTIQ_APP_MANAGEMENT)
+                || GBApplication.getDevicePrefs(device).installUnsupportedFiles();
+    }
+
     @Nullable
     @Override
     public InstallHandler findInstallHandler(Uri uri, Bundle options, Context context) {

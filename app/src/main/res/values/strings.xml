@@ -1177,6 +1177,8 @@
     <string name="pref_summary_third_party_app_device_settings">Allow other installed 3rd party apps to set device settings through intents.</string>
     <string name="pref_title_third_party_app_device_alarms">Allow 3rd party apps to set alarms</string>
     <string name="pref_summary_third_party_app_device_alarms">Allow other installed 3rd party apps to set device alarms through intents.</string>
+    <string name="pref_title_third_party_app_installation">Allow 3rd party apps to install apps</string>
+    <string name="pref_summary_third_party_app_installation">Allow other installed 3rd party apps to install apps on this device through intents without confirmation.</string>
     <string name="live_activity_steps_history">Steps history</string>
     <string name="live_activity_current_steps_per_minute">Current steps/min</string>
     <string name="live_activity_total_steps">Total steps</string>

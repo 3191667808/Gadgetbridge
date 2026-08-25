@@ -110,6 +110,11 @@ public class PebbleCoordinator extends AbstractBLClassicDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsAppInstallation(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
     public boolean supportsActivityTracking(@NonNull GBDevice device) {
         return true;
     }

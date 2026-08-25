@@ -75,6 +75,11 @@ public class ZeppOsFwInstallHandler implements InstallHandler {
     }
 
     @Override
+    public boolean isApp(@NonNull final GBDevice device) {
+        return mHelper.isValid() && mHelper.getFirmwareType().isApp();
+    }
+
+    @Override
     public void validateInstallation(@NonNull InstallActivity installActivity, @NonNull GBDevice device) {
         if (device.isBusy()) {
             installActivity.setInfoText(device.getBusyTask());
