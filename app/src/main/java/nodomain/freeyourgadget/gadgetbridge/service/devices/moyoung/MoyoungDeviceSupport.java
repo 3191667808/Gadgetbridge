@@ -1509,6 +1509,7 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             } else {
                 calories = buffer.getShort();
                 avgHR = buffer.get();
+                buffer.get(); // 0?
                 maxSpeed = buffer.getFloat();
             }
             LOG.info("Training data: start={} end={} totalTimeWithoutPause={} num={} type={} steps={} avgHR={} distance={} calories={} maxSpeed={}", startTime, endTime, validTime, num, type, steps, avgHR, distance, calories, maxSpeed);
