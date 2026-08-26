@@ -114,6 +114,19 @@ public class PendingSleepAsAndroidActionTest extends TestBase {
     }
 
     @Test
+    public void holdStopsBlockingOnceItExpires() {
+        // The connect is skipped while a request is held, so a hold that outlived its window must
+        // not keep an unreachable wearable from being tried again.
+        pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS);
+        Assert.assertTrue(pending.isPending());
+
+        advance(PendingSleepAsAndroidAction.TIMEOUT_MS + 1_000);
+
+        Assert.assertFalse(pending.isPending());
+        Assert.assertTrue(pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS));
+    }
+
+    @Test
     public void timeoutFitsInsideTheWindowSleepAsAndroidWaits() {
         // Sleep as Android waits about 120 s before falling back to phone sensors, so the held
         // request has to expire before that rather than after.

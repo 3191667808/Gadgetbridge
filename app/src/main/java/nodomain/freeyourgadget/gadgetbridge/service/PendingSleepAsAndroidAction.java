@@ -86,7 +86,10 @@ public class PendingSleepAsAndroidAction {
         deadline = 0;
     }
 
+    /**
+     * @return true while an action is held and still worth replaying
+     */
     public boolean isPending() {
-        return intent != null;
+        return intent != null && SystemClock.elapsedRealtime() <= deadline;
     }
 }

@@ -852,15 +852,26 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
 
     /**
      * Sleep as Android starts tracking whether or not the wearable happens to be connected, so a
-     * disconnected provider is connected on demand. Only START_TRACKING is held across the
-     * connect: CHECK_CONNECTED is repeated by Sleep as Android every few seconds, and the other
-     * actions are meaningless without an active session.
+     * disconnected provider is connected on demand. Only START_TRACKING is worth that: it is the
+     * one action a session cannot begin without, CHECK_CONNECTED is repeated every few seconds,
+     * and the rest are meaningless without an active session. The connect is driven by the held
+     * action, so an unreachable wearable is tried once per hold window rather than once per
+     * action Sleep as Android sends.
      */
     private void connectForSleepAsAndroid(final Intent intent, final GBDevice device) {
-        final boolean held = pendingSleepAsAndroidAction.store(intent, device.getAddress());
+        final String saaAction = intent.getStringExtra(EXTRA_SLEEP_AS_ANDROID_ACTION);
 
-        LOG.info("Connecting to {} for Sleep as Android action {}, replayed once connected: {}",
-                device.getAliasOrName(), intent.getStringExtra(EXTRA_SLEEP_AS_ANDROID_ACTION), held);
+        if (pendingSleepAsAndroidAction.isPending()) {
+            LOG.debug("Dropping Sleep as Android action {}, a connect is already in flight", saaAction);
+            return;
+        }
+
+        if (!pendingSleepAsAndroidAction.store(intent, device.getAddress())) {
+            LOG.debug("Dropping Sleep as Android action {}, {} is not connected", saaAction, device.getAliasOrName());
+            return;
+        }
+
+        LOG.info("Connecting to {} to replay Sleep as Android action {}", device.getAliasOrName(), saaAction);
         connectToDevice(device, false);
     }
 
