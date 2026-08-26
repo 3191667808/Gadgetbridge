@@ -6,7 +6,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Bundle;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
@@ -124,6 +127,7 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
         }
     }
 
+    @NonNull
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
         LocalBroadcastManager broadcastManager = LocalBroadcastManager.getInstance(getContext());
@@ -170,7 +174,7 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable final Bundle options) {
         cardoBLEProfile.tuneFrequency(9150);
     }
 
