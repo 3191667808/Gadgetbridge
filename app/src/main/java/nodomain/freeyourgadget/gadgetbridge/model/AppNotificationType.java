@@ -71,11 +71,11 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
 
         // Generic Calendar
         put("com.android.calendar", NotificationType.GENERIC_CALENDAR);
-        put("com.samsung.android.calendar", NotificationType.GENERIC_EMAIL);
-        put("com.xiaomi.calendar", NotificationType.GENERIC_EMAIL);
+        put("com.samsung.android.calendar", NotificationType.GENERIC_CALENDAR);
+        put("com.xiaomi.calendar", NotificationType.GENERIC_CALENDAR);
         put("org.fossify.calendar", NotificationType.GENERIC_CALENDAR);
         put("mikado.bizcalpro", NotificationType.BUSINESS_CALENDAR);
-        
+
         // Google
         put("com.google.android.gm", NotificationType.GMAIL);
         put("com.google.android.apps.inbox", NotificationType.GOOGLE_INBOX);

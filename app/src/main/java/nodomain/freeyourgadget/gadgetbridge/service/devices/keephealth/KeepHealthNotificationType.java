@@ -26,7 +26,6 @@ public enum KeepHealthNotificationType {
     DOUYIN((byte) 0x20), // TikTok
     KUAISHOU((byte) 0x21), // Kwai Video
     DOUYIN_JISUBAN((byte) 0x22), // TikTok Lite
-    AMAZON((byte) 0x23),
     HALUO((byte) 0x23),
     XIAOHONGSHU((byte) 0x24), // Rednote
     MEITUAN((byte) 0x25),
@@ -101,6 +100,10 @@ public enum KeepHealthNotificationType {
             case VENDOR_KEEP_HEALTH:
                 return KeepHealthNotificationType.KEEP_HEALTH;
 
+            case GENERIC_CALENDAR:
+            case GOOGLE_CALENDAR:
+            case BUSINESS_CALENDAR:
+                return KeepHealthNotificationType.CALENDAR;
             case GENERIC_SMS:
                 return KeepHealthNotificationType.SMS;
             case CONVERSATIONS:
@@ -119,8 +122,6 @@ public enum KeepHealthNotificationType {
             case YAHOO_MAIL:
             case OUTLOOK:
                 return KeepHealthNotificationType.EMAIL;
-            case AMAZON:
-                return KeepHealthNotificationType.AMAZON;
             case FACEBOOK:
                 return KeepHealthNotificationType.FACEBOOK;
             case FACEBOOK_MESSENGER:
