@@ -113,8 +113,10 @@ public class SoundcoreSportX20DeviceSupport extends AbstractHeadphoneSerialDevic
                     mDeviceProtocol.broadcastMultipointPairing(enabled);
                     break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE:
+                    connectDevice(intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS), true);
+                    break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE:
-                    LOG.warn("Connect/disconnect of individual paired devices is not supported by the Sport X20");
+                    connectDevice(intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS), false);
                     break;
                 default:
                     LOG.warn("Unknown multipoint action {}", action);
@@ -133,6 +135,31 @@ public class SoundcoreSportX20DeviceSupport extends AbstractHeadphoneSerialDevic
                 .apply();
         sendToDevice(mDeviceProtocol.encodeDualConnection(enabled));
         mDeviceProtocol.broadcastMultipointStatus(enabled);
+    }
+
+    private void connectDevice(final String address, final boolean connect) {
+        if (address == null) {
+            return;
+        }
+        sendToDevice(connect
+                ? mDeviceProtocol.encodeConnectDevice(address)
+                : mDeviceProtocol.encodeDisconnectDevice(address));
+        // Refresh the connection/active-audio status and the paired-device list afterwards.
+        sendToDevice(mDeviceProtocol.encodeConnectionStatusRequest());
+        sendToDevice(mDeviceProtocol.encodePairedDevicesRequest());
+    }
+
+    /**
+     * Forgets/unpairs a paired device. Placeholder: the MultipointPairingActivity does not yet
+     * expose a "forget device" action, but the command is implemented here for future use.
+     */
+    private void forgetDevice(final String address) {
+        if (address == null) {
+            return;
+        }
+        sendToDevice(mDeviceProtocol.encodeForgetDevice(address));
+        // Refresh the paired-device list afterwards.
+        sendToDevice(mDeviceProtocol.encodePairedDevicesRequest());
     }
 
     private void sendToDevice(final byte[] bytes) {

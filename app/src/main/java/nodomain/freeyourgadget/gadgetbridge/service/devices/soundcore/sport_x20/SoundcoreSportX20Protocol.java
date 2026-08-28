@@ -41,6 +41,10 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     private static final short CMD_NOTIFY_PAIRED_DEVICES = (short) 0x010b;
     private static final short CMD_NOTIFY_CONNECTION_STATUS = (short) 0x020b;
     private static final short CMD_NOTIFY_DEVICE_STATE = (short) 0x0910;
+    // Connect/disconnect a specific paired device; payload = 6-byte address (little-endian)
+    private static final short CMD_DISCONNECT_DEVICE = (short) 0x810b;
+    private static final short CMD_CONNECT_DEVICE = (short) 0x820b;
+    private static final short CMD_FORGET_DEVICE = (short) 0x830b;
 
     // Offsets within CMD_GET_DEVICE_INFO payload for the equalizer preset and band values.
     // [38]    = preset ID (0x00–0x15 = named preset, 0xfe = custom)
@@ -152,6 +156,15 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
         }
 
         if (packet != null && packet.getCommand() == CMD_NOTIFY_CONNECTION_STATUS) {
+            // Active audio source. Payload layout (7 bytes):
+            //   [0]    = active flag: 0x01 = some device is currently playing audio, 0x00 = none
+            //   [1..6] = 6-byte Bluetooth address (little-endian) of the device playing audio,
+            //            all zero when nothing is playing.
+            // The address matches one of the entries reported by CMD_NOTIFY_PAIRED_DEVICES (0x010b),
+            // so it can be used to flag which paired device is the active audio source.
+            // Examples (payload):
+            //   00 00 00 00 00 00 00                -> nothing playing
+            //   01 F1 F2 F3 F4 F5 F6                -> F6:F5:F4:F3:F2:F1 is playing
             LOG.debug("Connection status notification, {} bytes", packet.getPayload().length);
             return new GBDeviceEvent[0];
         }
@@ -339,6 +352,39 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
     /** Puts the device into pairing mode so a new device can be paired. */
     public byte[] encodeStartPairing() {
         return encodePairingMode();
+    }
+
+    /** Connects the device to the given paired device (address as "AA:BB:CC:DD:EE:FF"). */
+    public byte[] encodeConnectDevice(final String address) {
+        return encodeCommand(CMD_CONNECT_DEVICE, addressToLittleEndian(address));
+    }
+
+    /** Disconnects the device from the given paired device (address as "AA:BB:CC:DD:EE:FF"). */
+    public byte[] encodeDisconnectDevice(final String address) {
+        return encodeCommand(CMD_DISCONNECT_DEVICE, addressToLittleEndian(address));
+    }
+
+    /** Forgets/unpairs the given paired device (address as "AA:BB:CC:DD:EE:FF"). */
+    public byte[] encodeForgetDevice(final String address) {
+        return encodeCommand(CMD_FORGET_DEVICE, addressToLittleEndian(address));
+    }
+
+    /** Requests the current connection/active-audio status from the device. */
+    public byte[] encodeConnectionStatusRequest() {
+        return encodeRequest(CMD_NOTIFY_CONNECTION_STATUS);
+    }
+
+    /**
+     * Converts a Bluetooth address string ("AA:BB:CC:DD:EE:FF") into the 6-byte little-endian
+     * representation used by the device (the same byte order as reported in the paired-device list).
+     */
+    private static byte[] addressToLittleEndian(final String address) {
+        final String[] parts = address.split(":");
+        final byte[] mac = new byte[6];
+        for (int i = 0; i < 6 && i < parts.length; i++) {
+            mac[5 - i] = (byte) Integer.parseInt(parts[i], 16);
+        }
+        return mac;
     }
 
     void broadcastMultipointStatus(final boolean enabled) {
