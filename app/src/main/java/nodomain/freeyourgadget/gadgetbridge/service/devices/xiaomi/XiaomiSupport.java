@@ -216,7 +216,7 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
     }
 
     public void handleCommandBytes(final byte[] plainValue) {
-        LOG.debug("Got command: {}", GB.hexdump(plainValue));
+        LOG.debug("Got command: {}", GB.lazyHexdump(plainValue));
 
         final XiaomiProto.Command cmd;
         try {

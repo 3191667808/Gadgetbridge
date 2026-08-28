@@ -277,7 +277,7 @@ public class ProtocolBufferHandler implements MessageHandler {
 
             if (chunkedFragmentsMap.containsKey(statusMessage.getRequestId())) {
                 final ProtobufFragment protobufFragment = chunkedFragmentsMap.get(statusMessage.getRequestId());
-                LOG.debug("Protobuf message #{} found in queue: {}", statusMessage.getRequestId(), GB.hexdump(protobufFragment.fragmentBytes));
+                LOG.debug("Protobuf message #{} found in queue: {}", statusMessage.getRequestId(), GB.lazyHexdump(protobufFragment.fragmentBytes));
 
                 if (protobufFragment.totalLength <= (statusMessage.getDataOffset() + maxChunkSize)) {
                     chunkedFragmentsMap.remove(statusMessage.getRequestId());
