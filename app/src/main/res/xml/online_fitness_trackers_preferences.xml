@@ -30,6 +30,14 @@
             android:icon="@drawable/ic_file_upload"
             android:title="@string/pref_endurain_auto_upload_title"
             android:summary="@string/pref_endurain_auto_upload_summary" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="endurain_auto_upload_enabled"
+            android:key="endurain_replace_on_track_change"
+            android:layout="@layout/preference_checkbox"
+            android:icon="@drawable/ic_warning"
+            android:title="@string/pref_endurain_replace_on_track_change_title"
+            android:summary="@string/pref_endurain_replace_on_track_change_summary" />
     </PreferenceCategory>
     <PreferenceCategory
         android:title="@string/pref_category_wanderer">

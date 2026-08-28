@@ -126,7 +126,9 @@ class WorkoutUploadWorker(
                         return finish(context, failures, Result.retry())
                     }
                     rebuildBudget--
-                    resync(context, gbDevice, provider, target, summary, row, sourceHash)
+                    resync(context, gbDevice, provider, target, summary, row, sourceHash)?.let {
+                        failures[target] = it
+                    }
                 }
             }
         }
@@ -176,14 +178,55 @@ class WorkoutUploadWorker(
         summary: BaseActivitySummary,
         row: WorkoutUpload,
         sourceHash: String
-    ) {
-        val id = summary.id ?: return
-        val remoteId = row.remoteActivityId ?: return
+    ): String? {
+        val id = summary.id ?: return null
+        var remoteId = row.remoteActivityId ?: return null
         var photoHash = row.photoHash
         var photoMediaId = row.photoMediaId
+        var payloadHash = row.payloadHash
+        var hadTrack = row.hadTrack
+        var refusal: String? = null
+
+        // The track goes first: a service that can only update one by re-creating the activity
+        // gives back a new activity id, and the photo and metadata belong on the replacement.
+        var recreated = false
+        val payload = buildPayload(context, gbDevice, provider, target, summary)
+        val newPayloadHash = payload?.let { WorkoutUploadStore.fileHashOf(it) }
+        if (payload != null && newPayloadHash != row.payloadHash) {
+            val update = target.updateTrack(context, remoteId, payload, summary, row)
+            when {
+                update.success -> {
+                    payloadHash = newPayloadHash
+                    hadTrack = WorkoutUploader.summaryHasTrack(summary)
+                    update.newRemoteActivityId?.let {
+                        remoteId = it
+                        recreated = true
+                        // The replacement was uploaded from the current workout, so it already
+                        // carries the current photo.
+                        photoMediaId = update.newPhotoMediaId
+                        photoHash = WorkoutUploadStore.photoHashOf(summary.headerPhoto)
+                    }
+                }
+
+                // Nothing this service can do about a changed track. Only the metadata and the
+                // photo can move, so the recorded payload stays what was uploaded.
+                update.unsupported -> Unit
+
+                else -> {
+                    LOG.warn("Track update to service {} failed for summary {}", target.service, id)
+                    refusal = update.refusal
+                    if (refusal == null) {
+                        // A transient failure: keep the old fingerprints so the next run retries.
+                        return null
+                    }
+                    // A deliberate refusal will not resolve itself, so the fingerprints advance
+                    // and the user is told once rather than on every sync.
+                }
+            }
+        }
 
         val newPhotoHash = WorkoutUploadStore.photoHashOf(summary.headerPhoto)
-        if (newPhotoHash != row.photoHash) {
+        if (!recreated && newPhotoHash != row.photoHash) {
             val sync = target.syncPhoto(
                 context, remoteId, summary.headerPhoto?.let { File(it) }, row.photoMediaId
             )
@@ -193,38 +236,21 @@ class WorkoutUploadWorker(
                     photoHash = newPhotoHash
                     photoMediaId = sync.mediaId
                 }
+
                 else -> LOG.warn("Photo sync to service {} failed for summary {}", target.service, id)
             }
         }
 
-        target.updateMetadata(context, remoteId, summary)
-
-        var payloadHash = row.payloadHash
-        var hadTrack = row.hadTrack
-        val payload = buildPayload(context, gbDevice, provider, target, summary)
-        val newPayloadHash = payload?.let { WorkoutUploadStore.fileHashOf(it) }
-        if (payload != null && newPayloadHash != row.payloadHash) {
-            when (target.replaceTrack(context, remoteId, payload, summary)) {
-                true -> {
-                    payloadHash = newPayloadHash
-                    hadTrack = WorkoutUploader.summaryHasTrack(summary)
-                }
-
-                false -> {
-                    LOG.warn("Track update to service {} failed for summary {}", target.service, id)
-                    return  // keep the old fingerprints so the next run tries again
-                }
-
-                // The service cannot replace the track of an existing activity. Only the metadata
-                // and the photo have moved, so the recorded payload stays what was uploaded.
-                null -> Unit
-            }
+        if (!recreated) {
+            // A replacement activity is created with the right name and type already.
+            target.updateMetadata(context, remoteId, summary)
         }
 
         WorkoutUploadStore.recordSuccess(
             id, target.service, remoteId, photoHash, photoMediaId,
             sourceHash, payloadHash, hadTrack
         )
+        return refusal
     }
 
     /**

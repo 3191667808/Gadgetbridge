@@ -17,14 +17,33 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.workouts
 
 import android.content.Context
+import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainTokenManager
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererTokenManager
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
+import nodomain.freeyourgadget.gadgetbridge.entities.WorkoutUpload
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import java.io.File
 
 /** File format a service accepts when an activity is uploaded. */
 enum class WorkoutPayloadFormat { FIT, GPX }
+
+/**
+ * Outcome of bringing the track of an already-uploaded activity in line with the local workout.
+ *
+ * [newRemoteActivityId] and [newPhotoMediaId] are set when the service could only do this by
+ * re-creating the activity, so the caller stores the new ids. [unsupported] means the service
+ * offers no way to do it at all and there is nothing to retry. [refusal] is a localized reason
+ * the update was deliberately not attempted, to show the user.
+ */
+data class TrackUpdateResult(
+    val success: Boolean,
+    val newRemoteActivityId: String? = null,
+    val newPhotoMediaId: Int? = null,
+    val refusal: String? = null,
+    val unsupported: Boolean = false
+)
 
 /**
  * One online fitness tracker, described by what it accepts and by what it can still change on an
@@ -44,6 +63,9 @@ interface WorkoutUploadTarget {
     /** Whether a workout with no GPS track can be uploaded at all. */
     val requiresTrack: Boolean
 
+    /** Notification id used to report a failure, so services do not overwrite each other. */
+    val failureNotificationId: Int
+
     /** Whether the user has finished setting this service up. */
     fun isLoggedIn(context: Context): Boolean
 
@@ -52,9 +74,6 @@ interface WorkoutUploadTarget {
 
     /** Localized "upload to this service failed: %s" message. */
     fun failureMessage(context: Context, reason: String): String
-
-    /** Notification id used to report a failure, so services do not overwrite each other. */
-    val failureNotificationId: Int
 
     fun upload(
         context: Context,
@@ -70,16 +89,17 @@ interface WorkoutUploadTarget {
     ): Boolean
 
     /**
-     * Replaces the track of an existing remote activity, or null when the service has no endpoint
-     * for it. A null result means the only way to push a changed track is to re-create the
-     * activity, which the caller decides about separately since it is destructive.
+     * Makes the track of the remote activity match [payload]. [row] is what was last uploaded, so
+     * a service that has to re-create the activity can tell a track being added from one merely
+     * changing, and can weigh that against how destructive re-creating is.
      */
-    fun replaceTrack(
+    fun updateTrack(
         context: Context,
         remoteActivityId: String,
         payload: File,
-        summary: BaseActivitySummary
-    ): Boolean?
+        summary: BaseActivitySummary,
+        row: WorkoutUpload
+    ): TrackUpdateResult
 
     /**
      * Brings the header photo of an existing remote activity in line with the local workout, or
@@ -117,7 +137,7 @@ object EndurainUploadTarget : WorkoutUploadTarget {
         prefs.getBoolean(GBPrefs.ENDURAIN_AUTO_UPLOAD_ENABLED, false)
 
     override fun failureMessage(context: Context, reason: String): String =
-        context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.auto_upload_failed_endurain, reason)
+        context.getString(R.string.auto_upload_failed_endurain, reason)
 
     override fun upload(context: Context, summary: BaseActivitySummary, payload: File) =
         WorkoutUploader.uploadToEndurainBlocking(context, summary, payload)
@@ -125,13 +145,49 @@ object EndurainUploadTarget : WorkoutUploadTarget {
     override fun updateMetadata(context: Context, remoteActivityId: String, summary: BaseActivitySummary) =
         WorkoutUploader.updateEndurainMetadataBlocking(context, remoteActivityId, summary)
 
-    // Endurain's API can edit an activity's metadata but never its track.
-    override fun replaceTrack(
+    /**
+     * Endurain can edit an activity's metadata but never its track, so the only way to push a
+     * changed track is to delete the activity and upload it again under a new id.
+     *
+     * That is allowed unconditionally only when it is purely additive: the activity was uploaded
+     * without a track and now has one, which is the case of a workout synced from a watch that
+     * records none, with a GPX attached afterwards. Any other change re-creates an activity the
+     * user may have been looking at for a while, so it needs their explicit consent.
+     */
+    override fun updateTrack(
         context: Context,
         remoteActivityId: String,
         payload: File,
-        summary: BaseActivitySummary
-    ): Boolean? = null
+        summary: BaseActivitySummary,
+        row: WorkoutUpload
+    ): TrackUpdateResult {
+        val trackAdded = row.hadTrack != true && WorkoutUploader.summaryHasTrack(summary)
+        val allowed = trackAdded || GBApplication.getPrefs()
+            .getBoolean(GBPrefs.ENDURAIN_REPLACE_ON_TRACK_CHANGE, false)
+        if (!allowed) {
+            return TrackUpdateResult(success = false, unsupported = true)
+        }
+
+        val (result, refusal) = WorkoutUploader.recreateEndurainActivityBlocking(
+            context, summary, remoteActivityId, payload
+        )
+        if (result != null) {
+            return TrackUpdateResult(
+                success = true,
+                newRemoteActivityId = result.remoteActivityId,
+                newPhotoMediaId = result.photoMediaId
+            )
+        }
+        return TrackUpdateResult(
+            success = false,
+            refusal = when (refusal) {
+                WorkoutUploader.RecreateRefusal.REMOTE_EDITED ->
+                    context.getString(R.string.auto_upload_endurain_remote_edited)
+
+                else -> null
+            }
+        )
+    }
 
     override fun syncPhoto(
         context: Context,
@@ -156,7 +212,7 @@ object WandererUploadTarget : WorkoutUploadTarget {
         prefs.getBoolean(GBPrefs.WANDERER_AUTO_UPLOAD_ENABLED, false)
 
     override fun failureMessage(context: Context, reason: String): String =
-        context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.auto_upload_failed_wanderer, reason)
+        context.getString(R.string.auto_upload_failed_wanderer, reason)
 
     override fun upload(context: Context, summary: BaseActivitySummary, payload: File) =
         WorkoutUploader.uploadToWandererBlocking(context, payload)
@@ -164,12 +220,16 @@ object WandererUploadTarget : WorkoutUploadTarget {
     // Wanderer infers a trail's name and type from the uploaded file.
     override fun updateMetadata(context: Context, remoteActivityId: String, summary: BaseActivitySummary) = true
 
-    override fun replaceTrack(
+    // Wanderer replaces the track on the existing trail, so the id and the user's edits survive.
+    override fun updateTrack(
         context: Context,
         remoteActivityId: String,
         payload: File,
-        summary: BaseActivitySummary
-    ): Boolean = WorkoutUploader.updateWandererTrackBlocking(context, remoteActivityId, payload, summary)
+        summary: BaseActivitySummary,
+        row: WorkoutUpload
+    ) = TrackUpdateResult(
+        success = WorkoutUploader.updateWandererTrackBlocking(context, remoteActivityId, payload, summary)
+    )
 
     override fun syncPhoto(
         context: Context,

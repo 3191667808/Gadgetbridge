@@ -5469,6 +5469,9 @@
     <string name="auto_upload_timed_out">Upload timed out</string>
     <string name="auto_upload_failed_endurain">Endurain upload failed: %1$s</string>
     <string name="auto_upload_failed_wanderer">Wanderer upload failed: %1$s</string>
+    <string name="auto_upload_endurain_remote_edited">The workout changed, but the activity on Endurain was edited there and was left untouched</string>
+    <string name="pref_endurain_replace_on_track_change_title">Replace workouts when the track changes</string>
+    <string name="pref_endurain_replace_on_track_change_summary">Endurain cannot change the track of an existing activity, so it is deleted and uploaded again. The activity gets a new address and loses its comments. A track added to a workout that had none is always uploaded, with or without this setting.</string>
 
     <!-- Workout summary section headers -->
     <string name="goals">Goals</string>

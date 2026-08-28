@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.activities.workouts
 import android.content.Context
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainActivityLookup
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainApiClient
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainTokenManager
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererApiClient
@@ -329,6 +330,76 @@ object WorkoutUploader {
         data.getNumber(ActivitySummaryEntries.ELEVATION_LOSS, null)
             ?.let { stats["elevation_loss"] = it.toString() }
         return stats
+    }
+
+    /**
+     * Why a re-create was not carried out, for the message shown to the user. Null means it was.
+     */
+    enum class RecreateRefusal { REMOTE_EDITED, FAILED }
+
+    /**
+     * Re-creates the Endurain activity [remoteActivityId] from [fitFile], because Endurain can
+     * only change an activity's track by replacing the activity itself.
+     *
+     * Refuses when the remote activity carries anything the user wrote there (a description,
+     * private notes or a gear assignment), since re-creating would destroy it. Whatever the API
+     * does let us carry over is read first and restored afterwards, but the activity id changes
+     * and anything attached to it socially, such as comments, does not survive.
+     *
+     * Blocking; call off the main thread. Returns the new [UploadResult] on success, or a
+     * [RecreateRefusal] describing why nothing was done.
+     */
+    fun recreateEndurainActivityBlocking(
+        context: Context,
+        summary: BaseActivitySummary,
+        remoteActivityId: String,
+        fitFile: File
+    ): Pair<UploadResult?, RecreateRefusal?> {
+        val activityId = remoteActivityId.toIntOrNull()
+            ?: return null to RecreateRefusal.FAILED
+        val serverUrl = GBApplication.getPrefs().preferences.getString(PREF_ENDURAIN_SERVER, null)
+            ?: return null to RecreateRefusal.FAILED
+        val tokenManager = EndurainTokenManager(context)
+        val apiClient = EndurainApiClient(serverUrl, tokenManager)
+
+        val details = when (val lookup = apiClient.getActivityDetails(activityId)) {
+            is EndurainActivityLookup.Failed -> return null to RecreateRefusal.FAILED
+
+            // Deleted on the server since we uploaded it. Nothing to preserve and nothing to
+            // delete, so this becomes a plain upload that adopts a new id.
+            is EndurainActivityLookup.Gone -> null
+
+            is EndurainActivityLookup.Found -> {
+                if (lookup.details.hasUserContent) {
+                    LOG.info("Not re-creating Endurain activity {}, it carries user edits", activityId)
+                    return null to RecreateRefusal.REMOTE_EDITED
+                }
+                val media = apiClient.listActivityMedia(activityId)
+                    ?: return null to RecreateRefusal.FAILED
+                if (media.size > 1) {
+                    LOG.info("Not re-creating Endurain activity {}, it carries extra media", activityId)
+                    return null to RecreateRefusal.REMOTE_EDITED
+                }
+                if (!apiClient.deleteActivity(activityId)) {
+                    return null to RecreateRefusal.FAILED
+                }
+                lookup.details
+            }
+        }
+
+        val result = uploadToEndurainBlocking(context, summary, fitFile)
+        if (!result.success || result.remoteActivityId == null) {
+            LOG.error("Re-upload of summary {} failed after its activity was deleted", summary.id)
+            return null to RecreateRefusal.FAILED
+        }
+        if (details != null) {
+            result.remoteActivityId.toIntOrNull()?.let {
+                apiClient.restoreActivityDetails(
+                    it, ActivityKind.fromCode(summary.activityKind), nameFor(context, summary), details
+                )
+            }
+        }
+        return result to null
     }
 
     /**
