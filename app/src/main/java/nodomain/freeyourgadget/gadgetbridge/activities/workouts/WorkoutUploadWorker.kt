@@ -155,10 +155,15 @@ class WorkoutUploadWorker(
             LOG.warn("Auto-upload of summary {} to service {} failed: {}", id, target.service, result.reason)
             return result.reason
         }
+        // A photo the service did not take leaves both fingerprints unset, so the next run comes
+        // back for it rather than treating the workout as fully in step.
+        val photoLanded = summary.headerPhoto == null || result.photoMediaId != null
         WorkoutUploadStore.recordSuccess(
             id, target.service, result.remoteActivityId,
-            WorkoutUploadStore.photoHashOf(summary.headerPhoto), result.photoMediaId,
-            sourceHash, WorkoutUploadStore.fileHashOf(payload),
+            if (photoLanded) WorkoutUploadStore.photoHashOf(summary.headerPhoto) else null,
+            result.photoMediaId,
+            if (photoLanded) sourceHash else null,
+            WorkoutUploadStore.fileHashOf(payload),
             WorkoutUploader.summaryHasTrack(summary)
         )
         return null
@@ -186,6 +191,9 @@ class WorkoutUploadWorker(
         var payloadHash = row.payloadHash
         var hadTrack = row.hadTrack
         var refusal: String? = null
+        // Set when something the service could have taken did not get through, so the fingerprint
+        // is left as it was and the next run comes back to it.
+        var pending = false
 
         // The track goes first: a service that can only update one by re-creating the activity
         // gives back a new activity id, and the photo and metadata belong on the replacement.
@@ -203,10 +211,11 @@ class WorkoutUploadWorker(
                         recreated = true
                         photoMediaId = update.newPhotoMediaId
                         // The replacement is uploaded from the current workout, so it carries the
-                        // current photo, but only once the media id comes back. Without one the
-                        // old fingerprint stays, leaving the next run to attach the photo.
+                        // current photo, but only once the media id comes back.
                         if (summary.headerPhoto == null || update.newPhotoMediaId != null) {
                             photoHash = WorkoutUploadStore.photoHashOf(summary.headerPhoto)
+                        } else {
+                            pending = true
                         }
                     }
                 }
@@ -240,7 +249,10 @@ class WorkoutUploadWorker(
                     photoMediaId = sync.mediaId
                 }
 
-                else -> LOG.warn("Photo sync to service {} failed for summary {}", target.service, id)
+                else -> {
+                    LOG.warn("Photo sync to service {} failed for summary {}", target.service, id)
+                    pending = true
+                }
             }
         }
 
@@ -251,7 +263,7 @@ class WorkoutUploadWorker(
 
         WorkoutUploadStore.recordSuccess(
             id, target.service, remoteId, photoHash, photoMediaId,
-            sourceHash, payloadHash, hadTrack
+            if (pending) row.sourceHash else sourceHash, payloadHash, hadTrack
         )
         return refusal
     }

@@ -870,11 +870,19 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             WorkoutUploader.uploadToEndurain(requireContext(), workout.summary, activityFile) { result ->
                 val summaryId = workout.summary.id
                 if (result.success && summaryId != null) {
+                    // See WorkoutUploadWorker: a photo the service did not take leaves both
+                    // fingerprints unset so the next sync comes back for it.
+                    val photoLanded =
+                        workout.summary.headerPhoto == null || result.photoMediaId != null
                     WorkoutUploadStore.recordSuccess(
                         summaryId, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId,
-                        WorkoutUploadStore.photoHashOf(workout.summary.headerPhoto),
+                        if (photoLanded) {
+                            WorkoutUploadStore.photoHashOf(workout.summary.headerPhoto)
+                        } else {
+                            null
+                        },
                         result.photoMediaId,
-                        WorkoutUploadStore.sourceHashOf(workout.summary),
+                        if (photoLanded) WorkoutUploadStore.sourceHashOf(workout.summary) else null,
                         WorkoutUploadStore.fileHashOf(activityFile),
                         WorkoutUploader.summaryHasTrack(workout.summary)
                     )
