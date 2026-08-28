@@ -465,10 +465,6 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
                 final boolean surround3d = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_3D_SURROUND, false);
                 return encodeBooleanCommand(CMD_SET_3D_SURROUND, surround3d);
 
-            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION:
-                final boolean dualConnection = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SOUNDCORE_DUAL_CONNECTION, false);
-                return encodeBooleanCommand(CMD_SET_DUAL_CONNECTION, dualConnection);
-
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_PRESET:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_BAND1_VALUE:
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_EQUALIZER_BAND2_VALUE:
@@ -482,9 +478,6 @@ public class SoundcoreSportX20Protocol extends SoundcoreLibertyProtocol {
 
             case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_FIT_TEST:
                 return encodeCommand(CMD_SET_FIT_TEST, new byte[]{0x0a});
-
-            case DeviceSettingsPreferenceConst.PREF_SOUNDCORE_ENABLE_PAIRING_MODE:
-                return encodePairingMode();
 
             default:
                 return super.encodeSendConfiguration(config);
