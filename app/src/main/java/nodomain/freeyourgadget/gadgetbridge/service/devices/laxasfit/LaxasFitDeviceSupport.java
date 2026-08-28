@@ -1174,7 +1174,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public void handleSleepData(byte[] value) {
-        LOG.debug("SLEEP data: {}", GB.hexdump(value));
+        LOG.debug("SLEEP data: {}", GB.lazyHexdump(value));
         // sleep packet consists of: date + list of 4bytes of 15minutes intervals
         // these intervals contain seconds offset from the date and type of sleep
         final ActivityKind[] SleepKind={ActivityKind.LIGHT_SLEEP, ActivityKind.DEEP_SLEEP, ActivityKind.AWAKE_SLEEP, ActivityKind.REM_SLEEP};
@@ -1207,7 +1207,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public void handleDayTotalsData(byte[] value) {
-        LOG.debug("STEP data: {}", GB.hexdump(value));
+        LOG.debug("STEP data: {}", GB.lazyHexdump(value));
         ByteBuffer buf = ByteBuffer.wrap(value);
         // generate sample
         LaxasFitActivitySample sample = new LaxasFitActivitySample();
@@ -1220,7 +1220,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
         addGBActivitySample(sample);
     }
     public void handleStepData(byte[] value) {
-        LOG.debug("STEPS data: {}", GB.hexdump(value));
+        LOG.debug("STEPS data: {}", GB.lazyHexdump(value));
         // sleep packet consists of: date + list of 4bytes of 15minutes intervals
         // these intervals contain seconds offset from the date and type of sleep
         ByteBuffer buf = ByteBuffer.wrap(value);
@@ -1242,7 +1242,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public void handleHR(byte[] value) {
-        LOG.debug("HR data: {}", GB.hexdump(value));
+        LOG.debug("HR data: {}", GB.lazyHexdump(value));
         ByteBuffer buf = ByteBuffer.wrap(value);
         Calendar date = decodeDateTime(buf.getShort(0));
         int timestamp = (int)(date.getTimeInMillis()/1000L);
@@ -1262,7 +1262,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public void handleBP(byte[] value) {
-        LOG.debug("BP data: {}", GB.hexdump(value));
+        LOG.debug("BP data: {}", GB.lazyHexdump(value));
         ByteBuffer buf = ByteBuffer.wrap(value);
         Calendar date = decodeDateTime(buf.getShort(0));
         int timestamp = (int)(date.getTimeInMillis()/1000L);
@@ -1284,7 +1284,7 @@ public class LaxasFitDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     public void handleSPO2(byte[] value) {
-        LOG.debug("SPO2 data: {}", GB.hexdump(value));
+        LOG.debug("SPO2 data: {}", GB.lazyHexdump(value));
         ByteBuffer buf = ByteBuffer.wrap(value);
         Calendar date = decodeDateTime(buf.getShort(0));
         int timestamp = (int)(date.getTimeInMillis()/1000L);

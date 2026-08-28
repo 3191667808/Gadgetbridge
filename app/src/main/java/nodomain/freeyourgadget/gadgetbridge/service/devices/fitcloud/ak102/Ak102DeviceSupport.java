@@ -297,7 +297,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 handleCameraMediaPacket(keyId, keyData);
                 return;
             default:
-                LOG.debug("AK102 RX unhandled cmd={} key={} data={}", cmdId, keyId, GB.hexdump(keyData));
+                LOG.debug("AK102 RX unhandled cmd={} key={} data={}", cmdId, keyId, GB.lazyHexdump(keyData));
         }
     }
 
@@ -306,7 +306,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case Ak102Constants.KEY_BATTERY_RESPONSE:
                 // [0] charging flag, [1] bar count, [2] percentage 0-100
                 // (verified against the watch's own battery display).
-                LOG.debug("AK102 battery k28 raw: {}", GB.hexdump(keyData));
+                LOG.debug("AK102 battery k28 raw: {}", GB.lazyHexdump(keyData));
                 if (keyData.length >= 3) {
                     handleBatteryStatus(keyData[0] == 1, keyData[2] & 0xFF);
                 }
@@ -314,7 +314,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case Ak102Constants.KEY_PUSH_BATTERY_CHANGED:
                 // The payload is a bar count, not a percentage: use the push
                 // only as a trigger to re-poll k27 for the real level.
-                LOG.debug("AK102 battery push raw: {}", GB.hexdump(keyData));
+                LOG.debug("AK102 battery push raw: {}", GB.lazyHexdump(keyData));
                 if (System.currentTimeMillis() - lastBatteryRequestMillis > 60_000L) {
                     lastBatteryRequestMillis = System.currentTimeMillis();
                     sendSimpleCommand("ak102-battery", Ak102Constants.CMD_SETTINGS,
@@ -340,7 +340,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 storeActivityPoints(Ak102SyncParser.parseRestingHeartRate(keyData));
                 return;
             case Ak102Constants.KEY_EXERCISE_GOAL_RESPONSE:
-                LOG.debug("AK102 exercise goal: {}", GB.hexdump(keyData));
+                LOG.debug("AK102 exercise goal: {}", GB.lazyHexdump(keyData));
                 return;
             case Ak102Constants.KEY_PUSH_QUICK_REPLY_SMS:
             case Ak102Constants.KEY_PUSH_QUICK_REPLY_FREE:
@@ -365,10 +365,10 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.warn("AK102 SOS triggered on watch");
                 return;
             case Ak102Constants.KEY_PUSH_AUDIO_DEVICE_MAC:
-                LOG.debug("AK102 audio device MAC: {}", GB.hexdump(keyData));
+                LOG.debug("AK102 audio device MAC: {}", GB.lazyHexdump(keyData));
                 return;
             default:
-                LOG.debug("AK102 RX unhandled settings key={} data={}", keyId, GB.hexdump(keyData));
+                LOG.debug("AK102 RX unhandled settings key={} data={}", keyId, GB.lazyHexdump(keyData));
         }
     }
 
@@ -405,7 +405,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 }
                 return;
             default:
-                LOG.debug("AK102 RX unhandled camera/media key={} data={}", keyId, GB.hexdump(keyData));
+                LOG.debug("AK102 RX unhandled camera/media key={} data={}", keyId, GB.lazyHexdump(keyData));
         }
     }
 
@@ -475,7 +475,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.debug("AK102 measurement stopped on watch");
                 return;
             default:
-                LOG.debug("AK102 typed event {} data={}", type, GB.hexdump(keyData));
+                LOG.debug("AK102 typed event {} data={}", type, GB.lazyHexdump(keyData));
         }
     }
 
@@ -1306,7 +1306,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
             case Ak102Constants.KEY_REALTIME_TEMP_ERROR:
                 return;
             default:
-                LOG.debug("AK102 RX unhandled sync key={} data={}", keyId, GB.hexdump(keyData));
+                LOG.debug("AK102 RX unhandled sync key={} data={}", keyId, GB.lazyHexdump(keyData));
         }
     }
 
@@ -1341,7 +1341,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private void decodeSyncBuffer(final int type, final byte[] buffer) {
         if (buffer.length > 0 && buffer.length <= 200) {
-            LOG.debug("AK102 sync type {} buffer: {}", type, GB.hexdump(buffer));
+            LOG.debug("AK102 sync type {} buffer: {}", type, GB.lazyHexdump(buffer));
         }
         switch (type) {
             case Ak102Constants.SYNC_TYPE_STEP:
@@ -1438,7 +1438,7 @@ public class Ak102DeviceSupport extends AbstractBTLESingleDeviceSupport {
         // 8B timestamp. dispatch() already split them, so parse directly.
         final int[] totals = Ak102SyncParser.parseTodayTotal(keyData);
         if (totals == null) {
-            LOG.debug("AK102 today-total aux packet: {}", GB.hexdump(keyData));
+            LOG.debug("AK102 today-total aux packet: {}", GB.lazyHexdump(keyData));
             return;
         }
         LOG.info("AK102 today: steps={} distance={}m calories={} hr={}",
