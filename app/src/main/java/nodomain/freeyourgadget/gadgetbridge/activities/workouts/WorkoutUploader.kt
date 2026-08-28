@@ -338,13 +338,16 @@ object WorkoutUploader {
     enum class RecreateRefusal { REMOTE_EDITED, FAILED }
 
     /**
-     * Re-creates the Endurain activity [remoteActivityId] from [fitFile], because Endurain can
-     * only change an activity's track by replacing the activity itself.
+     * Re-creates the Endurain activity [remoteActivityId] from [fitFile], because Endurain has
+     * no endpoint that replaces an activity's track: `PUT /api/v1/activities/edit` takes metadata
+     * only. Deleting and re-uploading is therefore the only way to push a track, and the reason
+     * this operation is destructive at all. An endpoint that replaced a track in place would
+     * remove the need for the whole function.
      *
      * Refuses when the remote activity carries anything the user wrote there (a description,
      * private notes or a gear assignment), since re-creating would destroy it. Whatever the API
-     * does let us carry over is read first and restored afterwards, but the activity id changes
-     * and anything attached to it socially, such as comments, does not survive.
+     * does let us carry over is read first and restored afterwards, but the activity id changes,
+     * so links to it break and anything Endurain later attaches to an activity id would be lost.
      *
      * Blocking; call off the main thread. Returns the new [UploadResult] on success, or a
      * [RecreateRefusal] describing why nothing was done.

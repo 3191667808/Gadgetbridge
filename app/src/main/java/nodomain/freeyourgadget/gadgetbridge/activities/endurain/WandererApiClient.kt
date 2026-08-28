@@ -86,16 +86,21 @@ class WandererApiClient(
      * Replaces the track of the existing trail [trailId] with [file], keeping the trail id and
      * everything the user set on it.
      *
-     * The endpoint is multipart with the track under `gpx` (not `file`), and it requires the
-     * trail id in the body as well as in the path. It stores the new track but does not re-derive
-     * the trail statistics from it, so [stats] must carry whatever should change alongside it;
-     * anything omitted keeps its previous value.
+     * The endpoint is multipart with the track under `gpx` (not `file`, which the API reference
+     * gives), and it requires the trail id in the body as well as in the path. It stores the new
+     * track but re-derives only the bounding box from it, so [stats] must carry the distance,
+     * duration and elevation; anything omitted keeps the value of the previous track.
+     *
+     * `POST /api/v1/trail/{id}/file` would be the obvious endpoint for this and is documented as
+     * "Upload trail file", but on Wanderer 0.20.0 it answers 200 and changes nothing at all.
+     *
+     * Both of those are worked around here rather than fixed, and the workaround stays correct
+     * either way: sending statistics explicitly overrides whatever the server would compute. If
+     * the file endpoint starts working, switching to it would let the server own the statistics
+     * again and [stats] could go.
      *
      * [callback] fires with (success, reason); reason is null on success, otherwise a server
      * message or network explanation.
-     *
-     * The sibling endpoint `POST /api/v1/trail/{id}/file` answers 200 but leaves the trail
-     * untouched, so it is not usable here.
      */
     fun updateActivityFile(
         trailId: String,

@@ -78,8 +78,12 @@ data class EndurainActivityDetails(
 }
 
 /**
- * Result of looking an activity up. Endurain answers 200 with a body of `null` for an activity
- * that does not exist, so a missing one has to be told apart from a failed request by the body.
+ * Result of looking an activity up.
+ *
+ * Endurain 0.19.0 answers 200 with a body of `null` for an activity that does not exist, rather
+ * than 404, so a missing activity can only be told apart from a failed request by inspecting the
+ * body. [Gone] exists to carry that distinction. Should the endpoint start answering 404, the
+ * body check becomes dead and the status alone would be enough.
  */
 sealed interface EndurainActivityLookup {
     data class Found(val details: EndurainActivityDetails) : EndurainActivityLookup
