@@ -37,7 +37,6 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -57,6 +56,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import nodomain.freeyourgadget.gadgetbridge.AppConfigEvent;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.Logging;
@@ -630,9 +631,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 implements Acti
          * Signal running activities that the theme has changed
          */
         private void sendThemeChangeIntent() {
-            Intent intent = new Intent();
-            intent.setAction(GBApplication.ACTION_THEME_CHANGE);
-            LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(intent);
+            AppEventBus.emit(AppConfigEvent.ThemeChanged.INSTANCE);
         }
     }
 }

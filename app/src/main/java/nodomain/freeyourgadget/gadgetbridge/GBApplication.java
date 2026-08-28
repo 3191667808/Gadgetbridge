@@ -114,13 +114,7 @@ public class GBApplication extends Application {
      */
     private static NotificationManager notificationManager;
 
-    public static final String ACTION_QUIT
-            = "nodomain.freeyourgadget.gadgetbridge.gbapplication.action.quit";
-    public static final String ACTION_LANGUAGE_CHANGE = "nodomain.freeyourgadget.gadgetbridge.gbapplication.action.language_change";
-    public static final String ACTION_THEME_CHANGE = "nodomain.freeyourgadget.gadgetbridge.gbapplication.action.theme_change";
-    public static final String ACTION_NEW_DATA = "nodomain.freeyourgadget.gadgetbridge.action.new_data";
-    public static final String ACTION_APP_IS_IN_FOREGROUND = "nodomain.freeyourgadget.gadgetbridge.action.app_foreground";
-    public static final String ACTION_APP_IS_IN_BACKGROUND = "nodomain.freeyourgadget.gadgetbridge.action.app_background";
+ public static final String ACTION_NEW_DATA = "nodomain.freeyourgadget.gadgetbridge.action.new_data";
 
     private static GBApplication app;
 
@@ -134,8 +128,7 @@ public class GBApplication extends Application {
     public static void quit() {
         LOG.info("Quitting Gadgetbridge...");
         BondingUtil.StopObservingAll(getContext());
-        Intent quitIntent = new Intent(GBApplication.ACTION_QUIT);
-        LocalBroadcastManager.getInstance(context).sendBroadcast(quitIntent);
+        AppEventBus.emit(AppLifecycleEvent.Quit.INSTANCE);
         GBApplication.deviceService().quit();
         GBDatabaseManager.closeDatabase();
         System.exit(0);
@@ -144,8 +137,7 @@ public class GBApplication extends Application {
     public static void restart() {
         LOG.info("Restarting Gadgetbridge...");
         BondingUtil.StopObservingAll(getContext());
-        final Intent quitIntent = new Intent(GBApplication.ACTION_QUIT);
-        LocalBroadcastManager.getInstance(context).sendBroadcast(quitIntent);
+        AppEventBus.emit(AppLifecycleEvent.Quit.INSTANCE);
         GBApplication.deviceService().quit();
 
         GBDatabaseManager.closeDatabase();
@@ -669,10 +661,7 @@ public class GBApplication extends Application {
 
     public static void updateLanguage(Locale locale) {
         AndroidUtils.setLanguage(context, locale);
-
-        Intent intent = new Intent();
-        intent.setAction(ACTION_LANGUAGE_CHANGE);
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+        AppEventBus.emit(AppConfigEvent.LanguageChanged.INSTANCE);
     }
 
     public static LimitedQueue<Integer, String> getIDSenderLookup() {

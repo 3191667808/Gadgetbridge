@@ -76,6 +76,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import de.greenrobot.dao.query.Query;
+import kotlinx.coroutines.Job;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
+import nodomain.freeyourgadget.gadgetbridge.AppLifecycleEvent;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -203,10 +206,6 @@ public class NotificationListener extends NotificationListenerService {
 
             int handle = (int) intent.getLongExtra("handle", -1);
             switch (action) {
-                case GBApplication.ACTION_QUIT:
-                    stopSelf();
-                    break;
-
                 case ACTION_OPEN: {
                     StatusBarNotification[] sbns = NotificationListener.this.getActiveNotifications();
                     Long ts = mNotificationHandleLookup.lookup(handle);
@@ -304,11 +303,16 @@ public class NotificationListener extends NotificationListenerService {
         }
     };
 
+    private final Job eventBusSubscription = AppEventBus.subscribe(event -> {
+        if (event instanceof AppLifecycleEvent.Quit) {
+            stopSelf();
+        }
+    });
+
     @Override
     public void onCreate() {
         super.onCreate();
         IntentFilter filterLocal = new IntentFilter();
-        filterLocal.addAction(GBApplication.ACTION_QUIT);
         filterLocal.addAction(ACTION_OPEN);
         filterLocal.addAction(ACTION_DISMISS);
         filterLocal.addAction(ACTION_DISMISS_ALL);
@@ -330,6 +334,7 @@ public class NotificationListener extends NotificationListenerService {
     public void onDestroy() {
         //noinspection deprecation
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mReceiver);
+        AppEventBus.unsubscribe(eventBusSubscription);
         unregisterReceiver(mExportedReceiver);
         notificationStack.clear();
         notificationsActive.clear();

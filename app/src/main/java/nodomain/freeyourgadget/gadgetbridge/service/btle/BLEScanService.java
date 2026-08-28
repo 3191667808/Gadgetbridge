@@ -54,6 +54,9 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
+import kotlinx.coroutines.Job;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
+import nodomain.freeyourgadget.gadgetbridge.AppLifecycleEvent;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -298,21 +301,24 @@ public class BLEScanService extends Service {
                 restartScan(true);
                 return;
             }
-            if (GBApplication.ACTION_QUIT.equals(intent.getAction())) {
-                LOG.debug("stopping scan service...");
-                if (currentState.isDoingAnyScan()) {
-                    if (ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                        // this should never happen
-                        LOG.error("No BLUETOOTH_SCAN permission");
-                        return;
-                    }
-
-                    scanner.stopScan(scanCallback);
-                }
-                stopSelf();
-            }
         }
     };
+
+    private final Job eventBusSubscription = AppEventBus.subscribe(event -> {
+        if (event instanceof AppLifecycleEvent.Quit) {
+            LOG.debug("stopping scan service...");
+            if (currentState.isDoingAnyScan()) {
+                if (ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                    // this should never happen
+                    LOG.error("No BLUETOOTH_SCAN permission");
+                    return;
+                }
+
+                scanner.stopScan(scanCallback);
+            }
+            stopSelf();
+        }
+    });
 
     BroadcastReceiver bluetoothStateChangedReceiver = new BroadcastReceiver() {
         @Override
@@ -336,7 +342,6 @@ public class BLEScanService extends Service {
     private void registerReceivers() {
         IntentFilter filter = new IntentFilter();
         filter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
-        filter.addAction(GBApplication.ACTION_QUIT);
         localBroadcastManager.registerReceiver(
                 deviceStateUpdateReceiver,
                 filter
@@ -352,6 +357,7 @@ public class BLEScanService extends Service {
 
     private void unregisterReceivers() {
         localBroadcastManager.unregisterReceiver(deviceStateUpdateReceiver);
+        AppEventBus.unsubscribe(eventBusSubscription);
 
         unregisterReceiver(bluetoothStateChangedReceiver);
     }

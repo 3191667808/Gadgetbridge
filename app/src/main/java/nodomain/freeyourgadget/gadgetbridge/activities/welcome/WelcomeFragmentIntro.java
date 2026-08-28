@@ -36,6 +36,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
+import nodomain.freeyourgadget.gadgetbridge.AppConfigEvent;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
@@ -64,9 +66,7 @@ public class WelcomeFragmentIntro extends Fragment {
             handler.postDelayed(() -> {
                 // Delay recreation of the Activity to give the dropdown some time to settle.
                 // If we recreate it immediately, the theme popup will reopen, which is not what the user expects.
-                Intent intent = new Intent();
-                intent.setAction(GBApplication.ACTION_THEME_CHANGE);
-                LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(intent);
+                AppEventBus.emit(AppConfigEvent.ThemeChanged.INSTANCE);
             }, 500);
         });
         return view;

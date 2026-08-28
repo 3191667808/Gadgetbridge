@@ -34,7 +34,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.documentfile.provider.DocumentFile;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -66,6 +65,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import kotlinx.coroutines.Job;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
+import nodomain.freeyourgadget.gadgetbridge.AppLifecycleEvent;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.appmanager.config.DynamicAppConfig;
@@ -151,8 +153,6 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.UuidUtil;
 import nodomain.freeyourgadget.gadgetbridge.util.notifications.GBProgressNotification;
 
-import static nodomain.freeyourgadget.gadgetbridge.GBApplication.ACTION_APP_IS_IN_BACKGROUND;
-import static nodomain.freeyourgadget.gadgetbridge.GBApplication.ACTION_APP_IS_IN_FOREGROUND;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_ALLOW_HIGH_MTU;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_SEND_APP_NOTIFICATIONS;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_TIME_SYNC;
@@ -181,23 +181,19 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
 
     final Map<UUID, GdiInstalledAppsService.InstalledAppsService.InstalledApp> installedApps = new HashMap<>();
 
-    private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action == null) {
-                return;
-            }
-            switch (action) {
-                case ACTION_APP_IS_IN_FOREGROUND:
-                    sendOutgoingMessage("set foreground", new SystemEventMessage(SystemEventMessage.GarminSystemEventType.HOST_DID_ENTER_FOREGROUND, 0));
-                    break;
-                case ACTION_APP_IS_IN_BACKGROUND:
-                    sendOutgoingMessage("set background", new SystemEventMessage(SystemEventMessage.GarminSystemEventType.HOST_DID_ENTER_BACKGROUND, 0));
-                    break;
-            }
+    private final Job eventBusSubscription = AppEventBus.subscribe(event -> {
+        if (!(event instanceof AppLifecycleEvent)) {
+            return;
         }
-    };
+        AppLifecycleEvent lifecycleEvent = (AppLifecycleEvent) event;
+        if (lifecycleEvent instanceof AppLifecycleEvent.AppInForeground) {
+            sendOutgoingMessage("set foreground",
+                    new SystemEventMessage(SystemEventMessage.GarminSystemEventType.HOST_DID_ENTER_FOREGROUND, 0));
+        } else if (lifecycleEvent instanceof AppLifecycleEvent.AppInBackground) {
+            sendOutgoingMessage("set background",
+                    new SystemEventMessage(SystemEventMessage.GarminSystemEventType.HOST_DID_ENTER_BACKGROUND, 0));
+        }
+    });
 
     public GarminSupport() {
         super(LOG);
@@ -212,11 +208,6 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         messageHandlers.add(fileTransferHandler);
         messageHandlers.add(protocolBufferHandler);
         messageHandlers.add(notificationsHandler);
-
-        IntentFilter filterLocal = new IntentFilter();
-        filterLocal.addAction(ACTION_APP_IS_IN_FOREGROUND);
-        filterLocal.addAction(ACTION_APP_IS_IN_BACKGROUND);
-        LocalBroadcastManager.getInstance(GBApplication.getContext()).registerReceiver(broadcastReceiver, filterLocal);
     }
 
     @Override
@@ -255,11 +246,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 protocolBufferHandler.getExploreSyncHandler().onDisconnected();
             }
             GBLocationService.stop(getContext(), getDevice());
-            try {
-                LocalBroadcastManager.getInstance(GBApplication.getContext()).unregisterReceiver(broadcastReceiver);
-            } catch (final Exception e) {
-                LOG.error("Failed to unregister broadcast receiver", e);
-            }
+            AppEventBus.unsubscribe(eventBusSubscription);
             super.dispose();
         }
     }

@@ -18,10 +18,6 @@
 package nodomain.freeyourgadget.gadgetbridge.activities;
 
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.View;
 
@@ -29,10 +25,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.util.Locale;
 
+import kotlinx.coroutines.Job;
+import nodomain.freeyourgadget.gadgetbridge.AppConfigEvent;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
+import nodomain.freeyourgadget.gadgetbridge.AppLifecycleEvent;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils;
@@ -44,26 +43,15 @@ public abstract class AbstractGBActivity extends AppCompatActivity implements GB
     public static final int NONE = 0;
     public static final int NO_ACTIONBAR = 1;
 
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action == null) {
-                return;
-            }
-            switch (action) {
-                case GBApplication.ACTION_LANGUAGE_CHANGE:
-                    setLanguage(GBApplication.getLanguage(), true);
-                    break;
-                case GBApplication.ACTION_THEME_CHANGE:
-                    recreate();
-                    break;
-                case GBApplication.ACTION_QUIT:
-                    finish();
-                    break;
-            }
+    private final Job eventBusSubscription = AppEventBus.subscribe(event -> {
+        if (event instanceof AppConfigEvent.LanguageChanged) {
+            setLanguage(GBApplication.getLanguage(), true);
+        } else if (event instanceof AppConfigEvent.ThemeChanged) {
+            runOnUiThread(this::recreate);
+        } else if (event instanceof AppLifecycleEvent.Quit) {
+            finish();
         }
-    };
+    });
 
     @Override
     public void setLanguage(Locale language, boolean invalidateLanguage) {
@@ -122,12 +110,6 @@ public abstract class AbstractGBActivity extends AppCompatActivity implements GB
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        IntentFilter filterLocal = new IntentFilter();
-        filterLocal.addAction(GBApplication.ACTION_QUIT);
-        filterLocal.addAction(GBApplication.ACTION_LANGUAGE_CHANGE);
-        filterLocal.addAction(GBApplication.ACTION_THEME_CHANGE);
-        LocalBroadcastManager.getInstance(this).registerReceiver(mReceiver, filterLocal);
-
         init(this);
         super.onCreate(savedInstanceState);
     }
@@ -143,7 +125,7 @@ public abstract class AbstractGBActivity extends AppCompatActivity implements GB
 
     @Override
     protected void onDestroy() {
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(mReceiver);
+        AppEventBus.unsubscribe(eventBusSubscription);
         super.onDestroy();
     }
 

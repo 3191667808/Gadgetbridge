@@ -67,6 +67,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import kotlinx.coroutines.Job;
+import nodomain.freeyourgadget.gadgetbridge.AppConfigEvent;
+import nodomain.freeyourgadget.gadgetbridge.AppEventBus;
+import nodomain.freeyourgadget.gadgetbridge.AppLifecycleEvent;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.debug.DebugActivityV2;
@@ -101,15 +105,6 @@ public class ControlCenterv2 extends AppCompatActivity
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             switch (Objects.requireNonNull(action)) {
-                case GBApplication.ACTION_LANGUAGE_CHANGE:
-                    setLanguage(GBApplication.getLanguage(), true);
-                    break;
-                case GBApplication.ACTION_THEME_CHANGE:
-                    isThemeInvalid = true;
-                    break;
-                case GBApplication.ACTION_QUIT:
-                    finish();
-                    break;
                 case DeviceService.ACTION_REALTIME_SAMPLES:
                     final GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
                     handleRealtimeSample(device, intent.getSerializableExtra(DeviceService.EXTRA_REALTIME_SAMPLE));
@@ -123,6 +118,17 @@ public class ControlCenterv2 extends AppCompatActivity
             }
         }
     };
+
+    private final Job eventBusSubscription = AppEventBus.subscribe(event -> {
+        if (event instanceof AppConfigEvent.LanguageChanged) {
+            setLanguage(GBApplication.getLanguage(), true);
+        } else if (event instanceof AppConfigEvent.ThemeChanged) {
+            isThemeInvalid = true;
+        } else if (event instanceof AppLifecycleEvent.Quit) {
+            finish();
+        }
+    });
+
     private boolean pesterWithPermissions = true;
     private final Map<GBDevice, ActivitySample> currentHRSample = new HashMap<>();
     private final Map<GBDevice, Long> currentHRSampleReceivedAt = new HashMap<>();
@@ -329,9 +335,6 @@ public class ControlCenterv2 extends AppCompatActivity
 
         // Set up local intent listener
         IntentFilter filterLocal = new IntentFilter();
-        filterLocal.addAction(GBApplication.ACTION_LANGUAGE_CHANGE);
-        filterLocal.addAction(GBApplication.ACTION_THEME_CHANGE);
-        filterLocal.addAction(GBApplication.ACTION_QUIT);
         filterLocal.addAction(DeviceService.ACTION_REALTIME_SAMPLES);
         filterLocal.addAction(GBDevice.ACTION_DEVICE_CHANGED);
         LocalBroadcastManager.getInstance(this).registerReceiver(mReceiver, filterLocal);
@@ -384,6 +387,7 @@ public class ControlCenterv2 extends AppCompatActivity
     @Override
     protected void onDestroy() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mReceiver);
+        AppEventBus.unsubscribe(eventBusSubscription);
         super.onDestroy();
     }
 
