@@ -201,10 +201,13 @@ class WorkoutUploadWorker(
                     update.newRemoteActivityId?.let {
                         remoteId = it
                         recreated = true
-                        // The replacement was uploaded from the current workout, so it already
-                        // carries the current photo.
                         photoMediaId = update.newPhotoMediaId
-                        photoHash = WorkoutUploadStore.photoHashOf(summary.headerPhoto)
+                        // The replacement is uploaded from the current workout, so it carries the
+                        // current photo, but only once the media id comes back. Without one the
+                        // old fingerprint stays, leaving the next run to attach the photo.
+                        if (summary.headerPhoto == null || update.newPhotoMediaId != null) {
+                            photoHash = WorkoutUploadStore.photoHashOf(summary.headerPhoto)
+                        }
                     }
                 }
 
