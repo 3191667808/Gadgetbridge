@@ -83,6 +83,58 @@ class WandererApiClient(
     }
 
     /**
+     * Replaces the track of the existing trail [trailId] with [file], keeping the trail id and
+     * everything the user set on it.
+     *
+     * The endpoint is multipart with the track under `gpx` (not `file`), and it requires the
+     * trail id in the body as well as in the path. It stores the new track but does not re-derive
+     * the trail statistics from it, so [stats] must carry whatever should change alongside it;
+     * anything omitted keeps its previous value.
+     *
+     * [callback] fires with (success, reason); reason is null on success, otherwise a server
+     * message or network explanation.
+     *
+     * The sibling endpoint `POST /api/v1/trail/{id}/file` answers 200 but leaves the trail
+     * untouched, so it is not usable here.
+     */
+    fun updateActivityFile(
+        trailId: String,
+        file: File,
+        stats: Map<String, String> = emptyMap(),
+        callback: (Boolean, String?) -> Unit
+    ) {
+        Thread {
+            try {
+                val uri = "$baseUrl/api/v1/trail/form/$trailId".toUri()
+
+                InternetUtils.uploadBinaryFile(
+                    uri = uri,
+                    file = file,
+                    requestHeaders = buildHeaders(),
+                    fileFieldName = "gpx",
+                    formFields = mapOf("id" to trailId) + stats
+                ) { success, statusCode, responseText, reason ->
+                    if (success && statusCode != null && statusCode in 200..299) {
+                        LOG.info("Replaced track of Wanderer trail {}", trailId)
+                        callback(true, null)
+                    } else {
+                        val message = try {
+                            if (responseText != null) JSONObject(responseText).getString("message") else null
+                        } catch (e: Exception) {
+                            null
+                        } ?: reason ?: statusCode?.let { "HTTP $it" }
+                        LOG.error("Updating trail {} failed: {}", trailId, message)
+                        callback(false, message)
+                    }
+                }
+            } catch (e: Exception) {
+                LOG.error("Trail update error", e)
+                callback(false, e.localizedMessage)
+            }
+        }.start()
+    }
+
+    /**
      * Upload activity file (GPX)
      */
     fun uploadActivity(file: File, callback: (String?, String?) -> Unit) {

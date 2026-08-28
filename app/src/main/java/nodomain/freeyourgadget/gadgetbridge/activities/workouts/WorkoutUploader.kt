@@ -28,6 +28,7 @@ import nodomain.freeyourgadget.gadgetbridge.export.FitExporter
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils
 import org.slf4j.LoggerFactory
@@ -106,6 +107,27 @@ object WorkoutUploader {
             FitExporter().performExport(track, summary, effectiveSummaryData, outFile)
         }
         return outFile
+    }
+
+    /**
+     * Whether [summary] carries a GPS track, either as an attached gpx file or as the hasGps
+     * flag its parser set. Mirrors what the detail screen uses to decide whether to offer the
+     * map and the gpx actions.
+     */
+    fun summaryHasTrack(summary: BaseActivitySummary): Boolean {
+        val summaryData = summary.summaryData?.let {
+            try {
+                ActivitySummaryData.fromJson(it)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        if (summaryData != null && summaryData.hasGps()) {
+            return true
+        }
+        val gpxTrack = summary.gpxTrack ?: return false
+        val existing = FileUtils.tryFixPath(File(gpxTrack))
+        return existing != null && existing.canRead()
     }
 
     /**
@@ -220,6 +242,93 @@ object WorkoutUploader {
         timeoutSeconds: Long = DEFAULT_UPLOAD_TIMEOUT_SECONDS
     ): UploadResult = awaitUpload(context, timeoutSeconds) { done ->
         uploadToWanderer(context, gpxFile, done)
+    }
+
+    /**
+     * Pushes the name and activity type of [summary] onto the already-uploaded Endurain activity
+     * [remoteActivityId]. Blocking; call off the main thread. Returns true on success.
+     */
+    fun updateEndurainMetadataBlocking(
+        context: Context,
+        remoteActivityId: String,
+        summary: BaseActivitySummary
+    ): Boolean {
+        val activityId = remoteActivityId.toIntOrNull() ?: return false
+        val serverUrl = GBApplication.getPrefs().preferences.getString(PREF_ENDURAIN_SERVER, null)
+            ?: return false
+        val tokenManager = EndurainTokenManager(context)
+        val apiClient = EndurainApiClient(serverUrl, tokenManager)
+        val kind = ActivityKind.fromCode(summary.activityKind)
+        val name = nameFor(context, summary)
+
+        val latch = CountDownLatch(1)
+        var success = false
+        tokenManager.performTokenRefresh(serverUrl) {
+            Thread {
+                success = try {
+                    apiClient.editActivity(activityId, kind, name)
+                } catch (e: Exception) {
+                    LOG.warn("Endurain editActivity failed for id {}", activityId, e)
+                    false
+                }
+                latch.countDown()
+            }.start()
+        }
+        return if (latch.await(DEFAULT_UPLOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS)) success else false
+    }
+
+    /**
+     * Replaces the track of an existing Wanderer trail with [gpxFile], keeping the trail id.
+     * Blocking; call off the main thread. Returns true on success.
+     */
+    fun updateWandererTrackBlocking(
+        context: Context,
+        trailId: String,
+        gpxFile: File,
+        summary: BaseActivitySummary,
+        timeoutSeconds: Long = DEFAULT_UPLOAD_TIMEOUT_SECONDS
+    ): Boolean {
+        val serverUrl = GBApplication.getPrefs().preferences.getString(PREF_WANDERER_SERVER, null)
+            ?: return false
+        val apiClient = WandererApiClient(serverUrl, WandererTokenManager(context))
+        val latch = CountDownLatch(1)
+        var success = false
+        apiClient.updateActivityFile(trailId, gpxFile, wandererStatsOf(summary)) { ok, reason ->
+            success = ok
+            if (!ok) {
+                LOG.warn("Wanderer track update failed for trail {}: {}", trailId, reason)
+            }
+            latch.countDown()
+        }
+        return if (latch.await(timeoutSeconds, TimeUnit.SECONDS)) success else false
+    }
+
+    /**
+     * Trail statistics to send alongside a replacement track, since Wanderer stores the new file
+     * without re-deriving them. Values come from the workout summary, which is the authority on
+     * them anyway. Entries whose value the summary does not carry are left out, so the trail
+     * keeps what it had.
+     */
+    private fun wandererStatsOf(summary: BaseActivitySummary): Map<String, String> {
+        val data = summary.summaryData?.let {
+            try {
+                ActivitySummaryData.fromJson(it)
+            } catch (e: Exception) {
+                LOG.warn("Failed to parse stored summary data for summary {}", summary.id, e)
+                null
+            }
+        } ?: return emptyMap()
+
+        val stats = mutableMapOf<String, String>()
+        data.getNumber(ActivitySummaryEntries.DISTANCE_METERS, null)
+            ?.let { stats["distance"] = it.toString() }
+        data.getNumber(ActivitySummaryEntries.ACTIVE_SECONDS, null)
+            ?.let { stats["duration"] = it.toString() }
+        data.getNumber(ActivitySummaryEntries.ELEVATION_GAIN, null)
+            ?.let { stats["elevation_gain"] = it.toString() }
+        data.getNumber(ActivitySummaryEntries.ELEVATION_LOSS, null)
+            ?.let { stats["elevation_loss"] = it.toString() }
+        return stats
     }
 
     /**

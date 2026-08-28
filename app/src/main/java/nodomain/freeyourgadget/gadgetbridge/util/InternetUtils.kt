@@ -219,12 +219,15 @@ class InternetUtils {
          * failure [reason] carries a human-readable, localized explanation for the user
          * (no internet / server unreachable / …); it is null on success.
          */
+        @JvmOverloads
         fun uploadBinaryFile(
             uri: Uri,
             file: File,
             requestHeaders: Map<String, String> = emptyMap(),
             method: String = "POST",
             allowInsecure: Boolean = false,
+            fileFieldName: String = "file",
+            formFields: Map<String, String> = emptyMap(),
             onComplete: (success: Boolean, statusCode: Int?, response: String?, reason: String?) -> Unit
         ) {
             var success = false
@@ -244,7 +247,8 @@ class InternetUtils {
                     }
 
                     val boundary = "----GadgetbridgeFormBoundary${System.currentTimeMillis()}"
-                    val multipartBodyBytes = buildMultipartBody(file, fileName, mimeType, boundary)
+                    val multipartBodyBytes =
+                        buildMultipartBody(file, fileName, mimeType, boundary, fileFieldName, formFields)
 
                     val headers = requestHeaders.toMutableMap()
                     headers["Content-Type"] = "multipart/form-data; boundary=$boundary"
@@ -345,16 +349,27 @@ class InternetUtils {
             file: File,
             fileName: String,
             mimeType: String,
-            boundary: String
+            boundary: String,
+            fileFieldName: String,
+            formFields: Map<String, String>
         ): ByteArray {
             val fileBytes = file.readBytes()
             val output = ByteArrayOutputStream()
 
+            for ((name, value) in formFields) {
+                val part = "--$boundary\r\n" +
+                    "Content-Disposition: form-data; name=\"$name\"\r\n" +
+                    "\r\n" +
+                    value +
+                    "\r\n"
+                output.write(part.toByteArray(Charsets.UTF_8))
+            }
+
             val header = "--$boundary\r\n" +
-                "Content-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\n" +
+                "Content-Disposition: form-data; name=\"$fileFieldName\"; filename=\"$fileName\"\r\n" +
                 "Content-Type: $mimeType\r\n" +
                 "\r\n"
-            output.write(header.toByteArray(Charsets.US_ASCII))
+            output.write(header.toByteArray(Charsets.UTF_8))
             output.write(fileBytes)
             output.write("\r\n--$boundary--\r\n".toByteArray(Charsets.US_ASCII))
 

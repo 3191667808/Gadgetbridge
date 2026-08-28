@@ -26,29 +26,38 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
-import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainTokenManager
-import nodomain.freeyourgadget.gadgetbridge.activities.endurain.WandererTokenManager
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao
+import nodomain.freeyourgadget.gadgetbridge.entities.WorkoutUpload
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrackProvider
 import nodomain.freeyourgadget.gadgetbridge.util.ActivitySummaryUtils
 import nodomain.freeyourgadget.gadgetbridge.util.GB
-import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.Date
 
 /**
- * Uploads newly-synced workouts to Endurain (FIT) and/or Wanderer (GPX) after a device fetch.
- * Enqueued (debounced) by [nodomain.freeyourgadget.gadgetbridge.externalevents.NewDataReceiver]
- * when at least one auto-upload toggle is on.
+ * Uploads workouts to the online fitness trackers the user has enabled, and keeps already-uploaded
+ * ones in step with later local edits. Enqueued (debounced) by
+ * [nodomain.freeyourgadget.gadgetbridge.externalevents.NewDataReceiver] after a device fetch, and
+ * directly by the workout detail screen after an edit.
  *
- * Only workouts from the recent window are considered, and each service keeps its own set of
- * already-uploaded summary IDs so a workout is never uploaded twice. For Endurain, a header photo
- * added or changed after the initial upload is re-synced to the existing activity. On failure a
- * notification is posted whose text explains the reason (no internet / server unreachable / HTTP
- * error).
+ * Two passes, with different bounds:
+ *
+ *  - new uploads, over workouts synced within [RECENT_WINDOW_MS], so enabling the feature does not
+ *    ship a whole back catalogue at once;
+ *  - re-sync, over every row in the upload table regardless of age, because a device reprocess
+ *    rewrites arbitrarily old workouts.
+ *
+ * The re-sync pass compares a cheap fingerprint of the workout (see
+ * [WorkoutUploadStore.sourceHashOf]) before doing any work, so the steady state costs one file
+ * stat per uploaded workout and no network traffic.
+ *
+ * What each service accepts and can update is described by its [WorkoutUploadTarget], so neither
+ * pass has per-service branches. On failure a notification is posted whose text explains the
+ * reason (no internet / server unreachable / HTTP error).
  */
 class WorkoutUploadWorker(
     context: Context,
@@ -58,10 +67,9 @@ class WorkoutUploadWorker(
     private val LOG = LoggerFactory.getLogger(WorkoutUploadWorker::class.java)
 
     override fun doWork(): Result {
-        val prefs = GBApplication.getPrefs()
-        val endurainOn = prefs.getBoolean(GBPrefs.ENDURAIN_AUTO_UPLOAD_ENABLED, false)
-        val wandererOn = prefs.getBoolean(GBPrefs.WANDERER_AUTO_UPLOAD_ENABLED, false)
-        if (!endurainOn && !wandererOn) {
+        val context = applicationContext
+        val targets = WorkoutUploadTargets.active(context, GBApplication.getPrefs())
+        if (targets.isEmpty()) {
             return Result.success()
         }
 
@@ -75,97 +83,193 @@ class WorkoutUploadWorker(
             LOG.warn("WorkoutUploadWorker: device {} not found", address)
             return Result.success()
         }
+        val deviceId = deviceEntityId(gbDevice) ?: return Result.success()
 
-        val context = applicationContext
-        val summaries = queryRecentSummaries(gbDevice)
-        if (summaries.isEmpty()) {
-            return Result.success()
-        }
-
-        val endurainLoggedIn = endurainOn && EndurainTokenManager(context).isLoggedIn()
-        val wandererLoggedIn = wandererOn && WandererTokenManager(context).isLoggedIn()
-        if (!endurainLoggedIn && !wandererLoggedIn) {
-            return Result.success()
-        }
-
-        val minSummaryId = summaries.mapNotNull { it.id }.minOrNull() ?: return Result.success()
-
-        val enduRows = if (endurainLoggedIn) {
-            WorkoutUploadStore.uploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN, minSummaryId)
-        } else {
-            emptyMap()
-        }
-        val wandDone = if (wandererLoggedIn) {
-            WorkoutUploadStore.uploadedSummaryIds(WorkoutUploadStore.SERVICE_WANDERER, minSummaryId)
-        } else {
-            emptySet()
-        }
-
+        val rowsByTarget = targets.associateWith { WorkoutUploadStore.allUploadedRows(it.service) }
         val provider = gbDevice.deviceCoordinator.getActivityTrackProvider(gbDevice, context)
-        var endurainFailure: String? = null
-        var wandererFailure: String? = null
+        val failures = mutableMapOf<WorkoutUploadTarget, String>()
 
-        for (summary in summaries) {
+        for (summary in queryRecentSummaries(gbDevice)) {
             val id = summary.id ?: continue
-
-            if (endurainLoggedIn) {
-                val photoPath = summary.headerPhoto
-                val photoHash = WorkoutUploadStore.photoHashOf(photoPath)
-                val existing = enduRows[id]
-                if (existing == null) {
-                    val result = uploadEndurainBlocking(context, gbDevice, summary)
-                    if (result.success) {
-                        WorkoutUploadStore.recordSuccess(
-                            id, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId,
-                            photoHash, result.photoMediaId
-                        )
-                    } else {
-                        endurainFailure = result.reason
-                        LOG.warn("Auto-upload to Endurain failed for summary {}: {}", id, result.reason)
-                    }
-                } else {
-                    // Already uploaded: sync only if the header photo was added, replaced or
-                    // removed since. A removal reaches here as a null hash on a row that has one.
-                    val remoteId = existing.remoteActivityId
-                    if (photoHash != existing.photoHash && remoteId != null) {
-                        val photoFile = photoPath?.let { File(it) }
-                        val sync = WorkoutUploader.syncEndurainPhotoBlocking(
-                            context, remoteId, photoFile, existing.photoMediaId
-                        )
-                        if (sync.success) {
-                            WorkoutUploadStore.recordSuccess(
-                                id, WorkoutUploadStore.SERVICE_ENDURAIN, remoteId,
-                                photoHash, sync.mediaId
-                            )
-                        } else {
-                            LOG.warn("Photo sync to Endurain failed for summary {}", id)
-                        }
-                    }
-                }
-            }
-
-            if (wandererLoggedIn && !wandDone.contains(id)) {
-                val gpx = provider?.let { ActivitySummaryUtils.getShareableGpxFile(it, summary) }
-                if (gpx != null) {
-                    val result = WorkoutUploader.uploadToWandererBlocking(context, gpx)
-                    if (result.success) {
-                        WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId, null)
-                    } else {
-                        wandererFailure = result.reason
-                        LOG.warn("Auto-upload to Wanderer failed for summary {}: {}", id, result.reason)
-                    }
+            val sourceHash = WorkoutUploadStore.sourceHashOf(summary)
+            for (target in targets) {
+                if (rowsByTarget.getValue(target).containsKey(id)) continue
+                upload(context, gbDevice, provider, target, summary, sourceHash)?.let {
+                    failures[target] = it
                 }
             }
         }
 
-        endurainFailure?.let {
-            notifyFailure(context, NOTIFICATION_ID_ENDURAIN, context.getString(R.string.auto_upload_failed_endurain, it))
-        }
-        wandererFailure?.let {
-            notifyFailure(context, NOTIFICATION_ID_WANDERER, context.getString(R.string.auto_upload_failed_wanderer, it))
+        val rowIds = rowsByTarget.values.flatMap { it.keys }.toSet()
+        if (rowIds.isNotEmpty()) {
+            val summariesById = summariesByIds(rowIds)
+            var rebuildBudget = MAX_PAYLOAD_REBUILDS_PER_RUN
+            for (id in rowIds) {
+                val summary = summariesById[id]
+                if (summary == null) {
+                    // The workout is gone, so its upload rows have nothing left to point at. The
+                    // remote activity is deliberately left alone.
+                    targets.forEach { WorkoutUploadStore.delete(id, it.service) }
+                    continue
+                }
+                if (summary.deviceId != deviceId) {
+                    // Another device owns this workout and re-syncs it on its own runs, where the
+                    // track provider and the export match that device.
+                    continue
+                }
+                val sourceHash = WorkoutUploadStore.sourceHashOf(summary)
+                for (target in targets) {
+                    val row = rowsByTarget.getValue(target)[id] ?: continue
+                    if (sourceHash == row.sourceHash) continue
+                    if (rebuildBudget <= 0) {
+                        LOG.info("Payload rebuild budget spent, deferring the rest of the re-sync")
+                        return finish(context, failures, Result.retry())
+                    }
+                    rebuildBudget--
+                    resync(context, gbDevice, provider, target, summary, row, sourceHash)
+                }
+            }
         }
 
-        return Result.success()
+        return finish(context, failures, Result.success())
+    }
+
+    /**
+     * Uploads [summary] to [target] for the first time. Returns a localized failure reason, or
+     * null when the upload succeeded or the workout is not eligible for this service.
+     */
+    private fun upload(
+        context: Context,
+        gbDevice: GBDevice,
+        provider: ActivityTrackProvider?,
+        target: WorkoutUploadTarget,
+        summary: BaseActivitySummary,
+        sourceHash: String
+    ): String? {
+        val id = summary.id ?: return null
+        val payload = buildPayload(context, gbDevice, provider, target, summary) ?: return null
+        val result = target.upload(context, summary, payload)
+        if (!result.success) {
+            LOG.warn("Auto-upload of summary {} to service {} failed: {}", id, target.service, result.reason)
+            return result.reason
+        }
+        WorkoutUploadStore.recordSuccess(
+            id, target.service, result.remoteActivityId,
+            WorkoutUploadStore.photoHashOf(summary.headerPhoto), result.photoMediaId,
+            sourceHash, WorkoutUploadStore.fileHashOf(payload),
+            WorkoutUploader.summaryHasTrack(summary)
+        )
+        return null
+    }
+
+    /**
+     * Pushes to [target] whatever changed about [summary] since its last upload: the header photo,
+     * the name and type, and the track. Each of those is skipped when the service cannot express
+     * it, which is why the fingerprints are still stored on a partial sync: they record what the
+     * remote activity has been brought in line with, not what changed locally.
+     */
+    private fun resync(
+        context: Context,
+        gbDevice: GBDevice,
+        provider: ActivityTrackProvider?,
+        target: WorkoutUploadTarget,
+        summary: BaseActivitySummary,
+        row: WorkoutUpload,
+        sourceHash: String
+    ) {
+        val id = summary.id ?: return
+        val remoteId = row.remoteActivityId ?: return
+        var photoHash = row.photoHash
+        var photoMediaId = row.photoMediaId
+
+        val newPhotoHash = WorkoutUploadStore.photoHashOf(summary.headerPhoto)
+        if (newPhotoHash != row.photoHash) {
+            val sync = target.syncPhoto(
+                context, remoteId, summary.headerPhoto?.let { File(it) }, row.photoMediaId
+            )
+            when {
+                sync == null -> photoHash = newPhotoHash  // service has no media API
+                sync.success -> {
+                    photoHash = newPhotoHash
+                    photoMediaId = sync.mediaId
+                }
+                else -> LOG.warn("Photo sync to service {} failed for summary {}", target.service, id)
+            }
+        }
+
+        target.updateMetadata(context, remoteId, summary)
+
+        var payloadHash = row.payloadHash
+        var hadTrack = row.hadTrack
+        val payload = buildPayload(context, gbDevice, provider, target, summary)
+        val newPayloadHash = payload?.let { WorkoutUploadStore.fileHashOf(it) }
+        if (payload != null && newPayloadHash != row.payloadHash) {
+            when (target.replaceTrack(context, remoteId, payload, summary)) {
+                true -> {
+                    payloadHash = newPayloadHash
+                    hadTrack = WorkoutUploader.summaryHasTrack(summary)
+                }
+
+                false -> {
+                    LOG.warn("Track update to service {} failed for summary {}", target.service, id)
+                    return  // keep the old fingerprints so the next run tries again
+                }
+
+                // The service cannot replace the track of an existing activity. Only the metadata
+                // and the photo have moved, so the recorded payload stays what was uploaded.
+                null -> Unit
+            }
+        }
+
+        WorkoutUploadStore.recordSuccess(
+            id, target.service, remoteId, photoHash, photoMediaId,
+            sourceHash, payloadHash, hadTrack
+        )
+    }
+
+    /**
+     * Exports [summary] in the format [target] accepts, or null when the workout cannot be
+     * expressed in it. A FIT is synthesized from the summary alone when there is no track; a GPX
+     * needs one, which is why a service that stores tracks skips trackless workouts outright.
+     */
+    private fun buildPayload(
+        context: Context,
+        gbDevice: GBDevice,
+        provider: ActivityTrackProvider?,
+        target: WorkoutUploadTarget,
+        summary: BaseActivitySummary
+    ): File? {
+        if (target.requiresTrack && !WorkoutUploader.summaryHasTrack(summary)) {
+            return null
+        }
+        return when (target.format) {
+            WorkoutPayloadFormat.FIT -> try {
+                WorkoutUploader.buildFitFile(context, gbDevice, summary)
+            } catch (e: Exception) {
+                LOG.warn("Could not build FIT for summary {}", summary.id, e)
+                null
+            }
+
+            WorkoutPayloadFormat.GPX -> provider?.let {
+                ActivitySummaryUtils.getShareableGpxFile(it, summary)
+            }
+        }
+    }
+
+    /** Posts a notification per failed service and returns [result]. */
+    private fun finish(
+        context: Context,
+        failures: Map<WorkoutUploadTarget, String>,
+        result: Result
+    ): Result {
+        for ((target, reason) in failures) {
+            notifyFailure(
+                context,
+                target.failureNotificationId,
+                target.failureMessage(context, reason)
+            )
+        }
+        return result
     }
 
     private fun queryRecentSummaries(gbDevice: GBDevice): List<BaseActivitySummary> {
@@ -188,17 +292,32 @@ class WorkoutUploadWorker(
         }
     }
 
-    private fun uploadEndurainBlocking(
-        context: Context,
-        gbDevice: GBDevice,
-        summary: BaseActivitySummary
-    ): WorkoutUploader.UploadResult {
-        val fit: File = try {
-            WorkoutUploader.buildFitFile(context, gbDevice, summary)
+    /** Row id of [gbDevice] in the device table, or null when it is not known to the database. */
+    private fun deviceEntityId(gbDevice: GBDevice): Long? {
+        return try {
+            GBApplication.acquireDbReadOnly().use { db ->
+                DBHelper.getDevice(gbDevice, db.daoSession)?.id
+            }
         } catch (e: Exception) {
-            return WorkoutUploader.UploadResult(false, null, e.localizedMessage)
+            LOG.error("Error resolving device {}", gbDevice.address, e)
+            null
         }
-        return WorkoutUploader.uploadToEndurainBlocking(context, summary, fit)
+    }
+
+    /** Summaries for [ids], keyed by id. Missing ids are workouts that have been deleted. */
+    private fun summariesByIds(ids: Collection<Long>): Map<Long, BaseActivitySummary> {
+        return try {
+            GBApplication.acquireDbReadOnly().use { db ->
+                ids.chunked(SUMMARY_QUERY_CHUNK).flatMap { chunk ->
+                    db.daoSession.baseActivitySummaryDao.queryBuilder()
+                        .where(BaseActivitySummaryDao.Properties.Id.`in`(chunk))
+                        .list()
+                }.mapNotNull { summary -> summary.id?.let { it to summary } }.toMap()
+            }
+        } catch (e: Exception) {
+            LOG.error("Error loading summaries for re-sync", e)
+            emptyMap()
+        }
     }
 
     private fun notifyFailure(context: Context, notificationId: Int, text: String) {
@@ -218,6 +337,16 @@ class WorkoutUploadWorker(
         private const val RECENT_WINDOW_MS = 14L * 24 * 60 * 60 * 1000
 
         /**
+         * Payload rebuilds allowed in one run. An app update invalidates every fingerprint at
+         * once, so without a cap a single run could re-export the whole upload history; the
+         * remainder is picked up by the retry.
+         */
+        private const val MAX_PAYLOAD_REBUILDS_PER_RUN = 50
+
+        /** Summary ids per IN clause, to stay well under SQLite's variable limit. */
+        private const val SUMMARY_QUERY_CHUNK = 250
+
+        /**
          * Enqueues an upload run for [deviceAddress] (unique per device, REPLACE). Used to re-sync
          * a workout edit made outside a device fetch, e.g. a header photo added on the detail
          * screen, which otherwise would not be picked up until the next data sync. Shares the
@@ -233,8 +362,5 @@ class WorkoutUploadWorker(
                 request
             )
         }
-
-        private const val NOTIFICATION_ID_ENDURAIN = 4711
-        private const val NOTIFICATION_ID_WANDERER = 4712
     }
 }

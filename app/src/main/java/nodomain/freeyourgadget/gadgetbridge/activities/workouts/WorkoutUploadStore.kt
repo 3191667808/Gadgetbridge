@@ -16,7 +16,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.activities.workouts
 
+import nodomain.freeyourgadget.gadgetbridge.BuildConfig
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
 import nodomain.freeyourgadget.gadgetbridge.entities.WorkoutUpload
 import nodomain.freeyourgadget.gadgetbridge.entities.WorkoutUploadDao
 import org.slf4j.LoggerFactory
@@ -30,6 +32,9 @@ import java.security.MessageDigest
  * are pruned together with their summary.
  */
 object WorkoutUploadStore {
+    // Service registry. These values are written to the database, so they are append-only: never
+    // renumber one, and never reuse the number of a service that is dropped, or existing rows
+    // would start pointing at the wrong service. See WorkoutUploadTarget for what each supports.
     const val SERVICE_ENDURAIN = 0
     const val SERVICE_WANDERER = 1
 
@@ -66,18 +71,57 @@ object WorkoutUploadStore {
         }
     }
 
+    /** All successful-upload rows for [service], keyed by summary id, over the whole history. */
+    fun allUploadedRows(service: Int): Map<Long, WorkoutUpload> {
+        return try {
+            GBApplication.acquireDbReadOnly().use { db ->
+                db.daoSession.workoutUploadDao.queryBuilder()
+                    .where(
+                        WorkoutUploadDao.Properties.Service.eq(service),
+                        WorkoutUploadDao.Properties.Status.eq(STATUS_SUCCESS)
+                    )
+                    .list()
+                    .associateBy { it.summaryId }
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to read uploaded workout rows for service {}", service, e)
+            emptyMap()
+        }
+    }
+
+    /** Drops the row for [summaryId] and [service], used when the workout no longer exists. */
+    fun delete(summaryId: Long, service: Int) {
+        try {
+            GBApplication.acquireDB().use { db ->
+                db.daoSession.workoutUploadDao.queryBuilder()
+                    .where(
+                        WorkoutUploadDao.Properties.SummaryId.eq(summaryId),
+                        WorkoutUploadDao.Properties.Service.eq(service)
+                    )
+                    .buildDelete()
+                    .executeDeleteWithoutDetachingEntities()
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to delete upload row for summary {} service {}", summaryId, service, e)
+        }
+    }
+
     /**
      * Records a successful upload of [summaryId] to [service], overwriting any prior row.
      * [photoHash] is the fingerprint (see [photoHashOf]) of the header photo that was uploaded,
      * so a later change can be detected; null when the workout had no photo. [photoMediaId] is
      * the remote media entry that photo became, needed to delete it when it is replaced.
+     * [sourceHash], [payloadHash] and [hadTrack] drive the re-sync gate; see [sourceHashOf].
      */
     fun recordSuccess(
         summaryId: Long,
         service: Int,
         remoteActivityId: String?,
         photoHash: String?,
-        photoMediaId: Int? = null
+        photoMediaId: Int? = null,
+        sourceHash: String? = null,
+        payloadHash: String? = null,
+        hadTrack: Boolean? = null
     ) {
         try {
             GBApplication.acquireDB().use { db ->
@@ -89,7 +133,10 @@ object WorkoutUploadStore {
                         STATUS_SUCCESS,
                         System.currentTimeMillis(),
                         photoHash,
-                        photoMediaId
+                        photoMediaId,
+                        sourceHash,
+                        payloadHash,
+                        hadTrack
                     )
                 )
             }
@@ -99,14 +146,43 @@ object WorkoutUploadStore {
     }
 
     /**
-     * SHA-256 fingerprint (hex) of the file at [path], or null when [path] is blank/missing or the
-     * file cannot be read. Used to detect whether a workout's header photo changed since its last
-     * upload.
+     * Fingerprint of everything about [summary] that can change after it was uploaded, cheap
+     * enough to recompute for every uploaded workout on every sync: file paths with their size
+     * and modification time rather than their contents, plus the summary fields themselves.
+     *
+     * A device reprocess is caught because every reprocess path rewrites at least one of these:
+     * Garmin repoints rawDetailsPath, Xiaomi and Huawei rewrite summaryData.
+     *
+     * [BuildConfig.VERSION_CODE] is part of the fingerprint so that an improved exporter or track
+     * parser is picked up too. Those change the exported file without touching the database, and
+     * no fingerprint over stored fields could ever see them. Folding the version in invalidates
+     * every row once per app update, after which the payload hash decides whether the change is
+     * real; the cost is bounded by the caller's export budget.
      */
-    fun photoHashOf(path: String?): String? {
-        if (path.isNullOrBlank()) return null
+    fun sourceHashOf(summary: BaseActivitySummary): String {
+        val parts = listOf(
+            BuildConfig.VERSION_CODE.toString(),
+            fileStamp(summary.gpxTrack),
+            fileStamp(summary.rawDetailsPath),
+            fileStamp(summary.headerPhoto),
+            summary.summaryData ?: "",
+            summary.name ?: "",
+            summary.activityKind.toString(),
+            summary.endTime?.time?.toString() ?: ""
+        )
+        return sha256Hex(parts.joinToString("\u0000").toByteArray())
+    }
+
+    /** Path, size and modification time of [path], or a marker when it is unset or missing. */
+    private fun fileStamp(path: String?): String {
+        if (path.isNullOrBlank()) return "-"
         val file = File(path)
-        if (!file.isFile) return null
+        if (!file.isFile) return "$path:missing"
+        return "$path:${file.length()}:${file.lastModified()}"
+    }
+
+    /** SHA-256 fingerprint (hex) of the contents of [file], or null when it cannot be read. */
+    fun fileHashOf(file: File): String? {
         return try {
             val digest = MessageDigest.getInstance("SHA-256")
             file.inputStream().use { input ->
@@ -117,10 +193,27 @@ object WorkoutUploadStore {
                     digest.update(buffer, 0, read)
                 }
             }
-            digest.digest().joinToString("") { "%02x".format(it) }
+            digest.digest().toHex()
         } catch (e: Exception) {
-            LOG.warn("Failed to fingerprint photo {}", path, e)
+            LOG.warn("Failed to fingerprint {}", file, e)
             null
         }
+    }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).toHex()
+
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+    /**
+     * SHA-256 fingerprint (hex) of the file at [path], or null when [path] is blank/missing or the
+     * file cannot be read. Used to detect whether a workout's header photo changed since its last
+     * upload.
+     */
+    fun photoHashOf(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        val file = File(path)
+        if (!file.isFile) return null
+        return fileHashOf(file)
     }
 }

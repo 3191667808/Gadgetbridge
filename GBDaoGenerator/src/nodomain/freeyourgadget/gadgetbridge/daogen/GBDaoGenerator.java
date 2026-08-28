@@ -1800,6 +1800,15 @@ public class GBDaoGenerator {
         // Id of the media entry the header photo was uploaded as, so it can be deleted when the
         // photo is replaced or removed without touching media the user attached on the server.
         upload.addIntProperty("photoMediaId");
+        // Fingerprint of everything about the summary that a later edit or a reprocess can
+        // change. Compared on every sync to decide whether the workout is worth re-exporting.
+        upload.addStringProperty("sourceHash");
+        // Fingerprint of the exported file that was actually uploaded, compared once the source
+        // hash has already shown that something changed.
+        upload.addStringProperty("payloadHash");
+        // Whether the uploaded file carried a GPS track, so a track added afterwards can be told
+        // apart from a track that merely changed.
+        upload.addBooleanProperty("hadTrack");
     }
 
     private static Property findProperty(Entity entity, String propertyName) {
