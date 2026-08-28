@@ -301,7 +301,7 @@ class WorkoutUploadWorker(
     private fun queryRecentSummaries(gbDevice: GBDevice): List<BaseActivitySummary> {
         return try {
             GBApplication.acquireDbReadOnly().use { db ->
-                val device = DBHelper.getDevice(gbDevice, db.daoSession) ?: return emptyList()
+                val device = DBHelper.findDevice(gbDevice, db.daoSession) ?: return emptyList()
                 val since = Date(System.currentTimeMillis() - RECENT_WINDOW_MS)
                 db.daoSession.baseActivitySummaryDao.queryBuilder()
                     .where(
@@ -322,7 +322,7 @@ class WorkoutUploadWorker(
     private fun deviceEntityId(gbDevice: GBDevice): Long? {
         return try {
             GBApplication.acquireDbReadOnly().use { db ->
-                DBHelper.getDevice(gbDevice, db.daoSession)?.id
+                DBHelper.findDevice(gbDevice, db.daoSession)?.id
             }
         } catch (e: Exception) {
             LOG.error("Error resolving device {}", gbDevice.address, e)
@@ -378,6 +378,7 @@ class WorkoutUploadWorker(
          * screen, which otherwise would not be picked up until the next data sync. Shares the
          * per-device unique work name with the fetch-triggered path, so the two coalesce.
          */
+        @JvmStatic
         fun enqueue(context: Context, deviceAddress: String) {
             val request = OneTimeWorkRequest.Builder(WorkoutUploadWorker::class.java)
                 .setInputData(Data.Builder().putString(INPUT_DEVICE_ADDRESS, deviceAddress).build())
