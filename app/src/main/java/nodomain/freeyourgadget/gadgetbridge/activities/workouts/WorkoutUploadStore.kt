@@ -69,9 +69,16 @@ object WorkoutUploadStore {
     /**
      * Records a successful upload of [summaryId] to [service], overwriting any prior row.
      * [photoHash] is the fingerprint (see [photoHashOf]) of the header photo that was uploaded,
-     * so a later change can be detected; null when the workout had no photo.
+     * so a later change can be detected; null when the workout had no photo. [photoMediaId] is
+     * the remote media entry that photo became, needed to delete it when it is replaced.
      */
-    fun recordSuccess(summaryId: Long, service: Int, remoteActivityId: String?, photoHash: String?) {
+    fun recordSuccess(
+        summaryId: Long,
+        service: Int,
+        remoteActivityId: String?,
+        photoHash: String?,
+        photoMediaId: Int? = null
+    ) {
         try {
             GBApplication.acquireDB().use { db ->
                 db.daoSession.workoutUploadDao.insertOrReplace(
@@ -81,7 +88,8 @@ object WorkoutUploadStore {
                         remoteActivityId,
                         STATUS_SUCCESS,
                         System.currentTimeMillis(),
-                        photoHash
+                        photoHash,
+                        photoMediaId
                     )
                 )
             }

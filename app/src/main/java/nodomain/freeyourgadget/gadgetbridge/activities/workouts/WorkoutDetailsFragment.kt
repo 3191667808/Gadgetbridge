@@ -864,7 +864,8 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 if (result.success && summaryId != null) {
                     WorkoutUploadStore.recordSuccess(
                         summaryId, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId,
-                        WorkoutUploadStore.photoHashOf(workout.summary.headerPhoto)
+                        WorkoutUploadStore.photoHashOf(workout.summary.headerPhoto),
+                        result.photoMediaId
                     )
                 }
                 activity?.runOnUiThread {

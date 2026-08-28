@@ -1797,6 +1797,9 @@ public class GBDaoGenerator {
         // Fingerprint of the header photo at the time of the last upload, so a photo added or
         // replaced afterwards can be detected and re-synced to the remote activity.
         upload.addStringProperty("photoHash");
+        // Id of the media entry the header photo was uploaded as, so it can be deleted when the
+        // photo is replaced or removed without touching media the user attached on the server.
+        upload.addIntProperty("photoMediaId");
     }
 
     private static Property findProperty(Entity entity, String propertyName) {

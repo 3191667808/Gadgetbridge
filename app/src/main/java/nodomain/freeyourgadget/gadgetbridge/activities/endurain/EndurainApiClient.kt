@@ -57,6 +57,16 @@ data class EndurainTokenExchangeRequest(
     val code_verifier: String
 )
 
+/**
+ * A photo or video attached to an Endurain activity. [mediaPath] is the server-side storage
+ * path, served through /activity_media/{media}.
+ */
+data class EndurainActivityMedia(
+    val id: Int,
+    val activityId: Int,
+    val mediaPath: String
+)
+
 data class EndurainIdentityProvider(
     val id: String,
     val name: String,
@@ -334,11 +344,11 @@ class EndurainApiClient(
     }
 
     /**
-     * Upload activity photo. [callback], when provided, fires with whether the upload succeeded,
-     * so callers off the main thread (the auto-upload worker's photo re-sync) can wait for the
-     * result.
+     * Upload activity photo. [callback], when provided, fires with the id of the created media
+     * entry, or null on failure, so callers off the main thread (the auto-upload worker's photo
+     * sync) can wait for the result and remember which entry to replace later.
      */
-    fun uploadActivityPhoto(activityId: Int, file: File, callback: ((success: Boolean) -> Unit)? = null) {
+    fun uploadActivityPhoto(activityId: Int, file: File, callback: ((mediaId: Int?) -> Unit)? = null) {
         Thread {
             try {
                 val uri = "$baseUrl/api/v1/activities_media/upload/activity_id/$activityId".toUri()
@@ -351,17 +361,79 @@ class EndurainApiClient(
                 ) { success, statusCode, responseText, reason ->
                     if (success && responseText != null) {
                         LOG.debug("Response ($statusCode) from Endurain: $responseText")
-                        callback?.invoke(true)
+                        val mediaId = try {
+                            JSONObject(responseText).optInt("id").takeIf { it > 0 }
+                        } catch (e: Exception) {
+                            LOG.warn("Could not read media id from Endurain response", e)
+                            null
+                        }
+                        callback?.invoke(mediaId)
                     } else {
                         LOG.error("Activity photo upload to Endurain failed. Response ($statusCode, reason {}) received: $responseText", reason)
-                        callback?.invoke(false)
+                        callback?.invoke(null)
                     }
                 }
             } catch (e: Exception) {
                 LOG.error("Activity photo upload error", e)
-                callback?.invoke(false)
+                callback?.invoke(null)
             }
         }.start()
+    }
+
+    /**
+     * Media currently attached to [activityId], or null when the request failed. An activity
+     * with no media returns an empty list.
+     */
+    fun listActivityMedia(activityId: Int): List<EndurainActivityMedia>? {
+        try {
+            val uri = "$baseUrl/api/v1/activities_media/activity_id/$activityId".toUri()
+            val response = InternetUtils.doStringRequestWithStatus(
+                uri = uri,
+                requestHeaders = buildHeaders(EndurainAuthType.AUTH_TOKEN)
+            )
+            if (response.statusCode !in 200..299 || response.body == null) {
+                LOG.error("Listing media of activity {} failed (status {})", activityId, response.statusCode)
+                return null
+            }
+            // The endpoint answers null rather than [] when the activity has no media.
+            if (response.body.isBlank() || response.body == "null") {
+                return emptyList()
+            }
+            val array = JSONArray(response.body)
+            return (0 until array.length()).map { i ->
+                val entry = array.getJSONObject(i)
+                EndurainActivityMedia(
+                    entry.getInt("id"),
+                    entry.getInt("activity_id"),
+                    entry.getString("media_path")
+                )
+            }
+        } catch (e: Exception) {
+            LOG.error("Error listing media of activity {}", activityId, e)
+            return null
+        }
+    }
+
+    /**
+     * Deletes one media entry. The endpoint answers 204 with no body.
+     */
+    fun deleteActivityMedia(mediaId: Int): Boolean {
+        try {
+            val uri = "$baseUrl/api/v1/activities_media/$mediaId".toUri()
+            val response = InternetUtils.doStringRequestWithStatus(
+                uri = uri,
+                method = "DELETE",
+                requestHeaders = buildHeaders(EndurainAuthType.AUTH_TOKEN)
+            )
+            if (response.statusCode !in 200..299) {
+                LOG.error("Deleting media {} failed (status {}): {}", mediaId, response.statusCode, response.body)
+                return false
+            }
+            return true
+        } catch (e: Exception) {
+            LOG.error("Error deleting media {}", mediaId, e)
+            return false
+        }
     }
 
     /**

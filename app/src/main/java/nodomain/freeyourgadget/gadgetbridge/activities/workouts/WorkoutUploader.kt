@@ -110,12 +110,15 @@ object WorkoutUploader {
 
     /**
      * Outcome of an upload attempt. [remoteActivityId] is the id the service assigned to the new
-     * activity, null on failure. [reason] is a localized failure explanation, null on success.
+     * activity, null on failure. [photoMediaId] is the media entry the header photo was uploaded
+     * as, null when there was no photo or the photo step failed. [reason] is a localized failure
+     * explanation, null on success.
      */
     data class UploadResult(
         val success: Boolean,
         val remoteActivityId: String?,
-        val reason: String?
+        val reason: String?,
+        val photoMediaId: Int? = null
     )
 
     /**
@@ -144,23 +147,27 @@ object WorkoutUploader {
         tokenManager.performTokenRefresh(serverUrl) {
             LOG.info("Uploading workout '{}' (type {}) to Endurain", name, kind)
             apiClient.uploadActivity(fitFile) { newId, reason ->
-                if (newId != null) {
-                    try {
-                        apiClient.editActivity(newId, kind, name)
-                    } catch (e: Exception) {
-                        LOG.warn("Endurain editActivity failed for id {}", newId, e)
-                    }
-                    val photoPath = summary.headerPhoto
-                    if (photoPath != null) {
-                        try {
-                            apiClient.uploadActivityPhoto(newId, File(photoPath))
-                        } catch (e: Exception) {
-                            LOG.warn("Endurain uploadActivityPhoto failed for id {}", newId, e)
-                        }
-                    }
-                    callback(UploadResult(true, newId.toString(), null))
-                } else {
+                if (newId == null) {
                     callback(UploadResult(false, null, reason))
+                    return@uploadActivity
+                }
+                try {
+                    apiClient.editActivity(newId, kind, name)
+                } catch (e: Exception) {
+                    LOG.warn("Endurain editActivity failed for id {}", newId, e)
+                }
+                val photoPath = summary.headerPhoto
+                if (photoPath == null) {
+                    callback(UploadResult(true, newId.toString(), null))
+                    return@uploadActivity
+                }
+                try {
+                    apiClient.uploadActivityPhoto(newId, File(photoPath)) { mediaId ->
+                        callback(UploadResult(true, newId.toString(), null, mediaId))
+                    }
+                } catch (e: Exception) {
+                    LOG.warn("Endurain uploadActivityPhoto failed for id {}", newId, e)
+                    callback(UploadResult(true, newId.toString(), null))
                 }
             }
         }
@@ -216,37 +223,67 @@ object WorkoutUploader {
     }
 
     /**
-     * Re-attaches [photoFile] to an already-uploaded Endurain activity ([remoteActivityId]).
-     * Used by the auto-upload worker when a header photo is added or changed after the workout's
-     * initial upload. Blocking; call off the main thread. Returns true on success.
-     *
-     * Note: Endurain's media endpoint appends, so replacing an existing photo leaves the previous
-     * one on the server (there is no delete-media API); adding a first photo is clean.
+     * Outcome of a header photo sync. [mediaId] is the media entry now holding the photo, null
+     * when the photo was removed or the upload failed.
      */
-    fun resyncEndurainPhotoBlocking(
+    data class PhotoSyncResult(val success: Boolean, val mediaId: Int?)
+
+    /**
+     * Brings the header photo of an already-uploaded Endurain activity in line with the local
+     * workout: deletes the media entry a previous sync created ([previousMediaId]) and uploads
+     * [photoFile], which may be null when the photo was removed locally.
+     *
+     * Media the user attached on the server is left alone, since only the entry Gadgetbridge
+     * created is deleted. Blocking; call off the main thread.
+     */
+    fun syncEndurainPhotoBlocking(
         context: Context,
         remoteActivityId: String,
-        photoFile: File,
+        photoFile: File?,
+        previousMediaId: Int?,
         timeoutSeconds: Long = DEFAULT_UPLOAD_TIMEOUT_SECONDS
-    ): Boolean {
+    ): PhotoSyncResult {
         val activityId = remoteActivityId.toIntOrNull()
         if (activityId == null) {
-            LOG.warn("Cannot re-sync photo: non-numeric Endurain activity id '{}'", remoteActivityId)
-            return false
+            LOG.warn("Cannot sync photo: non-numeric Endurain activity id '{}'", remoteActivityId)
+            return PhotoSyncResult(false, previousMediaId)
         }
         val serverUrl = GBApplication.getPrefs().preferences.getString(PREF_ENDURAIN_SERVER, null)
-            ?: return false
+            ?: return PhotoSyncResult(false, previousMediaId)
         val tokenManager = EndurainTokenManager(context)
         val apiClient = EndurainApiClient(serverUrl, tokenManager)
+
         val latch = CountDownLatch(1)
-        var success = false
+        var result = PhotoSyncResult(false, previousMediaId)
         tokenManager.performTokenRefresh(serverUrl) {
-            apiClient.uploadActivityPhoto(activityId, photoFile) { ok ->
-                success = ok
-                latch.countDown()
-            }
+            Thread {
+                try {
+                    var removed = previousMediaId == null
+                    if (previousMediaId != null) {
+                        removed = apiClient.deleteActivityMedia(previousMediaId)
+                        if (!removed) {
+                            // Already gone server-side counts as removed, so a photo replaced
+                            // after a manual deletion still goes through.
+                            val remaining = apiClient.listActivityMedia(activityId)
+                            removed = remaining != null && remaining.none { it.id == previousMediaId }
+                        }
+                    }
+                    if (photoFile == null) {
+                        result = PhotoSyncResult(removed, null)
+                        latch.countDown()
+                    } else {
+                        apiClient.uploadActivityPhoto(activityId, photoFile) { mediaId ->
+                            result = PhotoSyncResult(mediaId != null, mediaId)
+                            latch.countDown()
+                        }
+                    }
+                } catch (e: Exception) {
+                    LOG.error("Endurain photo sync failed for activity {}", activityId, e)
+                    latch.countDown()
+                }
+            }.start()
         }
-        return if (latch.await(timeoutSeconds, TimeUnit.SECONDS)) success else false
+        return if (latch.await(timeoutSeconds, TimeUnit.SECONDS)) result else PhotoSyncResult(false, previousMediaId)
     }
 
     private inline fun awaitUpload(

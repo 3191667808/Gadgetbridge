@@ -115,20 +115,30 @@ class WorkoutUploadWorker(
                 if (existing == null) {
                     val result = uploadEndurainBlocking(context, gbDevice, summary)
                     if (result.success) {
-                        WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId, photoHash)
+                        WorkoutUploadStore.recordSuccess(
+                            id, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId,
+                            photoHash, result.photoMediaId
+                        )
                     } else {
                         endurainFailure = result.reason
                         LOG.warn("Auto-upload to Endurain failed for summary {}: {}", id, result.reason)
                     }
                 } else {
-                    // Already uploaded: re-sync only if a header photo was added or changed since.
+                    // Already uploaded: sync only if the header photo was added, replaced or
+                    // removed since. A removal reaches here as a null hash on a row that has one.
                     val remoteId = existing.remoteActivityId
-                    if (photoPath != null && photoHash != null && photoHash != existing.photoHash && remoteId != null) {
-                        val ok = WorkoutUploader.resyncEndurainPhotoBlocking(context, remoteId, File(photoPath))
-                        if (ok) {
-                            WorkoutUploadStore.recordSuccess(id, WorkoutUploadStore.SERVICE_ENDURAIN, remoteId, photoHash)
+                    if (photoHash != existing.photoHash && remoteId != null) {
+                        val photoFile = photoPath?.let { File(it) }
+                        val sync = WorkoutUploader.syncEndurainPhotoBlocking(
+                            context, remoteId, photoFile, existing.photoMediaId
+                        )
+                        if (sync.success) {
+                            WorkoutUploadStore.recordSuccess(
+                                id, WorkoutUploadStore.SERVICE_ENDURAIN, remoteId,
+                                photoHash, sync.mediaId
+                            )
                         } else {
-                            LOG.warn("Photo re-sync to Endurain failed for summary {}", id)
+                            LOG.warn("Photo sync to Endurain failed for summary {}", id)
                         }
                     }
                 }
