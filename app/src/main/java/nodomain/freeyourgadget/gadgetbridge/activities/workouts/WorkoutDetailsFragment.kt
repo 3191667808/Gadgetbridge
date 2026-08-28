@@ -873,7 +873,10 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                     WorkoutUploadStore.recordSuccess(
                         summaryId, WorkoutUploadStore.SERVICE_ENDURAIN, result.remoteActivityId,
                         WorkoutUploadStore.photoHashOf(workout.summary.headerPhoto),
-                        result.photoMediaId
+                        result.photoMediaId,
+                        WorkoutUploadStore.sourceHashOf(workout.summary),
+                        WorkoutUploadStore.fileHashOf(activityFile),
+                        WorkoutUploader.summaryHasTrack(workout.summary)
                     )
                 }
                 activity?.runOnUiThread {
@@ -909,7 +912,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
             val summaryId = workout.summary.id
             if (result.success && summaryId != null) {
                 WorkoutUploadStore.recordSuccess(
-                    summaryId, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId, null
+                    summaryId, WorkoutUploadStore.SERVICE_WANDERER, result.remoteActivityId, null,
+                    null,
+                    WorkoutUploadStore.sourceHashOf(workout.summary),
+                    WorkoutUploadStore.fileHashOf(activityFile),
+                    true
                 )
             }
             activity?.runOnUiThread {
