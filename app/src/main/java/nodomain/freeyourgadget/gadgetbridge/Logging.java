@@ -262,6 +262,22 @@ public class Logging {
         return fileLogger;
     }
 
+    /**
+     * The {@link #formatBytes(byte[])} of an array, produced only if it is written.
+     *
+     * @see nodomain.freeyourgadget.gadgetbridge.util.GB#lazyHexdump(byte[])
+     */
+    @NonNull
+    public static Object lazyBytes(@Nullable final byte[] bytes) {
+        return new Object() {
+            @NonNull
+            @Override
+            public String toString() {
+                return formatBytes(bytes);
+            }
+        };
+    }
+
     @NonNull
     public static String formatBytes(@Nullable final byte[] bytes) {
         if (bytes == null) {

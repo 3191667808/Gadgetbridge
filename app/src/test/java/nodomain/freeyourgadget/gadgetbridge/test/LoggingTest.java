@@ -102,4 +102,13 @@ public class LoggingTest extends TestBase {
         tempOut = Logging.formatBytes(new byte[] {0xa, 1, (byte) 255});
         assertEquals("0a 01 ff", tempOut);
     }
+
+    @Test
+    public void testLazyLogFormatMatchesTheEagerOne() {
+        final byte[] bytes = {0xa, 1, (byte) 255};
+
+        assertEquals(Logging.formatBytes(bytes), Logging.lazyBytes(bytes).toString());
+        assertEquals(Logging.formatBytes(new byte[0]), Logging.lazyBytes(new byte[0]).toString());
+        assertEquals(Logging.formatBytes(null), Logging.lazyBytes(null).toString());
+    }
 }
