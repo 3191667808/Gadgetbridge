@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Locale;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
@@ -46,6 +45,8 @@ public class Logging {
     private static final Logger LOG = LoggerFactory.getLogger(Logging.class);
 
     private static final Logging INSTANCE = new Logging();
+
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
 
     private Logging() {
     }
@@ -286,12 +287,18 @@ public class Logging {
             return "";
         }
 
-        final StringBuilder builder = new StringBuilder(bytes.length * 3);
-        for (final byte b : bytes) {
-            builder.append(String.format(Locale.ROOT, "%02x ", b));
+        // two hex digits per byte, single space between, none trailing
+        final char[] chars = new char[bytes.length * 3 - 1];
+        int at = 0;
+        for (int i = 0; i < bytes.length; i++) {
+            if (i > 0) {
+                chars[at++] = ' ';
+            }
+            final int b = bytes[i] & 0xff;
+            chars[at++] = HEX_CHARS[b >>> 4];
+            chars[at++] = HEX_CHARS[b & 0x0f];
         }
-        builder.setLength(builder.length() - 1);
-        return builder.toString();
+        return new String(chars);
     }
 
     private static FileAppender<ILoggingEvent> createFileAppender(final String logDirectory) {

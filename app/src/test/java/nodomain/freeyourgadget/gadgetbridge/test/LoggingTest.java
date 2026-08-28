@@ -101,6 +101,9 @@ public class LoggingTest extends TestBase {
 
         tempOut = Logging.formatBytes(new byte[] {0xa, 1, (byte) 255});
         assertEquals("0a 01 ff", tempOut);
+
+        assertEquals("", Logging.formatBytes(new byte[0]));
+        assertEquals("(null)", Logging.formatBytes(null));
     }
 
     @Test
