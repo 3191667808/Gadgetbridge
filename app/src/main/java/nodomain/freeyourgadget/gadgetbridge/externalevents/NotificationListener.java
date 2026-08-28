@@ -1171,12 +1171,16 @@ public class NotificationListener extends NotificationListenerService {
     }
 
     private void dumpExtras(Bundle bundle) {
+        // reading an extra deserializes it, which for a bitmap or a remote view is far from free
+        if (!LOG.isDebugEnabled()) {
+            return;
+        }
         for (String key : bundle.keySet()) {
             Object value = bundle.get(key);
             if (value == null) {
                 continue;
             }
-            LOG.debug(String.format("Notification extra: %s %s (%s)", key, value.toString(), value.getClass().getName()));
+            LOG.debug("Notification extra: {} {} ({})", key, value, value.getClass().getName());
         }
     }
 

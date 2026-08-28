@@ -339,7 +339,7 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
      */
     public void logMessageContent(byte[] value) {
         if (value != null) {
-            logger.info("RECEIVED DATA WITH LENGTH: {}: {}", value.length, GB.hexdump(value));
+            logger.debug("RECEIVED DATA WITH LENGTH: {}: {}", value.length, GB.lazyHexdump(value));
         } else {
             logger.warn("RECEIVED DATA: (null)");
         }
