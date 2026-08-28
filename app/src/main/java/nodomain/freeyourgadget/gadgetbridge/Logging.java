@@ -53,6 +53,7 @@ public class Logging {
     private String logDirectory;
     private FileAppender<ILoggingEvent> fileLogger;
     private boolean initialized = false;
+    private boolean traceEnabled = false;
 
     public static Logging getInstance() {
         return INSTANCE;
@@ -145,9 +146,38 @@ public class Logging {
     }
 
     public void setTraceLogging(final boolean traceEnabled) {
+        this.traceEnabled = traceEnabled;
+        applyRootLevel();
+    }
+
+    /**
+     * The level at which the log is worth producing, given where it would be written. Below DEBUG a
+     * statement is neither formatted nor written, though its arguments are still evaluated, so a
+     * costly argument is only skipped where the call site defers it or sits inside an
+     * {@code isDebugEnabled()} block.
+     * <p>
+     * Detail is only worth producing where it can be read back: a log file the user collects, or a
+     * build a developer is attached to. Logcat on a release build is neither, so both TRACE and
+     * DEBUG require one of those.
+     * <p>
+     * A file logger implies at least DEBUG: {@link #flush()} writes a debug statement to force the
+     * buffered appender out to disk, and the log a user shares is expected to hold the detail.
+     */
+    @VisibleForTesting
+    public static Level resolveRootLevel(final boolean traceEnabled,
+                                         final boolean fileLogging,
+                                         final boolean debugBuild) {
+        if (!fileLogging && !debugBuild) {
+            return Level.INFO;
+        }
+        return traceEnabled ? Level.TRACE : Level.DEBUG;
+    }
+
+    private void applyRootLevel() {
+        final Level level = resolveRootLevel(traceEnabled, fileLogger != null, BuildConfig.DEBUG);
         try {
             ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-            root.setLevel(traceEnabled ? Level.TRACE : Level.DEBUG);
+            root.setLevel(level);
         } catch (final Throwable e) {
             LOG.error("Error changing log level", e);
         }
@@ -188,20 +218,21 @@ public class Logging {
         fileAppender.start();
         attachLogger(fileAppender);
         fileLogger = fileAppender;
+        applyRootLevel();
     }
 
     public void stopFileLogger() {
-        if (fileLogger == null) {
-            return;
+        if (fileLogger != null) {
+            if (fileLogger.isStarted()) {
+                fileLogger.stop();
+            }
+
+            detachLogger(fileLogger);
+
+            fileLogger = null;
         }
 
-        if (fileLogger.isStarted()) {
-            fileLogger.stop();
-        }
-
-        detachLogger(fileLogger);
-
-        fileLogger = null;
+        applyRootLevel();
     }
 
     private static void attachLogger(final Appender<ILoggingEvent> logger) {
