@@ -1,5 +1,8 @@
 package nodomain.freeyourgadget.gadgetbridge.util.healthconnect.syncers
 
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
+import nodomain.freeyourgadget.gadgetbridge.model.SleepSession
+import nodomain.freeyourgadget.gadgetbridge.model.SleepStage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -130,5 +133,56 @@ class SleepSessionIdentityTest {
 
         assertFalse("old row pruned", keptIds.contains("old"))
         assertTrue("recent row kept", keptIds.contains("recent"))
+    }
+
+    // ── Registry round-trip: sub-second detection spans defeat the skip-unchanged guard ─────────
+
+    // The registry persists spans at epochSecond precision (loadSleepRows/persistSleepRows).
+    // buildCandidate derives the detected span from the provider's epoch-millis session bounds, so
+    // a provider emitting sub-second boundaries makes the re-detected span differ from the stored
+    // row after reload -> changed=true -> the night is rewritten to HC every sync. This guard
+    // pins the round-trip property the providers must hold (issue #6453, Fix A).
+    private fun persistLoad(instant: Instant) = Instant.ofEpochSecond(instant.epochSecond)
+
+    private fun sessionSpan(session: SleepSession) =
+        DetectedSleepSession(
+            Instant.ofEpochMilli(session.startTime),
+            Instant.ofEpochMilli(session.endTime)
+        )
+
+    @Test
+    fun wholeSecondSessionSpan_survivesRegistryRoundTrip_notReplanned() {
+        val session = SleepSession(listOf(
+            SleepStage(ActivityKind.LIGHT_SLEEP, 1_700_000_000_000L, 1_700_003_600_000L),
+            SleepStage(ActivityKind.DEEP_SLEEP, 1_700_003_600_000L, 1_700_007_200_000L)
+        ))
+        val stored = SleepSessionRow(
+            "frozen-id",
+            persistLoad(Instant.ofEpochMilli(session.startTime)),
+            persistLoad(Instant.ofEpochMilli(session.endTime))
+        )
+
+        val result = plan(listOf(stored), sessionSpan(session))
+
+        assertTrue("unchanged whole-second re-detection must not be rewritten to HC", result.planned.isEmpty())
+    }
+
+    @Test
+    fun subSecondSessionSpan_registryRoundTrip_replansEverySync() {
+        // A provider whose bounds carry a sub-second component (e.g. last stage end at +500ms)
+        // truncates on reload; the re-detected span no longer equals the stored row, so the
+        // skip-unchanged guard is defeated and the night is re-planned every sync.
+        val session = SleepSession(listOf(
+            SleepStage(ActivityKind.LIGHT_SLEEP, 1_700_000_000_000L, 1_700_003_600_500L)
+        ))
+        val stored = SleepSessionRow(
+            "frozen-id",
+            persistLoad(Instant.ofEpochMilli(session.startTime)),
+            persistLoad(Instant.ofEpochMilli(session.endTime))
+        )
+
+        val result = plan(listOf(stored), sessionSpan(session))
+
+        assertEquals("sub-second end truncates on reload and defeats the skip-unchanged guard", 1, result.planned.size)
     }
 }
