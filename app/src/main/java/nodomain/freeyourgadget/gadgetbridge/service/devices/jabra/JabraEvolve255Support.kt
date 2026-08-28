@@ -515,12 +515,14 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
     }
 
     override fun dispose() {
-        keepaliveHandler.removeCallbacks(keepaliveRunnable)
-        if (multipointReceiverRegistered) {
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(multipointReceiver)
-            multipointReceiverRegistered = false
+        synchronized(ConnectionMonitor) {
+            keepaliveHandler.removeCallbacks(keepaliveRunnable)
+            if (multipointReceiverRegistered) {
+                LocalBroadcastManager.getInstance(context).unregisterReceiver(multipointReceiver)
+                multipointReceiverRegistered = false
+            }
+            super.dispose()
         }
-        super.dispose()
     }
 
     // ── Response handlers ─────────────────────────────────────────────────────
@@ -1064,6 +1066,9 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         createTransactionBuilder("jabra-set-busylight")
             .write(*frame)
             .queue()
+        // The device acknowledges this SET with an empty frame (no state echo), so reflect the
+        // new state optimistically. Without this the device card icon never refreshes.
+        handleGBDeviceEvent(GBDeviceEventUpdatePreferences(PREF_BUSYLIGHT, enable))
     }
 
     /**

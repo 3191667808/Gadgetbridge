@@ -67,7 +67,7 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
                 0,
                 GBDevice.BATTERY_ICON_DEFAULT.toInt(),
                 GBDevice.BATTERY_LABEL_DEFAULT.toInt(),
-                0,
+                15,
                 100
             )
         )
@@ -86,21 +86,21 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
             key = DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE,
             title = R.string.prefs_active_noise_cancelling,
             summary = R.string.prefs_active_noise_cancelling_summary,
-            icon = R.drawable.ic_surround,
+            icon = R.drawable.ic_hearing,
             defaultValue = false,
         )
         switchSetting(
             key = DeviceSettingsPreferenceConst.PREF_BUSYLIGHT,
             title = R.string.prefs_busylight,
             summary = R.string.prefs_busylight_summary,
-            icon = R.drawable.ic_led_color,
+            icon = R.drawable.ic_dnd,
             defaultValue = false,
         )
         switchSetting(
             key = DeviceSettingsPreferenceConst.PREF_BUSYLIGHT_ON_CALL,
             title = R.string.prefs_busylight_on_call,
             summary = R.string.prefs_busylight_on_call_summary,
-            icon = R.drawable.ic_led_color,
+            icon = R.drawable.ic_dnd,
             defaultValue = false,
         )
         switchSetting(
@@ -312,7 +312,11 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
     companion object {
         private val DEVICE_CARD_ACTIONS = listOf(
             deviceCardAction {
-                icon = { R.drawable.ic_hearing }
+                icon = { device ->
+                    val state = GBApplication.getDevicePrefs(device)
+                        .getBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, false)
+                    if (state) R.drawable.ic_hearing else R.drawable.ic_hearing_disabled
+                }
                 description = { _, context -> context.getString(R.string.prefs_active_noise_cancelling) }
                 onClick = { device, context ->
                     val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
@@ -322,7 +326,11 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
                 }
             },
             deviceCardAction {
-                icon = { R.drawable.ic_dnd }
+                icon = { device ->
+                    val state = GBApplication.getDevicePrefs(device)
+                        .getBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, false)
+                    if (state) R.drawable.ic_dnd else R.drawable.ic_dnd_disabled
+                }
                 description = { _, context -> context.getString(R.string.prefs_busylight) }
                 onClick = { device, context ->
                     val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
