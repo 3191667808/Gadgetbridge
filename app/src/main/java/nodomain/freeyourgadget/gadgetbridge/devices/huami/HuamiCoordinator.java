@@ -57,6 +57,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.HuamiSpo2SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.HuamiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SleepAsAndroidFeature;
+import nodomain.freeyourgadget.gadgetbridge.devices.SleepSessionProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.DateTimeDisplay;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.DoNotDisturb;
@@ -199,6 +200,11 @@ public abstract class HuamiCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public SampleProvider<? extends AbstractActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
         return new MiBand2SampleProvider(device, session);
+    }
+
+    @Override
+    public SleepSessionProvider getSleepSessionProvider(GBDevice device, DaoSession session) {
+        return new HuamiSleepSessionProvider(device, session);
     }
 
     @Override
