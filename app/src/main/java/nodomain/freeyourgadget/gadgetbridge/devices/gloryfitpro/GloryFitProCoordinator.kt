@@ -23,7 +23,9 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.gloryfit.GloryFitActivitySampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
@@ -31,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSampleDao
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
+import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.gloryfitpro.GloryFitProSupport
 
@@ -104,6 +107,13 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
 
     override fun supportsSpo2(device: GBDevice): Boolean {
         return true
+    }
+
+    override fun getSpo2SampleProvider(
+        device: GBDevice,
+        session: DaoSession
+    ): TimeSampleProvider<out Spo2Sample> {
+        return GenericSpo2SampleProvider(device, session)
     }
 
     /** Only the codes actually verified on hardware; the rest of the watch's table is unknown. */

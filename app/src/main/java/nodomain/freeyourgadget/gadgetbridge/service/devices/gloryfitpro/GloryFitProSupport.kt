@@ -870,6 +870,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         var firstMinute = -1
         var lastMinute = -1
         val heartRates = ArrayList<GenericHeartRateSample>()
+        val spo2Samples = ArrayList<GenericSpo2Sample>()
         while (i + 3 <= page.size) {
             val minute = ((page[i].toInt() and 0xff) shl 8) or (page[i + 1].toInt() and 0xff)
             val type = page[i + 2].toInt() and 0xff
@@ -920,6 +921,18 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                     heartRates.add(sample)
                 }
             }
+            // A b8 record with subfield 09 is the same window summary as 08 with the SpO2
+            // reading spliced in before the average, so it is the only historic record type
+            // that carries one.
+            if (type == 0xb8 && (page.getOrNull(i + 3)?.toInt()?.and(0xff)) == 0x09 && i + 7 < page.size) {
+                val spo2 = page[i + 7].toInt() and 0xff
+                if (spo2 in 50..100) {
+                    val sample = GenericSpo2Sample()
+                    sample.timestamp = (day.toLong() + minute * 60L) * 1000L
+                    sample.spo2 = spo2
+                    spo2Samples.add(sample)
+                }
+            }
             records++
             i += 3 + len
         }
@@ -933,9 +946,20 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 LOG.error("Failed to store {} historic heart rate samples", heartRates.size, e)
             }
         }
+        if (spo2Samples.isNotEmpty()) {
+            try {
+                GBApplication.acquireDB().use { handler ->
+                    GenericSpo2SampleProvider(device, handler.daoSession)
+                        .persistSamples(spo2Samples, context)
+                }
+            } catch (e: Exception) {
+                LOG.error("Failed to store {} historic SpO2 samples", spo2Samples.size, e)
+            }
+        }
         LOG.info(
-            "History page {}: day={} records={} steps={} distance={}m kcal={} hr={} minutes {}..{}",
-            historyPage, day, records, steps, distance, kcal, heartRates.size, firstMinute, lastMinute
+            "History page {}: day={} records={} steps={} distance={}m kcal={} hr={} spo2={} minutes {}..{}",
+            historyPage, day, records, steps, distance, kcal, heartRates.size, spo2Samples.size,
+            firstMinute, lastMinute
         )
     }
 
