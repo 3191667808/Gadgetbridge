@@ -1024,8 +1024,14 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             val type = page[i + 2].toInt() and 0xff
             val len = recordLength(page, i)
             if (len < 0 || minute >= 1440 || i + 3 + len > page.size) {
-                LOG.warn("History: stopped at byte {} of {}, type 0x{}", i, page.size,
-                    Integer.toHexString(type))
+                // Dump the bytes around the record we cannot measure. The rest of the page is
+                // lost when this fires, so the hex is the only way to work out what these types
+                // are - see the open questions in the protocol notes.
+                val before = (i - 16).coerceAtLeast(0)
+                val after = (i + 64).coerceAtMost(page.size)
+                LOG.warn("History: stopped at byte {} of {}, type 0x{}, day {} minute {}; before {} at {}",
+                    i, page.size, Integer.toHexString(type), day, minute,
+                    page.copyOfRange(before, i).toHex(), page.copyOfRange(i, after).toHex())
                 break
             }
             // 0xf7 and 0xf5 are the same activity payloads as 0x07 / 0x05 with a heart rate
@@ -1066,11 +1072,15 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             // Heart rate sits at a different offset per record type, exactly as in the live
             // pushes: a lone reading, the first value of a b8 window summary, or the first of the
             // quad appended to an f5 / f7 activity record.
-            val hrAt = when (type) {
-                0x08 -> i + 3
-                0xb8 -> i + 4
-                0xf5 -> i + 7
-                0xf7 -> i + 8
+            // The values start after the subfield and the counter group, so the first of them -
+            // the current heart rate - sits at a position the mask itself tells us, and only
+            // when the mask says a quad is there at all.
+            val group = recordGroup(type)
+            val sub = if (group >= 0) page.getOrNull(i + 3)?.toInt()?.and(0xff) ?: 0 else 0
+            val valuesAt = if (group >= 0) i + 4 + group + if (type == 0xbc) 2 else 0 else -1
+            val hrAt = when {
+                type == 0x08 -> i + 3
+                group >= 0 && sub and 0x08 != 0 -> valuesAt
                 else -> -1
             }
             if (hrAt in 0 until page.size) {
@@ -1085,8 +1095,30 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             // A b8 record with subfield 09 is the same window summary as 08 with the SpO2
             // reading spliced in before the average, so it is the only historic record type
             // that carries one.
-            if (type == 0xb8 && (page.getOrNull(i + 3)?.toInt()?.and(0xff)) == 0x09 && i + 7 < page.size) {
-                val spo2 = page[i + 7].toInt() and 0xff
+            // 0x87 is the activity group with an SpO2 reading appended, the same shape the live
+            // stream pushes under that mask.
+            if (type == 0x87 && i + 8 < page.size) {
+                val spo2 = page[i + 8].toInt() and 0xff
+                if (spo2 in 50..100) {
+                    val sample = GenericSpo2Sample()
+                    sample.timestamp = (day.toLong() + minute * 60L) * 1000L
+                    sample.spo2 = spo2
+                    spo2Samples.add(sample)
+                }
+            }
+            if (type == 0x80 && i + 4 < page.size) {
+                val spo2 = page[i + 4].toInt() and 0xff
+                if (spo2 in 50..100) {
+                    val sample = GenericSpo2Sample()
+                    sample.timestamp = (day.toLong() + minute * 60L) * 1000L
+                    sample.spo2 = spo2
+                    spo2Samples.add(sample)
+                }
+            }
+            // With mask bit 0x01 next to the quad the reading is spliced in as the fourth
+            // value, before the average - the shape the live stream uses for b8 09.
+            if (group >= 0 && sub and 0x09 == 0x09 && valuesAt + 3 < page.size) {
+                val spo2 = page[valuesAt + 3].toInt() and 0xff
                 if (spo2 in 50..100) {
                     val sample = GenericSpo2Sample()
                     sample.timestamp = (day.toLong() + minute * 60L) * 1000L
@@ -1134,20 +1166,48 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         )
     }
 
-    /** Payload length of the record at [i]; 0xb8 is variable and decided by its subfield byte. */
+    /**
+     * Size of the fixed counter group a subfielded record carries between its subfield byte and
+     * its values, or -1 for the types that have no subfield at all.
+     *
+     * `b8` and `bc` carry none; `f5` and `f6` carry the three-byte group of an `05` record and
+     * `f7` and `87` the four-byte group of an `07`.
+     */
+    private fun recordGroup(type: Int): Int {
+        return when (type) {
+            0xb8, 0xbc -> 0
+            0xf5, 0xf6 -> 3
+            0xf7, 0x87 -> 4
+            else -> -1
+        }
+    }
+
+    /**
+     * Payload length of the record at [i].
+     *
+     * The subfielded types all follow one rule: the subfield is a mask in which `0x08` means a
+     * four-value heart rate quad follows and every other set bit adds one more value. That is
+     * why `b8 08` runs to four values and `b8 1a` to six, why `f7 09` is a byte longer than
+     * `f7 08`, and why `87 01` carries a single value and no quad at all. `bc` is the `b8`
+     * shape with two extra bytes in front.
+     */
     private fun recordLength(page: ByteArray, i: Int): Int {
-        return when (page[i + 2].toInt() and 0xff) {
+        val type = page[i + 2].toInt() and 0xff
+        val group = recordGroup(type)
+        if (group >= 0) {
+            if (i + 3 >= page.size) return -1
+            val sub = page[i + 3].toInt() and 0xff
+            val quad = if (sub and 0x08 != 0) 4 else 0
+            val extra = Integer.bitCount(sub and 0x08.inv() and 0xff)
+            return 1 + group + quad + extra + if (type == 0xbc) 2 else 0
+        }
+        return when (type) {
             0x02, 0x08 -> 1
+            0x04, 0x80 -> 2
             0x05 -> 3
             0x07 -> 4
+            0x85 -> 5
             0xf1, 0xf2 -> 6
-            0xf5 -> 8
-            0xf7 -> 9
-            0xb8 -> if (i + 3 >= page.size) -1 else when (page[i + 3].toInt() and 0xff) {
-                0x08 -> 5
-                0x09, 0x18 -> 6
-                else -> -1
-            }
             else -> -1
         }
     }
