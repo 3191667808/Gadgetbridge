@@ -47,6 +47,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSample
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample
 import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSample
+import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSampleDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState
@@ -309,11 +310,10 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     override fun onFetchRecordedData(dataTypes: Int) {
-        // A sync should bring in everything the watch has: today's totals, the per-minute
-        // history behind them, and any workouts recorded since.
-        val builder = createTransactionBuilder("fetch day totals")
-        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *cmdGetAll(CMD_ACTIVITY_DAY))
-        builder.queue()
+        // A sync should bring in everything the watch has: the per-minute history, the workouts
+        // recorded since, the stored sleep, and today's totals. The totals go last on purpose -
+        // they are stored as the remainder on top of the per-minute records, and the watch keeps
+        // the last three quarters of an hour to itself until they age into the history.
         fetchHistory(days = 7)
         fetchWorkouts(days = 7)
         // Sleep rides the same c6 command as the history pages, so it waits until those are
@@ -807,6 +807,12 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * message covering the whole range - so the window can be generous. The official app asks
      * for 168 days and gets a payload under a kilobyte.
      */
+    private fun fetchDayTotals() {
+        val builder = createTransactionBuilder("day totals")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *cmdGetAll(CMD_ACTIVITY_DAY))
+        builder.queue()
+    }
+
     private fun fetchSleep(days: Int) {
         val to = (System.currentTimeMillis() / 1000L).toInt()
         val from = to - days * 24 * 3600
@@ -921,6 +927,26 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         historyPage = 0
         historyPages = 0
         historyBuffer.reset()
+        // The per-minute records about to arrive are the authoritative version of this window,
+        // so clear what is there - including the coarse day-total remainders written by earlier
+        // syncs, which would otherwise be counted a second time.
+        try {
+            GBApplication.acquireDB().use { handler ->
+                val session = handler.daoSession
+                val deviceId = DBHelper.getDevice(device, session).id
+                val dropped = session.gloryFitStepsSampleDao.queryBuilder()
+                    .where(
+                        GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId),
+                        GloryFitStepsSampleDao.Properties.Timestamp.ge(historyFrom * 1000L),
+                        GloryFitStepsSampleDao.Properties.Timestamp.le(historyTo * 1000L)
+                    )
+                    .buildDelete()
+                dropped.executeDeleteWithoutDetachingEntities()
+                session.clear()
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to clear the step samples for the history window", e)
+        }
         LOG.info("History: asking for page count over the last {} days", days)
         val builder = createTransactionBuilder("history count")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH_COUNT, MODE_GET, 0x04, 0x08)
@@ -941,7 +967,12 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         if (value.size < 6 || value[2] != MODE_GET || value[3] != 0x04.toByte()) return
         historyPages = value[5].toInt() and 0xff
         LOG.info("History: {} pages available", historyPages)
-        if (historyPages > 0) requestHistoryPage(0) else fetchSleep(days = SLEEP_DAYS)
+        if (historyPages > 0) {
+            requestHistoryPage(0)
+        } else {
+            fetchSleep(days = SLEEP_DAYS)
+            fetchDayTotals()
+        }
     }
 
     /**
@@ -966,6 +997,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             } else {
                 LOG.info("History: done after {} pages", historyPage + 1)
                 fetchSleep(days = SLEEP_DAYS)
+                fetchDayTotals()
             }
             return
         }
@@ -986,6 +1018,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         var lastMinute = -1
         val heartRates = ArrayList<GenericHeartRateSample>()
         val spo2Samples = ArrayList<GenericSpo2Sample>()
+        val stepSamples = ArrayList<GloryFitStepsSample>()
         while (i + 3 <= page.size) {
             val minute = ((page[i].toInt() and 0xff) shl 8) or (page[i + 1].toInt() and 0xff)
             val type = page[i + 2].toInt() and 0xff
@@ -1016,6 +1049,19 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 }
                 if (firstMinute < 0) firstMinute = minute
                 lastMinute = minute
+                val minuteSteps = page[activity].toInt() and 0xff
+                if (minuteSteps > 0) {
+                    val sample = GloryFitStepsSample()
+                    sample.timestamp = (day.toLong() + minute * 60L) * 1000L
+                    sample.totalSteps = minuteSteps
+                    sample.runningStart = 0
+                    sample.runningEnd = 0
+                    sample.runningSteps = 0
+                    sample.walkingStart = 0
+                    sample.walkingEnd = 0
+                    sample.walkingSteps = 0
+                    stepSamples.add(sample)
+                }
             }
             // Heart rate sits at a different offset per record type, exactly as in the live
             // pushes: a lone reading, the first value of a b8 window summary, or the first of the
@@ -1061,6 +1107,16 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 LOG.error("Failed to store {} historic heart rate samples", heartRates.size, e)
             }
         }
+        if (stepSamples.isNotEmpty()) {
+            try {
+                GBApplication.acquireDB().use { handler ->
+                    GloryFitStepsSampleProvider(device, handler.daoSession)
+                        .persistSamples(stepSamples, context)
+                }
+            } catch (e: Exception) {
+                LOG.error("Failed to store {} historic step samples", stepSamples.size, e)
+            }
+        }
         if (spo2Samples.isNotEmpty()) {
             try {
                 GBApplication.acquireDB().use { handler ->
@@ -1072,9 +1128,9 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             }
         }
         LOG.info(
-            "History page {}: day={} records={} steps={} distance={}m kcal={} hr={} spo2={} minutes {}..{}",
-            historyPage, day, records, steps, distance, kcal, heartRates.size, spo2Samples.size,
-            firstMinute, lastMinute
+            "History page {}: day={} records={} steps={} in {} minutes, distance={}m kcal={} hr={} spo2={} minutes {}..{}",
+            historyPage, day, records, steps, stepSamples.size, distance, kcal, heartRates.size,
+            spo2Samples.size, firstMinute, lastMinute
         )
     }
 
@@ -1136,12 +1192,19 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 cal.set(Calendar.SECOND, 0)
                 cal.set(Calendar.MILLISECOND, 0)
                 val now = System.currentTimeMillis()
-                val recorded = provider.getAllSamples(cal.timeInMillis, now).sumOf { it.totalSteps }
+                // The watch keeps the most recent minutes to itself until they age into the
+                // history, so the day total is stored as whatever the per-minute records do not
+                // account for yet. It goes in one fixed slot at the end of the day: re-syncing
+                // then replaces it instead of stacking another remainder on top.
+                val remainderSlot = cal.timeInMillis + 86399_000L
+                val recorded = provider.getAllSamples(cal.timeInMillis, now)
+                    .filter { it.timestamp != remainderSlot }
+                    .sumOf { it.totalSteps }
                 val delta = total - recorded
                 LOG.info("DM58 daily steps total={} recorded={} delta={}", total, recorded, delta)
                 if (delta <= 0) return
                 val sample = GloryFitStepsSample()
-                sample.timestamp = now
+                sample.timestamp = remainderSlot
                 sample.totalSteps = delta
                 sample.runningStart = 0
                 sample.runningEnd = 0

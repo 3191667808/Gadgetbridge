@@ -26,7 +26,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider
-import nodomain.freeyourgadget.gadgetbridge.devices.gloryfit.GloryFitActivitySampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
 import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSampleDao
@@ -93,7 +92,7 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
         device: GBDevice,
         session: DaoSession
     ): SampleProvider<out AbstractActivitySample>? {
-        return GloryFitActivitySampleProvider(device, session)
+        return GloryFitProActivitySampleProvider(device, session)
     }
 
     override fun getAllDeviceDao(session: DaoSession): MutableMap<AbstractDao<*, *>, Property> {
@@ -108,6 +107,15 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
     }
 
     override fun supportsSpo2(device: GBDevice): Boolean {
+        return true
+    }
+
+    /** The watch splits a night into deep, light, REM and awake - see the c6 field 04 stream. */
+    override fun supportsRemSleep(device: GBDevice): Boolean {
+        return true
+    }
+
+    override fun supportsAwakeSleep(device: GBDevice): Boolean {
         return true
     }
 
