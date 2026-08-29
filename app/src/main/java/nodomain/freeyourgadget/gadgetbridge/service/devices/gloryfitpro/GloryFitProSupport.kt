@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicContr
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo
 import nodomain.freeyourgadget.gadgetbridge.devices.GloryFitStepsSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
@@ -42,6 +43,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.GPSCoordinate
 import nodomain.freeyourgadget.gadgetbridge.export.GPXExporter
 import java.io.File
 import java.util.Date
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSample
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample
 import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSample
@@ -314,6 +316,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         builder.queue()
         fetchHistory(days = 7)
         fetchWorkouts(days = 7)
+        // Sleep rides the same c6 command as the history pages, so it waits until those are
+        // done - asking for both at once makes the watch answer only the last request.
     }
 
     /**
@@ -791,6 +795,112 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         workoutSummary = fields
     }
 
+    // --- Stored sleep (c6 field 04) ------------------------------------------------------------
+
+    private val sleepBuffer = ByteArrayOutputStream()
+    private var sleepXor = 0
+
+    /**
+     * Ask the watch for its stored sleep.
+     *
+     * Unlike the activity history this is not paged - the watch answers with a single chunked
+     * message covering the whole range - so the window can be generous. The official app asks
+     * for 168 days and gets a payload under a kilobyte.
+     */
+    private fun fetchSleep(days: Int) {
+        val to = (System.currentTimeMillis() / 1000L).toInt()
+        val from = to - days * 24 * 3600
+        sleepBuffer.reset()
+        sleepXor = 0
+        LOG.info("Sleep: asking for the last {} days", days)
+        val builder = createTransactionBuilder("sleep")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH, MODE_GET, FIELD_SLEEP, 0x08)
+            + be32(from) + be32(to))
+        builder.queue()
+    }
+
+    /**
+     * Sleep reply, chunked as "01 c6 aa 04 <chunk:2> <slice>" - a two-byte counter here, where
+     * the paged history uses one - and closed by "01 c6 aa 04 fd fd <xor>". The xor covers every
+     * byte of every data frame, so a dropped notification is caught instead of being parsed into
+     * plausible nonsense.
+     */
+    private fun handleSleepChunk(value: ByteArray) {
+        if (value.size < 6) return
+        if (value[4] == PKT_TERMINATOR) {
+            val expected = value[value.size - 1].toInt() and 0xff
+            if (expected != sleepXor) {
+                LOG.warn("Sleep: checksum {} does not match the expected {}, discarding {} bytes",
+                    sleepXor, expected, sleepBuffer.size())
+            } else {
+                parseSleep(sleepBuffer.toByteArray())
+            }
+            sleepBuffer.reset()
+            sleepXor = 0
+            return
+        }
+        val chunk = ((value[4].toInt() and 0xff) shl 8) or (value[5].toInt() and 0xff)
+        if (chunk == 0) {
+            sleepBuffer.reset()
+            sleepXor = 0
+        }
+        for (b in value) sleepXor = sleepXor xor (b.toInt() and 0xff)
+        sleepBuffer.write(value, 6, value.size - 6)
+    }
+
+    /**
+     * Payload: a two-byte length, then 7-byte records "<start:4> <minutes:2> <type>".
+     *
+     * Type 07 and 08 are zero-length markers bracketing each session; 1-4 are the stages
+     * themselves and carry the same meaning as in the classic GloryFit dialect, so they go into
+     * the shared sleep stage table unchanged. Segments are contiguous - each one starts where
+     * the previous ended - and the gaps between sessions are simply not slept.
+     */
+    private fun parseSleep(payload: ByteArray) {
+        if (payload.size < 9) {
+            LOG.info("Sleep: nothing stored")
+            return
+        }
+        val stageBytes = ((payload[0].toInt() and 0xff) shl 8) or (payload[1].toInt() and 0xff)
+        val samples = ArrayList<GenericSleepStageSample>()
+        var sessions = 0
+        var minutes = 0
+        var i = 2
+        while (i + 7 <= payload.size) {
+            val start = ((payload[i].toInt() and 0xff).toLong() shl 24) or
+                    ((payload[i + 1].toInt() and 0xff).toLong() shl 16) or
+                    ((payload[i + 2].toInt() and 0xff).toLong() shl 8) or
+                    (payload[i + 3].toInt() and 0xff).toLong()
+            val duration = ((payload[i + 4].toInt() and 0xff) shl 8) or (payload[i + 5].toInt() and 0xff)
+            when (val type = payload[i + 6].toInt() and 0xff) {
+                SLEEP_SESSION_START -> sessions++
+                SLEEP_SESSION_END -> {}
+                in SLEEP_STAGE_DEEP..SLEEP_STAGE_REM -> {
+                    val sample = GenericSleepStageSample()
+                    sample.timestamp = start * 1000L
+                    sample.duration = duration
+                    sample.stage = type
+                    samples.add(sample)
+                    minutes += duration
+                }
+                else -> LOG.warn("Sleep: unknown stage type 0x{}", Integer.toHexString(type))
+            }
+            i += 7
+        }
+        if (samples.isNotEmpty()) {
+            try {
+                GBApplication.acquireDB().use { handler ->
+                    GenericSleepStageSampleProvider(device, handler.daoSession)
+                        .persistSamples(samples, context)
+                }
+            } catch (e: Exception) {
+                LOG.error("Failed to store {} sleep stage samples", samples.size, e)
+            }
+        }
+        LOG.info("Sleep: {} sessions, {} stages, {} minutes (header {}, expected {})",
+            sessions, samples.size, minutes, stageBytes, samples.size * 7)
+    }
+
     // --- Stored activity history (c5 count + c6 paged read) ------------------------------------
 
     private val historyBuffer = ByteArrayOutputStream()
@@ -831,7 +941,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         if (value.size < 6 || value[2] != MODE_GET || value[3] != 0x04.toByte()) return
         historyPages = value[5].toInt() and 0xff
         LOG.info("History: {} pages available", historyPages)
-        if (historyPages > 0) requestHistoryPage(0)
+        if (historyPages > 0) requestHistoryPage(0) else fetchSleep(days = SLEEP_DAYS)
     }
 
     /**
@@ -844,6 +954,10 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             handleLiveHealthRecord(value)
             return
         }
+        if (value[3] == FIELD_SLEEP) {
+            handleSleepChunk(value)
+            return
+        }
         if (value[4] == PKT_TERMINATOR) {
             parseHistoryPage(historyBuffer.toByteArray())
             if (historyPage + 1 < historyPages && historyPage < MAX_HISTORY_PAGES) {
@@ -851,6 +965,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 requestHistoryPage(historyPage)
             } else {
                 LOG.info("History: done after {} pages", historyPage + 1)
+                fetchSleep(days = SLEEP_DAYS)
             }
             return
         }
@@ -1605,6 +1720,13 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         const val FIELD_FIRMWARE: Byte = 0x15
         const val FIELD_BATTERY: Byte = 0x16
         const val FIELD_DAY_METRICS: Byte = 0x0c
+        const val FIELD_SLEEP: Byte = 0x04
+        const val SLEEP_SESSION_START: Int = 0x07
+        const val SLEEP_SESSION_END: Int = 0x08
+        const val SLEEP_STAGE_DEEP: Int = 0x01
+        const val SLEEP_STAGE_REM: Int = 0x04
+        /** The watch keeps months of sessions and answers in one small message. */
+        const val SLEEP_DAYS: Int = 168
         const val SUBFIELD_STEPS: Int = 0x05
     }
 }

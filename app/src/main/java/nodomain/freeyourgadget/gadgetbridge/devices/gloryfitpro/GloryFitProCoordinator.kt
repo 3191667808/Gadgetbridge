@@ -31,6 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
 import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSampleDao
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSampleDao
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSleepStageSampleDao
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2SampleDao
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample
@@ -101,6 +102,7 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
                 put(session.gloryFitStepsSampleDao, GloryFitStepsSampleDao.Properties.DeviceId)
                 put(session.genericHeartRateSampleDao, GenericHeartRateSampleDao.Properties.DeviceId)
                 put(session.genericSpo2SampleDao, GenericSpo2SampleDao.Properties.DeviceId)
+                put(session.genericSleepStageSampleDao, GenericSleepStageSampleDao.Properties.DeviceId)
             }
         }
     }
