@@ -279,14 +279,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
     @Override
     public void initialize() {
-        gpsStarted = false;
-        gpsFixAcquired = false;
-        workoutStarted = false;
-        synchronized (realtimeConsumers) {
-            realtimeConsumers.clear();
-        }
-        saaRawSensorActive = false;
-        gpsTimeoutHandler.removeCallbacksAndMessages(null);
+        resetConnectionState();
 
         setUserInfo();
         getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
@@ -300,9 +293,18 @@ public class XiaomiHealthService extends AbstractXiaomiService {
 
     @Override
     public void dispose() {
-        // The location provider is owned by a service that outlives the connection, so a workout
-        // that ends by losing the link has to release it here or it runs until the app is killed.
+        resetConnectionState();
+        activityFetcher.dispose();
+    }
+
+    /**
+     * Drop everything that only makes sense while a connection is up. The location provider is
+     * owned by a service that outlives the connection, so a workout that ends by losing the link
+     * has to release it here or it runs until the app is killed.
+     */
+    private void resetConnectionState() {
         stopGps();
+        gpsFixAcquired = false;
         saaKeepaliveHandler.removeCallbacksAndMessages(null);
         saaWorkoutStatsHandler.removeCallbacksAndMessages(null);
         saaWorkoutStatusHandler.removeCallbacksAndMessages(null);
@@ -311,7 +313,6 @@ public class XiaomiHealthService extends AbstractXiaomiService {
             realtimeConsumers.clear();
         }
         saaRawSensorActive = false;
-        activityFetcher.dispose();
     }
 
     @Override
