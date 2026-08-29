@@ -21,6 +21,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.os.Bundle
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper
@@ -142,6 +143,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             CMD_MUSIC_CONTROL -> handleMusicControl(value)
             CMD_DEVICE_CONTROL -> handleDeviceControl(value)
             CMD_ALARM -> handleAlarmData(value)
+            CMD_HEALTH -> handleHealthPage(value)
+            CMD_HEALTH_COUNT -> handleHealthCount(value)
             else -> LOG.debug("Unhandled cmd 0x{}: {}", Integer.toHexString(cmd.toInt() and 0xff), value.toHex())
         }
     }
@@ -220,6 +223,155 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         val builder = createTransactionBuilder("fetch steps")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *cmdGetAll(CMD_ACTIVITY_DAY))
         builder.queue()
+    }
+
+    /**
+     * Probe hook, wired to the "test new function" debug action.
+     *
+     * The watch pushes `c6` health records unsolicited, but nothing ever asks it for stored
+     * ones, which is why a saved workout never reaches Gadgetbridge. Send a read-mode "give me
+     * everything" on that same command and log whatever comes back; replies surface as
+     * "Unhandled cmd 0xc6" until we know their shape.
+     */
+    override fun onTestNewFunction(options: Bundle?) {
+        fetchHistory(days = 7)
+    }
+
+    // --- Stored activity history (c5 count + c6 paged read) ------------------------------------
+
+    private val historyBuffer = ByteArrayOutputStream()
+    private var historyFrom = 0
+    private var historyTo = 0
+    private var historyPage = 0
+    private var historyPages = 0
+
+    /**
+     * Ask the watch for its stored per-minute activity history.
+     *
+     * `c6` ignores a bare "get all" - it wants a time range and a page number. The official app
+     * first asks `c5` how many pages exist for the range, then walks them one by one.
+     */
+    private fun fetchHistory(days: Int) {
+        historyTo = (System.currentTimeMillis() / 1000L).toInt()
+        historyFrom = historyTo - days * 24 * 3600
+        historyPage = 0
+        historyPages = 0
+        historyBuffer.reset()
+        LOG.info("History: asking for page count over the last {} days", days)
+        val builder = createTransactionBuilder("history count")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH_COUNT, MODE_GET, 0x04, 0x08)
+            + be32(historyFrom) + be32(historyTo))
+        builder.queue()
+    }
+
+    private fun requestHistoryPage(page: Int) {
+        historyBuffer.reset()
+        val builder = createTransactionBuilder("history page $page")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH, MODE_GET, 0x01, 0x0a)
+            + be32(historyFrom) + be32(historyTo) + byteArrayOf((page ushr 8).toByte(), page.toByte()))
+        builder.queue()
+    }
+
+    /** Page-count reply: "01 c5 aa 04 01 <count>". */
+    private fun handleHealthCount(value: ByteArray) {
+        if (value.size < 6 || value[2] != MODE_GET || value[3] != 0x04.toByte()) return
+        historyPages = value[5].toInt() and 0xff
+        LOG.info("History: {} pages available", historyPages)
+        if (historyPages > 0) requestHistoryPage(0)
+    }
+
+    /**
+     * Page reply, chunked as "01 c6 aa 01 <chunk> <slice>" with a 1-byte chunk counter (00, 01,
+     * ...) and "01 c6 aa 01 fd <xor>" to close. Only the first chunk carries the page header.
+     */
+    private fun handleHealthPage(value: ByteArray) {
+        if (value.size < 5 || value[2] != MODE_GET) {
+            // Unsolicited live record (mode ac) - keep logging it, it is how the record types
+            // were decoded in the first place.
+            LOG.debug("Live health record: {}", value.toHex())
+            return
+        }
+        if (value[4] == PKT_TERMINATOR) {
+            parseHistoryPage(historyBuffer.toByteArray())
+            if (historyPage + 1 < historyPages && historyPage < MAX_HISTORY_PAGES) {
+                historyPage++
+                requestHistoryPage(historyPage)
+            } else {
+                LOG.info("History: done after {} pages", historyPage + 1)
+            }
+            return
+        }
+        historyBuffer.write(value, 5, value.size - 5)
+    }
+
+    /** Page payload: "<page:2> <day midnight:4>" then "<minute:2> <type> <payload>" records. */
+    private fun parseHistoryPage(page: ByteArray) {
+        if (page.size < 6) return
+        val day = ((page[2].toInt() and 0xff) shl 24) or ((page[3].toInt() and 0xff) shl 16) or
+                ((page[4].toInt() and 0xff) shl 8) or (page[5].toInt() and 0xff)
+        var i = 6
+        var steps = 0
+        var distance = 0
+        var kcal = 0
+        var records = 0
+        var firstMinute = -1
+        var lastMinute = -1
+        while (i + 3 <= page.size) {
+            val minute = ((page[i].toInt() and 0xff) shl 8) or (page[i + 1].toInt() and 0xff)
+            val type = page[i + 2].toInt() and 0xff
+            val len = recordLength(page, i)
+            if (len < 0 || minute >= 1440 || i + 3 + len > page.size) {
+                LOG.warn("History: stopped at byte {} of {}, type 0x{}", i, page.size,
+                    Integer.toHexString(type))
+                break
+            }
+            // 0xf7 and 0xf5 are the same activity payloads as 0x07 / 0x05 with a heart rate
+            // quad appended, after a leading subfield byte. Leaving them out under-counts a day
+            // by roughly a third.
+            val activity = when (type) {
+                0x07 -> i + 3
+                0x05 -> i + 3
+                0xf7 -> i + 4
+                0xf5 -> i + 4
+                else -> -1
+            }
+            if (activity >= 0) {
+                val withKcal = type == 0x07 || type == 0xf7
+                steps += page[activity].toInt() and 0xff
+                if (withKcal) {
+                    kcal += page[activity + 1].toInt() and 0xff
+                    distance += ((page[activity + 2].toInt() and 0xff) shl 8) or (page[activity + 3].toInt() and 0xff)
+                } else {
+                    distance += ((page[activity + 1].toInt() and 0xff) shl 8) or (page[activity + 2].toInt() and 0xff)
+                }
+                if (firstMinute < 0) firstMinute = minute
+                lastMinute = minute
+            }
+            records++
+            i += 3 + len
+        }
+        LOG.info(
+            "History page {}: day={} records={} steps={} distance={}m kcal={} minutes {}..{}",
+            historyPage, day, records, steps, distance, kcal, firstMinute, lastMinute
+        )
+    }
+
+    /** Payload length of the record at [i]; 0xb8 is variable and decided by its subfield byte. */
+    private fun recordLength(page: ByteArray, i: Int): Int {
+        return when (page[i + 2].toInt() and 0xff) {
+            0x02, 0x08 -> 1
+            0x05 -> 3
+            0x07 -> 4
+            0xf1, 0xf2 -> 6
+            0xf5 -> 8
+            0xf7 -> 9
+            0xb8 -> if (i + 3 >= page.size) -1 else when (page[i + 3].toInt() and 0xff) {
+                0x08 -> 5
+                0x09, 0x18 -> 6
+                else -> -1
+            }
+            else -> -1
+        }
     }
 
     /** Day summary reply "01 c3 aaaa 00 ... aa 0c <len> <inner sub-TLV>"; steps = inner subfield 0x05. */
@@ -815,6 +967,9 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         const val CMD_ALARM: Byte = 0xc7.toByte()
         const val CMD_WEATHER: Byte = 0xe0.toByte()
         const val CMD_CONTACTS: Byte = 0xc0.toByte()
+        const val CMD_HEALTH: Byte = 0xc6.toByte()
+        const val CMD_HEALTH_COUNT: Byte = 0xc5.toByte()
+        const val MAX_HISTORY_PAGES: Int = 64
 
         const val FIELD_MODEL: Byte = 0x02
         const val FIELD_FIRMWARE: Byte = 0x15
