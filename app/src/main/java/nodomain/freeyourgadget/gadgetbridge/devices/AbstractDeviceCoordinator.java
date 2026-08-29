@@ -739,6 +739,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsTrainingLoadChronic(@NonNull GBDevice device) {
+        return supportsTrainingLoad(device);
+    }
+
+    @Override
     public boolean supportsCharts(@NonNull GBDevice device) {
         // All the default charts (see DefaultChartsProvider)
         return supportsActivityTracking(device) ||

@@ -236,7 +236,9 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
         loadChartDataTypeGroup.setSingleSelection(false);
         loadChartDataTypeGroup.setSelectionRequired(true);
         for (final LoadDataType dataType : LOAD_DATA_TYPE_ORDER) {
-            addLoadDataTypeChip(inflater, dataType);
+            if (isLoadDataTypeSupported(dataType)) {
+                addLoadDataTypeChip(inflater, dataType);
+            }
         }
         loadChartDataTypeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
             if (checkedIds.isEmpty()) {
@@ -267,6 +269,14 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
         chip.setTag(dataType);
         loadChartDataTypeGroup.addView(chip);
         chip.setChecked(isLoadDataTypeVisible(dataType));
+    }
+
+    private boolean isLoadDataTypeSupported(final LoadDataType dataType) {
+        if (dataType == LoadDataType.CHRONIC_LOAD) {
+            final GBDevice device = getChartsHost().getDevice();
+            return device.getDeviceCoordinator().supportsTrainingLoadChronic(device);
+        }
+        return true;
     }
 
     private boolean isLoadDataTypeSelected(final LoadDataType dataType) {
@@ -359,7 +369,7 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
         dailyLoadChart.setData(barData);
 
         if (supportsTrainingLoad()) {
-            List<LegendEntry> legendEntries = new ArrayList<>(1);
+            List<LegendEntry> legendEntries = new ArrayList<>(3);
             if (showAcuteLoad) {
                 LegendEntry acuteLoadEntry = new LegendEntry();
                 acuteLoadEntry.label = getString(R.string.training_acute_load);
@@ -374,11 +384,13 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
                 chronicLoadEntry.form = Legend.LegendForm.CIRCLE;
                 legendEntries.add(chronicLoadEntry);
             }
-            LegendEntry optimalLoadEntry = new LegendEntry();
-            optimalLoadEntry.label = getString(R.string.training_optimal_load);
-            optimalLoadEntry.formColor = OPTIMAL_LOAD_FILL_COLOR;
-            optimalLoadEntry.form = Legend.LegendForm.SQUARE;
-            legendEntries.add(optimalLoadEntry);
+            if (showChronicLoad && !optimalLoadEntries.isEmpty()) {
+                LegendEntry optimalLoadEntry = new LegendEntry();
+                optimalLoadEntry.label = getString(R.string.training_optimal_load);
+                optimalLoadEntry.formColor = OPTIMAL_LOAD_FILL_COLOR;
+                optimalLoadEntry.form = Legend.LegendForm.SQUARE;
+                legendEntries.add(optimalLoadEntry);
+            }
             acuteLoadChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
             acuteLoadChart.getLegend().setCustom(legendEntries);
             acuteLoadChart.getXAxis().setValueFormatter(getDailyLoadChartDayValueFormatter(data));
@@ -394,7 +406,7 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
 
             final CombinedData combinedData = new CombinedData();
             float optimalLoadMax = 0f;
-            if (!optimalLoadEntries.isEmpty()) {
+            if (showChronicLoad && !optimalLoadEntries.isEmpty()) {
                 final BarData optimalLoadBarData = new BarData(createOptimalLoadRangeDataSet(optimalLoadEntries));
                 optimalLoadBarData.setBarWidth(1f);
                 combinedData.setData(optimalLoadBarData);
@@ -412,7 +424,7 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
             // Gauge
             acuteLoadRatioGaugeValue.setText(String.valueOf(latestAcuteLoad));
             float value;
-            if (latestAcuteLoad > 0) {
+            if (latestAcuteLoad > 0 && latestChronicLoad > 0) {
                 value = (float) latestAcuteLoad / latestChronicLoad;
                 if (value < OPTIMAL_LOAD_RATIO_LOWER) {
                     value = (float) GaugeDrawer.normalize(value, 0, OPTIMAL_LOAD_RATIO_LOWER, 0, 0.333);
@@ -421,7 +433,7 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
                     value = (float) GaugeDrawer.normalize(value, OPTIMAL_LOAD_RATIO_LOWER, OPTIMAL_LOAD_RATIO_UPPER, 0.334f, 0.666);
                     acuteLoadRatioGaugeStatus.setText(getString(R.string.optimal));
                 } else if (value < 2) {
-                    value = (float) GaugeDrawer.normalize(value, 1.5, 2, 0.667f, 1);
+                    value = (float) GaugeDrawer.normalize(value, OPTIMAL_LOAD_RATIO_UPPER, 2, 0.667f, 1);
                     acuteLoadRatioGaugeStatus.setText(getString(R.string.high));
                 } else {
                     value = 1;
@@ -466,23 +478,24 @@ public class LoadFragment extends AbstractChartFragment<LoadFragment.LoadsData> 
                 load = workoutLoadSamples.stream().mapToInt(WorkoutLoadSample::getValue).sum();
             }
             if (supportsTrainingLoad()) {
+                final long dayStartMillis = startTs * 1000L;
                 final long dayEndMillis = DateTimeUtils.dayEnd(day.getTime()).getTime();
                 if (metricTrainingLoad) {
                     MetricSample dayAcuteLoadSample = getLatestMetricSampleBefore(db, device, GENERIC_TRAINING_LOAD_ACUTE, dayEndMillis);
-                    if (dayAcuteLoadSample != null) {
+                    if (dayAcuteLoadSample != null && dayAcuteLoadSample.getTimestamp() >= dayStartMillis) {
                         acuteLoad = (int) dayAcuteLoadSample.getMetricScore();
                     }
                     MetricSample dayChronicLoadSample = getLatestMetricSampleBefore(db, device, GENERIC_TRAINING_LOAD_CHRONIC, dayEndMillis);
-                    if (dayChronicLoadSample != null) {
+                    if (dayChronicLoadSample != null && dayChronicLoadSample.getTimestamp() >= dayStartMillis) {
                         chronicLoad = (int) dayChronicLoadSample.getMetricScore();
                     }
                 } else {
                     GenericTrainingLoadAcuteSample dayAcuteLoadSample = getLatestTrainingLoadAcuteSample(db, device, dayEndMillis);
-                    if (dayAcuteLoadSample != null) {
+                    if (dayAcuteLoadSample != null && dayAcuteLoadSample.getTimestamp() >= dayStartMillis) {
                         acuteLoad = dayAcuteLoadSample.getValue();
                     }
                     GenericTrainingLoadChronicSample dayChronicLoadSample = getLatestTrainingLoadChronicSample(db, device, dayEndMillis);
-                    if (dayChronicLoadSample != null) {
+                    if (dayChronicLoadSample != null && dayChronicLoadSample.getTimestamp() >= dayStartMillis) {
                         chronicLoad = dayChronicLoadSample.getValue();
                     }
                 }
