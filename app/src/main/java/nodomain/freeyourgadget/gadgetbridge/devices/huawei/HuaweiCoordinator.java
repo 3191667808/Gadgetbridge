@@ -43,6 +43,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProv
 import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.SleepSessionProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao;
@@ -418,6 +419,12 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
     @Override
     public SampleProvider<? extends AbstractActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
         return new HuaweiSampleProvider(device, session);
+    }
+
+    @NonNull
+    @Override
+    public SleepSessionProvider getSleepSessionProvider(@NonNull final GBDevice device, @NonNull final DaoSession session) {
+        return new HuaweiSleepSessionProvider(device, session);
     }
 
     @Override
