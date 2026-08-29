@@ -109,6 +109,12 @@ public abstract class GarminWatchCoordinator extends GarminCoordinator {
     }
 
     @Override
+    public boolean supportsRacePrediction(@NonNull final GBDevice device) {
+        // Not all devices support it, but support is broad.
+        return true;
+    }
+
+    @Override
     public boolean supportsActiveCalories(@NonNull GBDevice device) {
         return true;
     }

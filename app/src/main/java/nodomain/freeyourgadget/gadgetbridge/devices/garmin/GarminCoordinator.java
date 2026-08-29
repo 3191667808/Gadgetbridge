@@ -474,9 +474,4 @@ public abstract class GarminCoordinator extends AbstractBLEDeviceCoordinator {
         return true;
     }
 
-    @Override
-    public boolean supportsRacePrediction(@NonNull final GBDevice device) {
-        // Not all devices support it, but support is broad.
-        return true;
-    }
 }
