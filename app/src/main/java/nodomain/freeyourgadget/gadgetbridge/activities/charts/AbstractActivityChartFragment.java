@@ -34,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.GregorianCalendar;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -43,7 +42,6 @@ import de.greenrobot.dao.query.QueryBuilder;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
-import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SleepDetailsView;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
@@ -337,32 +335,6 @@ public abstract class AbstractActivityChartFragment<D extends ChartsData> extend
         return new DefaultChartsData<>(lineData, xValueFormatter);
     }
 
-    public List<SleepDetailsView.SleepDetail> prepareStages(List<? extends ActivitySample> samples) {
-        List<SleepDetailsView.SleepDetail> result = new ArrayList<>();
-        if (samples.isEmpty()) {
-            return result;
-        }
-        int currentType = getIndexOfActivity(samples.get(0).getKind());
-        long timestamp = samples.get(0).getTimestamp() * 1000L;
-        int duration = 0;
-        int color = getColorFor(samples.get(0).getKind());
-
-        for (ActivitySample sample : samples) {
-            int value = getIndexOfActivity(sample.getKind());
-            if (value != currentType) {
-                result.add(new SleepDetailsView.SleepDetail(currentType, duration, timestamp, color));
-                currentType = value;
-                timestamp = sample.getTimestamp() * 1000L;
-                duration = 0;
-                color = getColorFor(sample.getKind());
-            }
-            duration++;
-        }
-
-        result.add(new SleepDetailsView.SleepDetail(currentType, duration, timestamp, color));
-        return result;
-    }
-
     protected int getIndexOfActivity(ActivityKind kind) {
         return switch (kind) {
             case DEEP_SLEEP -> 0;
@@ -458,30 +430,6 @@ public abstract class AbstractActivityChartFragment<D extends ChartsData> extend
         int tsStart = getTSStart();
         int tsEnd = getTSEnd();
         return getSamplesHighRes(db, device, tsStart, tsEnd);
-    }
-
-    protected List<? extends ActivitySample> getSamplesofSleep(DBHandler db, GBDevice device) {
-        final String chartSleepRangeMode = GBApplication.getPrefs().getString("chart_sleep_range_mode", "18:00");
-        final int SLEEP_HOUR_LIMIT = "18:00".equals(chartSleepRangeMode) ? 18 : 12;
-
-        int tsStart = getTSStart();
-        Calendar day = GregorianCalendar.getInstance();
-        day.setTimeInMillis(tsStart * 1000L);
-        day.set(Calendar.HOUR_OF_DAY, SLEEP_HOUR_LIMIT);
-        day.set(Calendar.MINUTE, 0);
-        day.set(Calendar.SECOND, 0);
-        tsStart = toTimestamp(day.getTime());
-
-        int tsEnd = getTSEnd();
-        day.setTimeInMillis(tsEnd * 1000L);
-        day.set(Calendar.HOUR_OF_DAY, SLEEP_HOUR_LIMIT);
-        day.set(Calendar.MINUTE, 0);
-        day.set(Calendar.SECOND, 0);
-        tsEnd = toTimestamp(day.getTime());
-
-        List<ActivitySample> samples = (List<ActivitySample>) getSamples(db, device, tsStart, tsEnd);
-        ensureStartAndEndSamples(samples, tsStart, tsEnd);
-        return samples;
     }
 
     protected void ensureStartAndEndSamples(List<ActivitySample> samples, int tsStart, int tsEnd) {

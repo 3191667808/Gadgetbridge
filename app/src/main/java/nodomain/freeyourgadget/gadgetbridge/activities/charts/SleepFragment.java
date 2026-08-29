@@ -8,11 +8,14 @@ import java.util.Calendar;
 import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.SleepDetailsView;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.SleepScoreSample;
+import nodomain.freeyourgadget.gadgetbridge.model.SleepSession;
+import nodomain.freeyourgadget.gadgetbridge.model.SleepStage;
 
 abstract class SleepFragment<D extends ChartsData> extends AbstractActivityChartFragment<D> {
     @Override
@@ -78,5 +81,21 @@ abstract class SleepFragment<D extends ChartsData> extends AbstractActivityChart
         }
 
         return legendEntries;
+    }
+
+    /**
+     * Converts a list of {@link SleepSession} into aa list of {@link SleepDetailsView.SleepDetail}.
+     */
+    protected List<SleepDetailsView.SleepDetail> toSleepDetails(final List<SleepSession> sessions) {
+        final List<SleepDetailsView.SleepDetail> result = new ArrayList<>();
+        for (SleepSession session : sessions) {
+            for (SleepStage stage : session.getStages()) {
+                final int type = getIndexOfActivity(stage.getKind());
+                final int color = getColorFor(stage.getKind());
+                final int durationMinutes = (int) ((stage.getEndTime() - stage.getStartTime()) / 60000L);
+                result.add(new SleepDetailsView.SleepDetail(type, durationMinutes, stage.getStartTime(), color));
+            }
+        }
+        return result;
     }
 }

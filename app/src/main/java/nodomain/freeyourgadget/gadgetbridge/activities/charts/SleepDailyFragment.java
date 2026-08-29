@@ -51,7 +51,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +59,6 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.entries.ActivitySummarySimpleEntry;
-import nodomain.freeyourgadget.gadgetbridge.activities.charts.SleepAnalysis.SleepSession;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.AbstractOverlayData;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.OverlayDataFloat;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.sleep.OverlayDataInt;
@@ -77,6 +75,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.RespiratoryRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.SleepScoreSample;
+import nodomain.freeyourgadget.gadgetbridge.model.SleepSession;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.TimeSample;
@@ -84,6 +83,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.Accumulator;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GridTableBuilder;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.SleepRangeUtils;
 
 
 public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChartsData> {
@@ -92,7 +92,6 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     private FragmentSleepchartBinding binding;
 
     Prefs prefs = GBApplication.getPrefs();
-    private final boolean CHARTS_SLEEP_RANGE_24H = prefs.getString("chart_sleep_range_mode", "18:00").equals("24h");
     private final boolean SHOW_CHARTS_AVERAGE = prefs.getBoolean("charts_show_average", true);
     private final int sleepLinesLimit = prefs.getInt("chart_sleep_lines_limit", 6);
 
@@ -101,62 +100,69 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         return true;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected MyChartsData refreshInBackground(ChartsHost chartsHost, DBHandler db, GBDevice device) {
-        List<? extends ActivitySample> samples;
-        if (CHARTS_SLEEP_RANGE_24H) {
-            samples = getSamples(db, device);
+        final SleepRangeUtils.SleepRangeMode rangeMode = SleepRangeUtils.getMode();
+        final int[] range = SleepRangeUtils.getSleepRange(getTSEnd(), rangeMode);
+
+        final List<SleepSession> sleepSessions = device.getDeviceCoordinator()
+                .getSleepSessionProvider(device, db.getDaoSession())
+                .getSleepSessions(range[0], range[1]);
+
+        // In ROLLING_24H mode, or when there is nothing to anchor on, the chart spans the whole
+        // requested range. Otherwise, it spans exactly the sessions found in that range, so the chart
+        // always matches the displayed sleep totals.
+        final int samplesStart;
+        final int samplesEnd;
+        if (rangeMode == SleepRangeUtils.SleepRangeMode.ROLLING_24H || sleepSessions.isEmpty()) {
+            samplesStart = range[0];
+            samplesEnd = range[1];
         } else {
-            samples = getSamplesofSleep(db, device);
+            samplesStart = (int) (sleepSessions.get(0).getStartTime() / 1000L);
+            samplesEnd = (int) (sleepSessions.get(sleepSessions.size() - 1).getEndTime() / 1000L);
         }
+
+        final List<ActivitySample> samples = (List<ActivitySample>) getSamples(db, device, samplesStart, samplesEnd);
+        ensureStartAndEndSamples(samples, samplesStart, samplesEnd);
+
         List<? extends SleepScoreSample> sleepScoreSamples = new ArrayList<>();
         if (supportsSleepScore()) {
             sleepScoreSamples = getSleepScoreSamples(db, device, getTSStart(), getTSEnd());
         }
-        MySleepChartsData mySleepChartsData = refreshSleepAmounts(samples, sleepScoreSamples);
+        MySleepChartsData mySleepChartsData = buildSleepChartsData(sleepSessions, sleepScoreSamples);
 
-        if (!CHARTS_SLEEP_RANGE_24H) {
-            if (!mySleepChartsData.sleepSessions.isEmpty()) {
-                long tstart = mySleepChartsData.sleepSessions.get(0).getSleepStart().getTime() / 1000;
-                long tend = mySleepChartsData.sleepSessions.get(mySleepChartsData.sleepSessions.size() - 1).getSleepEnd().getTime() / 1000;
-
-                for (Iterator<? extends ActivitySample> iterator = samples.iterator(); iterator.hasNext(); ) {
-                    ActivitySample sample = iterator.next();
-                    if (sample.getTimestamp() < tstart || sample.getTimestamp() > tend) {
-                        iterator.remove();
-                    }
-                }
-            }
-        }
         DefaultChartsData<LineData> chartsData = refresh(device, samples);
         Triple<Float, Integer, Integer> hrData = calculateHrData(samples);
         Triple<Float, Float, Float> intensityData = calculateIntensityData(samples);
 
-        List<SleepDetailsView.SleepDetail> stages = prepareStages(samples);
+        List<SleepDetailsView.SleepDetail> stages = toSleepDetails(sleepSessions);
 
         AbstractOverlayData overlay = null;
-        if (currentOverlay == OverlayType.HEART_RATE) {
-            int average = Math.round(hrData.getLeft());
-            average = SHOW_CHARTS_AVERAGE && average > 0 ? average : OverlayDataInt.NO_DATA;
-            overlay = new OverlayDataInt(20, 140, prepareHR(samples), average, HEARTRATE_COLOR, Color.RED);
-        } else if (currentOverlay == OverlayType.SPO2) {
-            overlay = new OverlayDataInt(68, 100, prepareSpO2Overlay(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataInt.NO_DATA, ContextCompat.getColor(requireContext(), R.color.spo2_color), Color.RED);
-        } else if (currentOverlay == OverlayType.TEMPERATURE) {
-            overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
-        } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
-            final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
-            final Accumulator accumulator = new Accumulator();
-            for (float value : respiratoryRateData) {
-                accumulator.add(value);
+        if (!samples.isEmpty()) {
+            if (currentOverlay == OverlayType.HEART_RATE) {
+                int average = Math.round(hrData.getLeft());
+                average = SHOW_CHARTS_AVERAGE && average > 0 ? average : OverlayDataInt.NO_DATA;
+                overlay = new OverlayDataInt(20, 140, prepareHR(samples), average, HEARTRATE_COLOR, Color.RED);
+            } else if (currentOverlay == OverlayType.SPO2) {
+                overlay = new OverlayDataInt(68, 100, prepareSpO2Overlay(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataInt.NO_DATA, ContextCompat.getColor(requireContext(), R.color.spo2_color), Color.RED);
+            } else if (currentOverlay == OverlayType.TEMPERATURE) {
+                overlay = new OverlayDataFloat(28, 45, prepareTemperature(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L), OverlayDataFloat.NO_DATA, CHART_TEXT_COLOR, Color.RED);
+            } else if (currentOverlay == OverlayType.RESPIRATORY_RATE) {
+                final float[] respiratoryRateData = prepareRespiratoryRate(db, device, samples.get(0).getTimestamp() * 1000L, samples.get(samples.size() - 1).getTimestamp() * 1000L);
+                final Accumulator accumulator = new Accumulator();
+                for (float value : respiratoryRateData) {
+                    accumulator.add(value);
+                }
+                overlay = new OverlayDataFloat(
+                        (float) (accumulator.getMin() / 2),
+                        (float) (1.5d * accumulator.getMax()),
+                        respiratoryRateData,
+                        OverlayDataFloat.NO_DATA,
+                        ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
+                        Color.RED
+                );
             }
-            overlay = new OverlayDataFloat(
-                    (float) (accumulator.getMin() / 2),
-                    (float) (1.5d * accumulator.getMax()),
-                    respiratoryRateData,
-                    OverlayDataFloat.NO_DATA,
-                    ContextCompat.getColor(requireContext(), R.color.respiratory_rate_color),
-                    Color.RED
-            );
         }
 
         final DeviceChartsProvider chartsProvider = device.getDeviceCoordinator().getChartsProvider();
@@ -304,15 +310,20 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
     }
 
 
-    private MySleepChartsData refreshSleepAmounts(List<? extends ActivitySample> samples, List<? extends SleepScoreSample> sleepScoreSamples) {
-        SleepAnalysis sleepAnalysis = new SleepAnalysis();
-        List<SleepSession> sleepSessions = sleepAnalysis.calculateSleepSessions(samples);
-
-        final long lightSleepDuration = calculateLightSleepDuration(sleepSessions);
-        final long deepSleepDuration = calculateDeepSleepDuration(sleepSessions);
-        final long remSleepDuration = calculateRemSleepDuration(sleepSessions);
-        final long awakeSleepDuration = calculateAwakeSleepDuration(sleepSessions);
-        final long totalSeconds = lightSleepDuration + deepSleepDuration + remSleepDuration;
+    private MySleepChartsData buildSleepChartsData(List<SleepSession> sleepSessions, List<? extends SleepScoreSample> sleepScoreSamples) {
+        long lightSleepDuration = 0;
+        long deepSleepDuration = 0;
+        long remSleepDuration = 0;
+        long awakeSleepDuration = 0;
+        long totalSeconds = 0;
+        for (SleepSession sleepSession : sleepSessions) {
+            lightSleepDuration += sleepSession.getLightSleepDuration();
+            deepSleepDuration += sleepSession.getDeepSleepDuration();
+            remSleepDuration += sleepSession.getRemSleepDuration();
+            awakeSleepDuration += sleepSession.getAwakeSleepDuration();
+            // Includes SLEEP_ANY, which the per-stage breakdown above does not.
+            totalSeconds += sleepSession.getTotalSleepDuration();
+        }
 
         int sleepScore = 0;
         if (!sleepScoreSamples.isEmpty()) {
@@ -320,38 +331,6 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
         }
 
         return new MySleepChartsData(sleepSessions, totalSeconds, awakeSleepDuration, remSleepDuration, deepSleepDuration, lightSleepDuration, sleepScore);
-    }
-
-    private long calculateLightSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getLightSleepDuration();
-        }
-        return result;
-    }
-
-    private long calculateDeepSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getDeepSleepDuration();
-        }
-        return result;
-    }
-
-    private long calculateRemSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getRemSleepDuration();
-        }
-        return result;
-    }
-
-    private long calculateAwakeSleepDuration(List<SleepSession> sleepSessions) {
-        long result = 0;
-        for (SleepSession sleepSession : sleepSessions) {
-            result += sleepSession.getAwakeSleepDuration();
-        }
-        return result;
     }
 
     protected void sleepStagesGaugeUpdate(MySleepChartsData pieData) {
@@ -532,8 +511,8 @@ public class SleepDailyFragment extends SleepFragment<SleepDailyFragment.MyChart
                 if (result.length() > 0) {
                     result.append("  |  ");
                 }
-                String from = DateTimeUtils.timeToString(sleepSession.getSleepStart());
-                String to = DateTimeUtils.timeToString(sleepSession.getSleepEnd());
+                String from = DateTimeUtils.timeToString(new Date(sleepSession.getStartTime()));
+                String to = DateTimeUtils.timeToString(new Date(sleepSession.getEndTime()));
                 result.append(String.format("%s - %s", from, to));
             }
         }

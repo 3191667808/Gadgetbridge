@@ -464,6 +464,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    @NonNull
+    public SleepSessionProvider getSleepSessionProvider(@NonNull final GBDevice device, @NonNull final DaoSession session) {
+        return new DefaultSleepSessionProvider(device, session);
+    }
+
+    @Override
     @Nullable
     public ActivitySummaryParser getActivitySummaryParser(final GBDevice device, final Context context) {
         return new ActivitySummaryParser.NoopActivitySummaryParser();

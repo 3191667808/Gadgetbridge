@@ -526,6 +526,13 @@ public interface DeviceCoordinator {
     TimeSampleProvider<? extends SleepScoreSample> getSleepScoreProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
 
     /**
+     * Returns the {@link SleepSessionProvider} for the device being supported. A device that records
+     * sleep sessions natively can override this to supply them directly.
+     */
+    @NonNull
+    SleepSessionProvider getSleepSessionProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
+
+    /**
      * Returns the sample provider for blood pressure data, for the device being supported.
      */
     @Nullable
