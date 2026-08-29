@@ -328,12 +328,6 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * everything" on that same command and log whatever comes back; replies surface as
      * "Unhandled cmd 0xc6" until we know their shape.
      */
-    override fun onTestNewFunction(options: Bundle?) {
-        fetchWorkouts(days = 7)
-    }
-
-
-
     // --- Device settings ------------------------------------------------------------------------
 
     override fun onSendConfiguration(config: String) {
@@ -491,11 +485,11 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     /**
      * Ask for stored workouts over a time range. Three steps, mirroring the official app:
      * `aa 01` lists what is there, `aa 02` gives a workout's summary, `aa 03` streams its detail
-     * pages. The detail stream is logged raw - it is the only place a GPS track could live.
+     * pages.
      */
     private fun fetchWorkouts(days: Int) {
-        historyTo = (System.currentTimeMillis() / 1000L).toInt()
-        historyFrom = historyTo - days * 24 * 3600
+        val to = (System.currentTimeMillis() / 1000L).toInt()
+        val from = to - days * 24 * 3600
         workoutIndex = 0
         workoutDetailPage = 0
         workoutDetailBytes = 0
@@ -503,7 +497,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         LOG.info("Workouts: listing over the last {} days", days)
         val builder = createTransactionBuilder("workout list")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_WORKOUT, MODE_GET, 0x01, 0x08)
-            + be32(historyFrom) + be32(historyTo))
+            + be32(from) + be32(to))
         builder.queue()
     }
 
@@ -527,7 +521,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         ) {
             // The watch announces a finished workout unprompted - fetch it rather than waiting
             // for someone to press sync.
-            LOG.info("Workout finished on the watch, fetching: {}", value.toHex())
+            LOG.info("Workout finished on the watch, fetching it")
             fetchWorkouts(days = 1)
             return
         }
@@ -587,7 +581,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                     workoutDetailPage++
                     requestWorkoutDetail(workoutIndex, workoutDetailPage)
                 } else {
-                    LOG.info("Workout {} detail done: {} of {} bytes over {} pages",
+                    LOG.debug("Workout {} detail done: {} of {} bytes over {} pages",
                         workoutIndex, workoutDetailBytes, expected, workoutDetailPage + 1)
                     val next = workoutSizes.keys.firstOrNull { it > workoutIndex }
                     if (next != null) {
@@ -602,8 +596,6 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 val chunk = ((value[4].toInt() and 0xff) shl 8) or (value[5].toInt() and 0xff)
                 val dataFrom = if (chunk == 0) 15 else 6
                 if (value.size > dataFrom) workoutDetailBytes += value.size - dataFrom
-                LOG.info("Workout {} detail page {} chunk {}: {}", workoutIndex, workoutDetailPage,
-                    chunk, value.toHex())
             }
             else -> LOG.debug("Workout field 0x{}: {}", Integer.toHexString(field), value.toHex())
         }
@@ -755,7 +747,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     /** List reply: "01 e8 aa 01 <chunk:2> <count:2> [<index:2> <detail size:3> <pad:3>]*". */
     private fun parseWorkoutList(value: ByteArray) {
-        LOG.info("Workout list: {}", value.toHex())
+        LOG.debug("Workout list: {}", value.toHex())
         if (value.size < 8) return
         val count = ((value[6].toInt() and 0xff) shl 8) or (value[7].toInt() and 0xff)
         var i = 8
@@ -765,7 +757,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             val size = ((value[i + 2].toInt() and 0xff) shl 16) or
                     ((value[i + 3].toInt() and 0xff) shl 8) or (value[i + 4].toInt() and 0xff)
             workoutSizes[index] = size
-            LOG.info("  workout {} holds {} bytes of detail", index, size)
+            LOG.debug("  workout {} holds {} bytes of detail", index, size)
             i += 8
             n++
         }
@@ -773,7 +765,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     /** Summary fields: 03 start, 04 end, 05 kcal, 06 distance (m), 07 steps, 08 active s, 09 type. */
     private fun logWorkoutSummary(value: ByteArray) {
-        LOG.info("Workout {} summary raw: {}", workoutIndex, value.toHex())
+        LOG.debug("Workout {} summary raw: {}", workoutIndex, value.toHex())
         val fields = HashMap<Int, Long>()
         var i = 6
         while (i + 2 <= value.size) {
@@ -788,7 +780,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 0x0b -> "hr_min"; 0x0c -> "hr_max"; 0x4c -> "cadence_spm"; 0x4d -> "stride_cm"
                 else -> "field_0x" + Integer.toHexString(id)
             }
-            LOG.info("  workout {} = {}", name, v)
+            LOG.debug("  workout {} = {}", name, v)
             fields[id] = v
             i += 2 + len
         }
@@ -1219,6 +1211,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         val steps = parseInnerInt(metrics, SUBFIELD_STEPS) ?: return
         storeDailySteps(steps)
     }
+
 
     /** Parse a variable-length big-endian integer [subfield] from an inner "<field><len><value>" TLV blob. */
     private fun parseInnerInt(blob: ByteArray, subfield: Int): Int? {
