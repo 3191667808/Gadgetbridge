@@ -36,8 +36,10 @@ import nodomain.freeyourgadget.gadgetbridge.devices.ColmiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.ColmiTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.SleepSessionProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiActivitySampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.yawell.ring.samples.ColmiSleepSessionProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiActivitySampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHeartRateSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.ColmiHrvValueSampleDao;
@@ -163,6 +165,12 @@ public abstract class AbstractYawellRingCoordinator extends AbstractBLEDeviceCoo
     @Override
     public SampleProvider<? extends ActivitySample> getSampleProvider(GBDevice device, DaoSession session) {
         return new ColmiActivitySampleProvider(device, session);
+    }
+
+    @NonNull
+    @Override
+    public SleepSessionProvider getSleepSessionProvider(@NonNull final GBDevice device, @NonNull final DaoSession session) {
+        return new ColmiSleepSessionProvider(device, session);
     }
 
     @Override
