@@ -39,6 +39,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec
+import nodomain.freeyourgadget.gadgetbridge.model.NotificationType
+import nodomain.freeyourgadget.gadgetbridge.service.devices.gloryfit.GloryFitNotificationType
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport
@@ -328,7 +330,45 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     override fun onNotification(notificationSpec: NotificationSpec) {
         val title = notificationSpec.title ?: notificationSpec.sender ?: notificationSpec.sourceName ?: ""
         val body = notificationSpec.body ?: ""
-        sendNotification(title, body)
+        // Pick the watch's built-in app icon/name for this app type (unknown -> "Other").
+        val appCode = notificationAppCode(notificationSpec.type)
+        LOG.debug(
+            "Notification from {} (type {}) -> app icon code {}",
+            notificationSpec.sourceAppId, notificationSpec.type, appCode
+        )
+        sendNotification(title, body, appCode)
+    }
+
+    /**
+     * Resolve the watch's built-in app icon/name code for a notification type.
+     *
+     * Starts from the shared JieLi mapping and overrides the cases where the classic dialect's
+     * choice is wrong on this watch:
+     * - Signal (and its Molly fork) bucket into [GloryFitNotificationType.WECHAT] upstream, so a
+     *   Signal message shows up as "WeChat". The DM58 has no Signal icon anywhere in the swept
+     *   0-63 range, so the neutral SMS ("text") icon is the closest honest match.
+     * - Plain SMS buckets into WeChat as well, even though the watch does have a real SMS icon.
+     *
+     * Code 0 is reserved for an active call: the watch silently drops plain notifications sent
+     * with it, so it is never emitted here - anything resolving to it falls back to "Other".
+     */
+    private fun notificationAppCode(type: NotificationType): Byte {
+        val mapped = when (type) {
+            NotificationType.SIGNAL,
+            NotificationType.MOLLY,
+            NotificationType.GENERIC_SMS -> GloryFitNotificationType.SMS
+
+            NotificationType.WHATSAPP -> GloryFitNotificationType.WHATSAPP
+
+            else -> GloryFitNotificationType.fromNotificationType(type)
+        }
+        if (mapped == GloryFitNotificationType.CALL) {
+            // Never happens with the current mapping, but a future upstream change must not
+            // silently make notifications disappear.
+            LOG.warn("Type {} mapped to the call-only icon code 0, falling back to 'Other'", type)
+            return GloryFitNotificationType.UNKNOWN_APP.code
+        }
+        return mapped.code
     }
 
     /**
@@ -336,15 +376,15 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * ab 08 01 <appIcon> | ab 09 01 01, followed by a terminator 01 b0 abab fd <xor-of-data-packet>.
      * Text is truncated to fit a single MTU-247 packet (chunking is a TODO).
      */
-    private fun sendNotification(titleRaw: String, bodyRaw: String) {
-        val title = titleRaw.take(32).toByteArray(Charsets.UTF_16BE)
-        val body = bodyRaw.take(60).toByteArray(Charsets.UTF_16BE)
+    private fun sendNotification(titleRaw: String, bodyRaw: String, appCode: Byte = GloryFitNotificationType.UNKNOWN_APP.code) {
+        val title = titleRaw.truncateChars(32).toByteArray(Charsets.UTF_16BE)
+        val body = bodyRaw.truncateChars(60).toByteArray(Charsets.UTF_16BE)
 
         val data = ByteArrayOutputStream()
         data.write(byteArrayOf(PKT_HEADER, CMD_NOTIFICATION, MODE_SET, MODE_SET, 0x00))
         data.write(byteArrayOf(MODE_SET, 0x03, body.size.toByte())); data.write(body)
         data.write(byteArrayOf(MODE_SET, 0x07, title.size.toByte())); data.write(title)
-        data.write(byteArrayOf(MODE_SET, 0x08, 0x01, 0x04))  // app icon id (generic)
+        data.write(byteArrayOf(MODE_SET, 0x08, 0x01, appCode))  // app icon/name (watch's built-in set)
         data.write(byteArrayOf(MODE_SET, 0x09, 0x01, 0x01))
         val dataPkt = data.toByteArray()
 
@@ -352,10 +392,23 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         for (b in dataPkt) xor = xor xor (b.toInt() and 0xff)
         val terminator = byteArrayOf(PKT_HEADER, CMD_NOTIFICATION, MODE_SET, MODE_SET, PKT_TERMINATOR, xor.toByte())
 
+        LOG.debug("Sending notification, {} bytes, app icon code {}", dataPkt.size, appCode)
+
         val builder = createTransactionBuilder("send notification")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *dataPkt)
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *terminator)
         builder.queue()
+    }
+
+    /**
+     * Truncate to at most [max] UTF-16 code units without splitting a surrogate pair, so an
+     * emoji on the boundary is dropped whole instead of leaving a lone surrogate in the
+     * UTF-16BE payload (which the watch rejects, dropping the notification entirely).
+     */
+    private fun String.truncateChars(max: Int): String {
+        if (length <= max) return this
+        val end = if (Character.isHighSurrogate(this[max - 1])) max - 1 else max
+        return substring(0, end)
     }
 
     override fun onFindDevice(start: Boolean) {
