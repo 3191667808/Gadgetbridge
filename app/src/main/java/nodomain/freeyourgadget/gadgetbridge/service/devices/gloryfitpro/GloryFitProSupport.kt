@@ -32,6 +32,16 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInf
 import nodomain.freeyourgadget.gadgetbridge.devices.GloryFitStepsSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData
+import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack
+import nodomain.freeyourgadget.gadgetbridge.model.GPSCoordinate
+import nodomain.freeyourgadget.gadgetbridge.export.GPXExporter
+import java.io.File
+import java.util.Date
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample
 import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSample
@@ -297,9 +307,13 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     override fun onFetchRecordedData(dataTypes: Int) {
-        val builder = createTransactionBuilder("fetch steps")
+        // A sync should bring in everything the watch has: today's totals, the per-minute
+        // history behind them, and any workouts recorded since.
+        val builder = createTransactionBuilder("fetch day totals")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *cmdGetAll(CMD_ACTIVITY_DAY))
         builder.queue()
+        fetchHistory(days = 7)
+        fetchWorkouts(days = 7)
     }
 
     /**
@@ -466,6 +480,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private var workoutDetailBytes = 0
     private val workoutSizes = LinkedHashMap<Int, Int>()
     private val workoutTrack = ByteArrayOutputStream()
+    private var workoutSummary: Map<Int, Long> = emptyMap()
     private var workoutTrackXor = 0
     private var workoutTrackFrames = 0
 
@@ -622,14 +637,112 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         }
         if (points.isEmpty()) {
             LOG.info("Workout {}: no GPS track ({} bytes)", workoutIndex, track.size)
-            return
+        } else {
+            LOG.info(
+                "Workout {}: GPS track of {} points, lat {}..{}, lon {}..{}",
+                workoutIndex, points.size,
+                points.minOf { it.first }, points.maxOf { it.first },
+                points.minOf { it.second }, points.maxOf { it.second }
+            )
         }
-        LOG.info(
-            "Workout {}: GPS track of {} points, lat {}..{}, lon {}..{}",
-            workoutIndex, points.size,
-            points.minOf { it.first }, points.maxOf { it.first },
-            points.minOf { it.second }, points.maxOf { it.second }
-        )
+        storeWorkout(points)
+    }
+
+    /**
+     * Store one workout as an activity summary, with its route as a GPX track when there is one.
+     *
+     * The track records carry no timestamps of their own - only the summary has a start and an
+     * end - so point times are spread evenly across the workout. That is an approximation: it is
+     * right at both ends and drifts in between if the pace varied.
+     */
+    private fun storeWorkout(points: List<Pair<Double, Double>>) {
+        val start = workoutSummary[0x03] ?: return
+        val end = workoutSummary[0x04] ?: return
+        if (start <= 0 || end <= start) return
+        try {
+            GBApplication.acquireDB().use { handler ->
+                val session = handler.daoSession
+                val dbDevice = DBHelper.getDevice(device, session)
+                val dbUser = DBHelper.getUser(session)
+                val summary = BaseActivitySummary()
+                summary.startTime = Date(start * 1000L)
+                summary.endTime = Date(end * 1000L)
+                summary.activityKind = workoutKind(workoutSummary[0x09]?.toInt() ?: -1).code
+                summary.name = "Workout"
+                summary.device = dbDevice
+                summary.user = dbUser
+
+                if (points.isNotEmpty()) {
+                    try {
+                        summary.gpxTrack = writeGpx(dbDevice, dbUser, start, end, points)
+                    } catch (e: Exception) {
+                        LOG.warn("Failed to export the GPX track", e)
+                    }
+                }
+
+                val data = ActivitySummaryData()
+                workoutSummary[0x08]?.let {
+                    data.add(null, ActivitySummaryEntries.ACTIVE_SECONDS, it.toFloat(), ActivitySummaryEntries.UNIT_SECONDS)
+                }
+                workoutSummary[0x06]?.let {
+                    data.add(null, ActivitySummaryEntries.DISTANCE_METERS, it.toFloat(), ActivitySummaryEntries.UNIT_METERS)
+                }
+                workoutSummary[0x05]?.let {
+                    data.add(null, ActivitySummaryEntries.CALORIES_BURNT, it.toFloat(), ActivitySummaryEntries.UNIT_KCAL)
+                }
+                workoutSummary[0x07]?.takeIf { it > 0 }?.let {
+                    data.add(null, ActivitySummaryEntries.STEPS, it.toFloat(), ActivitySummaryEntries.UNIT_STEPS)
+                }
+                workoutSummary[0x0b]?.takeIf { it > 0 }?.let {
+                    data.add(null, ActivitySummaryEntries.HR_MIN, it.toFloat(), ActivitySummaryEntries.UNIT_BPM)
+                }
+                workoutSummary[0x0c]?.takeIf { it > 0 }?.let {
+                    data.add(null, ActivitySummaryEntries.HR_MAX, it.toFloat(), ActivitySummaryEntries.UNIT_BPM)
+                }
+                data.setHasGps(summary.gpxTrack != null)
+                summary.summaryData = data.toJson()
+
+                session.baseActivitySummaryDao.insertOrReplace(summary)
+                LOG.info("Stored workout {} ({} - {}), kind {}, {} track points",
+                    workoutIndex, summary.startTime, summary.endTime, summary.activityKind,
+                    points.size)
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to store workout {}", workoutIndex, e)
+        }
+    }
+
+    private fun writeGpx(
+        dbDevice: nodomain.freeyourgadget.gadgetbridge.entities.Device,
+        dbUser: nodomain.freeyourgadget.gadgetbridge.entities.User,
+        start: Long, end: Long, points: List<Pair<Double, Double>>
+    ): String {
+        val dir = device.deviceCoordinator.getWritableExportDirectory(device, true)
+        val file = File(dir, "gloryfitpro_" + start + ".gpx")
+        val activityTrack = ActivityTrack()
+        activityTrack.baseTime = Date(start * 1000L)
+        activityTrack.name = "Workout"
+        activityTrack.device = dbDevice
+        activityTrack.user = dbUser
+        val span = (end - start).toDouble()
+        for ((index, p) in points.withIndex()) {
+            val fraction = if (points.size > 1) index.toDouble() / (points.size - 1) else 0.0
+            val at = Date(((start + span * fraction) * 1000L).toLong())
+            val point = ActivityPoint(at)
+            point.location = GPSCoordinate(p.second, p.first, GPSCoordinate.UNKNOWN_ALTITUDE)
+            activityTrack.addTrackPoint(point)
+        }
+        GPXExporter().performExport(activityTrack, file, null)
+        return file.absolutePath
+    }
+
+    /** Workout type codes seen on this watch; everything else falls back to a generic activity. */
+    private fun workoutKind(type: Int): ActivityKind = when (type) {
+        2, 6 -> ActivityKind.OUTDOOR_WALKING
+        8 -> ActivityKind.INDOOR_WALKING
+        9 -> ActivityKind.WALKING
+        58 -> ActivityKind.OUTDOOR_CYCLING
+        else -> ActivityKind.ACTIVITY
     }
 
     private fun be32At(b: ByteArray, i: Int): Long =
@@ -657,6 +770,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     /** Summary fields: 03 start, 04 end, 05 kcal, 06 distance (m), 07 steps, 08 active s, 09 type. */
     private fun logWorkoutSummary(value: ByteArray) {
         LOG.info("Workout {} summary raw: {}", workoutIndex, value.toHex())
+        val fields = HashMap<Int, Long>()
         var i = 6
         while (i + 2 <= value.size) {
             val id = value[i].toInt() and 0xff
@@ -671,8 +785,10 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 else -> "field_0x" + Integer.toHexString(id)
             }
             LOG.info("  workout {} = {}", name, v)
+            fields[id] = v
             i += 2 + len
         }
+        workoutSummary = fields
     }
 
     // --- Stored activity history (c5 count + c6 paged read) ------------------------------------
@@ -753,6 +869,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         var records = 0
         var firstMinute = -1
         var lastMinute = -1
+        val heartRates = ArrayList<GenericHeartRateSample>()
         while (i + 3 <= page.size) {
             val minute = ((page[i].toInt() and 0xff) shl 8) or (page[i + 1].toInt() and 0xff)
             val type = page[i + 2].toInt() and 0xff
@@ -784,12 +901,41 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 if (firstMinute < 0) firstMinute = minute
                 lastMinute = minute
             }
+            // Heart rate sits at a different offset per record type, exactly as in the live
+            // pushes: a lone reading, the first value of a b8 window summary, or the first of the
+            // quad appended to an f5 / f7 activity record.
+            val hrAt = when (type) {
+                0x08 -> i + 3
+                0xb8 -> i + 4
+                0xf5 -> i + 7
+                0xf7 -> i + 8
+                else -> -1
+            }
+            if (hrAt in 0 until page.size) {
+                val bpm = page[hrAt].toInt() and 0xff
+                if (bpm in 25..250) {
+                    val sample = GenericHeartRateSample()
+                    sample.timestamp = (day.toLong() + minute * 60L) * 1000L
+                    sample.heartRate = bpm
+                    heartRates.add(sample)
+                }
+            }
             records++
             i += 3 + len
         }
+        if (heartRates.isNotEmpty()) {
+            try {
+                GBApplication.acquireDB().use { handler ->
+                    GenericHeartRateSampleProvider(device, handler.daoSession)
+                        .persistSamples(heartRates, context)
+                }
+            } catch (e: Exception) {
+                LOG.error("Failed to store {} historic heart rate samples", heartRates.size, e)
+            }
+        }
         LOG.info(
-            "History page {}: day={} records={} steps={} distance={}m kcal={} minutes {}..{}",
-            historyPage, day, records, steps, distance, kcal, firstMinute, lastMinute
+            "History page {}: day={} records={} steps={} distance={}m kcal={} hr={} minutes {}..{}",
+            historyPage, day, records, steps, distance, kcal, heartRates.size, firstMinute, lastMinute
         )
     }
 
