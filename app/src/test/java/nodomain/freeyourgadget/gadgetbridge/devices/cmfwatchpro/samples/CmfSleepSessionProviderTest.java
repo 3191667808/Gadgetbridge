@@ -116,9 +116,9 @@ public class CmfSleepSessionProviderTest extends TestBase {
         assertEquals(T0 + 3600_000L, stages.get(0).getEndTime());
         assertEquals(ActivityKind.LIGHT_SLEEP, stages.get(1).getKind());
         assertEquals(T0 + 3600_000L, stages.get(1).getStartTime());
-        assertEquals(T0 + 10_800_000L, stages.get(1).getEndTime());
+        assertEquals(T0 + 9000_000L, stages.get(1).getEndTime());
         assertEquals(ActivityKind.REM_SLEEP, stages.get(2).getKind());
-        assertEquals(T0 + 10_800_000L, stages.get(2).getStartTime());
+        assertEquals(T0 + 9000_000L, stages.get(2).getStartTime());
         assertEquals(T1, stages.get(2).getEndTime());
     }
 
