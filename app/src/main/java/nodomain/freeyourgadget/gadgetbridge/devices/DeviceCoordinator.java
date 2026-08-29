@@ -304,6 +304,7 @@ public interface DeviceCoordinator {
     boolean supportsActivityDistance(@NonNull final GBDevice device);
     boolean supportsTrainingLoad(@NonNull final GBDevice device);
     boolean supportsTrainingLoadChronic(@NonNull final GBDevice device);
+    boolean supportsRacePrediction(@NonNull final GBDevice device);
     boolean supportsGlucoseMeasurement(@NonNull final GBDevice device);
 
     DeviceChartsProvider getChartsProvider();

@@ -2481,6 +2481,12 @@
     <string name="metric_garmin_met_max_vo2">MET Max VO₂</string>
     <string name="metric_garmin_running_lactate_threshold_power">Running Lactate Threshold Power</string>
     <string name="metric_garmin_training_readiness">Training Readiness</string>
+    <string name="menuitem_race_predictor">Race Predictor</string>
+    <string name="p_raceprediction" translatable="false">raceprediction</string>
+    <string name="metric_generic_race_predictor_5k">5K</string>
+    <string name="metric_generic_race_predictor_10k">10K</string>
+    <string name="metric_generic_race_predictor_half_marathon">Half Marathon</string>
+    <string name="metric_generic_race_predictor_full_marathon">Marathon</string>
     <string name="metric_generic_resting_metabolic_rate">Resting Metabolic Rate</string>
     <string name="menuitem_recommendation">Recommendation</string>
     <string name="menuitem_zepp_coach">Zepp Coach</string>

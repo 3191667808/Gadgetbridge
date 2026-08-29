@@ -113,6 +113,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMonitoringInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitNap;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitPhysiologicalMetrics;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitRacePrediction;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitRecord;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitRespirationRate;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitSession;
@@ -400,6 +401,12 @@ public class FitImporter {
                     sample.setValue(trainingLoad.getTrainingLoadChronic());
                     trainingLoadChronicSamples.add(sample);
                 }
+            } else if (record instanceof FitRacePrediction racePrediction) {
+                LOG.trace("Race prediction at {}: {}", ts, racePrediction);
+                addRacePredictionSample(ts, racePrediction.getTime5k(), MetricSample.Metric.GENERIC_RACE_PREDICTOR_5K, genericMetricSamples);
+                addRacePredictionSample(ts, racePrediction.getTime10k(), MetricSample.Metric.GENERIC_RACE_PREDICTOR_10K, genericMetricSamples);
+                addRacePredictionSample(ts, racePrediction.getTimeHalfMarathon(), MetricSample.Metric.GENERIC_RACE_PREDICTOR_HALF_MARATHON, genericMetricSamples);
+                addRacePredictionSample(ts, racePrediction.getTimeFullMarathon(), MetricSample.Metric.GENERIC_RACE_PREDICTOR_FULL_MARATHON, genericMetricSamples);
             } else if (record instanceof FitMonitoringHrData monitoringHrData) {
                 if (monitoringHrData.getRestingHeartRate() == null && monitoringHrData.getCurrentDayRestingHeartRate() == null) {
                     LOG.warn("Resting HR at {} is null", ts);
@@ -628,6 +635,16 @@ public class FitImporter {
             final String NativeMessageNumber = FitDebug.mesgNumLookup(e.getKey());
             LOG.warn("Unknown record of native number {} seen {} times", NativeMessageNumber, e.getValue());
         }
+    }
+
+    static void addRacePredictionSample(@Nullable final Long ts, @Nullable final Integer seconds, final MetricSample.Metric metric, final List<GenericMetricSample> out) {
+        if (ts == null || seconds == null || seconds <= 0) {
+            return;
+        }
+        final GenericMetricSample sample = new GenericMetricSample();
+        sample.setTimestamp(ts * 1000L);
+        sample.setMetric(metric, seconds);
+        out.add(sample);
     }
 
     private void persistMetricSamples(@NonNull final DaoSession session) {
