@@ -71,7 +71,8 @@ public class GarminEventSampleProvider extends AbstractTimeSampleProvider<Garmin
         final Property deviceProperty = getDeviceIdentifierSampleProperty();
         qb.where(deviceProperty.eq(dbDevice.getId()), timestampProperty.ge(timestampFrom))
                 .where(timestampProperty.le(timestampTo))
-                .where(GarminEventSampleDao.Properties.Event.eq(74));
+                .where(GarminEventSampleDao.Properties.Event.eq(74))
+                .orderAsc(timestampProperty);
 
         final List<GarminEventSample> samples = qb.build().list();
         detachFromSession();
