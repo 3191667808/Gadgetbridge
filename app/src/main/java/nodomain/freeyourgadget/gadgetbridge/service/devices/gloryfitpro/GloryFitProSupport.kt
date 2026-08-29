@@ -41,6 +41,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.service.devices.gloryfit.GloryFitNotificationType
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather
@@ -238,6 +239,150 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         fetchWorkouts(days = 7)
     }
 
+
+
+    // --- Device settings ------------------------------------------------------------------------
+
+    override fun onSendConfiguration(config: String) {
+        val prefs = devicePrefs
+        when (config) {
+            DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED ->
+                writeSetting("lift wrist", CMD_DEVICE_CONTROL, 0x01,
+                    byteArrayOf(if (prefs.getBoolean(config, false)) 1 else 0))
+
+            DeviceSettingsPreferenceConst.PREF_SCREEN_TIMEOUT ->
+                writeSetting("screen timeout", CMD_DEVICE_CONTROL, 0x08,
+                    byteArrayOf(prefs.getString(config, "15")!!.toInt().coerceIn(1, 255).toByte()))
+
+            DeviceSettingsPreferenceConst.PREF_HEARTRATE_AUTOMATIC_ENABLE ->
+                writeSetting("24h heart rate", CMD_FEATURE, 0x02,
+                    byteArrayOf(if (prefs.getBoolean(config, false)) 1 else 0))
+
+            DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_HIGH_THRESHOLD ->
+                writeHeartRateAlert(0x03, config)
+
+            DeviceSettingsPreferenceConst.PREF_HEARTRATE_ALERT_LOW_THRESHOLD ->
+                writeHeartRateAlert(0x04, config)
+
+            DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING ->
+                writeSetting("spo2 monitoring", CMD_HEALTH_MONITOR, 0x03,
+                    byteArrayOf(if (prefs.getBoolean(config, false)) 1 else 0))
+
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_START,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_END,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU -> sendSedentaryReminder()
+
+            DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO,
+            DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START,
+            DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END -> sendDoNotDisturb()
+
+            DeviceSettingsPreferenceConst.PREF_LANGUAGE -> sendLanguage()
+
+            else -> LOG.debug("Unhandled setting {}", config)
+        }
+    }
+
+
+    /**
+     * Do not disturb: "<all day> <scheduled> <start h> <start m> <end h> <end m> 00 00". The first
+     * two bytes are separate flags rather than one mode, which is why "off" clears both.
+     */
+    private fun sendDoNotDisturb() {
+        val prefs = devicePrefs
+        val mode = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO, "off")
+        val scheduled = mode != null && mode != "off"
+        val start = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, "23:00")!!
+        val end = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, "07:00")!!
+        writeSetting(
+            "do not disturb", CMD_DND, 0x01,
+            byteArrayOf(
+                0, if (scheduled) 1 else 0,
+                hourOf(start).toByte(), minuteOf(start).toByte(),
+                hourOf(end).toByte(), minuteOf(end).toByte(), 0, 0
+            )
+        )
+    }
+
+    /** Device language. Only codes verified on hardware are offered by the coordinator. */
+    private fun sendLanguage() {
+        val language = devicePrefs.getString(DeviceSettingsPreferenceConst.PREF_LANGUAGE, "en_US")
+        val code = LANGUAGE_CODES[language]
+        if (code == null) {
+            LOG.warn("No known device code for language {}", language)
+            return
+        }
+        writeSetting("language", CMD_DEVICE_CONTROL, 0x06, byteArrayOf(code))
+    }
+
+    /** Heart rate alert: "<enabled> <bpm>" - the watch keeps the limit even when it is off. */
+    private fun writeHeartRateAlert(field: Byte, pref: String) {
+        val value = devicePrefs.getString(pref, "0")!!.toIntOrNull() ?: 0
+        val enabled = value > 0
+        writeSetting(
+            "heart rate alert", CMD_FEATURE, field,
+            byteArrayOf(if (enabled) 1 else 0, value.coerceIn(0, 255).toByte())
+        )
+    }
+
+    /**
+     * Sedentary reminder, written as one block:
+     * "<on> 00 <interval min> <start h> <start m> <end h> <end m> <weekday mask>".
+     */
+    private fun sendSedentaryReminder() {
+        val prefs = devicePrefs
+        val enabled = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_INACTIVITY_ENABLE, false)
+        val interval = prefs.getString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_THRESHOLD, "60")!!
+            .toIntOrNull() ?: 60
+        val start = prefs.getString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_START, "08:00")!!
+        val end = prefs.getString(DeviceSettingsPreferenceConst.PREF_INACTIVITY_END, "20:00")!!
+        var mask = 0
+        val days = listOf(
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_SU to 0x01,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_MO to 0x02,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_TU to 0x04,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_WE to 0x08,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_TH to 0x10,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_FR to 0x20,
+            DeviceSettingsPreferenceConst.PREF_INACTIVITY_SA to 0x40
+        )
+        for ((key, bit) in days) if (prefs.getBoolean(key, false)) mask = mask or bit
+        if (mask == 0) {
+            // Every weekday defaults to off in the shared settings screen, so an otherwise
+            // enabled reminder would be sent with no days and quietly never fire. The official
+            // app has no day picker at all and always sends every day; match that.
+            LOG.debug("No weekdays selected for the sedentary reminder, sending every day")
+            mask = 0x7f
+        }
+        writeSetting(
+            "sedentary reminder", CMD_HEALTH_MONITOR, 0x01,
+            byteArrayOf(
+                if (enabled) 1 else 0, 0, interval.coerceIn(1, 255).toByte(),
+                hourOf(start).toByte(), minuteOf(start).toByte(),
+                hourOf(end).toByte(), minuteOf(end).toByte(), mask.toByte()
+            )
+        )
+    }
+
+    private fun hourOf(hhmm: String): Int = hhmm.substringBefore(':').toIntOrNull() ?: 0
+    private fun minuteOf(hhmm: String): Int = hhmm.substringAfter(':', "0").toIntOrNull() ?: 0
+
+    private fun writeSetting(label: String, cmd: Byte, field: Byte, value: ByteArray) {
+        LOG.debug("Setting {}: cmd 0x{} field 0x{} = {}", label,
+            Integer.toHexString(cmd.toInt() and 0xff), Integer.toHexString(field.toInt() and 0xff),
+            value.toHex())
+        val builder = createTransactionBuilder(label)
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE,
+            *(byteArrayOf(PKT_HEADER, cmd, MODE_SET, field, value.size.toByte()) + value))
+        builder.queue()
+    }
 
     // --- Stored workouts (e8) -------------------------------------------------------------------
 
@@ -792,6 +937,17 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     /** Find-phone: the watch pushes "01 a5 ac 02 01 <01 start / 00 stop>". */
     private fun handleDeviceControl(value: ByteArray) {
+        // Find-watch state: the watch reports 01 when it starts ringing and 02 when the wearer
+        // dismisses it, so the phone-side session can end with it instead of hanging.
+        if (value.size >= 6 && value[2] == MODE_REPORT && value[3] == 0x05.toByte()) {
+            if (value[5].toInt() == 0x02) {
+                LOG.info("Find watch dismissed on the device")
+                val event = GBDeviceEventFindPhone()
+                event.event = GBDeviceEventFindPhone.Event.STOP
+                evaluateGBDeviceEvent(event)
+            }
+            return
+        }
         if (value.size >= 6 && value[2] == MODE_REPORT && value[3] == 0x02.toByte()) {
             val event = GBDeviceEventFindPhone()
             event.event = if (value[5].toInt() != 0) {
@@ -1187,6 +1343,15 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         const val CMD_CONTACTS: Byte = 0xc0.toByte()
         const val CMD_HEALTH: Byte = 0xc6.toByte()
         const val CMD_HEALTH_COUNT: Byte = 0xc5.toByte()
+        const val CMD_HEALTH_MONITOR: Byte = 0xc4.toByte()
+        const val CMD_FEATURE: Byte = 0xe1.toByte()
+        const val CMD_DND: Byte = 0xea.toByte()
+
+        /** Watch language codes, each one observed being written by the official app. */
+        val LANGUAGE_CODES: Map<String, Byte> = mapOf(
+            "en_US" to 0x02, "de_DE" to 0x05, "fr_FR" to 0x07,
+            "it_IT" to 0x08, "ru_RU" to 0x0e, "nl_NL" to 0x0f
+        )
         const val MAX_HISTORY_PAGES: Int = 64
         const val CMD_WORKOUT: Byte = 0xe8.toByte()
         const val MAX_WORKOUTS: Int = 4

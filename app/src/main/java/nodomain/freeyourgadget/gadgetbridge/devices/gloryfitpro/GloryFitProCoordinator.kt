@@ -98,8 +98,30 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
         }
     }
 
+    override fun supportsSpo2(device: GBDevice): Boolean {
+        return true
+    }
+
+    /** Only the codes actually verified on hardware; the rest of the watch's table is unknown. */
+    override fun getSupportedLanguageSettings(device: GBDevice): Array<String> {
+        return arrayOf("de_DE", "en_US", "fr_FR", "it_IT", "nl_NL", "ru_RU")
+    }
+
     override fun getDeviceSpecificSettings(device: GBDevice): DeviceSpecificSettings {
         val settings = DeviceSpecificSettings()
+
+        val display = settings.addRootScreen(DeviceSpecificSettingsScreen.DISPLAY)
+        display.add(R.xml.devicesettings_liftwrist_display_noshed)
+        display.add(R.xml.devicesettings_screen_timeout)
+
+        display.add(R.xml.devicesettings_donotdisturb_no_auto)
+
+        val health = settings.addRootScreen(DeviceSpecificSettingsScreen.HEALTH)
+        health.add(R.xml.devicesettings_heartrate_automatic_enable)
+        health.add(R.xml.devicesettings_heartrate_alerts)
+        health.add(R.xml.devicesettings_spo2)
+        health.add(R.xml.devicesettings_inactivity_sheduled)
+
         val notifications = settings.addRootScreen(DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS)
         notifications.add(R.xml.devicesettings_header_notifications)
         notifications.add(R.xml.devicesettings_send_app_notifications)
