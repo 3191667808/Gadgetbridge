@@ -30,6 +30,10 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo
 import nodomain.freeyourgadget.gadgetbridge.devices.GloryFitStepsSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericSpo2Sample
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericHeartRateSample
 import nodomain.freeyourgadget.gadgetbridge.entities.GloryFitStepsSample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm
@@ -148,6 +152,77 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             CMD_HEALTH_COUNT -> handleHealthCount(value)
             CMD_WORKOUT -> handleWorkout(value)
             else -> LOG.debug("Unhandled cmd 0x{}: {}", Integer.toHexString(cmd.toInt() and 0xff), value.toHex())
+        }
+    }
+
+
+    /**
+     * Live health push: "01 c6 ac 01 00 <len> <ts:4> <type> …". Several record types carry a
+     * heart rate, at a different offset each:
+     *
+     *   08 <bpm>                                       a single reading
+     *   b8 <sub> <cur> <max> <min> [spo2] <avg>        a window summary, current first
+     *   f5 08 <steps> <dist:2> <4 x bpm>               activity plus heart rate
+     *   f7 08 <steps> <kcal> <dist:2> <4 x bpm>        the same with calories
+     *
+     * Only the first value is stored - it is the reading for this timestamp, the rest summarise
+     * the window it belongs to.
+     */
+    private fun handleLiveHealthRecord(value: ByteArray) {
+        if (value.size < 12 || value[4] != 0x00.toByte()) return
+        val length = value[5].toInt() and 0xff
+        if (value.size < 6 + length) return
+        val timestamp = be32At(value, 6) * 1000L
+        val type = value[10].toInt() and 0xff
+        // 80 01 <spo2> is a blood oxygen reading on its own; b8 09 splices one in as the fourth
+        // of five values, before the average.
+        if (type == 0x80 && value.size > 12) {
+            storeSpo2(timestamp, value[12].toInt() and 0xff)
+            return
+        }
+        if (type == 0xb8 && (value.getOrNull(11)?.toInt()?.and(0xff)) == 0x09 && value.size > 15) {
+            storeSpo2(timestamp, value[15].toInt() and 0xff)
+        }
+        val heartRate = when (type) {
+            0x08 -> value.getOrNull(11)
+            0xb8 -> value.getOrNull(12)
+            0xf5 -> value.getOrNull(15)
+            0xf7 -> value.getOrNull(16)
+            else -> null
+        }?.toInt()?.and(0xff) ?: return
+        if (heartRate !in 25..250) return
+        storeHeartRate(timestamp, heartRate)
+    }
+
+    private fun storeHeartRate(timestampMillis: Long, heartRate: Int) {
+        try {
+            GBApplication.acquireDB().use { handler ->
+                val sample = GenericHeartRateSample()
+                sample.timestamp = timestampMillis
+                sample.heartRate = heartRate
+                GenericHeartRateSampleProvider(device, handler.daoSession)
+                    .persistSamples(listOf(sample), context)
+                LOG.debug("Stored heart rate {} at {}", heartRate, timestampMillis)
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to store heart rate", e)
+        }
+    }
+
+
+    private fun storeSpo2(timestampMillis: Long, spo2: Int) {
+        if (spo2 !in 50..100) return
+        try {
+            GBApplication.acquireDB().use { handler ->
+                val sample = GenericSpo2Sample()
+                sample.timestamp = timestampMillis
+                sample.spo2 = spo2
+                GenericSpo2SampleProvider(device, handler.daoSession)
+                    .persistSamples(listOf(sample), context)
+                LOG.debug("Stored SpO2 {} at {}", spo2, timestampMillis)
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to store SpO2", e)
         }
     }
 
@@ -649,9 +724,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      */
     private fun handleHealthPage(value: ByteArray) {
         if (value.size < 5 || value[2] != MODE_GET) {
-            // Unsolicited live record (mode ac) - keep logging it, it is how the record types
-            // were decoded in the first place.
             LOG.debug("Live health record: {}", value.toHex())
+            handleLiveHealthRecord(value)
             return
         }
         if (value[4] == PKT_TERMINATOR) {
