@@ -145,6 +145,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             CMD_ALARM -> handleAlarmData(value)
             CMD_HEALTH -> handleHealthPage(value)
             CMD_HEALTH_COUNT -> handleHealthCount(value)
+            CMD_WORKOUT -> handleWorkout(value)
             else -> LOG.debug("Unhandled cmd 0x{}: {}", Integer.toHexString(cmd.toInt() and 0xff), value.toHex())
         }
     }
@@ -234,7 +235,224 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * "Unhandled cmd 0xc6" until we know their shape.
      */
     override fun onTestNewFunction(options: Bundle?) {
-        fetchHistory(days = 7)
+        fetchWorkouts(days = 7)
+    }
+
+
+    // --- Stored workouts (e8) -------------------------------------------------------------------
+
+    private var workoutIndex = 0
+    private var workoutDetailPage = 0
+    private var workoutDetailBytes = 0
+    private val workoutSizes = LinkedHashMap<Int, Int>()
+    private val workoutTrack = ByteArrayOutputStream()
+    private var workoutTrackXor = 0
+    private var workoutTrackFrames = 0
+
+    /**
+     * Ask for stored workouts over a time range. Three steps, mirroring the official app:
+     * `aa 01` lists what is there, `aa 02` gives a workout's summary, `aa 03` streams its detail
+     * pages. The detail stream is logged raw - it is the only place a GPS track could live.
+     */
+    private fun fetchWorkouts(days: Int) {
+        historyTo = (System.currentTimeMillis() / 1000L).toInt()
+        historyFrom = historyTo - days * 24 * 3600
+        workoutIndex = 0
+        workoutDetailPage = 0
+        workoutDetailBytes = 0
+        workoutSizes.clear()
+        LOG.info("Workouts: listing over the last {} days", days)
+        val builder = createTransactionBuilder("workout list")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_WORKOUT, MODE_GET, 0x01, 0x08)
+            + be32(historyFrom) + be32(historyTo))
+        builder.queue()
+    }
+
+    private fun requestWorkoutSummary(index: Int) {
+        val builder = createTransactionBuilder("workout summary $index")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_WORKOUT, MODE_GET, 0x02, 0x02,
+            (index ushr 8).toByte(), index.toByte()))
+        builder.queue()
+    }
+
+    private fun requestWorkoutDetail(index: Int, page: Int) {
+        val builder = createTransactionBuilder("workout detail $index/$page")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_WORKOUT, MODE_GET, 0x03, 0x05,
+            (index ushr 8).toByte(), index.toByte(), (page ushr 8).toByte(), page.toByte(), 0x00))
+        builder.queue()
+    }
+
+    private fun handleWorkout(value: ByteArray) {
+        if (value.size >= 5 && value[2] == MODE_REPORT && value[3] == 0x01.toByte() &&
+            value[4] != PKT_TERMINATOR
+        ) {
+            // The watch announces a finished workout unprompted - fetch it rather than waiting
+            // for someone to press sync.
+            LOG.info("Workout finished on the watch, fetching: {}", value.toHex())
+            fetchWorkouts(days = 1)
+            return
+        }
+        if (value.size < 5 || value[2] != MODE_GET) return
+        val field = value[3].toInt() and 0xff
+        val terminator = value[4] == PKT_TERMINATOR
+        when (field) {
+            0x01 -> if (!terminator) {
+                parseWorkoutList(value)
+                val first = workoutSizes.keys.firstOrNull()
+                if (first == null) {
+                    LOG.info("Workouts: none stored in this range")
+                } else {
+                    workoutIndex = first
+                    requestWorkoutSummary(first)
+                }
+            }
+            0x02 -> if (!terminator) {
+                logWorkoutSummary(value)
+                workoutTrack.reset()
+                workoutTrackXor = 0
+                workoutTrackFrames = 0
+                requestWorkoutTrack(workoutIndex)
+            }
+            0x09 -> if (terminator) {
+                // The terminator's checksum covers every byte of every frame of the reply, so a
+                // notification lost on the way silently shortens the track unless it is checked.
+                val expected = if (value.size > 6) value[6].toInt() and 0xff else -1
+                if (expected >= 0 && expected != workoutTrackXor) {
+                    LOG.warn(
+                        "Workout {}: track checksum mismatch (got 0x{}, expected 0x{}) over {} frames" +
+                                " - the track is incomplete, discarding",
+                        workoutIndex, Integer.toHexString(workoutTrackXor),
+                        Integer.toHexString(expected), workoutTrackFrames
+                    )
+                } else {
+                    parseWorkoutTrack(workoutTrack.toByteArray())
+                }
+                workoutDetailPage = 0
+                workoutDetailBytes = 0
+                requestWorkoutDetail(workoutIndex, 0)
+            } else {
+                for (b in value) workoutTrackXor = workoutTrackXor xor (b.toInt() and 0xff)
+                workoutTrackFrames++
+                // Chunk 0 carries only the header <start ts:4> <end ts:4> <value:4>; points start
+                // at chunk 1.
+                val chunk = ((value[4].toInt() and 0xff) shl 8) or (value[5].toInt() and 0xff)
+                if (chunk != 0 && value.size > 6) {
+                    workoutTrack.write(value, 6, value.size - 6)
+                }
+            }
+            0x03 -> if (terminator) {
+                // Stop at the byte count the list advertised - asking past the end makes the
+                // watch repeat data instead of reporting that there is no more.
+                val expected = workoutSizes[workoutIndex] ?: 0
+                if (workoutDetailBytes < expected && workoutDetailPage + 1 < MAX_WORKOUT_PAGES) {
+                    workoutDetailPage++
+                    requestWorkoutDetail(workoutIndex, workoutDetailPage)
+                } else {
+                    LOG.info("Workout {} detail done: {} of {} bytes over {} pages",
+                        workoutIndex, workoutDetailBytes, expected, workoutDetailPage + 1)
+                    val next = workoutSizes.keys.firstOrNull { it > workoutIndex }
+                    if (next != null) {
+                        workoutIndex = next
+                        requestWorkoutSummary(next)
+                    } else {
+                        LOG.info("Workouts: done")
+                    }
+                }
+            } else {
+                // chunk 0 of a page carries <index:2><page:2><05><start ts:4>; later chunks are raw
+                val chunk = ((value[4].toInt() and 0xff) shl 8) or (value[5].toInt() and 0xff)
+                val dataFrom = if (chunk == 0) 15 else 6
+                if (value.size > dataFrom) workoutDetailBytes += value.size - dataFrom
+                LOG.info("Workout {} detail page {} chunk {}: {}", workoutIndex, workoutDetailPage,
+                    chunk, value.toHex())
+            }
+            else -> LOG.debug("Workout field 0x{}: {}", Integer.toHexString(field), value.toHex())
+        }
+    }
+
+
+
+    private fun requestWorkoutTrack(index: Int) {
+        val builder = createTransactionBuilder("workout track $index")
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_WORKOUT, MODE_GET, 0x09, 0x00, 0x02,
+            (index ushr 8).toByte(), index.toByte()))
+        builder.queue()
+    }
+
+    /**
+     * GPS track of a workout: a run of "01 01 <n> 07 04 <lat> 08 04 <lon> 0b 02 .. 0c 02 .. 0d 02 .."
+     * records, latitude and longitude scaled by 1e7 big-endian - the same field ids the phone uses
+     * when it sends a position the other way.
+     *
+     * Latitude and longitude are separated by the 08 04 field header, so they are not eight
+     * consecutive bytes.
+     */
+    private fun parseWorkoutTrack(track: ByteArray) {
+        val points = ArrayList<Pair<Double, Double>>()
+        var i = 0
+        while (i + 12 <= track.size) {
+            if (track[i] == 0x07.toByte() && track[i + 1] == 0x04.toByte() &&
+                track[i + 6] == 0x08.toByte() && track[i + 7] == 0x04.toByte()
+            ) {
+                points.add(Pair(be32At(track, i + 2) / 1e7, be32At(track, i + 8) / 1e7))
+                i += 12
+            } else {
+                i++
+            }
+        }
+        if (points.isEmpty()) {
+            LOG.info("Workout {}: no GPS track ({} bytes)", workoutIndex, track.size)
+            return
+        }
+        LOG.info(
+            "Workout {}: GPS track of {} points, lat {}..{}, lon {}..{}",
+            workoutIndex, points.size,
+            points.minOf { it.first }, points.maxOf { it.first },
+            points.minOf { it.second }, points.maxOf { it.second }
+        )
+    }
+
+    private fun be32At(b: ByteArray, i: Int): Long =
+        ((b[i].toLong() and 0xff) shl 24) or ((b[i + 1].toLong() and 0xff) shl 16) or
+                ((b[i + 2].toLong() and 0xff) shl 8) or (b[i + 3].toLong() and 0xff)
+
+    /** List reply: "01 e8 aa 01 <chunk:2> <count:2> [<index:2> <detail size:3> <pad:3>]*". */
+    private fun parseWorkoutList(value: ByteArray) {
+        LOG.info("Workout list: {}", value.toHex())
+        if (value.size < 8) return
+        val count = ((value[6].toInt() and 0xff) shl 8) or (value[7].toInt() and 0xff)
+        var i = 8
+        var n = 0
+        while (n < count && i + 8 <= value.size) {
+            val index = ((value[i].toInt() and 0xff) shl 8) or (value[i + 1].toInt() and 0xff)
+            val size = ((value[i + 2].toInt() and 0xff) shl 16) or
+                    ((value[i + 3].toInt() and 0xff) shl 8) or (value[i + 4].toInt() and 0xff)
+            workoutSizes[index] = size
+            LOG.info("  workout {} holds {} bytes of detail", index, size)
+            i += 8
+            n++
+        }
+    }
+
+    /** Summary fields: 03 start, 04 end, 05 kcal, 06 distance (m), 07 steps, 08 active s, 09 type. */
+    private fun logWorkoutSummary(value: ByteArray) {
+        LOG.info("Workout {} summary raw: {}", workoutIndex, value.toHex())
+        var i = 6
+        while (i + 2 <= value.size) {
+            val id = value[i].toInt() and 0xff
+            val len = value[i + 1].toInt() and 0xff
+            if (len == 0 || len > 8 || i + 2 + len > value.size) { i++; continue }
+            var v = 0L
+            for (k in 0 until len) v = (v shl 8) or (value[i + 2 + k].toLong() and 0xff)
+            val name = when (id) {
+                0x03 -> "start"; 0x04 -> "end"; 0x05 -> "kcal"; 0x06 -> "distance_m"
+                0x07 -> "steps"; 0x08 -> "active_s"; 0x09 -> "type"
+                0x0b -> "hr_min"; 0x0c -> "hr_max"; 0x4c -> "cadence_spm"; 0x4d -> "stride_cm"
+                else -> "field_0x" + Integer.toHexString(id)
+            }
+            LOG.info("  workout {} = {}", name, v)
+            i += 2 + len
+        }
     }
 
     // --- Stored activity history (c5 count + c6 paged read) ------------------------------------
@@ -970,6 +1188,9 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         const val CMD_HEALTH: Byte = 0xc6.toByte()
         const val CMD_HEALTH_COUNT: Byte = 0xc5.toByte()
         const val MAX_HISTORY_PAGES: Int = 64
+        const val CMD_WORKOUT: Byte = 0xe8.toByte()
+        const val MAX_WORKOUTS: Int = 4
+        const val MAX_WORKOUT_PAGES: Int = 24
 
         const val FIELD_MODEL: Byte = 0x02
         const val FIELD_FIRMWARE: Byte = 0x15
