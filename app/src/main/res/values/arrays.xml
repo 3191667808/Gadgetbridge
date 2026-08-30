@@ -5624,6 +5624,92 @@
         <item>RING_PHONE</item>
     </string-array>
 
+    <string-array name="oneplus_buds4_touch_tap_names">
+        <!-- superset of values, unsupported are hidden by the coordinator -->
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/moondrop_touch_action_play_pause</item>
+        <item>@string/pref_media_previous</item>
+        <item>@string/pref_media_next</item>
+        <item>@string/pref_title_touch_voice_assistant</item>
+        <item>@string/prefs_game_mode</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_tap_values">
+        <!-- superset of values, unsupported are hidden by the coordinator -->
+        <item>off</item>
+        <item>play_pause</item>
+        <item>previous</item>
+        <item>next</item>
+        <item>voice_assistant</item>
+        <item>game_mode</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_slide_names">
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/sony_button_mode_volume_control</item>
+        <item>@string/oneplus_buds4_switch_track</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_slide_values">
+        <item>off</item>
+        <item>volume_control</item>
+        <item>switch_track</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_on_call_double_tap_names">
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/prefs_answer_call_or_end_call</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_on_call_double_tap_values">
+        <item>off</item>
+        <item>answer_end_call</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_on_call_hold_names">
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/prefs_decline_call</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_touch_on_call_hold_values">
+        <item>off</item>
+        <item>decline_call</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_anc_cycle_names">
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/prefs_active_noise_cancelling</item>
+        <item>@string/prefs_active_noise_cancelling_transparency</item>
+        <item>@string/oneplus_buds4_adaptive</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_anc_cycle_values">
+        <item>off</item>
+        <item>nc</item>
+        <item>transparency</item>
+        <item>adaptive</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_anc_mode_names">
+        <item>@string/sony_button_mode_off</item>
+        <item>@string/prefs_active_noise_cancelling_transparency</item>
+        <item>@string/oneplus_buds4_adaptive</item>
+        <item>@string/oneplus_buds4_nc_high</item>
+        <item>@string/oneplus_buds4_nc_moderate</item>
+        <item>@string/oneplus_buds4_nc_low</item>
+        <item>@string/oneplus_buds4_nc_auto</item>
+    </string-array>
+
+    <string-array name="oneplus_buds4_anc_mode_values">
+        <item>off</item>
+        <item>transparency</item>
+        <item>adaptive</item>
+        <item>nc_high</item>
+        <item>nc_moderate</item>
+        <item>nc_low</item>
+        <item>nc_auto</item>
+    </string-array>
+
     <string-array name="pref_chart_weight_body_composition_entries">
         <item>@string/body_composition_body_fat</item>
         <item>@string/body_composition_body_water</item>

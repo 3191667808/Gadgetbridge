@@ -3476,6 +3476,9 @@
     <string name="nothing_prefs_spatial_audio_title">Spatial Audio</string>
     <string name="nothing_prefs_spatial_audio_summary">An immersive listening experience that makes you feel like you\'re part of the music, movie or game.</string>
     <string name="prefs_equalizer_preset">Equalizer Preset</string>
+    <string name="prefs_equalizer_preset_summary">Select a preset. The active built-in preset is reported by the device; for a custom preset the specific slot is not reported, so nothing may be selected by default.</string>
+    <string name="oneplus_buds4_eq_preset_serenade">Serenade</string>
+    <string name="oneplus_buds4_bass_boost_summary">Adjust low-frequency boost from -5 to +5 (0 = off)</string>
     <string name="pref_title_equalizer_normal">Normal</string>
     <string name="pref_title_equalizer_bass_boost">Bass boost</string>
     <string name="pref_title_equalizer_soft">Soft</string>
@@ -5571,5 +5574,17 @@
     <string name="gpx_include_navigation">Include turn-by-turn navigation</string>
     <string name="gpx_include_navigation_straight">Include \'Continue straight\' instructions</string>
     <string name="gpx_roundabout_exit">Exit %1$d</string>
+    <string name="devicetype_oneplus_buds4" translatable="false">OnePlus Buds 4</string>
+    <string name="oneplus_buds4_slide">Slide</string>
+    <string name="oneplus_buds4_on_call_double_tap">Double Tap (on call)</string>
+    <string name="oneplus_buds4_on_call_touch_and_hold">Touch and Hold (on call)</string>
+    <string name="oneplus_buds4_switch_track">Switch Track</string>
+    <string name="oneplus_buds4_adaptive">Adaptive</string>
+    <string name="oneplus_buds4_nc_high">Noise Cancellation (High)</string>
+    <string name="oneplus_buds4_nc_moderate">Noise Cancellation (Moderate)</string>
+    <string name="oneplus_buds4_nc_low">Noise Cancellation (Low)</string>
+    <string name="oneplus_buds4_nc_auto">Noise Cancellation (Auto)</string>
+    <string name="oneplus_buds4_auto_play_pause">Auto Play / Pause</string>
+    <string name="oneplus_buds4_alarm_volume">Alarm Volume</string>
     <string name="pref_title_connect_to_this_device_when_another_device_connects">Connect to this device when another device connects</string>
 </resources>

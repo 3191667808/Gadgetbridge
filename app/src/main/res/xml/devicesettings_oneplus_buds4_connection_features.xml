@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <SwitchPreferenceCompat
+        android:key="oneplus_buds4_dual_connection"
+        android:title="@string/dual_connection_title"
+        android:icon="@drawable/ic_bluetooth_searching"
+        android:defaultValue="false"
+        android:layout="@layout/preference_checkbox" />
+
+    <SwitchPreferenceCompat
+        android:key="oneplus_buds4_game_mode"
+        android:title="@string/prefs_game_mode"
+        android:icon="@drawable/ic_videogame"
+        android:defaultValue="false"
+        android:layout="@layout/preference_checkbox" />
+</androidx.preference.PreferenceScreen>

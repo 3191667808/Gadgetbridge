@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceScreen
+        android:icon="@drawable/ic_graphic_eq"
+        android:key="oneplus_buds4_equalizer"
+        android:persistent="false"
+        android:title="@string/pref_header_equalizer">
+
+        <ListPreference
+            android:icon="@drawable/ic_equalizer"
+            android:key="oneplus_buds4_eq_preset"
+            android:title="@string/prefs_equalizer_preset"
+            android:summary="@string/prefs_equalizer_preset_summary" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_bass_boost"
+            android:max="5"
+            app:min="-5"
+            android:title="@string/pref_title_equalizer_bass_boost"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_eq_band_0"
+            android:max="6"
+            app:min="-6"
+            android:title="62 Hz"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_eq_band_1"
+            android:max="6"
+            app:min="-6"
+            android:title="250 Hz"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_eq_band_2"
+            android:max="6"
+            app:min="-6"
+            android:title="1 kHz"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_eq_band_3"
+            android:max="6"
+            app:min="-6"
+            android:title="4 kHz"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_eq_band_4"
+            android:max="6"
+            app:min="-6"
+            android:title="8 kHz"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:icon="@drawable/ic_graphic_eq"
+            android:key="oneplus_buds4_eq_band_5"
+            android:max="6"
+            app:min="-6"
+            android:title="16 kHz"
+            app:showSeekBarValue="true" />
+
+    </PreferenceScreen>
+
+</androidx.preference.PreferenceScreen>

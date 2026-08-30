@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:key="oneplus_buds4_touch_header_left"
+        android:title="@string/left_earbud"
+        app:iconSpaceReserved="false">
+        <ListPreference
+            android:defaultValue="play_pause"
+            android:entries="@array/oneplus_buds4_touch_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_tap_values"
+            android:icon="@drawable/ic_filter_1"
+            android:key="oneplus_buds4_touch__left__single_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/single_tap" />
+        <ListPreference
+            android:defaultValue="play_pause"
+            android:entries="@array/oneplus_buds4_touch_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_tap_values"
+            android:icon="@drawable/ic_filter_2"
+            android:key="oneplus_buds4_touch__left__double_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/double_tap" />
+        <ListPreference
+            android:defaultValue="off"
+            android:entries="@array/oneplus_buds4_touch_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_tap_values"
+            android:icon="@drawable/ic_filter_3"
+            android:key="oneplus_buds4_touch__left__triple_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/triple_tap" />
+        <ListPreference
+            android:defaultValue="volume_control"
+            android:entries="@array/oneplus_buds4_touch_slide_names"
+            android:entryValues="@array/oneplus_buds4_touch_slide_values"
+            android:icon="@drawable/ic_volume_up"
+            android:key="oneplus_buds4_touch__left__slide"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/oneplus_buds4_slide" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="oneplus_buds4_touch_header_right"
+        android:title="@string/right_earbud"
+        app:iconSpaceReserved="false">
+        <ListPreference
+            android:defaultValue="play_pause"
+            android:entries="@array/oneplus_buds4_touch_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_tap_values"
+            android:icon="@drawable/ic_filter_1"
+            android:key="oneplus_buds4_touch__right__single_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/single_tap" />
+        <ListPreference
+            android:defaultValue="play_pause"
+            android:entries="@array/oneplus_buds4_touch_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_tap_values"
+            android:icon="@drawable/ic_filter_2"
+            android:key="oneplus_buds4_touch__right__double_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/double_tap" />
+        <ListPreference
+            android:defaultValue="off"
+            android:entries="@array/oneplus_buds4_touch_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_tap_values"
+            android:icon="@drawable/ic_filter_3"
+            android:key="oneplus_buds4_touch__right__triple_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/triple_tap" />
+        <ListPreference
+            android:defaultValue="volume_control"
+            android:entries="@array/oneplus_buds4_touch_slide_names"
+            android:entryValues="@array/oneplus_buds4_touch_slide_values"
+            android:icon="@drawable/ic_volume_up"
+            android:key="oneplus_buds4_touch__right__slide"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/oneplus_buds4_slide" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="oneplus_buds4_touch_header_both"
+        android:title="@string/moondrop_touch_earbud_both"
+        app:iconSpaceReserved="false">
+        <ListPreference
+            android:defaultValue="answer_end_call"
+            android:entries="@array/oneplus_buds4_touch_on_call_double_tap_names"
+            android:entryValues="@array/oneplus_buds4_touch_on_call_double_tap_values"
+            android:icon="@drawable/ic_filter_2"
+            android:key="oneplus_buds4_touch__both__on_call_double_tap"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/oneplus_buds4_on_call_double_tap" />
+        <ListPreference
+            android:defaultValue="decline_call"
+            android:entries="@array/oneplus_buds4_touch_on_call_hold_names"
+            android:entryValues="@array/oneplus_buds4_touch_on_call_hold_values"
+            android:icon="@drawable/ic_horizontal_rule"
+            android:key="oneplus_buds4_touch__both__on_call_hold"
+            app:useSimpleSummaryProvider="true"
+            android:title="@string/oneplus_buds4_on_call_touch_and_hold" />
+    </PreferenceCategory>
+</androidx.preference.PreferenceScreen>

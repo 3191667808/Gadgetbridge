@@ -490,6 +490,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.nothing.EarStickCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.nut.NutCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.ollee.OlleeDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.onemoresonoflow.OneMoreSonoFlowCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.oneplus.OnePlusBuds4Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.onetouch.OneTouchCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoEncoAir2Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoEncoAirCoordinator;
@@ -1121,6 +1122,7 @@ public enum DeviceType {
     OPPO_ENCO_AIR(OppoEncoAirCoordinator.class),
     OPPO_ENCO_AIR2(OppoEncoAir2Coordinator.class),
     OPPO_ENCO_BUDS2(OppoEncoBuds2Coordinator.class),
+    ONEPLUS_BUDS4(OnePlusBuds4Coordinator.class),
     OUKITEL_BT103(OukitelBT103Coordinator.class),
     GLORYFIT_SWISS_PEAK(SwissPeakCoordinator.class),
     BLACKVIEW_R3MAX(BlackviewR3MaxCoordinator.class),

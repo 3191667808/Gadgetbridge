@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ListPreference
+        android:defaultValue="off"
+        android:entries="@array/oneplus_buds4_anc_mode_names"
+        android:entryValues="@array/oneplus_buds4_anc_mode_values"
+        android:icon="@drawable/ic_hearing"
+        android:key="oneplus_buds4_anc_selector"
+        app:useSimpleSummaryProvider="true"
+        android:title="@string/prefs_active_noise_cancelling" />
+
+    <SwitchPreferenceCompat
+        android:key="oneplus_buds4_wear_detection"
+        android:title="@string/nothing_prefs_inear_title"
+        android:icon="@drawable/ic_hearing"
+        android:defaultValue="true"
+        android:layout="@layout/preference_checkbox" />
+
+    <SwitchPreferenceCompat
+        android:key="oneplus_buds4_spatial_audio"
+        android:title="@string/nothing_prefs_spatial_audio_title"
+        android:icon="@drawable/ic_surround"
+        android:defaultValue="false"
+        android:layout="@layout/preference_checkbox" />
+
+    <SwitchPreferenceCompat
+        android:key="oneplus_buds4_auto_play_pause"
+        android:title="@string/oneplus_buds4_auto_play_pause"
+        android:icon="@drawable/ic_play"
+        android:defaultValue="false"
+        android:layout="@layout/preference_checkbox" />
+
+    <SeekBarPreference
+        style="@style/Widget.AppCompat.SeekBar.Discrete"
+        android:defaultValue="5"
+        android:icon="@drawable/ic_volume_up"
+        android:key="oneplus_buds4_alarm_volume"
+        android:max="10"
+        android:title="@string/oneplus_buds4_alarm_volume"
+        app:min="1"
+        app:showSeekBarValue="true" />
+
+</androidx.preference.PreferenceScreen>
