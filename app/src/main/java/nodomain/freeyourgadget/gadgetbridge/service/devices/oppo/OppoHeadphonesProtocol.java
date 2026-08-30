@@ -24,11 +24,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.EnumSet;
 import java.util.Set;
-import java.util.HashSet;
 
 import androidx.annotation.NonNull;
 
@@ -51,90 +50,23 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.MiscCo
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.AncConfigValue;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.SubscriptionType;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.bbk.AbstractBBKProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
-public class OppoHeadphonesProtocol extends GBDeviceProtocol {
+public class OppoHeadphonesProtocol extends AbstractBBKProtocol {
     private static final Logger LOG = LoggerFactory.getLogger(OppoHeadphonesProtocol.class);
-
-    public static final byte CMD_PREAMBLE = (byte) 0xaa;
-
-    private int seqNum = 0;
 
     protected OppoHeadphonesProtocol(final GBDevice device) {
         super(device);
     }
 
     @Override
-    public GBDeviceEvent[] decodeResponse(final byte[] responseData) {
-        final List<GBDeviceEvent> events = new ArrayList<>();
-        final ByteBuffer buf = ByteBuffer.wrap(responseData);
-
-        while (buf.position() < buf.limit()) {
-            final byte preamble = buf.get();
-            if (preamble != CMD_PREAMBLE) {
-                LOG.warn("Unexpected preamble {}", preamble);
-                continue;
-            }
-
-            final int totalLength = buf.get() & 0xff;
-            if (buf.limit() - buf.position() < totalLength) {
-                LOG.error("Got partial response with {} bytes, expected {}", buf.limit() - buf.position(), totalLength);
-                break;
-            }
-
-            final byte[] singleResponse = new byte[totalLength + 2];
-            buf.position(buf.position() - 2);
-            buf.get(singleResponse);
-
-            events.addAll(handleSingleResponse(singleResponse));
-        }
-        return events.toArray(new GBDeviceEvent[0]);
-    }
-
-    private static List<GBDeviceEvent> handleSingleResponse(final byte[] responseData) {
-        final ByteBuffer responseBuf = ByteBuffer.wrap(responseData).order(ByteOrder.LITTLE_ENDIAN);
-        final byte preamble = responseBuf.get();
-
-        if (preamble != CMD_PREAMBLE) {
-            LOG.error("Unexpected preamble {}", preamble);
-            return Collections.emptyList();
-        }
-
-        final int totalLength = responseBuf.get() & 0xff;
-        if (responseData.length != totalLength + 2) {
-            LOG.error("Invalid number of bytes {}, expected {}", responseData.length, totalLength + 2);
-            return Collections.emptyList();
-        }
-
-        final short zero = responseBuf.getShort();
-        if (zero != 0 && zero != 4) {
-            // 0 on oppo, 4 on realme?
-            // #4672 - sometimes 1 on oppo?
-            LOG.warn("Unexpected bytes: {}, expected 0 or 4", zero);
-        }
-
-        final short code = responseBuf.getShort();
+    protected List<GBDeviceEvent> dispatch(final short code, final byte[] payload) {
         final OppoCommand command = OppoCommand.fromCode(code);
         if (command == null) {
             LOG.warn("Unknown command code {}", String.format(Locale.ROOT, "0x%04x", code));
             return Collections.emptyList();
         }
-
-        final int seq = responseBuf.get();
-        final int payloadLength = responseBuf.getShort() & 0xffff;
-
-        if (payloadLength > responseBuf.remaining()) {
-            // FIXME: #4672 - avoid crash on some incoming commands - what are we parsing wrong?
-            LOG.error("Payload length {} is larger than remaining {}", payloadLength, responseBuf.remaining());
-            return Collections.emptyList();
-        } else if (payloadLength < responseBuf.remaining()) {
-            // leftover bytes?
-            LOG.warn("Payload length {} is smaller than remaining {}", payloadLength, responseBuf.remaining());
-        }
-
-        final byte[] payload = new byte[payloadLength];
-        responseBuf.get(payload);
 
         final List<GBDeviceEvent> events = new ArrayList<>();
 
@@ -225,56 +157,7 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
         return events;
     }
 
-    private static List<GBDeviceEvent> parseBattery(final byte[] payload) {
-        final List<GBDeviceEvent> events = new ArrayList<>();
-
-        final int numBatteries = payload[1] & 0xff;
-        for (int i = 2; i < payload.length; i += 2) {
-            if ((payload[i] & 0xff) == 0xff) {
-                continue;
-            }
-            final int batteryIndex = payload[i] - 1;
-            if (batteryIndex < 0 || batteryIndex > 2) {
-                LOG.error("Unknown battery index {}", payload[i]);
-                break;
-            }
-
-            final int batteryLevel = payload[i + 1] & 0x7f;
-            if (batteryIndex == 2 && batteryLevel == 0) {
-                continue;
-            }
-
-            final BatteryState batteryState = (payload[i + 1] & 0x80) != 0 ? BatteryState.BATTERY_CHARGING : BatteryState.BATTERY_NORMAL;
-
-            LOG.debug("Got battery {}: {}%, {}", batteryIndex, batteryLevel, batteryState);
-
-            final GBDeviceEventBatteryInfo eventBatteryInfo = new GBDeviceEventBatteryInfo();
-            eventBatteryInfo.batteryIndex = batteryIndex;
-            eventBatteryInfo.level = batteryLevel;
-            eventBatteryInfo.state = batteryState;
-            events.add(eventBatteryInfo);
-        }
-
-        List<Integer> processedBatteries = events.stream()
-            .map(event -> ((GBDeviceEventBatteryInfo) event).batteryIndex)
-            .toList();
-
-        for (int i = 0; i < 3; i++) {
-            if (processedBatteries.contains(i)) {
-                continue;
-            }
-            
-            final GBDeviceEventBatteryInfo eventBatteryInfo = new GBDeviceEventBatteryInfo();
-            eventBatteryInfo.batteryIndex = i;
-            eventBatteryInfo.level = -1;
-            eventBatteryInfo.state = BatteryState.UNKNOWN;
-            events.add(eventBatteryInfo);
-        }
-
-        return events;
-    }
-
-    private static List<GBDeviceEvent> parseFirmware(final byte[] payload) {
+    protected static List<GBDeviceEvent> parseFirmware(final byte[] payload) {
         final List<GBDeviceEvent> events = new ArrayList<>();
 
         final String fwString;
@@ -342,7 +225,7 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
     }
 
 
-    private static List<GBDeviceEvent> parseSubscription(final byte[] payload) {
+    protected static List<GBDeviceEvent> parseSubscription(final byte[] payload) {
         final List<GBDeviceEvent> events = new ArrayList<>();
         final int typeCode = payload[0] & 0xff;
         final SubscriptionType type = SubscriptionType.fromCode(typeCode);
@@ -367,6 +250,7 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
                 final AncConfigValue mode = AncConfigValue.fromCode(valueCode);
                 if (mode == null) {
                     LOG.warn("Unknown anc mode code {}", valueCode);
+                    break;
                 }
                 LOG.debug("Got anc config for MODE = {}", mode);
                 eventUpdatePreferences.withPreference(
@@ -394,7 +278,7 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
         return events;
     }
 
-    private static GBDeviceEvent parseMiscConfig(final byte[] payload) {
+    protected static GBDeviceEvent parseMiscConfig(final byte[] payload) {
         final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences();
         for (int i = 2; i + 1 < payload.length; i += 2) {
             final int typeCode = payload[i] & 0xff;
@@ -437,41 +321,20 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
         return eventUpdatePreferences; 
     }
 
-    private static GBDeviceEvent parseTouchConfig(final byte[] payload) {
-        final GBDeviceEventUpdatePreferences eventUpdatePreferences = new GBDeviceEventUpdatePreferences();
-
-        for (int i = 2; i < payload.length; i += 4) {
-            final int sideCode = payload[i] & 0xff;
-            final int typeCode = BLETypeConversions.toUint16(payload, i + 1);
-            final int valueCode = payload[i + 3] & 0xff;
-            final TouchConfigSide side = TouchConfigSide.fromCode(sideCode);
-            final TouchConfigType type = TouchConfigType.fromCode(typeCode);
-            final TouchConfigValue value = TouchConfigValue.fromCode(valueCode);
-
-            if (side == null) {
-                LOG.warn("Unknown touch side code {}", sideCode);
-                continue;
-            }
-            if (type == null) {
-                LOG.warn("Unknown touch type code {}", typeCode);
-                continue;
-            }
-            if (value == null) {
-                LOG.warn("Unknown touch value code {}", valueCode);
-                continue;
-            }
-
-            LOG.debug("Got touch config for {} {} = {}", side, type, value);
-
-            eventUpdatePreferences.withPreference(
-                    OppoHeadphonesPreferences.getTouchKey(side, type),
-                    value.name().toLowerCase(Locale.ROOT)
-            );
-        }
-        return eventUpdatePreferences; 
+    protected static GBDeviceEvent parseTouchConfig(final byte[] payload) {
+        return parseTouchConfigGeneric(
+                payload,
+                TouchConfigSide::fromCode,
+                TouchConfigType::fromCode,
+                TouchConfigValue::fromCode,
+                OppoHeadphonesPreferences::getTouchKey,
+                v -> v.name().toLowerCase(Locale.ROOT),
+                t -> false,
+                null
+        );
     }
 
-    private static GBDeviceEvent parseAncConfig(final byte[] payload) {
+    protected static GBDeviceEvent parseAncConfig(final byte[] payload) {
         final GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
 
         final int typeCode = payload[1] & 0xff;
@@ -520,7 +383,7 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
 
     @Override
     public byte[] encodeFindDevice(final boolean start) {
-        return encodeMessage(OppoCommand.FIND_DEVICE_REQ, new byte[]{(byte) (start ? 0x01 : 0x00)});
+        return encodeFindDeviceReq(OppoCommand.FIND_DEVICE_REQ.getCode(), start);
     }
 
     @Override
@@ -588,16 +451,11 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
     }
 
     public byte[] encodeBatteryReq() {
-        return encodeMessage(OppoCommand.BATTERY_REQ, new byte[0]);
+        return encodeBatteryReq(OppoCommand.BATTERY_REQ.getCode());
     }
 
-    private byte[] encodeTouchConfigSet(final TouchConfigSide side, final TouchConfigType type, final TouchConfigValue value) {
-        final ByteBuffer buf = ByteBuffer.allocate(5).order(ByteOrder.LITTLE_ENDIAN);
-        buf.put((byte) 0x01);
-        buf.put((byte) side.getCode());
-        buf.putShort((short) type.getCode());
-        buf.put((byte) value.getCode());
-        return encodeMessage(OppoCommand.TOUCH_CONFIG_SET, buf.array());
+    protected byte[] encodeTouchConfigSet(final TouchConfigSide side, final TouchConfigType type, final TouchConfigValue value) {
+        return encodeTouchConfig(OppoCommand.TOUCH_CONFIG_SET.getCode(), side.getCode(), type.getCode(), value.getCode());
     }
 
     public byte[] encodeTouchConfigReq() {
@@ -625,25 +483,13 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
         return encodeMiscConfigSet(MiscConfigType.MULTIPOINT, payload);
     }
 
-    private byte[] encodeMiscConfigSet(final MiscConfigType type, final byte[] value) {
-        final byte[] payload = new byte[1 + value.length];
-        payload[0] = (byte) type.getCode();
-        System.arraycopy(value, 0, payload, 1, value.length);
-        return encodeMessage(OppoCommand.MISC_CONFIG_SET, payload);
+    protected byte[] encodeMiscConfigSet(final MiscConfigType type, final byte[] value) {
+        return encodeFeatureSet(OppoCommand.MISC_CONFIG_SET.getCode(), type.getCode(), value);
     }
 
     public byte[] encodeMiscConfigReq(List<MiscConfigType> types) {
-        if (types == null || types.isEmpty()) {
-            return encodeMessage(OppoCommand.MISC_CONFIG_REQ, new byte[]{0x00});
-        }
-
-        byte[] payload = new byte[1 + types.size()];
-        payload[0] = (byte) types.size();
-
-        for (int i = 0; i < types.size(); i++) {
-            payload[i + 1] = (byte) types.get(i).getCode();
-        }
-        return encodeMessage(OppoCommand.MISC_CONFIG_REQ, payload);
+        final int[] codes = types == null ? null : types.stream().mapToInt(MiscConfigType::getCode).toArray();
+        return encodeFeatureReq(OppoCommand.MISC_CONFIG_REQ.getCode(), codes);
     }
 
     public byte[] encodeAncModeSet(final AncConfigValue mode) {
@@ -674,31 +520,11 @@ public class OppoHeadphonesProtocol extends GBDeviceProtocol {
     }
 
     public byte[] encodeSubscriptionSet(@NonNull final EnumSet<SubscriptionType> subscriptions) {
-        if (subscriptions.isEmpty()) {
-            throw new IllegalArgumentException("Subscription list cannot be empty");
-        }
-
-        byte[] payload = new byte[1 + subscriptions.size()];
-        payload[0] = (byte) 0x09;
-
-        int i = 1;
-        for (SubscriptionType type : subscriptions) {
-            payload[i++] = (byte) type.getCode();
-        }
-
-        return encodeMessage(OppoCommand.SUBSCRIPTION_SET, payload);
+        final int[] codes = subscriptions.stream().mapToInt(SubscriptionType::getCode).toArray();
+        return encodeSubscriptionSet(OppoCommand.SUBSCRIPTION_SET.getCode(), codes);
     }
 
-    private byte[] encodeMessage(final OppoCommand command, final byte[] payload) {
-        final ByteBuffer buf = ByteBuffer.allocate(9 + payload.length).order(ByteOrder.LITTLE_ENDIAN);
-        buf.put(CMD_PREAMBLE);
-        buf.put((byte) (buf.limit() - 2));
-        buf.put((byte) 0);
-        buf.put((byte) 0);
-        buf.putShort(command.getCode());
-        buf.put((byte) seqNum++);
-        buf.putShort((short) payload.length);
-        buf.put(payload);
-        return buf.array();
+    protected byte[] encodeMessage(final OppoCommand command, final byte[] payload) {
+        return super.encodeMessage(command.getCode(), payload);
     }
 }

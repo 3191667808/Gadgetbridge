@@ -18,25 +18,20 @@ package nodomain.freeyourgadget.gadgetbridge.devices.oppo;
 
 import android.os.Parcel;
 import android.util.Pair;
-import android.content.Context;
 
-import androidx.preference.ListPreference;
 import androidx.preference.Preference;
-import androidx.preference.MultiSelectListPreference;
-
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
+import nodomain.freeyourgadget.gadgetbridge.devices.oppo.OppoHeadphonesPreferences;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.bbk.BBKSettingsHelper;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigSide;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigType;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.oppo.commands.TouchConfigValue;
@@ -87,87 +82,27 @@ public class OppoHeadphonesSettingsCustomizer implements DeviceSpecificSettingsC
     @Override
     public void onPreferenceChange(final Preference preference, final DeviceSpecificSettingsHandler handler) {
         if (OppoHeadphonesPreferences.ANC_TOUCH_CYCLE_MODES.equals(preference.getKey())) {
-            if (preference instanceof MultiSelectListPreference) {
-                final MultiSelectListPreference ancCycleModesPref = (MultiSelectListPreference) preference;
-                final Set<String> selectedValues = ancCycleModesPref.getValues();
-
-                if (selectedValues == null || selectedValues.size() < 2) {
-                    final Context context = preference.getContext();
-                    final String message = context.getString(nodomain.freeyourgadget.gadgetbridge.R.string.select_at_least_option, 2);
-                    new MaterialAlertDialogBuilder(context)
-                        .setTitle(nodomain.freeyourgadget.gadgetbridge.R.string.warning)
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show();
-                }
-            }
+            BBKSettingsHelper.validateAncTouchCycleModes(preference, handler);
         }
     }
 
     @Override
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs, final String rootKey) {
-        final Set<TouchConfigSide> knownSides = new HashSet<>();
-        final Set<TouchConfigType> knownTypes = new HashSet<>();
-
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.LDAC, supportsLdac);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.MULTIPOINT, supportsMultipoint);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.GAME_MODE, supportsGameMode);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_SELECTOR, supportsAnc);
         this.addPreferenceHandler(handler, OppoHeadphonesPreferences.ANC_TOUCH_CYCLE_MODES, supportsAnc);
 
-        for (final Map.Entry<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> e : touchOptions.entrySet()) {
-            final TouchConfigSide side = e.getKey().first;
-            final TouchConfigType type = e.getKey().second;
-            final Set<TouchConfigValue> possibleValues = new HashSet<>(e.getValue());
-
-            knownSides.add(side);
-            knownTypes.add(type);
-
-            final String key = OppoHeadphonesPreferences.getTouchKey(side, type);
-            final ListPreference pref = handler.findPreference(key);
-            if (pref == null) {
-                continue;
-            }
-
-            final CharSequence[] originalEntries = pref.getEntries();
-            final CharSequence[] originalValues = pref.getEntryValues();
-            final CharSequence[] entries = new CharSequence[possibleValues.size()];
-            final CharSequence[] values = new CharSequence[possibleValues.size()];
-            int j = 0;
-            for (int i = 0; i < originalValues.length; i++) {
-                if (possibleValues.contains(TouchConfigValue.valueOf(originalValues[i].toString().toUpperCase(Locale.ROOT)))) {
-                    entries[j] = originalEntries[i];
-                    values[j] = originalValues[i];
-                    j++;
-                }
-            }
-
-            pref.setEntries(entries);
-            pref.setEntryValues(values);
-
-            handler.addPreferenceHandlerFor(key);
-        }
-
-        for (final TouchConfigSide side : TouchConfigSide.values()) {
-            if (!knownSides.contains(side)) {
-                // Side not configurable, hide it completely
-                final Preference header = handler.findPreference("oppo_touch_header_" + side.name().toLowerCase(Locale.ROOT));
-                if (header != null) {
-                    header.setVisible(false);
-                    continue;
-                }
-            }
-
-            for (final TouchConfigType type : TouchConfigType.values()) {
-                if (!knownTypes.contains(type)) {
-                    final String key = OppoHeadphonesPreferences.getTouchKey(side, type);
-                    final Preference pref = handler.findPreference(key);
-                    if (pref != null) {
-                        pref.setVisible(false);
-                    }
-                }
-            }
-        }
+        BBKSettingsHelper.filterTouchPreferences(handler, touchOptions, OppoHeadphonesPreferences::getTouchKey);
+        BBKSettingsHelper.hideUnsupportedTouchPreferences(
+                handler,
+                touchOptions,
+                OppoHeadphonesPreferences::getTouchKey,
+                "oppo_touch_header_",
+                TouchConfigSide.values(),
+                TouchConfigType.values()
+        );
     }
 
     private void addPreferenceHandler(DeviceSpecificSettingsHandler handler, String key, boolean isSupported) {
