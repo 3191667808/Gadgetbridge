@@ -4912,4 +4912,13 @@
     <string name="prefs_active_calls">活跃通话</string>
     <string name="prefs_incoming_calls">来电</string>
     <string name="pref_title_equalizer_energize">Energize</string>
+    <string name="training_optimal_load">最佳训练量</string>
+    <string name="menuitem_race_predictor">比赛预测</string>
+    <string name="metric_generic_race_predictor_5k">5K</string>
+    <string name="metric_generic_race_predictor_10k">10K</string>
+    <string name="metric_generic_race_predictor_half_marathon">半程马拉松</string>
+    <string name="metric_generic_race_predictor_full_marathon">马拉松</string>
+    <string name="maps_files">地图文件</string>
+    <string name="maps_folder_empty">所选文件夹中没找到文件</string>
+    <string name="maps_file_invalid">无效地图：%1$s</string>
 </resources>
