@@ -65,7 +65,6 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
     private int mMTU = 23;
     private BtLEQueue mQueue;
     private Map<UUID, BluetoothGattCharacteristic> mAvailableCharacteristics;
-    private List<BluetoothGattCharacteristic> mAvailableCharacteristicsByHandle;
     private final Set<UUID> mSupportedServices = new HashSet<>(4);
     private final Set<BluetoothGattService> mSupportedServerServices = new HashSet<>(4);
     private final Logger logger;
@@ -272,29 +271,6 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
         }
     }
 
-    /**
-     * Returns the characteristic matching an Android GATT instance id. For many BLE stacks this
-     * corresponds to the remote ATT handle.
-     *
-     * @param handle characteristic ATT handle / instance id
-     * @return the characteristic for the given handle or <code>null</code>
-     * @see #addSupportedService(UUID)
-     */
-    @Nullable
-    protected BluetoothGattCharacteristic getCharacteristicByHandle(final int handle) {
-        synchronized (characteristicsMonitor) {
-            if (mAvailableCharacteristicsByHandle == null) {
-                return null;
-            }
-            for (final BluetoothGattCharacteristic characteristic : mAvailableCharacteristicsByHandle) {
-                if (characteristic.getInstanceId() == handle) {
-                    return characteristic;
-                }
-            }
-            return null;
-        }
-    }
-
     @Nullable
     @Override
     BluetoothGattCharacteristic getCharacteristic(@Nullable UUID uuid, int deviceIdx){
@@ -311,7 +287,6 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
         }
         Set<UUID> supportedServices = getSupportedServices();
         Map<UUID, BluetoothGattCharacteristic> newCharacteristics = new HashMap<>();
-        List<BluetoothGattCharacteristic> newCharacteristicsByHandle = new ArrayList<>();
 
         final Prefs devicePrefs = GBApplication.getDevicePrefs(getDevice());
         final boolean prefs_device_gatt_synchronous_writes = devicePrefs.getBoolean(PREFS_DEVICE_GATT_SYNCHRONOUS_WRITES, false);
@@ -345,11 +320,9 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
                     }
                 }
                 newCharacteristics.putAll(intmAvailableCharacteristics);
-                newCharacteristicsByHandle.addAll(characteristics);
 
                 synchronized (characteristicsMonitor) {
                     mAvailableCharacteristics = newCharacteristics;
-                    mAvailableCharacteristicsByHandle = newCharacteristicsByHandle;
                 }
             } else {
                 logger.debug("discovered unsupported service: {}: {}", BleNamesResolver.resolveServiceName(service.getUuid().toString()), service.getUuid());

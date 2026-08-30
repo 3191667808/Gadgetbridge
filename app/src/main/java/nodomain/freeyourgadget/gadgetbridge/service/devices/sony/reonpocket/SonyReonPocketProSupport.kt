@@ -61,6 +61,10 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private var tagScanCallback: ScanCallback? = null
     private var tagScanTimeout: Runnable? = null
 
+    // The Reon Pocket protocol addresses its vendor characteristics by ATT handle (instance id)
+    // rather than UUID, so we build a handle -> characteristic map once the services are discovered.
+    private val characteristicsByHandle = mutableMapOf<Int, BluetoothGattCharacteristic>()
+
     init {
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ACCESS)
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ATTRIBUTE)
@@ -69,6 +73,21 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     override fun useAutoConnect(): Boolean = false
+
+    override fun onServicesDiscovered(gatt: BluetoothGatt) {
+        // Populate the handle map before super triggers initializeDevice(), which resolves
+        // characteristics by handle.
+        characteristicsByHandle.clear()
+        for (service in gatt.services) {
+            for (characteristic in service.characteristics) {
+                characteristicsByHandle[characteristic.instanceId] = characteristic
+            }
+        }
+        super.onServicesDiscovered(gatt)
+    }
+
+    private fun getCharacteristicByHandle(handle: Int): BluetoothGattCharacteristic? =
+        characteristicsByHandle[handle]
 
     override fun initializeDevice(builder: TransactionBuilder): TransactionBuilder {
         builder.setDeviceState(GBDevice.State.INITIALIZING)
