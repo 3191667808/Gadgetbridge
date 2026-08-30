@@ -14,7 +14,7 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services;
+package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,18 +30,18 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.entities.Reminder;
 import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.XiaomiSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiScheduleService;
 import nodomain.freeyourgadget.gadgetbridge.util.tasks.OpenTasksManager;
 
-public class XiaomiTasksService {
-    private static final Logger LOG = LoggerFactory.getLogger(XiaomiTasksService.class);
+public class XiaomiOpenTasksManager {
+    private static final Logger LOG = LoggerFactory.getLogger(XiaomiOpenTasksManager.class);
 
     private final XiaomiSupport support;
     private final XiaomiScheduleService scheduleService;
 
     private volatile boolean pushAfterNextWatchResponse = false;
 
-    public XiaomiTasksService(final XiaomiSupport support, final XiaomiScheduleService scheduleService) {
+    public XiaomiOpenTasksManager(final XiaomiSupport support, final XiaomiScheduleService scheduleService) {
         this.support = support;
         this.scheduleService = scheduleService;
     }

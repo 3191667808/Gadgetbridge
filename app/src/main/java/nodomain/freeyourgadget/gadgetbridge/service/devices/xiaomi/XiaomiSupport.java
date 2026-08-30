@@ -72,7 +72,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.Xiao
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiPhonebookService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiRpkService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiScheduleService;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiTasksService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiSystemService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiWatchfaceService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiWeatherService;
@@ -95,7 +94,7 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
     private final XiaomiDataUploadService dataUploadService = new XiaomiDataUploadService(this);
     private final XiaomiPhonebookService phonebookService = new XiaomiPhonebookService(this);
     private final XiaomiRpkService rpkService = new XiaomiRpkService(this);
-    private final XiaomiTasksService tasksService = new XiaomiTasksService(this, scheduleService);
+    private final XiaomiOpenTasksManager tasksService = new XiaomiOpenTasksManager(this, scheduleService);
 
 
     private String cachedFirmwareVersion = null;
@@ -383,7 +382,7 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
         }
     }
 
-    public XiaomiTasksService getTasksService() {
+    public XiaomiOpenTasksManager getTasksService() {
         return tasksService;
     }
 
