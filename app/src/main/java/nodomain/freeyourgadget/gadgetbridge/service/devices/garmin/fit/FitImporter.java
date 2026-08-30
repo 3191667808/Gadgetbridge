@@ -44,6 +44,7 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.BaseActivitySummaryProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.BatteryLevelProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GarminBodyEnergySampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GarminSolarChargeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GarminHeartRateRestingSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GarminHrvSummarySampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.GarminHrvValueSampleProvider;
@@ -68,6 +69,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.BatteryLevel;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GarminActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GarminBodyEnergySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.GarminSolarChargeSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GarminEventSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GarminHeartRateRestingSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GarminHrvSummarySample;
@@ -124,6 +126,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitSleepStats;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitSpo2;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitSport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitSolarCharge;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitStressLevel;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitTimeInZone;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitTrainingLoad;
@@ -142,6 +145,7 @@ public class FitImporter {
     private final SortedMap<Long, List<FitMonitoring>> activitySamplesPerTimestamp = new TreeMap<>();
     private final List<GarminStressSample> stressSamples = new ArrayList<>();
     private final List<GarminBodyEnergySample> bodyEnergySamples = new ArrayList<>();
+    private final List<GarminSolarChargeSample> solarChargeSamples = new ArrayList<>();
     private final List<GarminSpo2Sample> spo2samples = new ArrayList<>();
     private final List<GarminRespiratoryRateSample> respiratoryRateSamples = new ArrayList<>();
     private final List<GarminHeartRateRestingSample> restingHrSamples = new ArrayList<>();
@@ -218,6 +222,8 @@ public class FitImporter {
                     sample.setEnergy(energy);
                     bodyEnergySamples.add(sample);
                 }
+            } else if (record instanceof FitSolarCharge solarChargeRecord) {
+                addSolarChargeSample(ts, solarChargeRecord.getPercent(), solarChargeRecord.getGain(), solarChargeSamples);
             } else if (record instanceof FitSleepDataInfo newFitSleepDataInfo) {
                 LOG.debug("Sleep Data Info: {}", newFitSleepDataInfo);
                 if (fitSleepDataInfo != null) {
@@ -587,11 +593,17 @@ public class FitImporter {
                     persistAbstractSamples(restingHrSamples, new GarminHeartRateRestingSampleProvider(gbDevice, session));
                     persistAbstractSamples(stressSamples, new GarminStressSampleProvider(gbDevice, session));
                     persistAbstractSamples(bodyEnergySamples, new GarminBodyEnergySampleProvider(gbDevice, session));
+                    persistAbstractSamples(solarChargeSamples, new GarminSolarChargeSampleProvider(gbDevice, session));
                     persistAbstractSamples(restingMetabolicRateSamples, new GarminRestingMetabolicRateSampleProvider(gbDevice, session));
                     break;
                 case METRICS:
                     persistAbstractSamples(trainingLoadAcuteSamples, new GenericTrainingLoadAcuteSampleProvider(gbDevice, session));
                     persistAbstractSamples(trainingLoadChronicSamples, new GenericTrainingLoadChronicSampleProvider(gbDevice, session));
+                    break;
+                case DEVICE_58:
+                    // Solar charge data (FitSolarCharge) has been observed here in practice,
+                    // not in MONITOR files, on Garmin Instinct 2 Solar (software 16.11).
+                    persistAbstractSamples(solarChargeSamples, new GarminSolarChargeSampleProvider(gbDevice, session));
                     break;
                 case SLEEP:
                     persistAbstractSamples(events, new GarminEventSampleProvider(gbDevice, session));
@@ -644,6 +656,17 @@ public class FitImporter {
         final GenericMetricSample sample = new GenericMetricSample();
         sample.setTimestamp(ts * 1000L);
         sample.setMetric(metric, seconds);
+        out.add(sample);
+    }
+
+    static void addSolarChargeSample(@Nullable final Long ts, @Nullable final Float percent, @Nullable final Long gain, final List<GarminSolarChargeSample> out) {
+        if (ts == null || percent == null || percent < 0) {
+            return;
+        }
+        final GarminSolarChargeSample sample = new GarminSolarChargeSample();
+        sample.setTimestamp(ts * 1000L);
+        sample.setPercent(percent);
+        sample.setGain(gain != null ? gain : 0L);
         out.add(sample);
     }
 
@@ -745,6 +768,7 @@ public class FitImporter {
         activitySamplesPerTimestamp.clear();
         stressSamples.clear();
         bodyEnergySamples.clear();
+        solarChargeSamples.clear();
         spo2samples.clear();
         respiratoryRateSamples.clear();
         restingHrSamples.clear();

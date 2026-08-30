@@ -109,7 +109,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(138, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(139, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
         final List<Entity> batterySampleProvidersToGenerate = new LinkedList<>();
@@ -191,6 +191,7 @@ public class GBDaoGenerator {
         addGarminActivitySample(schema, user, device);
         sampleProvidersToGenerate.add(addGarminStressSample(schema, user, device));
         sampleProvidersToGenerate.add(addGarminBodyEnergySample(schema, user, device));
+        sampleProvidersToGenerate.add(addGarminSolarChargeSample(schema, user, device));
         sampleProvidersToGenerate.add(addGarminSpo2Sample(schema, user, device));
         sampleProvidersToGenerate.add(addGarminSleepStageSample(schema, user, device));
         addGarminEventSample(schema, user, device);
@@ -1165,6 +1166,14 @@ public class GBDaoGenerator {
         addCommonTimeSampleProperties("AbstractBodyEnergySample", stressSample, user, device);
         stressSample.addIntProperty("energy").notNull().codeBeforeGetter(OVERRIDE);
         return stressSample;
+    }
+
+    private static Entity addGarminSolarChargeSample(Schema schema, Entity user, Entity device) {
+        Entity solarChargeSample = addEntity(schema, "GarminSolarChargeSample");
+        addCommonTimeSampleProperties("AbstractSolarChargeSample", solarChargeSample, user, device);
+        solarChargeSample.addFloatProperty("percent").notNull().codeBeforeGetter(OVERRIDE);
+        solarChargeSample.addLongProperty("gain").notNull().codeBeforeGetter(OVERRIDE);
+        return solarChargeSample;
     }
 
     private static Entity addGarminSpo2Sample(Schema schema, Entity user, Entity device) {

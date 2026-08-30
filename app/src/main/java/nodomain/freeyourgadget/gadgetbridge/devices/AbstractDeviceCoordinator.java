@@ -95,6 +95,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.BodyEnergySample;
+import nodomain.freeyourgadget.gadgetbridge.model.SolarChargeSample;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.model.GpxActivityTrackProvider;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
@@ -337,6 +338,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     @Nullable
     public TimeSampleProvider<? extends BodyEnergySample> getBodyEnergySampleProvider(final GBDevice device, final DaoSession session) {
+        return null;
+    }
+
+    @Override
+    @Nullable
+    public TimeSampleProvider<? extends SolarChargeSample> getSolarChargeSampleProvider(final GBDevice device, final DaoSession session) {
         return null;
     }
 
@@ -749,6 +756,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsSolarCharging(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean supportsCharts(@NonNull GBDevice device) {
         // All the default charts (see DefaultChartsProvider)
         return supportsActivityTracking(device) ||
@@ -770,7 +782,8 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
                 supportsCyclingData(device) ||
                 supportsRespiratoryRate(device) ||
                 supportsBloodPressureMeasurement(device) ||
-                supportsRacePrediction(device);
+                supportsRacePrediction(device) ||
+                supportsSolarCharging(device);
     }
 
     @Override

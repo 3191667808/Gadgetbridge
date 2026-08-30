@@ -16,9 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.garmin.watches.fenix;
 
+import androidx.annotation.NonNull;
+
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class GarminFenix9ProSolarCoordinator extends GarminFenix9Coordinator {
     @Override
@@ -36,5 +39,10 @@ public class GarminFenix9ProSolarCoordinator extends GarminFenix9Coordinator {
     @Override
     public int getDeviceNameResource() {
         return R.string.devicetype_garmin_fenix_9_pro_solar;
+    }
+
+    @Override
+    public boolean supportsSolarCharging(@NonNull final GBDevice device) {
+        return true;
     }
 }

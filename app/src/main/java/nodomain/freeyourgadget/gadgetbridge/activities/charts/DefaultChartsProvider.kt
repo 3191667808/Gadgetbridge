@@ -47,6 +47,9 @@ open class DefaultChartsProvider : DeviceChartsProvider {
         if (coordinator.supportsRacePrediction(device)) {
             supportedCharts.add("raceprediction")
         }
+        if (coordinator.supportsSolarCharging(device)) {
+            supportedCharts.add("solarcharging")
+        }
         if (GenericMetricSampleProvider.supportsMetrics(device).isNotEmpty()) {
             supportedCharts.add("genericmetrics")
         }
@@ -134,6 +137,7 @@ open class DefaultChartsProvider : DeviceChartsProvider {
             "respiratoryrate" -> context.getString(R.string.respiratoryrate)
             "load" -> context.getString(R.string.pref_header_training_load)
             "raceprediction" -> context.getString(R.string.menuitem_race_predictor)
+            "solarcharging" -> context.getString(R.string.menuitem_solar_charging)
             "genericmetrics" -> context.getString(R.string.generic_metrics)
             else -> String.format(Locale.getDefault(), "Unknown %s", chartName)
         }
@@ -154,6 +158,7 @@ open class DefaultChartsProvider : DeviceChartsProvider {
             "vo2max" -> VO2MaxCollectionFragment.newInstance(allowSwipe)
             "load" -> LoadFragment()
             "raceprediction" -> RacePredictionCollectionFragment.newInstance(allowSwipe)
+            "solarcharging" -> SolarChargingDailyFragment()
             "genericmetrics" -> GenericMetricCollectionFragment.newInstance(allowSwipe)
             "stress" -> StressCollectionFragment.newInstance(allowSwipe)
             "pai" -> PaiChartFragment()

@@ -1924,6 +1924,9 @@
     <string name="steps_distance_unit">%1$,.2f km</string>
     <string name="body_energy_gained">Gained</string>
     <string name="body_energy_lost">Lost</string>
+    <string name="solar_charging_lux_hours">Lux hours</string>
+    <string name="solar_charging_peak_intensity">Peak intensity</string>
+    <string name="solar_charging_battery_gain">Battery gain</string>
     <string name="body_energy_legend_level">Body Energy Level</string>
     <string name="activity_type_biking">Biking</string>
     <string name="activity_type_treadmill">Treadmill</string>
@@ -2488,6 +2491,9 @@
     <string name="metric_garmin_training_readiness">Training Readiness</string>
     <string name="menuitem_race_predictor">Race Predictor</string>
     <string name="p_raceprediction" translatable="false">raceprediction</string>
+    <string name="menuitem_solar_charging">Solar Charging</string>
+    <string name="solar_charging_intensity_chart_label">Solar Charging Intensity</string>
+    <string name="p_solar_charging" translatable="false">solarcharging</string>
     <string name="metric_generic_race_predictor_5k">5K</string>
     <string name="metric_generic_race_predictor_10k">10K</string>
     <string name="metric_generic_race_predictor_half_marathon">Half Marathon</string>

@@ -61,6 +61,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.BodyEnergySample;
+import nodomain.freeyourgadget.gadgetbridge.model.SolarChargeSample;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
 import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
@@ -307,6 +308,12 @@ public interface DeviceCoordinator {
     boolean supportsRacePrediction(@NonNull final GBDevice device);
     boolean supportsGlucoseMeasurement(@NonNull final GBDevice device);
 
+    /**
+     * Returns true if solar charging measurement and fetching is supported by the device
+     * (with this coordinator).
+     */
+    boolean supportsSolarCharging(@NonNull final GBDevice device);
+
     DeviceChartsProvider getChartsProvider();
 
     /**
@@ -407,6 +414,12 @@ public interface DeviceCoordinator {
      */
     @Nullable
     TimeSampleProvider<? extends BodyEnergySample> getBodyEnergySampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
+
+    /**
+     * Returns the sample provider for solar charging data, for the device being supported.
+     */
+    @Nullable
+    TimeSampleProvider<? extends SolarChargeSample> getSolarChargeSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
 
     /**
      * Returns the sample provider for HRV summary, for the device being supported.
