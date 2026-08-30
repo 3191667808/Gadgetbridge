@@ -123,6 +123,15 @@ public class ConfigureReminders extends AbstractGBActivity {
     }
 
     private void requestTasksSync() {
+        if (gbDevice == null) {
+            LOG.warn("Tasks sync requested but no device");
+            return;
+        }
+        if (OpenTasksManager.isSyncEnabled(gbDevice) && !new OpenTasksManager(this).isProviderAvailable()) {
+            LOG.warn("Tasks sync requested but provider not available");
+            GB.toast(this, getString(R.string.tasks_sync_permission_missing), Toast.LENGTH_LONG, GB.ERROR);
+            return;
+        }
         GBApplication.deviceService(gbDevice).onFetchRecordedData(RecordedDataTypes.TYPE_TASKS);
         GB.toast(this, getString(R.string.tasks_sync_refresh_requested), Toast.LENGTH_SHORT, GB.INFO);
     }
