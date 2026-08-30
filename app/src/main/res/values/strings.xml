@@ -2288,6 +2288,7 @@
     <string name="devicetype_sony_wi_sp600n" translatable="false">Sony WI-SP600N</string>
     <string name="devicetype_sony_linkbuds" translatable="false">Sony LinkBuds</string>
     <string name="devicetype_sony_linkbuds_s" translatable="false">Sony LinkBuds S</string>
+    <string name="devicetype_sony_reon_pocket_pro" translatable="false">Sony Reon Pocket Pro</string>
     <string name="devicetype_soundbrenner_core" translatable="false">Soundbrenner Core</string>
     <string name="devicetype_soundcore_liberty3_pro" translatable="false">Soundcore Liberty 3 Pro</string>
     <string name="devicetype_soundcore_liberty4_nc" translatable="false">Soundcore Liberty 4 NC</string>
@@ -3680,6 +3681,35 @@
     <string name="sony_equalizer_preset_manual">Manual</string>
     <string name="sony_equalizer_preset_custom_1">Custom 1</string>
     <string name="sony_equalizer_preset_custom_2">Custom 2</string>
+    <string name="sony_reon_pocket_toggle_auto_cooling">Toggle auto-cooling mode</string>
+    <string name="sony_reon_pocket_toggle_heat_cold">Toggle heat/cold mode</string>
+    <string name="sony_reon_pocket_mode_heat">Heat</string>
+    <string name="sony_reon_pocket_mode_cold">Cold</string>
+    <string name="sony_reon_pocket_mode_auto">Auto</string>
+    <string name="sony_reon_pocket_auto_start_stop_title">Auto Start/Stop</string>
+    <string name="sony_reon_pocket_auto_start_stop_summary">Automatically start and stop cooling when the device is worn</string>
+    <string name="sony_reon_pocket_intensity_title">Intensity</string>
+    <string name="sony_reon_pocket_intensity_summary">Cooling/heating intensity in smart mode</string>
+    <string name="sony_reon_pocket_manual_power_title">Manual power</string>
+    <string name="sony_reon_pocket_manual_power_summary">Manual cooling/heating power (0 = stop)</string>
+    <string name="sony_reon_pocket_cycle_power">Power level</string>
+    <string name="sony_reon_pocket_pairing_required">Put device in pairing mode (hold SMART button for 15 seconds) and reconnect.</string>
+    <string name="sony_reon_pocket_tag_title">Reon Tag</string>
+    <string name="sony_reon_pocket_tag_address_title">Tag address</string>
+    <string name="sony_reon_pocket_tag_serial_title">Tag serial</string>
+    <string name="sony_reon_pocket_tag_address_summary">No tag registered</string>
+    <string name="sony_reon_pocket_tag_register_title">Register tag</string>
+    <string name="sony_reon_pocket_tag_register_summary">Scan for a nearby Reon Tag (RNPT-1) and register it</string>
+    <string name="sony_reon_pocket_tag_scanning">Scanning for Reon Tag…</string>
+    <string name="sony_reon_pocket_tag_scan_failed">Tag scan failed</string>
+    <string name="sony_reon_pocket_tag_not_found">No Reon Tag found nearby</string>
+    <string name="sony_reon_pocket_tag_registered">Reon Tag registered: %1$s</string>
+    <string name="sony_reon_pocket_tag_unregister_title">Unregister tag</string>
+    <string name="sony_reon_pocket_tag_unregister_summary">Remove the currently registered tag</string>
+    <string name="sony_reon_pocket_tag_unregister_confirmation">Unregister the Reon Tag?</string>
+    <string name="sony_reon_pocket_tag_temperature_title">Tag temperature</string>
+    <string name="sony_reon_pocket_tag_humidity_title">Tag humidity</string>
+    <string name="sony_reon_pocket_tag_battery_title">Tag battery</string>
     <string name="pref_header_sony_equalizer_bands">Bands</string>
     <string name="pref_header_sony_equalizer_preset_custom_1">Custom Preset 1</string>
     <string name="pref_header_sony_equalizer_preset_custom_2">Custom Preset 2</string>

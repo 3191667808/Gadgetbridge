@@ -536,6 +536,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWHULT900NCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWIC100Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.coordinators.SonyWISP600NCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.reonpocket.SonyReonPocketProCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.wena3.SonyWena3Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sonyswr12.SonySWR12DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.soundbrenner.SoundbrennerCoordinator;
@@ -1016,6 +1017,7 @@ public enum DeviceType {
     SONY_WF_C700N(SonyWFC700NCoordinator.class),
     SONY_WF_C710N(SonyWFC710NCoordinator.class),
     SONY_WH_CH720N(SonyWHCH720NCoordinator.class),
+    SONY_REON_POCKET_PRO(SonyReonPocketProCoordinator.class),
     PIXEL_BUDS_A(PixelBudsACoordinator.class),
     SHOKZ_OPENSWIM_PRO(ShokzOpenSwimProCoordinator.class),
     BM2_BATTERY_MONITOR(Bm2Coordinator.class),
