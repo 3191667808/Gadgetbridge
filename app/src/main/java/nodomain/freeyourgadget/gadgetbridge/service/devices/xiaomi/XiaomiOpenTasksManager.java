@@ -47,9 +47,6 @@ public class XiaomiOpenTasksManager {
     }
 
     public void syncTasks() {
-        if (support.getContext() == null || support.getDevice() == null) {
-            return;
-        }
         pushAfterNextWatchResponse = true;
         scheduleService.requestReminders();
     }
@@ -58,9 +55,6 @@ public class XiaomiOpenTasksManager {
      * @return true if tasks were pushed (caller should not re-sync from stale response)
      */
     public boolean onWatchReminders(final XiaomiProto.Reminders reminders) {
-        if (support.getContext() == null) {
-            return false;
-        }
         if (!OpenTasksManager.isSyncEnabled(support.getDevice())) {
             return false;
         }
