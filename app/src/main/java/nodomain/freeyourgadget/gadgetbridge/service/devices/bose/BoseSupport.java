@@ -17,6 +17,8 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.bose;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothProfile;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -30,12 +32,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointDevice;
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
@@ -58,6 +64,24 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private int shortcutButtonId = BUTTON_SHORTCUT;
     private int shortcutEventType = BUTTON_EVENT_PRESS_AND_HOLD;
 
+    private final Map<String, String> pairedDeviceNames = new LinkedHashMap<>();
+    private final Map<String, PairedDevice> knownDevices = new LinkedHashMap<>();
+
+    private final BroadcastReceiver a2dpReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, final Intent intent) {
+            final BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+            if (device == null || !getDevice().getAddress().equalsIgnoreCase(device.getAddress())) {
+                return;
+            }
+            final int state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_DISCONNECTED);
+            if (state == BluetoothProfile.STATE_CONNECTED || state == BluetoothProfile.STATE_DISCONNECTED) {
+                LOG.info("A2DP {} for the headset", state == BluetoothProfile.STATE_CONNECTED ? "connected" : "disconnected");
+                refreshPairedDevices();
+            }
+        }
+    };
+
     private final BroadcastReceiver multipointReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(final Context context, final Intent intent) {
@@ -78,6 +102,9 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS:
                     sendMultipointCommand("get multipoint", getMultipoint());
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES:
+                    refreshPairedDevices();
                     break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING:
                     final boolean enabled = intent.getBooleanExtra(
@@ -103,10 +130,13 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                            @NonNull final Context context) {
         super.setContext(gbDevice, btAdapter, context);
         deviceConfig = ((AbstractBoseCoordinator) gbDevice.getDeviceCoordinator()).getDeviceConfig();
+        context.registerReceiver(a2dpReceiver,
+                new IntentFilter("android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED"));
         final IntentFilter multipointFilter = new IntentFilter();
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
         LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, multipointFilter);
     }
@@ -114,6 +144,11 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     public void dispose() {
         LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(multipointReceiver);
+        try {
+            getContext().unregisterReceiver(a2dpReceiver);
+        } catch (final Exception e) {
+            LOG.warn("Failed to unregister A2DP receiver", e);
+        }
         super.dispose();
     }
 
@@ -134,9 +169,10 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] voicePromptsPayload = getVoicePrompts();
         final byte[] standbyTimerPayload = getStandbyTimer();
         final byte[] buttonsPayload = getButtons();
+        final byte[] listDevicesPayload = listPairedDevices();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
                 firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload,
-                voicePromptsPayload, standbyTimerPayload, buttonsPayload}) {
+                voicePromptsPayload, standbyTimerPayload, buttonsPayload, listDevicesPayload}) {
             builder.write(payload);
         }
         if (deviceConfig.getCnc() != null) {
@@ -227,9 +263,79 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case FUNCTION_PAIRING_MODE:
                 LOG.info("Bose pairing mode response: {}", StringUtils.bytesToHex(payload));
                 break;
+            case FUNCTION_LIST_DEVICES:
+                if (operator == OP_STATUS || operator == OP_RESULT) {
+                    final List<PairedDevice> devices = decodePairedDevices(payload);
+                    LOG.info("Bose paired devices: {}", devices);
+                    knownDevices.clear();
+                    for (final PairedDevice device : devices) {
+                        knownDevices.put(device.mac, device);
+                    }
+                    broadcastMultipointList();
+                    final TransactionBuilder builder = createTransactionBuilder("query device names");
+                    boolean anyUnknown = false;
+                    for (final PairedDevice device : devices) {
+                        if (!pairedDeviceNames.containsKey(device.mac)) {
+                            builder.write(getDeviceInfo(macToBytes(device.mac)));
+                            anyUnknown = true;
+                        }
+                    }
+                    if (anyUnknown) {
+                        builder.queue();
+                    }
+                }
+                break;
+            case FUNCTION_DEVICE_INFO:
+                if (operator == OP_STATUS) {
+                    final String summary = decodeDeviceInfoSummary(payload);
+                    if (summary != null) {
+                        LOG.info("Bose device info: {}", summary);
+                    }
+                    final String mac = payload.length >= 6 ? bytesToMac(payload, 0) : null;
+                    final String name = decodeDeviceInfoName(payload);
+                    if (mac != null && name != null && !name.isEmpty()) {
+                        pairedDeviceNames.put(mac, name);
+                        if (knownDevices.containsKey(mac)) {
+                            broadcastMultipointList();
+                        }
+                    }
+                }
+                break;
             default:
                 break;
         }
+    }
+
+    private void refreshPairedDevices() {
+        if (!getDevice().isConnected()) {
+            return;
+        }
+        final TransactionBuilder builder = createTransactionBuilder("refresh paired devices");
+        builder.write(listPairedDevices());
+        builder.queue();
+    }
+
+    private void broadcastMultipointList() {
+        final List<MultipointDevice> devices = new ArrayList<>();
+        for (final PairedDevice device : knownDevices.values()) {
+            devices.add(new MultipointDevice(
+                    device.mac,
+                    pairedDeviceNames.get(device.mac),
+                    device.connected
+            ));
+        }
+        devices.sort((a, b) -> {
+            final String nameA = a.getName() != null ? a.getName() : a.getAddress();
+            final String nameB = b.getName() != null ? b.getName() : b.getAddress();
+            final int result = StringUtils.naturalCompare(nameA, nameB);
+            return result != 0 ? result : a.getAddress().compareToIgnoreCase(b.getAddress());
+        });
+
+        final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_DEVICE_LIST);
+        intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+        intent.putParcelableArrayListExtra(MultipointPairingActivity.EXTRA_DEVICE_LIST,
+                new ArrayList<>(devices));
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
     private void sendMultipointCommand(final String name, final byte[] command) {

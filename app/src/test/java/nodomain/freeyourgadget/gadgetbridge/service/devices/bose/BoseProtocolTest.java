@@ -157,6 +157,55 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testDecodePairedDevices() {
+        final byte[] payload = hex("03  aa bb cc dd ee ff  11 22 33 44 55 66  01 02 03 04 05 06");
+        final List<BoseProtocol.PairedDevice> devices = BoseProtocol.decodePairedDevices(payload);
+        Assert.assertEquals(3, devices.size());
+        Assert.assertEquals("AA:BB:CC:DD:EE:FF", devices.get(0).mac);
+        Assert.assertTrue(devices.get(0).connected);
+        Assert.assertEquals("11:22:33:44:55:66", devices.get(1).mac);
+        Assert.assertTrue(devices.get(1).connected);
+        Assert.assertEquals("01:02:03:04:05:06", devices.get(2).mac);
+        Assert.assertFalse(devices.get(2).connected);
+    }
+
+    @Test
+    public void testDecodePairedDevicesEmpty() {
+        Assert.assertTrue(BoseProtocol.decodePairedDevices(hex("00")).isEmpty());
+        Assert.assertTrue(BoseProtocol.decodePairedDevices(new byte[0]).isEmpty());
+    }
+
+    @Test
+    public void testMacConversion() {
+        final byte[] bytes = BoseProtocol.macToBytes("AA:BB:CC:DD:EE:FF");
+        Assert.assertEquals("AA:BB:CC:DD:EE:FF", BoseProtocol.bytesToMac(bytes, 0));
+        Assert.assertEquals("BB:CC:DD:EE:FF:00", BoseProtocol.bytesToMac(hex("aa bb cc dd ee ff 00"), 1));
+    }
+
+    @Test
+    public void testDecodeDeviceInfoName() {
+        final byte[] nonBose = hex("aa bb cc dd ee ff  00 02 03  50 68 6f 6e 65");
+        Assert.assertEquals("Phone", BoseProtocol.decodeDeviceInfoName(nonBose));
+        final byte[] bose = hex("aa bb cc dd ee ff  05 40 24 01  50 72 6f 20 48 50");
+        Assert.assertEquals("Pro HP", BoseProtocol.decodeDeviceInfoName(bose));
+    }
+
+    @Test
+    public void testDecodeDeviceInfoSummary() {
+        final byte[] nonBose = hex("aa bb cc dd ee ff  00 02 03  50 68 6f 6e 65");
+        final String summary = BoseProtocol.decodeDeviceInfoSummary(nonBose);
+        Assert.assertNotNull(summary);
+        Assert.assertTrue(summary, summary.contains("AA:BB:CC:DD:EE:FF"));
+        Assert.assertTrue(summary, summary.contains("Phone"));
+
+        final byte[] bose = hex("aa bb cc dd ee ff  05 40 24 01  50 72 6f 20 48 50");
+        final String boseSummary = BoseProtocol.decodeDeviceInfoSummary(bose);
+        Assert.assertNotNull(boseSummary);
+        Assert.assertTrue(boseSummary, boseSummary.contains("(connected)"));
+        Assert.assertTrue(boseSummary, boseSummary.contains("Pro HP"));
+    }
+
+    @Test
     public void testButtons() {
         assertHexEquals(hex("01 09 01 00"), BoseProtocol.getButtons());
         assertHexEquals(hex("01 09 02 03 80 05 03"),

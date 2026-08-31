@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.bose;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +39,7 @@ public final class BoseProtocol {
     public static final int OP_STATUS = 0x03;
     public static final int OP_ERROR = 0x04;
     public static final int OP_START = 0x05;
+    public static final int OP_RESULT = 0x06;
 
     // Notification functions
     public static final int FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK = 0x02;
@@ -61,6 +63,8 @@ public final class BoseProtocol {
     public static final int FUNCTION_FIRMWARE_VERSION = 0x05;
 
     // Device management functions
+    public static final int FUNCTION_LIST_DEVICES = 0x04;
+    public static final int FUNCTION_DEVICE_INFO = 0x05;
     public static final int FUNCTION_PAIRING_MODE = 0x08;
 
     // Audio management functions
@@ -231,6 +235,94 @@ public final class BoseProtocol {
     public static byte[] setPairingMode(final boolean enabled) {
         return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_PAIRING_MODE, OP_START,
                 (byte) (enabled ? 0x01 : 0x00));
+    }
+
+    public static byte[] listPairedDevices() {
+        return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_LIST_DEVICES, OP_GET);
+    }
+
+    public static byte[] getDeviceInfo(final byte[] mac) {
+        return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_DEVICE_INFO, OP_GET, mac);
+    }
+
+    public static byte[] macToBytes(final String mac) {
+        final String cleaned = mac.replace(":", "");
+        if (cleaned.length() != 12) {
+            throw new IllegalArgumentException("Invalid MAC address: " + mac);
+        }
+        final byte[] bytes = new byte[6];
+        for (int i = 0; i < 6; i++) {
+            bytes[i] = (byte) Integer.parseInt(cleaned.substring(i * 2, i * 2 + 2), 16);
+        }
+        return bytes;
+    }
+
+    public static String bytesToMac(final byte[] bytes, final int offset) {
+        final StringBuilder sb = new StringBuilder(17);
+        for (int i = 0; i < 6; i++) {
+            if (i > 0) {
+                sb.append(':');
+            }
+            sb.append(String.format("%02X", bytes[offset + i]));
+        }
+        return sb.toString();
+    }
+
+    public static final class PairedDevice {
+        public final String mac;
+        public final boolean connected;
+
+        PairedDevice(final String mac, final boolean connected) {
+            this.mac = mac;
+            this.connected = connected;
+        }
+
+        @Override
+        public String toString() {
+            return mac + (connected ? " (connected)" : "");
+        }
+    }
+
+    // Paired-device payload: [connectedBitmask, mac...] - bit i of byte 0 = entry i connected; order is not stable
+    public static List<PairedDevice> decodePairedDevices(final byte[] payload) {
+        final List<PairedDevice> devices = new ArrayList<>();
+        if (payload.length < 1) {
+            return devices;
+        }
+        final int connectedMask = payload[0] & 0xFF;
+        final int numDevices = (payload.length - 1) / 6;
+        for (int i = 0; i < numDevices; i++) {
+            final int offset = 1 + i * 6;
+            if (offset + 6 > payload.length) {
+                break;
+            }
+            devices.add(new PairedDevice(bytesToMac(payload, offset), (connectedMask & (1 << i)) != 0));
+        }
+        return devices;
+    }
+
+    // Device-info payload: [mac(6), flags, b7, b8, (variant), name...]; name at 10 when flag 0x04 is set, otherwise 9
+    public static String decodeDeviceInfoSummary(final byte[] payload) {
+        final String name = decodeDeviceInfoName(payload);
+        if (name == null) {
+            return null;
+        }
+        final String mac = bytesToMac(payload, 0);
+        final boolean connected = (payload[6] & 0x01) != 0;
+        return mac + (connected ? " (connected)" : "") + " " + name;
+    }
+
+    public static String decodeDeviceInfoName(final byte[] payload) {
+        if (payload.length < 9) {
+            return null;
+        }
+        final int flags = payload[6] & 0xFF;
+        final int nameOffset = (flags & 0x04) != 0 ? 10 : 9;
+        if (nameOffset >= payload.length) {
+            return null;
+        }
+        return new String(payload, nameOffset, payload.length - nameOffset,
+                StandardCharsets.UTF_8).trim();
     }
 
     /** Returns battery percentage, or -1 when absent. */

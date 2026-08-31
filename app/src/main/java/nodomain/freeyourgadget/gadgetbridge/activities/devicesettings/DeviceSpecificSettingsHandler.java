@@ -17,6 +17,8 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.devicesettings;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.preference.PreferenceScreen;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
@@ -36,4 +38,10 @@ public interface DeviceSpecificSettingsHandler extends SettingsRenderHost {
     @NonNull
     @Override
     GBDevice getDevice();
+
+    /**
+     * Returns the current {@link PreferenceScreen}, if available.
+     */
+    @Nullable
+    PreferenceScreen getPreferenceScreen();
 }
