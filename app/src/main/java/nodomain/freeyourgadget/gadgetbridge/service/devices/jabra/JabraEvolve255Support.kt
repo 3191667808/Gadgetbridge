@@ -89,16 +89,11 @@ import java.util.concurrent.atomic.AtomicInteger
  *   (SET_IDX, if it exists, would follow the same rule: BASE 0x86 + 2-byte index + data length.)
  *
  * RESP (response codes from device):
- *   0xC6  OK_EMPTY      – heartbeat acknowledged / no payload
- *   0xC7  OK_1B         – 1-byte payload
- *   0xC8  OK_2B         – 2-byte payload
- *   0xC9  OK_3B         – 3-byte payload
- *   0xCA  OK_4B         – 4-byte payload
- *   0xCB  ERROR         – unsupported / error (followed by error-code + echoed request)
- *   0xCC  OK_BLOB       – variable-length blob (length byte at payload[0])
- *   0xCD  OK_STR_LEN8   – 1-byte length prefix + ASCII string
- *   0xD4  OK_STR_NULL   – null-terminated ASCII string
- *   0xD7  OK_STR_LEN8   – 1-byte length prefix + ASCII string (≤ 16 bytes)
+ *   0xC6 + N  response with an N-byte payload
+ *   0xCB      ERROR – unsupported / error
+ *
+ * Payload content is feature-specific: product and firmware strings are length-prefixed,
+ * serial numbers are NUL-terminated, and device names are raw ASCII.
  *
  * Known feature IDs:
  *   0x0200  Product name        (string)
@@ -108,8 +103,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *   0x0208  Protocol version    (3 bytes: major.minor.patch)
  *   0x1308  Protocol sub-version
  *   0x131D  Serial number       (null-terminated string)
- *   0x1356  Device display name (string): GET (0x46) direct; response type 0xD1, ASCII payload
- *           with no length prefix or terminator (delimited by the next frame marker). SET uses
+ *   0x1356  Device display name (string): GET (0x46) direct; raw ASCII payload whose length is
+ *           encoded by the response type. SET uses
  *           a variable-length CMD byte = 0x86 + payload length (e.g. 0x91 for an 11-byte name,
  *           0x96 for a 16-byte name) – NOT the fixed 0x87 used by other direct-value SETs.
  *   0x13BE  ANC (Active Noise Cancellation):
@@ -149,6 +144,10 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         // CMD = BASE + number of bytes following ID_LO (see class doc comment for details).
         private const val CMD_GET_BASE: Int = 0x46   // GET family (GET / GET_PARAM / GET_IDX)
         private const val CMD_SET_BASE: Int = 0x86   // SET family (SET / SET_PARAM / SET_STR / SET_IDX)
+
+        // Response type encodes payload length as (responseType - PAYLOAD_LENGTH_BASE).
+        private const val PAYLOAD_LENGTH_BASE: Int = 0xC6
+        private const val RESPONSE_ERROR: Int = PAYLOAD_LENGTH_BASE + 5
 
         // ── Feature / property IDs ────────────────────────────────────────────
         private const val FEAT_PRODUCT_NAME: Int      = 0x0200
@@ -258,19 +257,6 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         private const val ANC_VALUE_ON: Int     = 0x04
         /** Raw value sent/received for ANC off / passthrough. */
         private const val ANC_VALUE_OFF: Int    = 0x01
-
-        // ── Response type codes ───────────────────────────────────────────────
-        private const val RESP_OK_EMPTY: Int   = 0xC6
-        private const val RESP_OK_1B: Int      = 0xC7
-        private const val RESP_OK_2B: Int      = 0xC8
-        private const val RESP_OK_3B: Int      = 0xC9
-        private const val RESP_OK_4B: Int      = 0xCA
-        private const val RESP_ERROR: Int      = 0xCB
-        private const val RESP_OK_BLOB: Int    = 0xCC   // payload[0] = length
-        private const val RESP_STR_LEN: Int    = 0xCD   // 1-byte length prefix
-        private const val RESP_STR_NULL: Int   = 0xD4   // null-terminated
-        private const val RESP_STR_LEN2: Int   = 0xD7   // 1-byte length prefix (≤16)
-        private const val RESP_STR_NAME: Int   = 0xD1   // device name: null-terminated ASCII (same framing as RESP_STR_NULL)
 
         /** Interval between keepalive pings (ms). Observed ~14 s in captures. */
         private const val KEEPALIVE_INTERVAL_MS = 15_000L
@@ -443,51 +429,34 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         val responseType = buf[3].toInt() and 0xFF
         val featureId    = ((buf[4].toInt() and 0xFF) shl 8) or (buf[5].toInt() and 0xFF)
 
-        // Paired-device enumeration (0x0D28 / 0x0D32) uses the linear length encoding: the
-        // response type byte directly encodes the payload length as (responseType - 0xC6).
-        // Handle these two features explicitly so the generic string/blob rules below (which
-        // interpret e.g. 0xD7 as length-prefixed) don't mis-frame them. Errors (0xCB) fall
-        // through to the shared handling.
-        if ((featureId == FEAT_PAIRED_DEVICE_META || featureId == FEAT_PAIRED_DEVICE_NAME) &&
-            responseType != RESP_ERROR && responseType >= RESP_OK_EMPTY) {
-            return 6 + (responseType - RESP_OK_EMPTY)
-        }
-
         // Device-initiated notifications on the timer/counter bus (0x0D4C) don't use the
         // standard response codes (>= 0xC6). Instead byte 3 encodes the *total* frame length
-        // directly (e.g. 0x09 -> 9-byte frame `09 04 SEQ 09 0D 4C 09 01 04`, 0x08 -> 8 bytes).
-        // Without this, byte3 falls through to the generic rules below (assumed 0-length
-        // payload), truncating the push and dropping its data.
-        if (featureId == FEAT_TIMER_COUNTER && responseType in 6 until RESP_OK_EMPTY) {
+        // directly (e.g. 0x09 -> 9-byte frame `09 04 SEQ 09 0D 4C 09 01 04`).
+        if (featureId == FEAT_TIMER_COUNTER && responseType in 6 until PAYLOAD_LENGTH_BASE) {
             return responseType
         }
 
-        val payloadLength = when (responseType) {
-            RESP_OK_EMPTY, RESP_ERROR                           -> 0
-            RESP_OK_1B                                          -> 1
-            RESP_OK_2B                                          -> 2
-            RESP_OK_3B                                          -> 3
-            RESP_OK_4B                                          -> 4
-            RESP_OK_BLOB, RESP_STR_LEN, RESP_STR_LEN2, 0xD3     -> {
-                if (buf.size < 7) return null // length prefix byte not yet available
-                (buf[6].toInt() and 0xFF) + 1
+        if (responseType == RESPONSE_ERROR) return 6
+        if (responseType < PAYLOAD_LENGTH_BASE) return 6 // unknown response type, no payload
+
+        val payloadLength = responseType - PAYLOAD_LENGTH_BASE
+        val frameLength = 6 + payloadLength
+
+        // A device-name response with type 0xD4 nominally includes a trailing NUL. Some
+        // headsets omit that byte, so preserve the missing-NUL frame boundary rather than
+        // consuming the first byte of the next `09 04` frame.
+        if (featureId == FEAT_DEVICE_NAME && payloadLength == 14) {
+            val missingNulFrameLength = frameLength - 1
+            if (buf.size >= missingNulFrameLength &&
+                (buf.size == missingNulFrameLength ||
+                    (buf.size > missingNulFrameLength + 1 &&
+                        buf[missingNulFrameLength] == 0x09.toByte() &&
+                        buf[missingNulFrameLength + 1] == 0x04.toByte()))) {
+                return missingNulFrameLength
             }
-            RESP_STR_NULL                                        -> {
-                val nulIdx = (6 until buf.size).firstOrNull { buf[it] == 0.toByte() } ?: return null
-                (nulIdx - 6) + 1
-            }
-            RESP_STR_NAME                                        -> {
-                // No length prefix and no terminator – the device just sends the raw ASCII
-                // name bytes and stops. Delimit by the start of the next frame instead of
-                // scanning for a null byte (which could belong to the *next* frame's header
-                // and would corrupt the name with unrelated bytes).
-                val nextMarker = findFrameMarker(buf, 6)
-                if (nextMarker < 0) return null // wait for more data (or the next frame)
-                nextMarker - 6
-            }
-            else -> 0 // unknown response type, assume no payload
         }
-        return 6 + payloadLength
+
+        return frameLength
     }
 
     private fun parseResponse(data: ByteArray) {
@@ -498,19 +467,19 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         LOG.trace("Response: type=0x{}, feature=0x{}, payload={} bytes",
             Integer.toHexString(responseType), Integer.toHexString(featureId), payload.size)
 
-        if (responseType == RESP_ERROR) {
+        if (responseType == RESPONSE_ERROR) {
             LOG.debug("Device returned error/unsupported for feature 0x{}", Integer.toHexString(featureId))
             return
         }
 
         when (featureId) {
             FEAT_HEARTBEAT        -> LOG.trace("Heartbeat acknowledged")
-            FEAT_PRODUCT_NAME     -> handleProductName(responseType, payload)
+            FEAT_PRODUCT_NAME     -> handleProductName(payload)
             FEAT_PRODUCT_ID       -> handleProductId(payload)
-            FEAT_FIRMWARE_VERSION -> handleFirmwareVersion(responseType, payload)
+            FEAT_FIRMWARE_VERSION -> handleFirmwareVersion(payload)
             FEAT_PROTO_SUBVERSION -> handleProtoSubversion(payload)
-            FEAT_SERIAL_NUMBER    -> handleSerialNumber(responseType, payload)
-            FEAT_DEVICE_NAME      -> handleDeviceNameState(responseType, payload)
+            FEAT_SERIAL_NUMBER    -> handleSerialNumber(payload)
+            FEAT_DEVICE_NAME      -> handleDeviceNameState(payload)
             FEAT_BATTERY          -> handleBattery(payload)
             FEAT_ANC              -> handleAncState(payload)
             FEAT_BUSYLIGHT        -> handleBusylightManual(payload)
@@ -545,8 +514,8 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
 
     // ── Response handlers ─────────────────────────────────────────────────────
 
-    private fun handleProductName(responseType: Int, payload: ByteArray) {
-        val name = extractString(responseType, payload) ?: return
+    private fun handleProductName(payload: ByteArray) {
+        val name = extractLengthPrefixedString(payload) ?: return
         LOG.info("Product name: {}", name)
     }
 
@@ -560,8 +529,8 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         return productId.toString()
     }
 
-    private fun handleFirmwareVersion(responseType: Int, payload: ByteArray) : String? {
-        val version = extractString(responseType, payload) ?: return null
+    private fun handleFirmwareVersion(payload: ByteArray) : String? {
+        val version = extractLengthPrefixedString(payload) ?: return null
         LOG.info("Firmware version: {}", version)
         cachedFwVersion = version
         dispatchVersionInfo()
@@ -573,8 +542,13 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
      * generic device-name preference so the current name is shown/edited via the standard
      * device-name setting.
      */
-    private fun handleDeviceNameState(responseType: Int, payload: ByteArray) {
-        val name = extractString(responseType, payload) ?: return
+    private fun handleDeviceNameState(payload: ByteArray) {
+        val name = payload
+            .takeWhile { it != 0.toByte() }
+            .toByteArray()
+            .toString(Charsets.US_ASCII)
+            .takeIf { it.isNotEmpty() }
+            ?: return
         LOG.info("Device name: {}", name)
         evaluateGBDeviceEvent(
             GBDeviceEventUpdatePreferences()
@@ -586,8 +560,8 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
      * Handles the serial number response (feature 0x131D). Surfaced as a device-info item in the
      * device details panel. Response is a null-terminated ASCII string, e.g. "12345-678-899".
      */
-    private fun handleSerialNumber(responseType: Int, payload: ByteArray) {
-        val serial = extractString(responseType, payload) ?: return
+    private fun handleSerialNumber(payload: ByteArray) {
+        val serial = extractNullTerminatedString(payload) ?: return
         LOG.info("Serial number: {}", serial)
         handleGBDeviceEvent(GBDeviceEventUpdateDeviceInfo("SERIAL: ", serial))
     }
@@ -1574,30 +1548,22 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
             (mask shr 24 and 0xFF).toByte(), (mask shr 16 and 0xFF).toByte(),
             (mask shr 8 and 0xFF).toByte(), (mask and 0xFF).toByte())
 
-    /**
-     * Extracts an ASCII string from a response payload according to the response type.
-     *
-     * - Types 0xCD, 0xD3, 0xD7: `payload[0]` is the string length, string follows.
-     * - Type 0xD4:               null-terminated ASCII.
-     * - Other types:             treat entire payload as raw ASCII.
-     */
-    private fun extractString(responseType: Int, payload: ByteArray): String? {
+    /** Extracts an ASCII string whose first byte carries the number of following characters. */
+    private fun extractLengthPrefixedString(payload: ByteArray): String? {
         if (payload.isEmpty()) return null
-        return when (responseType) {
-            RESP_STR_LEN, RESP_STR_LEN2, 0xD3 -> {
-                val len = payload[0].toInt() and 0xFF
-                if (len > 0 && len < payload.size) String(payload, 1, len) else null
-            }
-            else -> {
-                // RESP_STR_NULL, RESP_STR_NAME, and everything else
-                val nul = payload.indexOfFirst { it == 0.toByte() }
-                when {
-                    nul > 0  -> String(payload, 0, nul)
-                    nul < 0  -> String(payload)
-                    else     -> null
-                }
-            }
+        val length = payload[0].toInt() and 0xFF
+        return if (length > 0 && length < payload.size) {
+            String(payload, 1, length, Charsets.US_ASCII)
+        } else {
+            null
         }
+    }
+
+    /** Extracts an ASCII string terminated by NUL, or the complete payload when no NUL is present. */
+    private fun extractNullTerminatedString(payload: ByteArray): String? {
+        if (payload.isEmpty()) return null
+        val length = payload.indexOfFirst { it == 0.toByte() }.let { if (it >= 0) it else payload.size }
+        return if (length > 0) String(payload, 0, length, Charsets.US_ASCII) else null
     }
 
     /**
