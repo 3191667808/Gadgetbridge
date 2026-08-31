@@ -3459,6 +3459,82 @@
         <item>distantpast</item>
     </string-array>
 
+    <string-array name="veryfit_language_names">
+        <item>@string/automatic</item>
+        <item>@string/arabic</item>
+        <item>@string/bulgarian</item>
+        <item>@string/burmese</item>
+        <item>@string/simplified_chinese</item>
+        <item>@string/traditional_chinese</item>
+        <item>@string/croatian</item>
+        <item>@string/czech</item>
+        <item>@string/danish</item>
+        <item>@string/dutch</item>
+        <item>@string/english</item>
+        <item>@string/filipino</item>
+        <item>@string/french</item>
+        <item>@string/german</item>
+        <item>@string/greek</item>
+        <item>@string/hindi</item>
+        <item>@string/hungarian</item>
+        <item>@string/indonesian</item>
+        <item>@string/italian</item>
+        <item>@string/japanese</item>
+        <item>@string/korean</item>
+        <item>@string/lithuanian</item>
+        <item>@string/bahasa_melayu</item>
+        <item>@string/polish</item>
+        <item>@string/portuguese</item>
+        <item>@string/romanian</item>
+        <item>@string/russian</item>
+        <item>@string/serbian</item>
+        <item>@string/slovak</item>
+        <item>@string/slovenian</item>
+        <item>@string/spanish</item>
+        <item>@string/thai</item>
+        <item>@string/turkish</item>
+        <item>@string/ukrainian</item>
+        <item>@string/vietnamese</item>
+    </string-array>
+
+    <string-array name="veryfit_language_values" translatable="false">
+        <item>auto</item>
+        <item>ar</item>
+        <item>bg</item>
+        <item>my</item>
+        <item>zh</item>
+        <item>zh_TW</item>
+        <item>hr</item>
+        <item>cs</item>
+        <item>da</item>
+        <item>nl</item>
+        <item>en</item>
+        <item>fil</item>
+        <item>fr</item>
+        <item>de</item>
+        <item>el</item>
+        <item>hi</item>
+        <item>hu</item>
+        <item>id</item>
+        <item>it</item>
+        <item>ja</item>
+        <item>ko</item>
+        <item>lt</item>
+        <item>ms</item>
+        <item>pl</item>
+        <item>pt</item>
+        <item>ro</item>
+        <item>ru</item>
+        <item>sr</item>
+        <item>sk</item>
+        <item>sl</item>
+        <item>es</item>
+        <item>th</item>
+        <item>tr</item>
+        <item>uk</item>
+        <item>vi</item>
+    </string-array>
+
     <string-array name="lefun_interface_language_names">
         <item>@string/english</item>
         <item>@string/simplified_chinese</item>
