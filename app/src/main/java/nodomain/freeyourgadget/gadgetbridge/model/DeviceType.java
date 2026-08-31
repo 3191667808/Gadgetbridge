@@ -510,6 +510,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.redmibuds.RedmiBuds6ProCoord
 import nodomain.freeyourgadget.gadgetbridge.devices.redmibuds.RedmiBuds8ActiveCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.roidmi.Roidmi1Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.roidmi.Roidmi3Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.roidmi.RoidmiF8Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sbm_67.SanitasSBM67Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.sbm_67.SilverCrestSBM67Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.scannable.ScannableDeviceCoordinator;
@@ -752,6 +753,7 @@ public enum DeviceType {
     WATCHXPLUS(WatchXPlusDeviceCoordinator.class),
     ROIDMI(Roidmi1Coordinator.class),
     ROIDMI3(Roidmi3Coordinator.class),
+    ROIDMI_F8(RoidmiF8Coordinator.class),
     CASIOECBS100(CasioECBS100DeviceCoordinator.class),
 
     CASIOGB6900(CasioGB6900DeviceCoordinator.class),

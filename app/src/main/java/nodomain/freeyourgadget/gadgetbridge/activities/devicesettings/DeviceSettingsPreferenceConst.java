@@ -820,4 +820,9 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_INTERVAL_DAYS = "xiaomi_scooter_tire_pressure_interval_days";
     public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_REMAINING_DAYS = "xiaomi_scooter_tire_pressure_remaining_days";
     public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_RESET = "xiaomi_scooter_tire_pressure_reset";
+
+    // Roidmi F8 Cordless Vacuum Cleaner
+    public static final String PREF_ROIDMI_F8_STANDARD_GEAR = "pref_roidmi_f8_standard_gear";
+    public static final String PREF_ROIDMI_F8_DUST_REMINDER = "pref_roidmi_f8_dust_reminder";
+    public static final String PREF_ROIDMI_F8_RESET_FILTER  = "pref_roidmi_f8_reset_filter";
 }
