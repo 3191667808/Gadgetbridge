@@ -208,45 +208,36 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             return true
         }
 
-        val characteristicUuid = characteristic.uuid
         if (status != BluetoothGatt.GATT_SUCCESS) {
             LOG.warn("Error reading {}: status={}", GattCharacteristic.toString(characteristic), status)
-            return isDeviceInfoCharacteristic(characteristicUuid)
+            return isDeviceInfoCharacteristic(characteristic.uuid)
         }
 
-        return when {
-            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_BATTERY_LEVEL -> {
-                handleBatteryLevel(value); true
-            }
-            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY -> {
-                handleTelemetry(value); true
-            }
-            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE -> {
-                handleCoolingMode(value); true
-            }
-            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP -> {
-                handleAutoStartStopStatus(value); true
-            }
-            GattCharacteristic.UUID_CHARACTERISTIC_MODEL_NUMBER_STRING == characteristicUuid -> {
+        return when (characteristic.uuid) {
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_BATTERY_LEVEL -> { handleBatteryLevel(value); true }
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY -> { handleTelemetry(value); true }
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE -> { handleCoolingMode(value); true }
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP -> { handleAutoStartStopStatus(value); true }
+            GattCharacteristic.UUID_CHARACTERISTIC_MODEL_NUMBER_STRING -> {
                 val model = stringValue(value)
                 LOG.debug("Sony Reon Pocket Pro model: {}", model)
                 updateVersionInfo(null, model)
                 true
             }
-            GattCharacteristic.UUID_CHARACTERISTIC_SERIAL_NUMBER_STRING == characteristicUuid -> {
+            GattCharacteristic.UUID_CHARACTERISTIC_SERIAL_NUMBER_STRING -> {
                 val serialNumber = stringValue(value)
                 LOG.debug("Sony Reon Pocket Pro serial number: {}", serialNumber)
                 handleGBDeviceEvent(GBDeviceEventUpdateDeviceInfo("SERIAL: ", serialNumber))
                 true
             }
-            GattCharacteristic.UUID_CHARACTERISTIC_FIRMWARE_REVISION_STRING == characteristicUuid -> {
+            GattCharacteristic.UUID_CHARACTERISTIC_FIRMWARE_REVISION_STRING -> {
                 val firmwareVersion = stringValue(value)
                 LOG.debug("Sony Reon Pocket Pro firmware: {}", firmwareVersion)
                 updateVersionInfo(firmwareVersion, null)
                 true
             }
             else -> {
-                LOG.warn("Unhandled characteristic read {}: {}", characteristicUuid, GB.hexdump(value))
+                LOG.warn("Unhandled characteristic read {}: {}", characteristic.uuid, GB.hexdump(value))
                 false
             }
         }
