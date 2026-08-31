@@ -24,6 +24,7 @@ data class NoiseCancellingConfig(
 data class BoseDeviceConfig(
     val cnc: NoiseCancellingConfig? = null,
     val anr: NoiseCancellingConfig? = null,
+    val standbyTimerDurations: List<Int> = emptyList(),
 ) {
     companion object {
         @JvmField
@@ -32,6 +33,7 @@ data class BoseDeviceConfig(
                 maximum = 10,
                 defaultValue = 10,
             ),
+            standbyTimerDurations = listOf(0, 5, 10, 20, 40, 60, 180),
         )
 
         @JvmField
@@ -40,6 +42,7 @@ data class BoseDeviceConfig(
                 maximum = 3,
                 defaultValue = 0,
             ),
+            standbyTimerDurations = listOf(0, 5, 20, 40, 60, 180),
         )
     }
 }

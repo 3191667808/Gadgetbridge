@@ -158,6 +158,26 @@ abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
                         ?.toIntOrNull()?.let { it != 0 } ?: false
                 },
             )
+            list(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_AUTO_OFF,
+                title = R.string.prefs_wena3_auto_power_off_item,
+                entriesProvider = { _ ->
+                    val context = GBApplication.getContext()
+                    deviceConfig.standbyTimerDurations.map { minutes ->
+                        ListEntry.Text(minutes.toString(), when (minutes) {
+                            0 -> context.getString(R.string.never)
+                            5 -> context.getString(R.string.minutes_5)
+                            10 -> context.getString(R.string.minutes_10)
+                            20 -> context.getString(R.string.minutes_20)
+                            40 -> context.getString(R.string.minutes_40)
+                            60 -> context.getString(R.string.minutes_60)
+                            180 -> context.getString(R.string.minutes_180)
+                            else -> "$minutes minutes"
+                        })
+                    }
+                },
+                defaultValue = "60",
+            )
         }
         screen(
             key = "pref_screen_bose_media",

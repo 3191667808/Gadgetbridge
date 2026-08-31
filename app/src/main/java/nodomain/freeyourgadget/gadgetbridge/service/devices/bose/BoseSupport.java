@@ -129,9 +129,10 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] mediaControlCapabilitiesPayload = getMediaControlCapabilities();
         final byte[] multipointPayload = getMultipoint();
         final byte[] voicePromptsPayload = getVoicePrompts();
+        final byte[] standbyTimerPayload = getStandbyTimer();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
                 firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload,
-                voicePromptsPayload}) {
+                voicePromptsPayload, standbyTimerPayload}) {
             builder.write(payload);
         }
         if (deviceConfig.getCnc() != null) {
@@ -315,6 +316,14 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                             String.valueOf(supportedMask));
                 }
                 break;
+            case FUNCTION_STANDBY_TIMER:
+                final int minutes = decodeStandbyTimerMinutes(payload);
+                if (minutes >= 0) {
+                    LOG.debug("Bose standby timer: {} minutes", minutes);
+                    syncStringPref(DeviceSettingsPreferenceConst.PREF_BOSE_AUTO_OFF,
+                            String.valueOf(minutes));
+                }
+                break;
             default:
                 break;
         }
@@ -380,6 +389,15 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final int language = parsePrefInt(prefs.getString(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS_LANGUAGE, "1"), 1);
             final TransactionBuilder builder = createTransactionBuilder("set voice prompts");
             builder.write(setVoicePrompts(enabled, language));
+            builder.queue();
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_AUTO_OFF.equals(config)) {
+            final int minutes = parsePrefInt(prefs.getString(DeviceSettingsPreferenceConst.PREF_BOSE_AUTO_OFF, "60"), 60);
+            if (!deviceConfig.getStandbyTimerDurations().contains(minutes)) {
+                LOG.warn("Ignoring unsupported standby timer duration: {}", minutes);
+                return;
+            }
+            final TransactionBuilder builder = createTransactionBuilder("set auto-off");
+            builder.write(setStandbyTimer(minutes));
             builder.queue();
         } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY.equals(config)) {
             sendMediaControl(MEDIA_PLAY);

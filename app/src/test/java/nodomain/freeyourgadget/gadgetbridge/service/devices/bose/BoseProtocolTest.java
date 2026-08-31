@@ -141,6 +141,22 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testStandbyTimer() {
+        assertHexEquals(hex("01 04 01 00"), BoseProtocol.getStandbyTimer());
+        assertHexEquals(hex("01 04 02 01 3c"), BoseProtocol.setStandbyTimer(60));
+        assertHexEquals(hex("01 04 02 01 b4"), BoseProtocol.setStandbyTimer(180));
+        assertHexEquals(hex("01 04 02 02 a0 05"), BoseProtocol.setStandbyTimer(1440));
+        Assert.assertEquals(60, BoseProtocol.decodeStandbyTimerMinutes(hex("3c")));
+        Assert.assertEquals(1440, BoseProtocol.decodeStandbyTimerMinutes(hex("a0 05")));
+        Assert.assertEquals(-1, BoseProtocol.decodeStandbyTimerMinutes(new byte[0]));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testStandbyTimerRejectsOutOfRangeValue() {
+        BoseProtocol.setStandbyTimer(0x10000);
+    }
+
+    @Test
     public void testDecodeBatteryLevel() {
         Assert.assertEquals(80, BoseProtocol.decodeBatteryLevel(hex("50 ff ff 00")));
         Assert.assertEquals(50, BoseProtocol.decodeBatteryLevel(hex("32")));

@@ -44,6 +44,7 @@ public final class BoseProtocol {
 
     // Settings functions
     public static final int FUNCTION_VOICE_PROMPTS = 0x03;
+    public static final int FUNCTION_STANDBY_TIMER = 0x04;
     public static final int FUNCTION_NOISE_CANCELLING = 0x05;
     public static final int FUNCTION_ANR = 0x06;
     public static final int FUNCTION_MULTIPOINT = 0x0a;
@@ -176,6 +177,21 @@ public final class BoseProtocol {
                         | (language & VOICE_PROMPTS_LANGUAGE_MASK)));
     }
 
+    public static byte[] getStandbyTimer() {
+        return frame(BLOCK_SETTINGS, FUNCTION_STANDBY_TIMER, OP_GET);
+    }
+
+    public static byte[] setStandbyTimer(final int minutes) {
+        if (minutes < 0 || minutes > 0xFFFF) {
+            throw new IllegalArgumentException("Standby timer must fit in an unsigned 16-bit integer");
+        }
+        if (minutes <= 0xFF) {
+            return frame(BLOCK_SETTINGS, FUNCTION_STANDBY_TIMER, OP_SETGET, (byte) minutes);
+        }
+        return frame(BLOCK_SETTINGS, FUNCTION_STANDBY_TIMER, OP_SETGET,
+                (byte) minutes, (byte) (minutes >>> 8));
+    }
+
     // Wire values: 0=Off, 1=High, 2=Wind, 3=Low.
     public static byte[] setAnr(final int level) {
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_SETGET, (byte) level);
@@ -282,6 +298,17 @@ public final class BoseProtocol {
                 | ((payload[2] & 0xFF) << 16)
                 | ((payload[3] & 0xFF) << 8)
                 | (payload[4] & 0xFF);
+    }
+
+    // Standby timer duration in minutes as one byte or little-endian u16
+    public static int decodeStandbyTimerMinutes(final byte[] payload) {
+        if (payload.length < 1) {
+            return -1;
+        }
+        if (payload.length == 1) {
+            return payload[0] & 0xFF;
+        }
+        return (payload[0] & 0xFF) | ((payload[1] & 0xFF) << 8);
     }
 
     public static byte[] getMediaControlCapabilities() {
