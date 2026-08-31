@@ -55,6 +55,9 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     private final BoseFrameParser frameParser = new BoseFrameParser();
     private BoseDeviceConfig deviceConfig;
 
+    private int shortcutButtonId = BUTTON_SHORTCUT;
+    private int shortcutEventType = BUTTON_EVENT_PRESS_AND_HOLD;
+
     private final BroadcastReceiver multipointReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(final Context context, final Intent intent) {
@@ -130,9 +133,10 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] multipointPayload = getMultipoint();
         final byte[] voicePromptsPayload = getVoicePrompts();
         final byte[] standbyTimerPayload = getStandbyTimer();
+        final byte[] buttonsPayload = getButtons();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
                 firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload,
-                voicePromptsPayload, standbyTimerPayload}) {
+                voicePromptsPayload, standbyTimerPayload, buttonsPayload}) {
             builder.write(payload);
         }
         if (deviceConfig.getCnc() != null) {
@@ -324,6 +328,22 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                             String.valueOf(minutes));
                 }
                 break;
+            case FUNCTION_BUTTONS:
+                final ButtonConfig buttonConfig = decodeButtonConfig(payload);
+                if (buttonConfig != null) {
+                    LOG.info("Bose button config: button=0x{} event={} mode={} supported=0x{} unavailable=0x{}",
+                            Integer.toHexString(buttonConfig.buttonId), buttonConfig.eventType, buttonConfig.currentMode,
+                            Integer.toHexString(buttonConfig.supportedMask), Integer.toHexString(buttonConfig.unavailableMask));
+                    shortcutButtonId = buttonConfig.buttonId;
+                    shortcutEventType = buttonConfig.eventType;
+                    syncStringPref(DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT,
+                            String.valueOf(buttonConfig.currentMode));
+                    syncStringPref(DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT_SUPPORTED,
+                            String.valueOf(buttonConfig.supportedMask));
+                    syncStringPref(DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT_UNAVAILABLE,
+                            String.valueOf(buttonConfig.unavailableMask));
+                }
+                break;
             default:
                 break;
         }
@@ -399,6 +419,13 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final TransactionBuilder builder = createTransactionBuilder("set auto-off");
             builder.write(setStandbyTimer(minutes));
             builder.queue();
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT.equals(config)) {
+            final int mode = parsePrefInt(prefs.getString(DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT, "-1"), -1);
+            if (mode >= 0 && prefs.getString(DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT_SUPPORTED, null) != null) {
+                final TransactionBuilder builder = createTransactionBuilder("set shortcut action");
+                builder.write(setActionButton(shortcutButtonId, shortcutEventType, mode));
+                builder.queue();
+            }
         } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY.equals(config)) {
             sendMediaControl(MEDIA_PLAY);
         } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PAUSE.equals(config)) {

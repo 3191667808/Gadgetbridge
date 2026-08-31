@@ -29,10 +29,18 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
+import nodomain.freeyourgadget.gadgetbridge.service.devices.bose.BoseProtocol
 import nodomain.freeyourgadget.gadgetbridge.service.devices.bose.BoseSupport
 
 abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
     abstract val deviceConfig: BoseDeviceConfig
+
+    // Filtered by the device's supported and unavailable masks
+    private val shortcutActionLabels = listOf(
+        BoseProtocol.BUTTON_MODE_BATTERY_LEVEL to R.string.battery_level,
+        BoseProtocol.BUTTON_MODE_SELF_VOICE_OR_WIND to R.string.self_voice,
+        BoseProtocol.BUTTON_MODE_SPOTIFY to R.string.pref_title_touch_spotify,
+    )
 
     // Filtered by the device's supported-language mask
     private val voicePromptLanguages = listOf(
@@ -177,6 +185,34 @@ abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
                     }
                 },
                 defaultValue = "60",
+            )
+            list(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT,
+                title = R.string.prefs_shortcut_action,
+                entriesProvider = { prefs ->
+                    val supported = prefs.getString(
+                        DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT_SUPPORTED,
+                        null,
+                    )?.toIntOrNull()
+                    if (supported == null) {
+                        emptyList()
+                    } else {
+                        val unavailable = prefs.getString(
+                            DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT_UNAVAILABLE,
+                            "0",
+                        )?.toIntOrNull() ?: 0
+                        val context = GBApplication.getContext()
+                        shortcutActionLabels
+                            .filter {
+                                (supported and (1 shl it.first)) != 0 && (unavailable and (1 shl it.first)) == 0
+                            }
+                            .map { ListEntry.Text(it.first.toString(), context.getString(it.second)) }
+                    }
+                },
+                defaultValue = "",
+                visibleWhen = {
+                    it.getString(DeviceSettingsPreferenceConst.PREF_BOSE_SHORTCUT_SUPPORTED, null) != null
+                },
             )
         }
         screen(

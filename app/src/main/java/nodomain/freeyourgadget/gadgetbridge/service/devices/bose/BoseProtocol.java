@@ -47,6 +47,7 @@ public final class BoseProtocol {
     public static final int FUNCTION_STANDBY_TIMER = 0x04;
     public static final int FUNCTION_NOISE_CANCELLING = 0x05;
     public static final int FUNCTION_ANR = 0x06;
+    public static final int FUNCTION_BUTTONS = 0x09;
     public static final int FUNCTION_MULTIPOINT = 0x0a;
 
     public static final int VOICE_PROMPTS_ENABLED_MASK = 0x20;
@@ -75,6 +76,15 @@ public final class BoseProtocol {
     public static final int MEDIA_PAUSE = 0x02;
     public static final int MEDIA_NEXT = 0x03;
     public static final int MEDIA_PREVIOUS = 0x04;
+
+    // Configurable button ids
+    public static final int BUTTON_SHORTCUT = 0x80;
+    // Button event types
+    public static final int BUTTON_EVENT_PRESS_AND_HOLD = 0x05;
+    // Shortcut action modes
+    public static final int BUTTON_MODE_BATTERY_LEVEL = 3;
+    public static final int BUTTON_MODE_SELF_VOICE_OR_WIND = 13;
+    public static final int BUTTON_MODE_SPOTIFY = 16;
 
     public static final class Command {
         public final int block;
@@ -190,6 +200,15 @@ public final class BoseProtocol {
         }
         return frame(BLOCK_SETTINGS, FUNCTION_STANDBY_TIMER, OP_SETGET,
                 (byte) minutes, (byte) (minutes >>> 8));
+    }
+
+    public static byte[] getButtons() {
+        return frame(BLOCK_SETTINGS, FUNCTION_BUTTONS, OP_GET);
+    }
+
+    public static byte[] setActionButton(final int buttonId, final int eventType, final int mode) {
+        return frame(BLOCK_SETTINGS, FUNCTION_BUTTONS, OP_SETGET,
+                (byte) buttonId, (byte) eventType, (byte) mode);
     }
 
     // Wire values: 0=Off, 1=High, 2=Wind, 3=Low.
@@ -309,6 +328,44 @@ public final class BoseProtocol {
             return payload[0] & 0xFF;
         }
         return (payload[0] & 0xFF) | ((payload[1] & 0xFF) << 8);
+    }
+
+    // Configurable-button payload: [buttonId, eventType, currentMode, supportedMask(4), unavailableMask(4)]
+    public static final class ButtonConfig {
+        public final int buttonId;
+        public final int eventType;
+        public final int currentMode;
+        public final int supportedMask;
+        public final int unavailableMask;
+
+        ButtonConfig(final int buttonId, final int eventType, final int currentMode,
+                     final int supportedMask, final int unavailableMask) {
+            this.buttonId = buttonId;
+            this.eventType = eventType;
+            this.currentMode = currentMode;
+            this.supportedMask = supportedMask;
+            this.unavailableMask = unavailableMask;
+        }
+    }
+
+    public static ButtonConfig decodeButtonConfig(final byte[] payload) {
+        if (payload.length < 3) {
+            return null;
+        }
+        final int buttonId = payload[0] & 0xFF;
+        final int eventType = payload[1] & 0xFF;
+        final int currentMode = payload[2] & 0xFF;
+        int supportedMask = 0;
+        int unavailableMask = 0;
+        if (payload.length >= 7) {
+            supportedMask = ((payload[3] & 0xFF) << 24) | ((payload[4] & 0xFF) << 16)
+                    | ((payload[5] & 0xFF) << 8) | (payload[6] & 0xFF);
+        }
+        if (payload.length >= 11) {
+            unavailableMask = ((payload[7] & 0xFF) << 24) | ((payload[8] & 0xFF) << 16)
+                    | ((payload[9] & 0xFF) << 8) | (payload[10] & 0xFF);
+        }
+        return new ButtonConfig(buttonId, eventType, currentMode, supportedMask, unavailableMask);
     }
 
     public static byte[] getMediaControlCapabilities() {

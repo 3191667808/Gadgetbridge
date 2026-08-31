@@ -675,6 +675,9 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_BOSE_MULTIPOINT_SUPPORTED = "bose_multipoint_supported";
     public static final String PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED = "bose_multipoint_disable_supported";
     public static final String PREF_BOSE_AUTO_OFF = "bose_auto_off";
+    public static final String PREF_BOSE_SHORTCUT = "bose_shortcut";
+    public static final String PREF_BOSE_SHORTCUT_SUPPORTED = "bose_shortcut_supported";
+    public static final String PREF_BOSE_SHORTCUT_UNAVAILABLE = "bose_shortcut_unavailable";
     public static final String PREF_BOSE_MEDIA_PLAY = "bose_media_play";
     public static final String PREF_BOSE_MEDIA_PAUSE = "bose_media_pause";
     public static final String PREF_BOSE_MEDIA_NEXT = "bose_media_next";

@@ -157,6 +157,22 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testButtons() {
+        assertHexEquals(hex("01 09 01 00"), BoseProtocol.getButtons());
+        assertHexEquals(hex("01 09 02 03 80 05 03"),
+                BoseProtocol.setActionButton(0x80, 0x05, BoseProtocol.BUTTON_MODE_BATTERY_LEVEL));
+        final BoseProtocol.ButtonConfig config =
+                BoseProtocol.decodeButtonConfig(hex("80 05 03 00 01 20 88 00 00 00 80"));
+        Assert.assertNotNull(config);
+        Assert.assertEquals(0x80, config.buttonId);
+        Assert.assertEquals(0x05, config.eventType);
+        Assert.assertEquals(BoseProtocol.BUTTON_MODE_BATTERY_LEVEL, config.currentMode);
+        Assert.assertEquals(0x00012088, config.supportedMask);
+        Assert.assertEquals(0x00000080, config.unavailableMask);
+        Assert.assertNull(BoseProtocol.decodeButtonConfig(new byte[]{0x01, 0x02}));
+    }
+
+    @Test
     public void testDecodeBatteryLevel() {
         Assert.assertEquals(80, BoseProtocol.decodeBatteryLevel(hex("50 ff ff 00")));
         Assert.assertEquals(50, BoseProtocol.decodeBatteryLevel(hex("32")));
