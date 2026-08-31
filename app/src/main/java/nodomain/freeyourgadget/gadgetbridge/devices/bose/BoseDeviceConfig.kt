@@ -37,7 +37,7 @@ data class BoseDeviceConfig(
         @JvmField
         val QC35 = BoseDeviceConfig(
             anr = NoiseCancellingConfig(
-                maximum = 2,
+                maximum = 3,
                 defaultValue = 0,
             ),
         )

@@ -153,13 +153,8 @@ public final class BoseProtocol {
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_GET);
     }
 
-    public static byte[] setAnr(final int uiLevel) {
-        int level = uiLevel;
-        if (level == 2) {
-            level = 1;
-        } else if (level == 1) {
-            level = 3;
-        }
+    // Wire values: 0=Off, 1=High, 2=Wind, 3=Low.
+    public static byte[] setAnr(final int level) {
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_SETGET, (byte) level);
     }
 
@@ -196,23 +191,13 @@ public final class BoseProtocol {
         return 10 - (payload[1] & 0xFF);
     }
 
-    // ANR status payload: [wireLevel, 0x0b]; wire 0=high, 3=low, 1=off, 2=wind
+    // ANR status payload: [wireLevel, 0x0b]; wire 0=off, 1=high, 2=wind, 3=low
     public static int decodeAnrLevel(final byte[] payload) {
         if (payload.length < 1) {
             return -1;
         }
-        switch (payload[0] & 0xFF) {
-            case 0:
-                return 0;
-            case 3:
-                return 1;
-            case 1:
-                return 2;
-            case 2:
-                return 3;
-            default:
-                return -1;
-        }
+        final int level = payload[0] & 0xFF;
+        return level <= 3 ? level : -1;
     }
 
     public static byte[] getMediaControlCapabilities() {

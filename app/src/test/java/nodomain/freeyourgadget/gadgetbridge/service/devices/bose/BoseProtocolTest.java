@@ -69,8 +69,9 @@ public class BoseProtocolTest {
     @Test
     public void testAnrLevelMapping() {
         assertHexEquals(hex("01 06 02 01 00"), BoseProtocol.setAnr(0));
-        assertHexEquals(hex("01 06 02 01 03"), BoseProtocol.setAnr(1));
-        assertHexEquals(hex("01 06 02 01 01"), BoseProtocol.setAnr(2));
+        assertHexEquals(hex("01 06 02 01 01"), BoseProtocol.setAnr(1));
+        assertHexEquals(hex("01 06 02 01 02"), BoseProtocol.setAnr(2));
+        assertHexEquals(hex("01 06 02 01 03"), BoseProtocol.setAnr(3));
     }
 
     @Test
@@ -106,9 +107,9 @@ public class BoseProtocolTest {
     @Test
     public void testDecodeAnrLevel() {
         Assert.assertEquals(0, BoseProtocol.decodeAnrLevel(hex("00 0b")));
-        Assert.assertEquals(1, BoseProtocol.decodeAnrLevel(hex("03 0b")));
-        Assert.assertEquals(2, BoseProtocol.decodeAnrLevel(hex("01 0b")));
-        Assert.assertEquals(3, BoseProtocol.decodeAnrLevel(hex("02 0b")));
+        Assert.assertEquals(1, BoseProtocol.decodeAnrLevel(hex("01 0b")));
+        Assert.assertEquals(2, BoseProtocol.decodeAnrLevel(hex("02 0b")));
+        Assert.assertEquals(3, BoseProtocol.decodeAnrLevel(hex("03 0b")));
     }
 
     @Test
