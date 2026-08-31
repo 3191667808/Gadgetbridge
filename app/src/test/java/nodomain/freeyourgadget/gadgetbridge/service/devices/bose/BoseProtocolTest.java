@@ -53,6 +53,9 @@ public class BoseProtocolTest {
         assertHexEquals(hex("09 02 02 02 01 14"),
                 BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_STATUS,
                         BoseProtocol.BLOCK_DEVICE_MANAGEMENT));
+        assertHexEquals(hex("09 02 02 02 01 34"),
+                BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_STATUS,
+                        BoseProtocol.BLOCK_DEVICE_MANAGEMENT, BoseProtocol.BLOCK_AUDIO_MANAGEMENT));
     }
 
     @Test
@@ -73,6 +76,19 @@ public class BoseProtocolTest {
     public void testPairingMode() {
         assertHexEquals(hex("04 08 05 01 01"), BoseProtocol.setPairingMode(true));
         assertHexEquals(hex("04 08 05 01 00"), BoseProtocol.setPairingMode(false));
+    }
+
+    @Test
+    public void testMediaControls() {
+        assertHexEquals(hex("05 03 01 00"), BoseProtocol.getMediaControlCapabilities());
+        assertHexEquals(hex("05 03 05 01 01"), BoseProtocol.mediaControl(BoseProtocol.MEDIA_PLAY));
+        assertHexEquals(hex("05 03 05 01 02"), BoseProtocol.mediaControl(BoseProtocol.MEDIA_PAUSE));
+        assertHexEquals(hex("05 03 05 01 03"), BoseProtocol.mediaControl(BoseProtocol.MEDIA_NEXT));
+        assertHexEquals(hex("05 03 05 01 04"), BoseProtocol.mediaControl(BoseProtocol.MEDIA_PREVIOUS));
+        Assert.assertEquals(0x0012, BoseProtocol.decodeMediaControlCapabilities(hex("12 00")));
+        Assert.assertTrue(BoseProtocol.isMediaControlSupported(0x0012, BoseProtocol.MEDIA_PLAY));
+        Assert.assertFalse(BoseProtocol.isMediaControlSupported(0x0012, BoseProtocol.MEDIA_PAUSE));
+        Assert.assertTrue(BoseProtocol.isMediaControlSupported(0x0012, BoseProtocol.MEDIA_PREVIOUS));
     }
 
     @Test

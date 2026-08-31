@@ -102,9 +102,11 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         final byte[] connectPayload = connectHandshake();
         final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_STATUS,
-                BLOCK_DEVICE_MANAGEMENT);
+                BLOCK_DEVICE_MANAGEMENT, BLOCK_AUDIO_MANAGEMENT);
         final byte[] batteryPayload = getBattery();
-        for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, encodeAnr(), batteryPayload}) {
+        final byte[] mediaControlCapabilitiesPayload = getMediaControlCapabilities();
+        for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, encodeAnr(), batteryPayload,
+                mediaControlCapabilitiesPayload}) {
             builder.write(payload);
         }
 
@@ -164,9 +166,18 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case BLOCK_DEVICE_MANAGEMENT:
                 handleDeviceManagement(function, operator, payload);
                 break;
+            case BLOCK_AUDIO_MANAGEMENT:
+                handleAudioManagement(function, operator, payload);
+                break;
             default:
                 LOG.debug("Ignoring Bose frame from unknown block 0x{}", Integer.toHexString(block));
                 break;
+        }
+    }
+
+    private void handleAudioManagement(final int function, final int operator, final byte[] payload) {
+        if (function == FUNCTION_MEDIA_CONTROL) {
+            LOG.debug("Bose media control response: {}", StringUtils.bytesToHex(payload));
         }
     }
 
@@ -198,9 +209,28 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final TransactionBuilder builder = createTransactionBuilder("set noise cancelling");
         if (DeviceSettingsPreferenceConst.PREF_QC35_NOISE_CANCELLING_LEVEL.equals(config)) {
             builder.write(encodeAnr());
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY.equals(config)) {
+            sendMediaControl(MEDIA_PLAY);
+            return;
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PAUSE.equals(config)) {
+            sendMediaControl(MEDIA_PAUSE);
+            return;
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_NEXT.equals(config)) {
+            sendMediaControl(MEDIA_NEXT);
+            return;
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PREVIOUS.equals(config)) {
+            sendMediaControl(MEDIA_PREVIOUS);
+            return;
         } else {
             return;
         }
+        builder.queue();
+    }
+
+    private void sendMediaControl(final int action) {
+        final TransactionBuilder builder = createTransactionBuilder("media control 0x"
+                + String.format("%02x", action));
+        builder.write(mediaControl(action));
         builder.queue();
     }
 

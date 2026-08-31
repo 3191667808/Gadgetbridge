@@ -18,6 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.bose
 
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.SettingsRenderHost
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.SeekBarSetting
@@ -81,5 +82,45 @@ abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
             R.xml.devicesettings_headphones,
             connectedOnly = false,
         )
+        screen(
+            key = "pref_screen_bose_media",
+            title = R.string.prefs_media_controls,
+            summary = R.string.prefs_media_transport_controls_summary,
+            icon = R.drawable.ic_play,
+        ) {
+            fun newHandler(key: String): (SettingsRenderHost) -> Boolean = { handler ->
+                handler.notifyPreferenceChanged(key)
+                true
+            }
+
+            action(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY,
+                title = R.string.pref_media_play,
+                icon = R.drawable.ic_play,
+                connectedOnly = true,
+                onClick = newHandler(DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY),
+            )
+            action(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PAUSE,
+                title = R.string.pref_media_pause,
+                icon = R.drawable.ic_pause,
+                connectedOnly = true,
+                onClick = newHandler(DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PAUSE),
+            )
+            action(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_NEXT,
+                title = R.string.pref_media_next,
+                icon = R.drawable.ic_skip_next,
+                connectedOnly = true,
+                onClick = newHandler(DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_NEXT),
+            )
+            action(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PREVIOUS,
+                title = R.string.pref_media_previous,
+                icon = R.drawable.ic_skip_previous,
+                connectedOnly = true,
+                onClick = newHandler(DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PREVIOUS),
+            )
+        }
     }
 }

@@ -3487,6 +3487,7 @@
     <string name="prefs_active_noise_cancelling_level_comfort">Comfort</string>
     <string name="prefs_active_noise_cancelling_level_ultra">Ultra</string>
     <string name="prefs_active_noise_cancelling_level_dynamic">Dynamic</string>
+    <string name="prefs_media_transport_controls_summary">Transport controls forwarded to the active source through the headphones</string>
     <string name="prefs_active_noise_cancelling_summary">Block noises of the surroundings</string>
     <string name="prefs_busylight_on_call">Busylight on active call</string>
     <string name="prefs_busylight_on_call_summary">Illuminate the busylight LED when a call is active</string>

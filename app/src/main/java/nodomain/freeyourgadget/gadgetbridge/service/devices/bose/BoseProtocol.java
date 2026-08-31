@@ -29,6 +29,7 @@ public final class BoseProtocol {
     public static final int BLOCK_SETTINGS = 0x01;
     public static final int BLOCK_STATUS = 0x02;
     public static final int BLOCK_DEVICE_MANAGEMENT = 0x04;
+    public static final int BLOCK_AUDIO_MANAGEMENT = 0x05;
     public static final int BLOCK_NOTIFICATION = 0x09;
 
     // Operators
@@ -52,6 +53,20 @@ public final class BoseProtocol {
 
     // Device management functions
     public static final int FUNCTION_PAIRING_MODE = 0x08;
+
+    // Audio management functions
+    public static final int FUNCTION_MEDIA_CONTROL = 0x03;
+
+    // Active source types
+    public static final int SOURCE_NONE = 0x00;
+    public static final int SOURCE_BLUETOOTH = 0x01;
+    public static final int SOURCE_AUXILIARY = 0x02;
+
+    // Media transport control actions
+    public static final int MEDIA_PLAY = 0x01;
+    public static final int MEDIA_PAUSE = 0x02;
+    public static final int MEDIA_NEXT = 0x03;
+    public static final int MEDIA_PREVIOUS = 0x04;
 
     public static final class Command {
         public final int block;
@@ -145,6 +160,29 @@ public final class BoseProtocol {
             return -1;
         }
         return payload[0] & 0xFF;
+    }
+
+    public static byte[] getMediaControlCapabilities() {
+        return frame(BLOCK_AUDIO_MANAGEMENT, FUNCTION_MEDIA_CONTROL, OP_GET);
+    }
+
+    public static byte[] mediaControl(final int action) {
+        return frame(BLOCK_AUDIO_MANAGEMENT, FUNCTION_MEDIA_CONTROL, OP_START, (byte) action);
+    }
+
+    public static int decodeMediaControlCapabilities(final byte[] payload) {
+        if (payload.length < 1) {
+            return 0;
+        }
+        int capabilities = payload[0] & 0xFF;
+        if (payload.length > 1) {
+            capabilities |= (payload[1] & 0xFF) << 8;
+        }
+        return capabilities;
+    }
+
+    public static boolean isMediaControlSupported(final int capabilities, final int action) {
+        return action >= 0 && action < Integer.SIZE && (capabilities & (1 << action)) != 0;
     }
 
     /** Buffers incomplete data and returns complete frames. */
