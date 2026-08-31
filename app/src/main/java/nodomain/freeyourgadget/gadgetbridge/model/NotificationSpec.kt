@@ -37,6 +37,10 @@ data class NotificationSpec @JvmOverloads constructor(
     var title: String? = null,
     var subject: String? = null,
     var body: String? = null,
+    /**
+     * MessagingStyle conversation metadata. The sender and body identify the latest message,
+     * while the generic title, sender, and body remain unchanged for devices that do not opt in.
+     */
     var conversationTitle: String? = null,
     var conversationSender: String? = null,
     var conversationBody: String? = null,

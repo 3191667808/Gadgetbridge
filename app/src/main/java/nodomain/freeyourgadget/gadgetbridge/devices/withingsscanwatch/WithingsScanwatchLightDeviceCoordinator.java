@@ -24,10 +24,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.DefaultChartsProvi
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.DeviceChartsProvider;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.withingsscanwatch.WithingsScanwatchLightDeviceSupport;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.WithingsUUIDs;
 
 public class WithingsScanwatchLightDeviceCoordinator extends WithingsScanwatchDeviceCoordinator {
     @Override
@@ -36,32 +34,17 @@ public class WithingsScanwatchLightDeviceCoordinator extends WithingsScanwatchDe
     }
 
     @Override
-    public boolean supports(@NonNull final GBDeviceCandidate candidate) {
-        return candidate.supportsService(WithingsUUIDs.SCANWATCH_LIGHT.WITHINGS_SERVICE_UUID);
-    }
-
-    @Override
-    public int getOrderPriority() {
-        return -10;
-    }
-
-    @Override
     public boolean supportsSpo2(@NonNull final GBDevice device) {
         return false;
     }
 
     @Override
-    public boolean supportsRespiratoryRate(@NonNull final GBDevice device) {
+    public boolean supportsEcgMeasurement(@NonNull final GBDevice device) {
         return false;
     }
 
     @Override
-    public boolean supportsSleepRespiratoryRate(@NonNull final GBDevice device) {
-        return false;
-    }
-
-    @Override
-    public boolean supportsSleepBreathingQuality(@NonNull final GBDevice device) {
+    public boolean supportsRespiratoryScan(@NonNull final GBDevice device) {
         return false;
     }
 

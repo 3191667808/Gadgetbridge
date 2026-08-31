@@ -22,26 +22,24 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import java.util.UUID;
-
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.WithingsUUIDs;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.withingssteelhr.communication.datastructures.ShortcutAction;
 
 public class WithingsScanwatchDeviceCoordinatorTest {
     @Test
-    public void lightServiceSelectsOnlyLightCoordinator() {
-        final GBDeviceCandidate light = candidate("ScanWatch Light", WithingsUUIDs.SCANWATCH_LIGHT.WITHINGS_SERVICE_UUID);
+    public void nameOnlyDiscoverySelectsOnlyTheMatchingCoordinator() {
+        final WithingsScanwatchDeviceCoordinator scanwatchCoordinator = new WithingsScanwatchDeviceCoordinator();
+        final WithingsScanwatchLightDeviceCoordinator lightCoordinator = new WithingsScanwatchLightDeviceCoordinator();
+        final GBDeviceCandidate light = candidate("ScanWatch Light");
+        final GBDeviceCandidate scanwatch = candidate("ScanWatch");
+        final GBDeviceCandidate scanwatchCa = candidate("ScanWatch CA");
 
-        assertTrue(new WithingsScanwatchLightDeviceCoordinator().supports(light));
-        assertFalse(new WithingsScanwatchDeviceCoordinator().supports(light));
-    }
-
-    @Test
-    public void regularServiceSelectsFullCoordinator() {
-        final GBDeviceCandidate scanwatch = candidate("ScanWatch", WithingsUUIDs.SCANWATCH.WITHINGS_SERVICE_UUID);
-
-        assertFalse(new WithingsScanwatchLightDeviceCoordinator().supports(scanwatch));
-        assertTrue(new WithingsScanwatchDeviceCoordinator().supports(scanwatch));
+        assertTrue(lightCoordinator.supports(light));
+        assertFalse(scanwatchCoordinator.supports(light));
+        assertFalse(lightCoordinator.supports(scanwatch));
+        assertTrue(scanwatchCoordinator.supports(scanwatch));
+        assertFalse(lightCoordinator.supports(scanwatchCa));
+        assertTrue(scanwatchCoordinator.supports(scanwatchCa));
     }
 
     @Test
@@ -49,6 +47,8 @@ public class WithingsScanwatchDeviceCoordinatorTest {
         final WithingsScanwatchLightDeviceCoordinator coordinator = new WithingsScanwatchLightDeviceCoordinator();
 
         assertFalse(coordinator.supportsSpo2(null));
+        assertFalse(coordinator.supportsEcgMeasurement(null));
+        assertFalse(coordinator.supportsRespiratoryScan(null));
         assertFalse(coordinator.supportsRespiratoryRate(null));
         assertFalse(coordinator.supportsSleepRespiratoryRate(null));
         assertFalse(coordinator.supportsSleepBreathingQuality(null));
@@ -59,21 +59,31 @@ public class WithingsScanwatchDeviceCoordinatorTest {
     public void scanwatchExposesBreathingQualityWithoutRespiratoryRate() {
         final WithingsScanwatchDeviceCoordinator coordinator = new WithingsScanwatchDeviceCoordinator();
 
+        assertTrue(coordinator.supportsEcgMeasurement(null));
+        assertTrue(coordinator.supportsSpo2(null));
+        assertTrue(coordinator.supportsRespiratoryScan(null));
         assertFalse(coordinator.supportsRespiratoryRate(null));
         assertFalse(coordinator.supportsSleepRespiratoryRate(null));
         assertTrue(coordinator.supportsSleepBreathingQuality(null));
     }
 
-    private static GBDeviceCandidate candidate(final String name, final UUID service) {
+    @Test
+    public void lightNormalisesPersistedUnsupportedScreenAndShortcutValues() {
+        assertEquals("date,sleep,steps", WithingsScanwatchLightSettingsCustomizer.normaliseLightScreens("ecg,sleep,spo2,ecg,steps,spo2"));
+        assertEquals("date,sleep", WithingsScanwatchLightSettingsCustomizer.normaliseLightScreens("date,sleep,ecg,date,spo2"));
+        assertEquals(Byte.toString(ShortcutAction.ACTION_NONE),
+                WithingsScanwatchLightSettingsCustomizer.normaliseLightShortcut(Byte.toString(ShortcutAction.ACTION_ECG_MEAS)));
+        assertEquals(Byte.toString(ShortcutAction.ACTION_NONE),
+                WithingsScanwatchLightSettingsCustomizer.normaliseLightShortcut(Byte.toString(ShortcutAction.ACTION_SPO2_MEAS)));
+        assertEquals(Byte.toString(ShortcutAction.ACTION_WORKOUT_START),
+                WithingsScanwatchLightSettingsCustomizer.normaliseLightShortcut(Byte.toString(ShortcutAction.ACTION_WORKOUT_START)));
+    }
+
+    private static GBDeviceCandidate candidate(final String name) {
         return new GBDeviceCandidate(null, (short) 0, null, null) {
             @Override
             public String getName() {
                 return name;
-            }
-
-            @Override
-            public boolean supportsService(final UUID requestedService) {
-                return service.equals(requestedService);
             }
         };
     }

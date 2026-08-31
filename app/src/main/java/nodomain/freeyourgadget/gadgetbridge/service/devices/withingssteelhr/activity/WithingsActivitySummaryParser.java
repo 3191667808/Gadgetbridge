@@ -27,13 +27,11 @@ import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
-import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
-import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
 
 /**
  * Withings currently stores live workouts directly as BaseActivitySummary rows without
@@ -42,20 +40,19 @@ import nodomain.freeyourgadget.gadgetbridge.util.DeviceHelper;
  */
 public class WithingsActivitySummaryParser implements ActivitySummaryParser {
     private static final Logger logger = LoggerFactory.getLogger(WithingsActivitySummaryParser.class);
+    private final GBDevice gbDevice;
+
+    public WithingsActivitySummaryParser(final GBDevice gbDevice) {
+        this.gbDevice = gbDevice;
+    }
 
     @Override
     public BaseActivitySummary parseBinaryData(final BaseActivitySummary summary, final boolean forDetails) {
-        if (summary == null || summary.getStartTime() == null || summary.getEndTime() == null || summary.getDevice() == null) {
+        if (summary == null || summary.getStartTime() == null || summary.getEndTime() == null) {
             return summary;
         }
 
-        Device dbDevice = summary.getDevice();
-        GBDevice gbDevice = DeviceHelper.getInstance().toGBDevice(dbDevice);
-        if (gbDevice == null) {
-            return summary;
-        }
-
-        try (DBHandler dbHandler = GBApplication.acquireDB()) {
+        try (DBHandler dbHandler = GBApplication.acquireDbReadOnly()) {
             DaoSession session = dbHandler.getDaoSession();
             SampleProvider provider = gbDevice.getDeviceCoordinator().getSampleProvider(gbDevice, session);
             if (provider != null) {

@@ -33,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch.WithingsScanwatchDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.withingsscanwatch.WithingsScanwatchSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractWithingsActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -238,19 +239,11 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     @Override
     protected WithingsEcgHandler createEcgHandler() {
-        return supportsEcgFeature() ? new WithingsEcgHandler(this, gbDevice) : null;
+        return getScanwatchCoordinator().supportsEcgMeasurement(gbDevice) ? new WithingsEcgHandler(this, gbDevice) : null;
     }
 
-    protected boolean supportsEcgFeature() {
-        return getActiveWithingsUUIDs() != WithingsUUIDs.SCANWATCH_LIGHT;
-    }
-
-    protected boolean supportsSpo2Feature() {
-        return getActiveWithingsUUIDs() != WithingsUUIDs.SCANWATCH_LIGHT;
-    }
-
-    protected boolean supportsRespiratoryFeature() {
-        return getActiveWithingsUUIDs() != WithingsUUIDs.SCANWATCH_LIGHT;
+    private WithingsScanwatchDeviceCoordinator getScanwatchCoordinator() {
+        return (WithingsScanwatchDeviceCoordinator) gbDevice.getDeviceCoordinator();
     }
 
     @Override
@@ -260,12 +253,13 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
     @Override
     protected boolean supportsStoredMeasureSync() {
-        return supportsSpo2Feature() || supportsEcgFeature();
+        return getScanwatchCoordinator().supportsSpo2(gbDevice)
+                || getScanwatchCoordinator().supportsEcgMeasurement(gbDevice);
     }
 
     @Override
     protected boolean supportsSleepBreathingSync() {
-        return supportsRespiratoryFeature();
+        return getScanwatchCoordinator().supportsRespiratoryScan(gbDevice);
     }
 
     /**
@@ -322,6 +316,12 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 action = Byte.parseByte(val);
             } catch (NumberFormatException e) {
                 logger.warn("Invalid shortcut action value: {}", val);
+                return true;
+            }
+            if (!isShortcutActionSupported(action,
+                    getScanwatchCoordinator().supportsEcgMeasurement(gbDevice),
+                    getScanwatchCoordinator().supportsSpo2(gbDevice))) {
+                logger.warn("Ignoring unsupported shortcut action: {}", action);
                 return true;
             }
             final WithingsMessage msg = new WithingsMessage(WithingsMessageType.SET_SHORTCUT);
@@ -480,9 +480,10 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
         final SharedPreferences featurePrefs = GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress());
         msg.addDataStructure(new FeatureTagsUserId(0));
 
-        final boolean ecgSupported = supportsEcgFeature();
-        final boolean spo2Supported = supportsSpo2Feature();
-        final boolean respiratorySupported = supportsRespiratoryFeature();
+        final WithingsScanwatchDeviceCoordinator coordinator = getScanwatchCoordinator();
+        final boolean ecgSupported = coordinator.supportsEcgMeasurement(gbDevice);
+        final boolean spo2Supported = coordinator.supportsSpo2(gbDevice);
+        final boolean respiratorySupported = coordinator.supportsRespiratoryScan(gbDevice);
         final boolean spo2SleepMode = spo2Supported && spo2Activated && "sleep".equals(spo2Mode);
 
         final boolean respAutomatic = respiratorySupported && "automatic".equals(respiratoryScan);
@@ -861,12 +862,16 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
                 getContext().getResources().getStringArray(R.array.pref_withings_scanwatch_screens_default));
 
         final String screensPref = prefs.getString(PREF_SCREENS_SORTABLE, null);
-        final List<String> enabledScreens;
+        List<String> enabledScreens;
         if (screensPref == null || screensPref.isEmpty()) {
             enabledScreens = new ArrayList<>(defaultScreens);
         } else {
             enabledScreens = new ArrayList<>(Arrays.asList(screensPref.split(",")));
         }
+
+        enabledScreens = effectiveScreenKeys(enabledScreens,
+                getScanwatchCoordinator().supportsEcgMeasurement(gbDevice),
+                getScanwatchCoordinator().supportsSpo2(gbDevice));
 
         // "Watch face (Date)" is always pinned at position 0. Enforce this at send time
         // regardless of what the UI preference contains, so the watch is always consistent
@@ -925,6 +930,26 @@ public class WithingsScanwatchDeviceSupport extends WithingsBaseDeviceSupport {
 
         // Record what we sent so we can skip on future syncs if nothing changed
         prefs.edit().putString(PREF_SCREENS_LAST_SENT, currentValue).apply();
+    }
+
+    static List<String> effectiveScreenKeys(final List<String> screenKeys,
+                                            final boolean ecgSupported,
+                                            final boolean spo2Supported) {
+        final List<String> effectiveKeys = new ArrayList<>(screenKeys);
+        if (!ecgSupported) {
+            effectiveKeys.removeIf("ecg"::equals);
+        }
+        if (!spo2Supported) {
+            effectiveKeys.removeIf("spo2"::equals);
+        }
+        return effectiveKeys;
+    }
+
+    static boolean isShortcutActionSupported(final byte action,
+                                             final boolean ecgSupported,
+                                             final boolean spo2Supported) {
+        return (action != ShortcutAction.ACTION_ECG_MEAS || ecgSupported)
+                && (action != ShortcutAction.ACTION_SPO2_MEAS || spo2Supported);
     }
 
     /**

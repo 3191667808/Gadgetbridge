@@ -32,18 +32,4 @@ public class WithingsScanwatchLightDeviceSupport extends WithingsScanwatchDevice
         return Collections.singletonList(WithingsUUIDs.SCANWATCH_LIGHT);
     }
 
-    @Override
-    protected boolean supportsEcgFeature() {
-        return false;
-    }
-
-    @Override
-    protected boolean supportsSpo2Feature() {
-        return false;
-    }
-
-    @Override
-    protected boolean supportsRespiratoryFeature() {
-        return false;
-    }
 }
