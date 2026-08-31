@@ -91,6 +91,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 return;
             }
 
+            final String address = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
             switch (intent.getAction()) {
                 case MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE:
                     sendMultipointCommand("enable multipoint", setMultipoint(true));
@@ -106,6 +107,11 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES:
                     refreshPairedDevices();
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_FORGET_DEVICE:
+                    if (address != null) {
+                        sendMultipointCommand("forget " + address, removeDevice(macToBytes(address)));
+                    }
                     break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING:
                     final boolean enabled = intent.getBooleanExtra(
@@ -138,6 +144,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES);
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_FORGET_DEVICE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
         LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, multipointFilter);
     }
@@ -285,6 +292,16 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case FUNCTION_PAIRING_MODE:
                 LOG.info("Bose pairing mode response: {}", StringUtils.bytesToHex(payload));
                 break;
+            case FUNCTION_REMOVE_DEVICE:
+                if (operator == OP_RESULT) {
+                    LOG.info("Bose remove device result: {}", StringUtils.bytesToHex(payload));
+                    if (payload.length >= 6) {
+                        onDeviceRemoved(bytesToMac(payload, 0));
+                    }
+                } else if (operator == OP_PROCESSING) {
+                    LOG.debug("Bose remove device in progress");
+                }
+                break;
             case FUNCTION_LIST_DEVICES:
                 if (operator == OP_STATUS || operator == OP_RESULT) {
                     final List<PairedDevice> devices = decodePairedDevices(payload);
@@ -328,6 +345,25 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
     }
 
+    private void onDeviceRemoved(final String mac) {
+        final PairedDevice device = findDevice(mac);
+        if (device == null) {
+            return;
+        }
+        knownDevices.remove(device.mac);
+        pairedDeviceNames.remove(device.mac);
+        broadcastMultipointList();
+    }
+
+    private PairedDevice findDevice(final String mac) {
+        for (final PairedDevice device : knownDevices.values()) {
+            if (device.mac.equalsIgnoreCase(mac)) {
+                return device;
+            }
+        }
+        return null;
+    }
+
     private void refreshPairedDevices() {
         if (!getDevice().isConnected()) {
             return;
@@ -345,7 +381,8 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     device.mac,
                     pairedDeviceNames.get(device.mac),
                     device.connected,
-                    device.mac.equalsIgnoreCase(activeSourceMac)
+                    device.mac.equalsIgnoreCase(activeSourceMac),
+                    true
             ));
         }
         devices.sort((a, b) -> {

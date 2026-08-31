@@ -40,6 +40,7 @@ public final class BoseProtocol {
     public static final int OP_ERROR = 0x04;
     public static final int OP_START = 0x05;
     public static final int OP_RESULT = 0x06;
+    public static final int OP_PROCESSING = 0x07;
 
     // Notification functions
     public static final int FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK = 0x02;
@@ -63,6 +64,7 @@ public final class BoseProtocol {
     public static final int FUNCTION_FIRMWARE_VERSION = 0x05;
 
     // Device management functions
+    public static final int FUNCTION_REMOVE_DEVICE = 0x03;
     public static final int FUNCTION_LIST_DEVICES = 0x04;
     public static final int FUNCTION_DEVICE_INFO = 0x05;
     public static final int FUNCTION_PAIRING_MODE = 0x08;
@@ -236,6 +238,10 @@ public final class BoseProtocol {
     public static byte[] setPairingMode(final boolean enabled) {
         return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_PAIRING_MODE, OP_START,
                 (byte) (enabled ? 0x01 : 0x00));
+    }
+
+    public static byte[] removeDevice(final byte[] mac) {
+        return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_REMOVE_DEVICE, OP_START, mac);
     }
 
     public static byte[] listPairedDevices() {

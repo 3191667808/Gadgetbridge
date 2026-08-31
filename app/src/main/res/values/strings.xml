@@ -5068,6 +5068,8 @@
     <string name="bluetooth_multipoint_no_devices">No paired devices found\n\nTap \"Pair New Device\" to add a device</string>
     <string name="bluetooth_multipoint_pair_stop">Stop pairing</string>
     <string name="bluetooth_multipoint_active_device">Active source · %1$s</string>
+    <string name="bluetooth_multipoint_forget">Forget</string>
+    <string name="bluetooth_multipoint_forget_message">Remove %1$s from the paired devices? You will need to pair it again to reconnect.</string>
     <string name="bluetooth_paired_devices">Paired Devices</string>
     <string name="connect">Connect</string>
     <string name="pref_new_sync_protocol_title">New sync protocol</string>

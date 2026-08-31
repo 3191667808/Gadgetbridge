@@ -9,4 +9,5 @@ data class MultipointDevice @JvmOverloads constructor(
     val name: String?,
     val isConnected: Boolean = false,
     val isActive: Boolean = false,
+    val canForget: Boolean = false,
 ) : Parcelable

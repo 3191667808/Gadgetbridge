@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity
 import nodomain.freeyourgadget.gadgetbridge.databinding.ActivityMultipointPairingBinding
@@ -61,6 +62,7 @@ class MultipointPairingActivity : AbstractGBActivity() {
             when (action) {
                 MultipointDeviceAdapter.Action.CONNECT -> connectToDevice(device.address)
                 MultipointDeviceAdapter.Action.DISCONNECT -> disconnectFromDevice(device.address)
+                MultipointDeviceAdapter.Action.FORGET -> forgetDevice(device)
             }
         }
 
@@ -204,6 +206,20 @@ class MultipointPairingActivity : AbstractGBActivity() {
         sendDeviceIntent(intent)
     }
 
+    private fun forgetDevice(device: MultipointDevice) {
+        val name = device.name ?: device.address
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.bluetooth_multipoint_forget)
+            .setMessage(getString(R.string.bluetooth_multipoint_forget_message, name))
+            .setPositiveButton(R.string.delete) { _, _ ->
+                val intent = Intent(ACTION_MULTIPOINT_FORGET_DEVICE)
+                intent.putExtra(EXTRA_DEVICE_ADDRESS, device.address)
+                sendDeviceIntent(intent)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
     private fun sendDeviceIntent(intent: Intent) {
         intent.putExtra(GBDevice.EXTRA_DEVICE, gbDevice)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
@@ -230,6 +246,8 @@ class MultipointPairingActivity : AbstractGBActivity() {
             "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_CONNECT_DEVICE"
         const val ACTION_MULTIPOINT_DISCONNECT_DEVICE =
             "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_DISCONNECT_DEVICE"
+        const val ACTION_MULTIPOINT_FORGET_DEVICE =
+            "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_FORGET_DEVICE"
         const val ACTION_MULTIPOINT_START_PAIRING =
             "nodomain.freeyourgadget.gadgetbridge.ACTION_MULTIPOINT_START_PAIRING"
 

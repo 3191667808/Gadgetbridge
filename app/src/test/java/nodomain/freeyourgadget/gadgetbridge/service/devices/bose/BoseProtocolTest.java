@@ -250,6 +250,11 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testRemoveDevice() {
+        assertHexEquals(hex("04 03 05 06 aabbccddeeff"), BoseProtocol.removeDevice(hex("aa:bb:cc:dd:ee:ff")));
+    }
+
+    @Test
     public void testMediaControls() {
         assertHexEquals(hex("05 03 01 00"), BoseProtocol.getMediaControlCapabilities());
         assertHexEquals(hex("05 03 05 01 01"), BoseProtocol.mediaControl(BoseProtocol.MEDIA_PLAY));
