@@ -99,7 +99,8 @@ public class Ear1Support extends AbstractHeadphoneBTBRDeviceSupport {
         return builder;
     }
 
-    private AbstractEarCoordinator getCoordinator() {
+    @Override
+    protected AbstractEarCoordinator getCoordinator() {
         return (AbstractEarCoordinator) getDevice().getDeviceCoordinator();
     }
 

@@ -53,8 +53,10 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInf
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdateDeviceInfo
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo
+import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve255Coordinator
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceType
 import nodomain.freeyourgadget.gadgetbridge.service.AbstractHeadphoneBTBRDeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.getParcelableCompat
@@ -316,7 +318,13 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
 
     override fun setContext(gbDevice: GBDevice, btAdapter: BluetoothAdapter, context: Context) {
         super.setContext(gbDevice, btAdapter, context)
-        registerMultipointReceiver()
+        if (coordinator.supportsMultipointPairing()) {
+            registerMultipointReceiver()
+        }
+    }
+
+    override fun getCoordinator(): JabraEvolve255Coordinator {
+        return device.deviceCoordinator as JabraEvolve255Coordinator
     }
 
     // ── Connection lifecycle ──────────────────────────────────────────────────
@@ -335,11 +343,17 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         builder.write(*buildGet(FEAT_DEVICE_NAME))
 
         // Device state
-        builder.write(*buildGet(FEAT_BATTERY))
-        builder.write(*buildGet(FEAT_ANC, ANC_PARAM_MODE))
+        if (!coordinator.supportsOSBatteryLevel(device)) {
+            builder.write(*buildGet(FEAT_BATTERY))
+        }
+        if (coordinator.supportsActiveNoiseCancelling()) {
+            builder.write(*buildGet(FEAT_ANC, ANC_PARAM_MODE))
+        }
         builder.write(*buildGet(FEAT_BUSYLIGHT))
         builder.write(*buildGet(FEAT_BUSYLIGHT_ON_CALL))
-        builder.write(*buildGet(FEAT_BOOM_ARM_ACTIONS))
+        if (coordinator.supportsBoomArmFunctions()) {
+            builder.write(*buildGet(FEAT_BOOM_ARM_ACTIONS))
+        }
         builder.write(*buildGet(FEAT_AUTO_REJECT_CALL))
         builder.write(*buildGet(FEAT_MUTE_REMINDER))
         builder.write(*buildGet(FEAT_SIDETONE))
@@ -348,9 +362,13 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
         builder.write(*buildGet(FEAT_EQUALIZER_CURVE, 0x00))
         builder.write(*buildGet(FEAT_SLEEP_MODE))
         builder.write(*buildGet(FEAT_HEADSET_GUIDANCE))
-        builder.write(*buildGet(FEAT_BOOM_ARM_GUIDANCE))
+        if (coordinator.supportsBoomArmFunctions()) {
+            builder.write(*buildGet(FEAT_BOOM_ARM_GUIDANCE))
+        }
         builder.write(*buildGet(FEAT_BUTTON_SOUNDS))
-        builder.write(*buildGet(FEAT_VOICE_ASSISTANT, 0x03))
+        if (coordinator.supportsVoiceAssistant()) {
+            builder.write(*buildGet(FEAT_VOICE_ASSISTANT, 0x03))
+        }
 
         // Subscribe to the device-initiated notification bus (0x0D4C) so the headset pushes
         // state changes (e.g. ANC toggled via the physical button). Without this the device
@@ -802,10 +820,19 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
      */
     private fun handleCallAudioEqState(payload: ByteArray) {
         if (payload.isEmpty()) return
-        val value = when (payload[0].toInt() and 0xFF) {
-            0x01 -> CALL_AUDIO_EQ_BASS
-            0x02 -> CALL_AUDIO_EQ_TREBLE
-            else -> CALL_AUDIO_EQ_NEUTRAL
+        val value = if (device.type == DeviceType.JABRA_EVOLVE_65) {
+            when (payload[0].toInt() and 0xFF) {
+                // #6665 - On the Evolve 65 treble and bass are swapped?
+                0x01 -> CALL_AUDIO_EQ_TREBLE
+                0x02 -> CALL_AUDIO_EQ_BASS
+                else -> CALL_AUDIO_EQ_NEUTRAL
+            }
+        } else {
+            when (payload[0].toInt() and 0xFF) {
+                0x01 -> CALL_AUDIO_EQ_BASS
+                0x02 -> CALL_AUDIO_EQ_TREBLE
+                else -> CALL_AUDIO_EQ_NEUTRAL
+            }
         }
         LOG.info("Call audio EQ: {}", value)
         handleGBDeviceEvent(GBDeviceEventUpdatePreferences(PREF_JABRA_CALL_AUDIO_EQ, value))
@@ -1175,11 +1202,20 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
      *   treble  → value 0x02
      */
     private fun sendCallAudioEqCommand(value: String) {
-        val rawValue = when (value) {
-            CALL_AUDIO_EQ_BASS -> 0x01
-            CALL_AUDIO_EQ_TREBLE -> 0x02
-            else -> 0x00
-        }.toByte()
+        val rawValue = if (device.type == DeviceType.JABRA_EVOLVE_65) {
+            // #6665 - On the Evolve 65 treble and bass are swapped?
+            when (value) {
+                CALL_AUDIO_EQ_TREBLE -> 0x01
+                CALL_AUDIO_EQ_BASS -> 0x02
+                else -> 0x00
+            }.toByte()
+        } else {
+            when (value) {
+                CALL_AUDIO_EQ_BASS -> 0x01
+                CALL_AUDIO_EQ_TREBLE -> 0x02
+                else -> 0x00
+            }.toByte()
+        }
         val frame = buildSetDirect(FEAT_CALL_AUDIO_EQ, rawValue)
         LOG.info("Sending call audio EQ command: {}", value)
         createTransactionBuilder("jabra-set-call-audio-eq")
@@ -1552,7 +1588,8 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
                 val len = payload[0].toInt() and 0xFF
                 if (len > 0 && len < payload.size) String(payload, 1, len) else null
             }
-            RESP_STR_NULL, RESP_STR_NAME -> {
+            else -> {
+                // RESP_STR_NULL, RESP_STR_NAME, and everything else
                 val nul = payload.indexOfFirst { it == 0.toByte() }
                 when {
                     nul > 0  -> String(payload, 0, nul)
@@ -1560,7 +1597,6 @@ class JabraEvolve255Support : AbstractHeadphoneBTBRDeviceSupport(LOG) {
                     else     -> null
                 }
             }
-            else -> String(payload)
         }
     }
 

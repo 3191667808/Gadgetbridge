@@ -33,10 +33,10 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.jabra.JabraEvolve255Support
+import androidx.core.content.edit
 import java.util.regex.Pattern
 
-class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
-
+open class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
     override fun getSupportedDeviceName(): Pattern {
         return Pattern.compile("Jabra Evolve2 55")
     }
@@ -78,17 +78,40 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
     }
 
     override fun getCustomActions(): List<DeviceCardAction> {
-        return DEVICE_CARD_ACTIONS
+        val actions = ArrayList<DeviceCardAction>(2)
+        if (supportsActiveNoiseCancelling()) {
+            actions.add(DEVICE_CARD_ACTION_ANC)
+        }
+        actions.add(DEVICE_CARD_ACTION_BUSY_LIGHT)
+        return actions
+    }
+
+    open fun supportsActiveNoiseCancelling(): Boolean {
+        return true
+    }
+
+    open fun supportsBoomArmFunctions(): Boolean {
+        return true
+    }
+
+    open fun supportsVoiceAssistant(): Boolean {
+        return true
+    }
+
+    open fun supportsMultipointPairing(): Boolean {
+        return true
     }
 
     override fun getDeviceSettings(device: GBDevice): DeviceSettingsSpec = deviceSettings {
-        switchSetting(
-            key = DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE,
-            title = R.string.prefs_active_noise_cancelling,
-            summary = R.string.prefs_active_noise_cancelling_summary,
-            icon = R.drawable.ic_hearing,
-            defaultValue = false,
-        )
+        if (supportsActiveNoiseCancelling()) {
+            switchSetting(
+                key = DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE,
+                title = R.string.prefs_active_noise_cancelling,
+                summary = R.string.prefs_active_noise_cancelling_summary,
+                icon = R.drawable.ic_hearing,
+                defaultValue = false,
+            )
+        }
         switchSetting(
             key = DeviceSettingsPreferenceConst.PREF_BUSYLIGHT,
             title = R.string.prefs_busylight,
@@ -137,29 +160,31 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
             ),
             defaultValue = JabraEvolve255Support.GUIDANCE_VOICE,
         )
-        list(
-            key = DeviceSettingsPreferenceConst.PREF_JABRA_BOOM_ARM_GUIDANCE,
-            title = R.string.prefs_jabra_boom_arm_guidance,
-            icon = R.drawable.ic_microphone,
-            entries = listOf(
-                ListEntry.Res(JabraEvolve255Support.GUIDANCE_VOICE, R.string.prefs_jabra_guidance_voice),
-                ListEntry.Res(JabraEvolve255Support.GUIDANCE_TONE, R.string.prefs_jabra_guidance_tone),
-                ListEntry.Res(JabraEvolve255Support.GUIDANCE_NONE, R.string.none),
-            ),
-            defaultValue = JabraEvolve255Support.GUIDANCE_TONE,
-        )
-
-        list(
-            key = DeviceSettingsPreferenceConst.PREF_JABRA_VOICE_ASSISTANT,
-            title = R.string.sony_voice_assistant_function,
-            icon = R.drawable.ic_voice,
-            entries = listOf(
-                ListEntry.Res(JabraEvolve255Support.VOICE_ASSISTANT_MOBILE, R.string.sony_voice_assistant_mobile_device),
-                ListEntry.Res(JabraEvolve255Support.VOICE_ASSISTANT_ALEXA, R.string.menuitem_alexa),
-            ),
-            defaultValue = JabraEvolve255Support.VOICE_ASSISTANT_MOBILE,
-        )
-
+        if (supportsBoomArmFunctions()) {
+            list(
+                key = DeviceSettingsPreferenceConst.PREF_JABRA_BOOM_ARM_GUIDANCE,
+                title = R.string.prefs_jabra_boom_arm_guidance,
+                icon = R.drawable.ic_microphone,
+                entries = listOf(
+                    ListEntry.Res(JabraEvolve255Support.GUIDANCE_VOICE, R.string.prefs_jabra_guidance_voice),
+                    ListEntry.Res(JabraEvolve255Support.GUIDANCE_TONE, R.string.prefs_jabra_guidance_tone),
+                    ListEntry.Res(JabraEvolve255Support.GUIDANCE_NONE, R.string.none),
+                ),
+                defaultValue = JabraEvolve255Support.GUIDANCE_TONE,
+            )
+        }
+        if (supportsVoiceAssistant()) {
+            list(
+                key = DeviceSettingsPreferenceConst.PREF_JABRA_VOICE_ASSISTANT,
+                title = R.string.sony_voice_assistant_function,
+                icon = R.drawable.ic_voice,
+                entries = listOf(
+                    ListEntry.Res(JabraEvolve255Support.VOICE_ASSISTANT_MOBILE, R.string.sony_voice_assistant_mobile_device),
+                    ListEntry.Res(JabraEvolve255Support.VOICE_ASSISTANT_ALEXA, R.string.menuitem_alexa),
+                ),
+                defaultValue = JabraEvolve255Support.VOICE_ASSISTANT_MOBILE,
+            )
+        }
         screen(
             key = "jabra_equalizer_screen",
             title = R.string.prefs_equalizer,
@@ -234,12 +259,14 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
                 key = "incoming_calls",
                 title = R.string.prefs_incoming_calls,
             ) {
-                switchSetting(
-                    key = DeviceSettingsPreferenceConst.PREF_JABRA_ANSWER_CALL_BOOM_ARM,
-                    title = R.string.prefs_jabra_answer_call_boom_arm,
-                    summary = R.string.prefs_jabra_answer_call_boom_arm_summary,
-                    defaultValue = false,
-                )
+                if (supportsBoomArmFunctions()) {
+                    switchSetting(
+                        key = DeviceSettingsPreferenceConst.PREF_JABRA_ANSWER_CALL_BOOM_ARM,
+                        title = R.string.prefs_jabra_answer_call_boom_arm,
+                        summary = R.string.prefs_jabra_answer_call_boom_arm_summary,
+                        defaultValue = false,
+                    )
+                }
                 switchSetting(
                     key = DeviceSettingsPreferenceConst.PREF_JABRA_AUTO_REJECT_CALL,
                     title = R.string.prefs_jabra_auto_reject_call,
@@ -251,12 +278,14 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
                 key = "mute_unmute",
                 title = R.string.prefs_jabra_mute_unmute,
             ) {
-                switchSetting(
-                    key = DeviceSettingsPreferenceConst.PREF_JABRA_MUTE_MIC_BOOM_ARM,
-                    title = R.string.prefs_jabra_mute_mic_boom_arm,
-                    summary = R.string.prefs_jabra_mute_mic_boom_arm_summary,
-                    defaultValue = false,
-                )
+                if (supportsBoomArmFunctions()) {
+                    switchSetting(
+                        key = DeviceSettingsPreferenceConst.PREF_JABRA_MUTE_MIC_BOOM_ARM,
+                        title = R.string.prefs_jabra_mute_mic_boom_arm,
+                        summary = R.string.prefs_jabra_mute_mic_boom_arm_summary,
+                        defaultValue = false,
+                    )
+                }
                 switchSetting(
                     key = DeviceSettingsPreferenceConst.PREF_JABRA_MUTE_REMINDER,
                     title = R.string.prefs_jabra_mute_reminder,
@@ -305,40 +334,40 @@ class JabraEvolve255Coordinator : AbstractBLClassicDeviceCoordinator() {
             icon = R.drawable.ic_mtu,
         ) {
             deviceName()
-            multipointPairing()
+            if (supportsMultipointPairing()) {
+                multipointPairing()
+            }
         }
     }
 
     companion object {
-        private val DEVICE_CARD_ACTIONS = listOf(
-            deviceCardAction {
-                icon = { device ->
-                    val state = GBApplication.getDevicePrefs(device)
-                        .getBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, false)
-                    if (state) R.drawable.ic_hearing else R.drawable.ic_hearing_disabled
-                }
-                description = { _, context -> context.getString(R.string.prefs_active_noise_cancelling) }
-                onClick = { device, context ->
-                    val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
-                    val newState = !prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, false)
-                    prefs.edit().putBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, newState).apply()
-                    GBApplication.deviceService(device).onSendConfiguration(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE)
-                }
-            },
-            deviceCardAction {
-                icon = { device ->
-                    val state = GBApplication.getDevicePrefs(device)
-                        .getBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, false)
-                    if (state) R.drawable.ic_dnd else R.drawable.ic_dnd_disabled
-                }
-                description = { _, context -> context.getString(R.string.prefs_busylight) }
-                onClick = { device, context ->
-                    val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
-                    val newState = !prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, false)
-                    prefs.edit().putBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, newState).apply()
-                    GBApplication.deviceService(device).onSendConfiguration(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT)
-                }
-            },
-        )
+        private val DEVICE_CARD_ACTION_ANC = deviceCardAction {
+            icon = { device ->
+                val state = GBApplication.getDevicePrefs(device)
+                    .getBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, false)
+                if (state) R.drawable.ic_hearing else R.drawable.ic_hearing_disabled
+            }
+            description = { _, context -> context.getString(R.string.prefs_active_noise_cancelling) }
+            onClick = { device, _ ->
+                val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
+                val newState = !prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, false)
+                prefs.edit { putBoolean(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE, newState) }
+                GBApplication.deviceService(device).onSendConfiguration(DeviceSettingsPreferenceConst.PREF_ACTIVE_NOISE_CANCELLING_TOGGLE)
+            }
+        }
+        private val DEVICE_CARD_ACTION_BUSY_LIGHT = deviceCardAction {
+            icon = { device ->
+                val state = GBApplication.getDevicePrefs(device)
+                    .getBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, false)
+                if (state) R.drawable.ic_dnd else R.drawable.ic_dnd_disabled
+            }
+            description = { _, context -> context.getString(R.string.prefs_busylight) }
+            onClick = { device, _ ->
+                val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
+                val newState = !prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, false)
+                prefs.edit { putBoolean(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT, newState) }
+                GBApplication.deviceService(device).onSendConfiguration(DeviceSettingsPreferenceConst.PREF_BUSYLIGHT)
+            }
+        }
     }
 }

@@ -424,6 +424,8 @@ import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportiGS630SCoor
 import nodomain.freeyourgadget.gadgetbridge.devices.igpsport.IGPSportiGS800Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.itag.ITagCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve255Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve265Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.jabra.JabraEvolve65Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.BFH16DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.TeclastH30.TeclastH30Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.jyou.y5.Y5Coordinator;
@@ -1039,7 +1041,9 @@ public enum DeviceType {
     MOONDROP_SPACE_TRAVEL_2_ULTRA(MoondropSpaceTravel2UltraCoordinator.class),
     BOSE_QC35(QC35Coordinator.class),
     BOSE_NC700(NC700Coordinator.class),
+    JABRA_EVOLVE_65(JabraEvolve65Coordinator.class),
     JABRA_EVOLVE2_55(JabraEvolve255Coordinator.class),
+    JABRA_EVOLVE2_65(JabraEvolve265Coordinator.class),
     ONEMORE_SONOFLOW(OneMoreSonoFlowCoordinator.class),
     HONORBAND3(HonorBand3Coordinator.class),
     HONORBAND4(HonorBand4Coordinator.class),
