@@ -1009,7 +1009,7 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     }
 
     @Override
-    public void onReset(final int flags) {
+    public void onFactoryReset() {
         // Official app dissociation protocol (from btsnoop captures):
         // 1. Send command 0x0123 (dissociate product)
         // 2. Send command 0x0110 (unknown - possibly "forget pairing" or "factory reset")
