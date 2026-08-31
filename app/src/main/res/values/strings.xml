@@ -1328,6 +1328,8 @@
     <string name="simplified_chinese">Chinese (Simplified)</string>
     <string name="traditional_chinese">Chinese (Traditional)</string>
     <string name="chinese">Chinese</string>
+    <string name="mandarin">Mandarin</string>
+    <string name="cantonese">Cantonese</string>
     <string name="english">English</string>
     <string name="english_au">English (Australia)</string>
     <string name="english_ca">English (Canada)</string>
@@ -1335,6 +1337,7 @@
     <string name="english_in">English (India)</string>
     <string name="english_us">English (United States)</string>
     <string name="norwegian_bokmal">Norwegian Bokmål</string>
+    <string name="norwegian">Norwegian</string>
     <string name="spanish">Spanish</string>
     <string name="spanish_es">Spanish (Spain)</string>
     <string name="spanish_mx">Spanish (Mexico)</string>
@@ -1377,6 +1380,7 @@
     <string name="hungarian">Hungarian</string>
     <string name="greek">Greek</string>
     <string name="hebrew">Hebrew</string>
+    <string name="hindi">Hindi</string>
     <string name="swedish">Swedish</string>
     <string name="czesh">Czech</string>
     <string name="danish">Danish</string>
@@ -3488,6 +3492,7 @@
     <string name="prefs_active_noise_cancelling_level_comfort">Comfort</string>
     <string name="prefs_active_noise_cancelling_level_ultra">Ultra</string>
     <string name="prefs_active_noise_cancelling_level_dynamic">Dynamic</string>
+    <string name="prefs_voice_prompts_language">Voice prompt language</string>
     <string name="prefs_media_transport_controls_summary">Transport controls forwarded to the active source through the headphones</string>
     <string name="prefs_active_noise_cancelling_summary">Block noises of the surroundings</string>
     <string name="prefs_busylight_on_call">Busylight on active call</string>

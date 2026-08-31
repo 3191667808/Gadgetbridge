@@ -128,8 +128,10 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] firmwarePayload = getFirmwareVersion();
         final byte[] mediaControlCapabilitiesPayload = getMediaControlCapabilities();
         final byte[] multipointPayload = getMultipoint();
+        final byte[] voicePromptsPayload = getVoicePrompts();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
-                firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload}) {
+                firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload,
+                voicePromptsPayload}) {
             builder.write(payload);
         }
         if (deviceConfig.getCnc() != null) {
@@ -292,6 +294,27 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     broadcastMultipointStatus(multipoint);
                 }
                 break;
+            case FUNCTION_VOICE_PROMPTS:
+                final Boolean promptsEnabled = decodeVoicePromptsEnabled(payload);
+                final int language = decodeVoicePromptsLanguage(payload);
+                final Boolean promptsTogglable = decodeVoicePromptsTogglable(payload);
+                if (promptsEnabled != null) {
+                    syncBooleanPref(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS, promptsEnabled);
+                }
+                if (language >= 0) {
+                    syncStringPref(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS_LANGUAGE,
+                            String.valueOf(language));
+                }
+                if (promptsTogglable != null) {
+                    syncBooleanPref(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS_TOGGLABLE,
+                            promptsTogglable);
+                }
+                final int supportedMask = decodeVoicePromptsSupportedMask(payload);
+                if (supportedMask >= 0) {
+                    syncStringPref(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS_SUPPORTED,
+                            String.valueOf(supportedMask));
+                }
+                break;
             default:
                 break;
         }
@@ -313,6 +336,22 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
     }
 
+    private void syncStringPref(final String key, final String value) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (!value.equals(prefs.getString(key, null))) {
+            LOG.info("Syncing pref {} to {} from device", key, value);
+            prefs.edit().putString(key, value).apply();
+        }
+    }
+
+    private static int parsePrefInt(final String value, final int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (final NumberFormatException e) {
+            return fallback;
+        }
+    }
+
     private void broadcastMultipointStatus(final boolean enabled) {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_STATUS_UPDATE);
@@ -325,6 +364,8 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     @Override
     public void onSendConfiguration(@NonNull final String config) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+
         if (DeviceSettingsPreferenceConst.PREF_BOSE_CNC_LEVEL.equals(config)) {
             final TransactionBuilder builder = createTransactionBuilder("set CNC level");
             builder.write(encodeCnc());
@@ -332,6 +373,13 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         } else if (DeviceSettingsPreferenceConst.PREF_BOSE_ANR_LEVEL.equals(config)) {
             final TransactionBuilder builder = createTransactionBuilder("set ANR level");
             builder.write(encodeAnr());
+            builder.queue();
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS.equals(config)
+                || DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS_LANGUAGE.equals(config)) {
+            final boolean enabled = prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS, true);
+            final int language = parsePrefInt(prefs.getString(DeviceSettingsPreferenceConst.PREF_BOSE_VOICE_PROMPTS_LANGUAGE, "1"), 1);
+            final TransactionBuilder builder = createTransactionBuilder("set voice prompts");
+            builder.write(setVoicePrompts(enabled, language));
             builder.queue();
         } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY.equals(config)) {
             sendMediaControl(MEDIA_PLAY);

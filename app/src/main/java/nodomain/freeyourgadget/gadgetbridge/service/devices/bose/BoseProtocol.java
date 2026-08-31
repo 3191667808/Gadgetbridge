@@ -43,9 +43,13 @@ public final class BoseProtocol {
     public static final int FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK = 0x02;
 
     // Settings functions
+    public static final int FUNCTION_VOICE_PROMPTS = 0x03;
     public static final int FUNCTION_NOISE_CANCELLING = 0x05;
     public static final int FUNCTION_ANR = 0x06;
     public static final int FUNCTION_MULTIPOINT = 0x0a;
+
+    public static final int VOICE_PROMPTS_ENABLED_MASK = 0x20;
+    public static final int VOICE_PROMPTS_LANGUAGE_MASK = 0x1f;
 
     // Status functions
     public static final int FUNCTION_BATTERY = 0x02;
@@ -162,6 +166,16 @@ public final class BoseProtocol {
         return frame(BLOCK_SETTINGS, FUNCTION_MULTIPOINT, OP_SETGET, (byte) (enabled ? 1 : 0));
     }
 
+    public static byte[] getVoicePrompts() {
+        return frame(BLOCK_SETTINGS, FUNCTION_VOICE_PROMPTS, OP_GET);
+    }
+
+    public static byte[] setVoicePrompts(final boolean enabled, final int language) {
+        return frame(BLOCK_SETTINGS, FUNCTION_VOICE_PROMPTS, OP_SETGET,
+                (byte) ((enabled ? VOICE_PROMPTS_ENABLED_MASK : 0)
+                        | (language & VOICE_PROMPTS_LANGUAGE_MASK)));
+    }
+
     // Wire values: 0=Off, 1=High, 2=Wind, 3=Low.
     public static byte[] setAnr(final int level) {
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_SETGET, (byte) level);
@@ -209,6 +223,12 @@ public final class BoseProtocol {
         return level <= 3 ? level : -1;
     }
 
+    private static byte[] concat(final byte[] a, final byte[] b) {
+        final byte[] result = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, result, a.length, b.length);
+        return result;
+    }
+
     // Multipoint status flags: bit0 enabled, bit1 supported, bit2 disableSupported
     public static Boolean decodeMultipointEnabled(final byte[] payload) {
         if (payload.length < 1) {
@@ -229,6 +249,39 @@ public final class BoseProtocol {
             return null;
         }
         return (payload[0] & 0x04) != 0;
+    }
+
+    // Voice prompts status byte: (togglable << 7) | (default << 6) | (enabled << 5) | language
+    public static Boolean decodeVoicePromptsEnabled(final byte[] payload) {
+        if (payload.length < 1) {
+            return null;
+        }
+        return (payload[0] & VOICE_PROMPTS_ENABLED_MASK) != 0;
+    }
+
+    public static Boolean decodeVoicePromptsTogglable(final byte[] payload) {
+        if (payload.length < 1) {
+            return null;
+        }
+        return (payload[0] & 0x80) != 0;
+    }
+
+    public static int decodeVoicePromptsLanguage(final byte[] payload) {
+        if (payload.length < 1) {
+            return -1;
+        }
+        return payload[0] & VOICE_PROMPTS_LANGUAGE_MASK;
+    }
+
+    // Voice prompts status bytes 1-4: big-endian bitmask of supported language ids
+    public static int decodeVoicePromptsSupportedMask(final byte[] payload) {
+        if (payload.length < 5) {
+            return -1;
+        }
+        return ((payload[1] & 0xFF) << 24)
+                | ((payload[2] & 0xFF) << 16)
+                | ((payload[3] & 0xFF) << 8)
+                | (payload[4] & 0xFF);
     }
 
     public static byte[] getMediaControlCapabilities() {

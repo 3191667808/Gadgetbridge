@@ -667,6 +667,11 @@ public class DeviceSettingsPreferenceConst {
 
     public static final String PREF_BOSE_CNC_LEVEL = "bose_cnc_level";
     public static final String PREF_BOSE_ANR_LEVEL = "bose_anr_level";
+
+    public static final String PREF_BOSE_VOICE_PROMPTS = "bose_voice_prompts";
+    public static final String PREF_BOSE_VOICE_PROMPTS_LANGUAGE = "bose_voice_prompts_language";
+    public static final String PREF_BOSE_VOICE_PROMPTS_SUPPORTED = "bose_voice_prompts_supported";
+    public static final String PREF_BOSE_VOICE_PROMPTS_TOGGLABLE = "bose_voice_prompts_togglable";
     public static final String PREF_BOSE_MULTIPOINT_SUPPORTED = "bose_multipoint_supported";
     public static final String PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED = "bose_multipoint_disable_supported";
     public static final String PREF_BOSE_MEDIA_PLAY = "bose_media_play";

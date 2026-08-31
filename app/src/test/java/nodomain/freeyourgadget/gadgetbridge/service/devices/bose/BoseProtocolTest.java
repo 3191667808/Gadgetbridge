@@ -125,6 +125,22 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testVoicePrompts() {
+        assertHexEquals(hex("01 03 01 00"), BoseProtocol.getVoicePrompts());
+        assertHexEquals(hex("01 03 02 01 25"), BoseProtocol.setVoicePrompts(true, 5));
+        assertHexEquals(hex("01 03 02 01 00"), BoseProtocol.setVoicePrompts(false, 0));
+        Assert.assertEquals(Boolean.TRUE, BoseProtocol.decodeVoicePromptsEnabled(hex("21")));
+        Assert.assertEquals(1, BoseProtocol.decodeVoicePromptsLanguage(hex("21")));
+        Assert.assertEquals(Boolean.FALSE, BoseProtocol.decodeVoicePromptsEnabled(hex("0e")));
+        Assert.assertEquals(14, BoseProtocol.decodeVoicePromptsLanguage(hex("0e")));
+        Assert.assertEquals(Boolean.TRUE, BoseProtocol.decodeVoicePromptsTogglable(hex("a1")));
+        Assert.assertEquals(Boolean.FALSE, BoseProtocol.decodeVoicePromptsTogglable(hex("21")));
+        Assert.assertNull(BoseProtocol.decodeVoicePromptsEnabled(new byte[0]));
+        Assert.assertEquals(0x0001815E, BoseProtocol.decodeVoicePromptsSupportedMask(hex("a1 00 01 81 5e")));
+        Assert.assertEquals(-1, BoseProtocol.decodeVoicePromptsSupportedMask(hex("a1")));
+    }
+
+    @Test
     public void testDecodeBatteryLevel() {
         Assert.assertEquals(80, BoseProtocol.decodeBatteryLevel(hex("50 ff ff 00")));
         Assert.assertEquals(50, BoseProtocol.decodeBatteryLevel(hex("32")));
