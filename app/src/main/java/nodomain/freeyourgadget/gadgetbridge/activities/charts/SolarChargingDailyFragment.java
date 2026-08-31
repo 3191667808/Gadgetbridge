@@ -16,6 +16,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.activities.charts;
 
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_LUX_HOURS_KILO;
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MINUTES;
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_PERCENTAGE;
+
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -47,6 +51,7 @@ import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.WorkoutValueFormatter;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -64,8 +69,6 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
 
     protected int CHART_TEXT_COLOR;
     protected int LEGEND_TEXT_COLOR;
-    private static final float REFERENCE_LUX_AT_100_PERCENT = 50000f;
-    private static final long MAX_INTEGRATION_GAP_MILLIS = 5 * 60 * 1000L;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -131,6 +134,8 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
 
         if (!solarChargingData.todaySamples.isEmpty()) {
             final List<? extends SolarChargeSample> samples = solarChargingData.todaySamples;
+            totalLuxHours = SolarChargingStats.computeLuxHours(samples);
+            totalGainMillis = SolarChargingStats.computeGainMillis(samples);
             // Anchor the x-axis to the actual start of the displayed day (midnight), not the
             // first sample's own timestamp - solar charging has no readings overnight, so the
             // first sample can be hours after midnight, which would otherwise shift every
@@ -141,7 +146,6 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
                 if (sample.getPercent() > peakPercent) {
                     peakPercent = sample.getPercent();
                 }
-                totalGainMillis += sample.getGain();
                 final float x = (float) sample.getTimestamp() / 1000 - (float) referencedTimestamp / 1000;
 
                 if (sample.getPercent() > 0) {
@@ -166,15 +170,6 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
                         currentSegment.add(new Entry(x, 0f));
                     }
                     currentSegment = null;
-                }
-
-                if (i + 1 < samples.size()) {
-                    final long gapMillis = samples.get(i + 1).getTimestamp() - sample.getTimestamp();
-                    if (gapMillis > 0 && gapMillis <= MAX_INTEGRATION_GAP_MILLIS) {
-                        final double lux = (sample.getPercent() / 100.0) * REFERENCE_LUX_AT_100_PERCENT;
-                        final double gapHours = gapMillis / 3600000.0;
-                        totalLuxHours += lux * gapHours;
-                    }
                 }
             }
         }
@@ -203,9 +198,10 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
 
         solarChargingChart.setData(new LineData(lineDataSets));
 
-        solarChargingLuxHours.setText(String.format(Locale.getDefault(), "%.1fK", totalLuxHours / 1000.0));
-        solarChargingPeakIntensity.setText(String.format(Locale.getDefault(), "%.0f%%", peakPercent));
-        solarChargingBatteryGain.setText(String.format(Locale.getDefault(), "+ %d min", totalGainMillis / 60000L));
+        final WorkoutValueFormatter unitFormatter = new WorkoutValueFormatter();
+        solarChargingLuxHours.setText(String.format(Locale.getDefault(), "%.1f%s", totalLuxHours / 1000.0, unitFormatter.getStringResourceByName(UNIT_LUX_HOURS_KILO)));
+        solarChargingPeakIntensity.setText(String.format(Locale.getDefault(), "%.0f%s", peakPercent, unitFormatter.getStringResourceByName(UNIT_PERCENTAGE)));
+        solarChargingBatteryGain.setText(String.format(Locale.getDefault(), "+ %d %s", totalGainMillis / 60000L, unitFormatter.getStringResourceByName(UNIT_MINUTES)));
     }
 
     @Override

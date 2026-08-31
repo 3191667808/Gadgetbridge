@@ -158,7 +158,7 @@ open class DefaultChartsProvider : DeviceChartsProvider {
             "vo2max" -> VO2MaxCollectionFragment.newInstance(allowSwipe)
             "load" -> LoadFragment()
             "raceprediction" -> RacePredictionCollectionFragment.newInstance(allowSwipe)
-            "solarcharging" -> SolarChargingDailyFragment()
+            "solarcharging" -> SolarChargingCollectionFragment.newInstance(allowSwipe)
             "genericmetrics" -> GenericMetricCollectionFragment.newInstance(allowSwipe)
             "stress" -> StressCollectionFragment.newInstance(allowSwipe)
             "pai" -> PaiChartFragment()

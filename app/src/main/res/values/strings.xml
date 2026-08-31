@@ -1927,6 +1927,12 @@
     <string name="solar_charging_lux_hours">Lux hours</string>
     <string name="solar_charging_peak_intensity">Peak intensity</string>
     <string name="solar_charging_battery_gain">Battery gain</string>
+    <string name="solar_charging_lux_hours_avg">Lux hours AVG</string>
+    <string name="solar_charging_battery_gain_avg">Battery gain AVG</string>
+    <string name="solar_charging_lux_hours_total">Lux hours total</string>
+    <string name="solar_charging_battery_gain_total">Battery gain total</string>
+    <string name="minutes_unit">min</string>
+    <string name="lux_hours_unit">K</string>
     <string name="body_energy_legend_level">Body Energy Level</string>
     <string name="activity_type_biking">Biking</string>
     <string name="activity_type_treadmill">Treadmill</string>

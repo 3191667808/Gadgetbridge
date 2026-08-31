@@ -1,8 +1,9 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="nodomain.freeyourgadget.gadgetbridge.activities.charts.SolarChargingDailyFragment">
+    tools:context="nodomain.freeyourgadget.gadgetbridge.activities.charts.SolarChargingPeriodFragment">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -10,7 +11,7 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/solar_charging_date_view"
+            android:id="@+id/solar_charging_period_date_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="15dp"
@@ -34,7 +35,7 @@
                 android:layout_marginEnd="1dp">
 
                 <TextView
-                    android:id="@+id/solar_charging_lux_hours"
+                    android:id="@+id/solar_charging_period_lux_hours_total"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0.0K"
@@ -44,7 +45,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/solar_charging_lux_hours"
+                    android:text="@string/solar_charging_lux_hours_total"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -54,7 +55,7 @@
                 android:layout_marginStart="1dp">
 
                 <TextView
-                    android:id="@+id/solar_charging_battery_gain"
+                    android:id="@+id/solar_charging_period_battery_gain_total"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="+ 0 min"
@@ -64,7 +65,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/solar_charging_battery_gain"
+                    android:text="@string/solar_charging_battery_gain_total"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -74,24 +75,39 @@
                 android:layout_marginEnd="1dp">
 
                 <TextView
-                    android:id="@+id/solar_charging_peak_intensity"
+                    android:id="@+id/solar_charging_period_lux_hours_avg"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0%"
+                    android:text="0.0K"
                     android:textColor="?attr/textColorPrimary"
                     android:textSize="20sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/solar_charging_peak_intensity"
+                    android:text="@string/solar_charging_lux_hours_avg"
                     android:textSize="12sp" />
             </LinearLayout>
 
             <LinearLayout
                 style="@style/GridTile"
                 android:layout_marginTop="1dp"
-                android:layout_marginStart="1dp" />
+                android:layout_marginStart="1dp">
+
+                <TextView
+                    android:id="@+id/solar_charging_period_battery_gain_avg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+ 0 min"
+                    android:textColor="?attr/textColorPrimary"
+                    android:textSize="20sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/solar_charging_battery_gain_avg"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
         </GridLayout>
 
@@ -99,12 +115,22 @@
             android:layout_width="match_parent"
             android:layout_height="250sp">
 
-            <com.github.mikephil.charting.charts.LineChart
-                android:id="@+id/solar_charging_chart"
+            <com.github.mikephil.charting.charts.BarChart
+                android:id="@+id/solar_charging_period_chart"
                 android:layout_width="fill_parent"
                 android:layout_height="fill_parent"
                 android:layout_weight="2" />
         </LinearLayout>
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/solar_charging_period_chip_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginTop="10dp"
+            app:singleSelection="true"
+            app:selectionRequired="true" />
 
     </LinearLayout>
 
