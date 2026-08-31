@@ -108,6 +108,16 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 case MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES:
                     refreshPairedDevices();
                     break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE:
+                    if (address != null) {
+                        sendMultipointCommand("connect " + address, connectDevice(macToBytes(address)));
+                    }
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE:
+                    if (address != null) {
+                        sendMultipointCommand("disconnect " + address, disconnectDevice(macToBytes(address)));
+                    }
+                    break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_FORGET_DEVICE:
                     if (address != null) {
                         sendMultipointCommand("forget " + address, removeDevice(macToBytes(address)));
@@ -144,6 +154,8 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES);
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE);
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_FORGET_DEVICE);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
         LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, multipointFilter);
@@ -289,6 +301,27 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private void handleDeviceManagement(final int function, final int operator, final byte[] payload) {
         switch (function) {
+            case FUNCTION_CONNECT_DEVICE:
+                // Result is sent when the connection completes; Processing only acknowledges the start
+                if (operator == OP_RESULT) {
+                    LOG.info("Bose connect result: {}", StringUtils.bytesToHex(payload));
+                    if (payload.length >= 6) {
+                        onDeviceConnected(bytesToMac(payload, 0));
+                    }
+                } else if (operator == OP_PROCESSING) {
+                    LOG.debug("Bose connect in progress");
+                }
+                break;
+            case FUNCTION_DISCONNECT_DEVICE:
+                if (operator == OP_RESULT) {
+                    LOG.info("Bose disconnect result: {}", StringUtils.bytesToHex(payload));
+                    if (payload.length >= 6) {
+                        onDeviceDisconnected(bytesToMac(payload, 0));
+                    }
+                } else if (operator == OP_PROCESSING) {
+                    LOG.debug("Bose disconnect in progress");
+                }
+                break;
             case FUNCTION_PAIRING_MODE:
                 LOG.info("Bose pairing mode response: {}", StringUtils.bytesToHex(payload));
                 break;
@@ -343,6 +376,29 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             default:
                 break;
         }
+    }
+
+    private void onDeviceConnected(final String mac) {
+        final PairedDevice device = findDevice(mac);
+        if (device != null) {
+            knownDevices.put(device.mac, new PairedDevice(device.mac, true));
+            broadcastMultipointList();
+            return;
+        }
+        knownDevices.put(mac, new PairedDevice(mac, true));
+        broadcastMultipointList();
+        final TransactionBuilder builder = createTransactionBuilder("query device info");
+        builder.write(getDeviceInfo(macToBytes(mac)));
+        builder.queue();
+    }
+
+    private void onDeviceDisconnected(final String mac) {
+        final PairedDevice device = findDevice(mac);
+        if (device == null) {
+            return;
+        }
+        knownDevices.put(device.mac, new PairedDevice(device.mac, false));
+        broadcastMultipointList();
     }
 
     private void onDeviceRemoved(final String mac) {

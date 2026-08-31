@@ -255,6 +255,13 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testConnectDisconnectDevice() {
+        final byte[] mac = hex("aa:bb:cc:dd:ee:ff");
+        assertHexEquals(hex("04 01 05 07 00 aabbccddeeff"), BoseProtocol.connectDevice(mac));
+        assertHexEquals(hex("04 02 05 06 aabbccddeeff"), BoseProtocol.disconnectDevice(mac));
+    }
+
+    @Test
     public void testMediaControls() {
         assertHexEquals(hex("05 03 01 00"), BoseProtocol.getMediaControlCapabilities());
         assertHexEquals(hex("05 03 05 01 01"), BoseProtocol.mediaControl(BoseProtocol.MEDIA_PLAY));

@@ -64,6 +64,8 @@ public final class BoseProtocol {
     public static final int FUNCTION_FIRMWARE_VERSION = 0x05;
 
     // Device management functions
+    public static final int FUNCTION_CONNECT_DEVICE = 0x01;
+    public static final int FUNCTION_DISCONNECT_DEVICE = 0x02;
     public static final int FUNCTION_REMOVE_DEVICE = 0x03;
     public static final int FUNCTION_LIST_DEVICES = 0x04;
     public static final int FUNCTION_DEVICE_INFO = 0x05;
@@ -242,6 +244,15 @@ public final class BoseProtocol {
 
     public static byte[] removeDevice(final byte[] mac) {
         return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_REMOVE_DEVICE, OP_START, mac);
+    }
+
+    public static byte[] connectDevice(final byte[] mac) {
+        return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_CONNECT_DEVICE, OP_START,
+                concat(new byte[]{0x00}, mac));
+    }
+
+    public static byte[] disconnectDevice(final byte[] mac) {
+        return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_DISCONNECT_DEVICE, OP_START, mac);
     }
 
     public static byte[] listPairedDevices() {
