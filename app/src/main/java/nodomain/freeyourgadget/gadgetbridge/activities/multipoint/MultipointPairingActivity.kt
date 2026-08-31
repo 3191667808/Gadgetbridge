@@ -25,6 +25,7 @@ class MultipointPairingActivity : AbstractGBActivity() {
 
     private var devices = mutableListOf<MultipointDevice>()
     private var isMultipointEnabled = false
+    private var isMultipointDisableSupported = false
     private var pairingNewDevice = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,8 +38,8 @@ class MultipointPairingActivity : AbstractGBActivity() {
 
         initViews()
         setupRecyclerView()
-        updateUI()
         registerBroadcastReceiver()
+        updateUI()
         requestStatus()
         requestDeviceList()
     }
@@ -108,6 +109,10 @@ class MultipointPairingActivity : AbstractGBActivity() {
                 ACTION_MULTIPOINT_STATUS_UPDATE -> {
                     LOG.debug("Got multipoint status update")
                     isMultipointEnabled = intent.getBooleanExtra(EXTRA_MULTIPOINT_ENABLED, false)
+                    isMultipointDisableSupported = intent.getBooleanExtra(
+                        EXTRA_MULTIPOINT_DISABLE_SUPPORTED,
+                        false,
+                    )
                     updateUI()
                 }
 
@@ -148,7 +153,8 @@ class MultipointPairingActivity : AbstractGBActivity() {
     private fun updateUI() {
         binding.multipointEnabled.setOnCheckedChangeListener(null)
         binding.multipointEnabled.isChecked = isMultipointEnabled
-        binding.multipointEnabled.isEnabled = gbDevice.isInitialized
+        binding.multipointEnabled.isEnabled = gbDevice.isInitialized &&
+            (!isMultipointEnabled || isMultipointDisableSupported)
         binding.multipointEnabled.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked != isMultipointEnabled) {
                 toggleMultipoint(isChecked)
@@ -229,6 +235,7 @@ class MultipointPairingActivity : AbstractGBActivity() {
 
         const val EXTRA_DEVICE_LIST = "device_list"
         const val EXTRA_MULTIPOINT_ENABLED = "enabled"
+        const val EXTRA_MULTIPOINT_DISABLE_SUPPORTED = "disable_supported"
         const val EXTRA_PAIRING_ENABLED = "enabled"
         const val EXTRA_DEVICE_ADDRESS = "device_address"
     }

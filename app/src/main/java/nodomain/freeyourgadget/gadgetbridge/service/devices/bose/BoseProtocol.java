@@ -45,6 +45,7 @@ public final class BoseProtocol {
     // Settings functions
     public static final int FUNCTION_NOISE_CANCELLING = 0x05;
     public static final int FUNCTION_ANR = 0x06;
+    public static final int FUNCTION_MULTIPOINT = 0x0a;
 
     // Status functions
     public static final int FUNCTION_BATTERY = 0x02;
@@ -153,6 +154,14 @@ public final class BoseProtocol {
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_GET);
     }
 
+    public static byte[] getMultipoint() {
+        return frame(BLOCK_SETTINGS, FUNCTION_MULTIPOINT, OP_GET);
+    }
+
+    public static byte[] setMultipoint(final boolean enabled) {
+        return frame(BLOCK_SETTINGS, FUNCTION_MULTIPOINT, OP_SETGET, (byte) (enabled ? 1 : 0));
+    }
+
     // Wire values: 0=Off, 1=High, 2=Wind, 3=Low.
     public static byte[] setAnr(final int level) {
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_SETGET, (byte) level);
@@ -198,6 +207,28 @@ public final class BoseProtocol {
         }
         final int level = payload[0] & 0xFF;
         return level <= 3 ? level : -1;
+    }
+
+    // Multipoint status flags: bit0 enabled, bit1 supported, bit2 disableSupported
+    public static Boolean decodeMultipointEnabled(final byte[] payload) {
+        if (payload.length < 1) {
+            return null;
+        }
+        return (payload[0] & 0x01) != 0;
+    }
+
+    public static Boolean decodeMultipointSupported(final byte[] payload) {
+        if (payload.length < 1) {
+            return null;
+        }
+        return (payload[0] & 0x02) != 0;
+    }
+
+    public static Boolean decodeMultipointDisableSupported(final byte[] payload) {
+        if (payload.length < 1) {
+            return null;
+        }
+        return (payload[0] & 0x04) != 0;
     }
 
     public static byte[] getMediaControlCapabilities() {

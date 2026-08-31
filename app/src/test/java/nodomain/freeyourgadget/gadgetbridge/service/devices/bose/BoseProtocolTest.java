@@ -113,6 +113,18 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testDecodeMultipoint() {
+        assertHexEquals(hex("01 0a 01 00"), BoseProtocol.getMultipoint());
+        assertHexEquals(hex("01 0a 02 01 01"), BoseProtocol.setMultipoint(true));
+        assertHexEquals(hex("01 0a 02 01 00"), BoseProtocol.setMultipoint(false));
+        Assert.assertEquals(Boolean.TRUE, BoseProtocol.decodeMultipointEnabled(hex("07")));
+        Assert.assertEquals(Boolean.FALSE, BoseProtocol.decodeMultipointEnabled(hex("06")));
+        Assert.assertEquals(Boolean.TRUE, BoseProtocol.decodeMultipointSupported(hex("03")));
+        Assert.assertEquals(Boolean.FALSE, BoseProtocol.decodeMultipointDisableSupported(hex("03")));
+        Assert.assertEquals(Boolean.TRUE, BoseProtocol.decodeMultipointDisableSupported(hex("05")));
+    }
+
+    @Test
     public void testDecodeBatteryLevel() {
         Assert.assertEquals(80, BoseProtocol.decodeBatteryLevel(hex("50 ff ff 00")));
         Assert.assertEquals(50, BoseProtocol.decodeBatteryLevel(hex("32")));

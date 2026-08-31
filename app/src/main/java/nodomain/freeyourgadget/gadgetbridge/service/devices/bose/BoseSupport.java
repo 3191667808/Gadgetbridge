@@ -64,6 +64,18 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             }
 
             switch (intent.getAction()) {
+                case MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE:
+                    sendMultipointCommand("enable multipoint", setMultipoint(true));
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE:
+                    if (GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).getBoolean(
+                            DeviceSettingsPreferenceConst.PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED, false)) {
+                        sendMultipointCommand("disable multipoint", setMultipoint(false));
+                    }
+                    break;
+                case MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS:
+                    sendMultipointCommand("get multipoint", getMultipoint());
+                    break;
                 case MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING:
                     final boolean enabled = intent.getBooleanExtra(
                             MultipointPairingActivity.EXTRA_PAIRING_ENABLED, false);
@@ -89,6 +101,9 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         super.setContext(gbDevice, btAdapter, context);
         deviceConfig = ((AbstractBoseCoordinator) gbDevice.getDeviceCoordinator()).getDeviceConfig();
         final IntentFilter multipointFilter = new IntentFilter();
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_ENABLE);
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISABLE);
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
         LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, multipointFilter);
     }
@@ -112,8 +127,9 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] batteryPayload = getBattery();
         final byte[] firmwarePayload = getFirmwareVersion();
         final byte[] mediaControlCapabilitiesPayload = getMediaControlCapabilities();
+        final byte[] multipointPayload = getMultipoint();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
-                firmwarePayload, mediaControlCapabilitiesPayload}) {
+                firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload}) {
             builder.write(payload);
         }
         if (deviceConfig.getCnc() != null) {
@@ -149,6 +165,12 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] payload = Arrays.copyOfRange(frame, 4, frame.length);
 
         if (operator == OP_ERROR) {
+            if (block == BLOCK_SETTINGS && function == FUNCTION_MULTIPOINT) {
+                // Treat a multipoint error as enabled but not disableable.
+                syncBooleanPref(DeviceSettingsPreferenceConst.PREF_BOSE_MULTIPOINT_SUPPORTED, true);
+                syncBooleanPref(DeviceSettingsPreferenceConst.PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED, false);
+                return;
+            }
             LOG.warn("Bose BMAP error on block 0x{} function 0x{}: {}",
                     Integer.toHexString(block), Integer.toHexString(function),
                     StringUtils.bytesToHex(payload));
@@ -256,6 +278,20 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     syncIntPref(DeviceSettingsPreferenceConst.PREF_BOSE_ANR_LEVEL, anrLevel);
                 }
                 break;
+            case FUNCTION_MULTIPOINT:
+                final Boolean multipoint = decodeMultipointEnabled(payload);
+                final Boolean multipointSupported = decodeMultipointSupported(payload);
+                final Boolean multipointDisableSupported = decodeMultipointDisableSupported(payload);
+                if (multipoint != null && multipointSupported != null && multipointDisableSupported != null) {
+                    LOG.debug("Bose multipoint: enabled={} supported={} disableSupported={}",
+                            multipoint, multipointSupported, multipointDisableSupported);
+                    syncBooleanPref(DeviceSettingsPreferenceConst.PREF_BOSE_MULTIPOINT_SUPPORTED,
+                            multipointSupported);
+                    syncBooleanPref(DeviceSettingsPreferenceConst.PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED,
+                            multipointDisableSupported);
+                    broadcastMultipointStatus(multipoint);
+                }
+                break;
             default:
                 break;
         }
@@ -267,6 +303,24 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             LOG.info("Syncing pref {} to {} from device", key, value);
             prefs.edit().putInt(key, value).apply();
         }
+    }
+
+    private void syncBooleanPref(final String key, final boolean value) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getBoolean(key, true) != value) {
+            LOG.info("Syncing pref {} to {} from device", key, value);
+            prefs.edit().putBoolean(key, value).apply();
+        }
+    }
+
+    private void broadcastMultipointStatus(final boolean enabled) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_STATUS_UPDATE);
+        intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+        intent.putExtra(MultipointPairingActivity.EXTRA_MULTIPOINT_ENABLED, enabled);
+        intent.putExtra(MultipointPairingActivity.EXTRA_MULTIPOINT_DISABLE_SUPPORTED,
+                prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED, false));
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
     @Override
