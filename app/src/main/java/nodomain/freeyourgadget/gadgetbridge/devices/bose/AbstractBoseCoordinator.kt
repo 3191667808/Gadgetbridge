@@ -69,6 +69,13 @@ abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
             max = getMaxAnc(),
             connectedOnly = true,
         )
+        externalSettings(
+            key = DeviceSettingsPreferenceConst.PREF_MULTIPOINT,
+            title = R.string.bluetooth_multipoint_pairing,
+            icon = R.drawable.ic_bluetooth_searching,
+            connectedOnly = true,
+            activityClass = nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity::class.java,
+        )
         xmlScreen(
             DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS,
             R.xml.devicesettings_headphones,

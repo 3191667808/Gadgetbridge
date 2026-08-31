@@ -50,6 +50,9 @@ public class BoseProtocolTest {
     public void testEnableStatusNotifications() {
         assertHexEquals(hex("09 02 02 02 01 04"),
                 BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_STATUS));
+        assertHexEquals(hex("09 02 02 02 01 14"),
+                BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_STATUS,
+                        BoseProtocol.BLOCK_DEVICE_MANAGEMENT));
     }
 
     @Test
@@ -64,6 +67,12 @@ public class BoseProtocolTest {
         Assert.assertEquals(80, BoseProtocol.decodeBatteryLevel(hex("50 ff ff 00")));
         Assert.assertEquals(50, BoseProtocol.decodeBatteryLevel(hex("32")));
         Assert.assertEquals(-1, BoseProtocol.decodeBatteryLevel(new byte[0]));
+    }
+
+    @Test
+    public void testPairingMode() {
+        assertHexEquals(hex("04 08 05 01 01"), BoseProtocol.setPairingMode(true));
+        assertHexEquals(hex("04 08 05 01 00"), BoseProtocol.setPairingMode(false));
     }
 
     @Test

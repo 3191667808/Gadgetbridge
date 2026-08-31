@@ -28,6 +28,7 @@ public final class BoseProtocol {
     public static final int BLOCK_PRODUCT_INFO = 0x00;
     public static final int BLOCK_SETTINGS = 0x01;
     public static final int BLOCK_STATUS = 0x02;
+    public static final int BLOCK_DEVICE_MANAGEMENT = 0x04;
     public static final int BLOCK_NOTIFICATION = 0x09;
 
     // Operators
@@ -35,6 +36,7 @@ public final class BoseProtocol {
     public static final int OP_SETGET = 0x02;
     public static final int OP_STATUS = 0x03;
     public static final int OP_ERROR = 0x04;
+    public static final int OP_START = 0x05;
 
     // Notification functions
     public static final int FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK = 0x02;
@@ -47,6 +49,9 @@ public final class BoseProtocol {
 
     // Product info functions
     public static final int FUNCTION_INIT_HANDSHAKE = 0x01;
+
+    // Device management functions
+    public static final int FUNCTION_PAIRING_MODE = 0x08;
 
     public static final class Command {
         public final int block;
@@ -127,6 +132,11 @@ public final class BoseProtocol {
             level = 3;
         }
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_SETGET, (byte) level);
+    }
+
+    public static byte[] setPairingMode(final boolean enabled) {
+        return frame(BLOCK_DEVICE_MANAGEMENT, FUNCTION_PAIRING_MODE, OP_START,
+                (byte) (enabled ? 0x01 : 0x00));
     }
 
     /** Returns battery percentage, or -1 when absent. */

@@ -16,9 +16,15 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.bose;
 
+import android.bluetooth.BluetoothAdapter;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +35,7 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
@@ -43,6 +50,28 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private final BoseFrameParser frameParser = new BoseFrameParser();
 
+    private final BroadcastReceiver multipointReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, final Intent intent) {
+            final GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+            if (device == null || !getDevice().getAddress().equalsIgnoreCase(device.getAddress())) {
+                return;
+            }
+
+            switch (intent.getAction()) {
+                case MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING:
+                    final boolean enabled = intent.getBooleanExtra(
+                            MultipointPairingActivity.EXTRA_PAIRING_ENABLED, false);
+                    sendMultipointCommand(enabled ? "enter pairing mode" : "leave pairing mode",
+                            setPairingMode(enabled));
+                    broadcastMultipointPairing(enabled);
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
     public BoseSupport() {
         super(LOG, 1024);
         addSupportedService(UUID.fromString("00001101-0000-1000-8000-00805f9b34fb"));
@@ -50,9 +79,18 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     @Override
     public void setContext(@NonNull final GBDevice gbDevice,
-                           @NonNull final android.bluetooth.BluetoothAdapter btAdapter,
-                           @NonNull final android.content.Context context) {
+                           @NonNull final BluetoothAdapter btAdapter,
+                           @NonNull final Context context) {
         super.setContext(gbDevice, btAdapter, context);
+        final IntentFilter multipointFilter = new IntentFilter();
+        multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
+        LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, multipointFilter);
+    }
+
+    @Override
+    public void dispose() {
+        LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(multipointReceiver);
+        super.dispose();
     }
 
     @Override
@@ -63,7 +101,8 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         final byte[] connectPayload = connectHandshake();
-        final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_STATUS);
+        final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_STATUS,
+                BLOCK_DEVICE_MANAGEMENT);
         final byte[] batteryPayload = getBattery();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, encodeAnr(), batteryPayload}) {
             builder.write(payload);
@@ -103,22 +142,55 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             return;
         }
 
-        if (block == BLOCK_PRODUCT_INFO && function == FUNCTION_INIT_HANDSHAKE) {
-            LOG.debug("Bose init handshake response: {}", StringUtils.bytesToHex(payload));
-            return;
+        switch (block) {
+            case BLOCK_PRODUCT_INFO:
+                if (function == FUNCTION_INIT_HANDSHAKE) {
+                    LOG.debug("Bose init handshake response: {}", StringUtils.bytesToHex(payload));
+                }
+                break;
+            case BLOCK_STATUS:
+                if (function == FUNCTION_BATTERY && operator == OP_STATUS) {
+                    final int level = decodeBatteryLevel(payload);
+                    if (level >= 0 && level <= 100) {
+                        final GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
+                        batteryInfo.level = (short) level;
+                        batteryInfo.state = BatteryState.BATTERY_NORMAL;
+                        evaluateGBDeviceEvent(batteryInfo);
+                    } else {
+                        LOG.debug("Ignoring implausible battery level: {}", level);
+                    }
+                }
+                break;
+            case BLOCK_DEVICE_MANAGEMENT:
+                handleDeviceManagement(function, operator, payload);
+                break;
+            default:
+                LOG.debug("Ignoring Bose frame from unknown block 0x{}", Integer.toHexString(block));
+                break;
         }
+    }
 
-        if (block == BLOCK_STATUS && function == FUNCTION_BATTERY && operator == OP_STATUS) {
-            final int level = decodeBatteryLevel(payload);
-            if (level >= 0 && level <= 100) {
-                final GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
-                batteryInfo.level = (short) level;
-                batteryInfo.state = BatteryState.BATTERY_NORMAL;
-                evaluateGBDeviceEvent(batteryInfo);
-            } else {
-                LOG.debug("Ignoring implausible battery level: {}", level);
-            }
+    private void handleDeviceManagement(final int function, final int operator, final byte[] payload) {
+        switch (function) {
+            case FUNCTION_PAIRING_MODE:
+                LOG.info("Bose pairing mode response: {}", StringUtils.bytesToHex(payload));
+                break;
+            default:
+                break;
         }
+    }
+
+    private void sendMultipointCommand(final String name, final byte[] command) {
+        final TransactionBuilder builder = createTransactionBuilder(name);
+        builder.write(command);
+        builder.queue();
+    }
+
+    private void broadcastMultipointPairing(final boolean enabled) {
+        final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_PAIRING_UPDATE);
+        intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+        intent.putExtra(MultipointPairingActivity.EXTRA_PAIRING_ENABLED, enabled);
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
     @Override
