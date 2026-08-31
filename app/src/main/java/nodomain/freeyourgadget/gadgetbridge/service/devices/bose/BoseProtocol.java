@@ -68,6 +68,7 @@ public final class BoseProtocol {
     public static final int FUNCTION_PAIRING_MODE = 0x08;
 
     // Audio management functions
+    public static final int FUNCTION_SOURCE = 0x01;
     public static final int FUNCTION_MEDIA_CONTROL = 0x03;
 
     // Active source types
@@ -481,6 +482,29 @@ public final class BoseProtocol {
 
     public static boolean isMediaControlSupported(final int capabilities, final int action) {
         return action >= 0 && action < Integer.SIZE && (capabilities & (1 << action)) != 0;
+    }
+
+    public static byte[] getSourceInfo() {
+        return frame(BLOCK_AUDIO_MANAGEMENT, FUNCTION_SOURCE, OP_GET);
+    }
+
+    // Source payload: [supportedBitset(2), activeType, mac(6)?] - MAC only when the active type is Bluetooth
+    public static String decodeActiveSourceMac(final byte[] payload) {
+        if (payload.length < 3) {
+            return null;
+        }
+        final int activeType = payload[2] & 0xFF;
+        if (activeType != SOURCE_BLUETOOTH || payload.length < 9) {
+            return null;
+        }
+        return bytesToMac(payload, 3);
+    }
+
+    public static int decodeActiveSourceType(final byte[] payload) {
+        if (payload.length < 3) {
+            return SOURCE_NONE;
+        }
+        return payload[2] & 0xFF;
     }
 
     /** Buffers incomplete data and returns complete frames. */

@@ -66,6 +66,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
     private final Map<String, String> pairedDeviceNames = new LinkedHashMap<>();
     private final Map<String, PairedDevice> knownDevices = new LinkedHashMap<>();
+    private String activeSourceMac;
 
     private final BroadcastReceiver a2dpReceiver = new BroadcastReceiver() {
         @Override
@@ -170,9 +171,11 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final byte[] standbyTimerPayload = getStandbyTimer();
         final byte[] buttonsPayload = getButtons();
         final byte[] listDevicesPayload = listPairedDevices();
+        final byte[] sourcePayload = getSourceInfo();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
                 firmwarePayload, mediaControlCapabilitiesPayload, multipointPayload,
-                voicePromptsPayload, standbyTimerPayload, buttonsPayload, listDevicesPayload}) {
+                voicePromptsPayload, standbyTimerPayload, buttonsPayload, listDevicesPayload,
+                sourcePayload}) {
             builder.write(payload);
         }
         if (deviceConfig.getCnc() != null) {
@@ -253,8 +256,27 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void handleAudioManagement(final int function, final int operator, final byte[] payload) {
-        if (function == FUNCTION_MEDIA_CONTROL) {
-            LOG.debug("Bose media control response: {}", StringUtils.bytesToHex(payload));
+        switch (function) {
+            case FUNCTION_SOURCE:
+                if (operator == OP_STATUS || operator == OP_RESULT) {
+                    final int type = decodeActiveSourceType(payload);
+                    final String mac = decodeActiveSourceMac(payload);
+                    if (mac != null) {
+                        LOG.info("Bose active source: Bluetooth {}", mac);
+                        activeSourceMac = mac;
+                    } else {
+                        final String typeName = type == SOURCE_AUXILIARY ? "auxiliary" : "none";
+                        LOG.info("Bose active source: {}", typeName);
+                        activeSourceMac = null;
+                    }
+                    broadcastMultipointList();
+                }
+                break;
+            case FUNCTION_MEDIA_CONTROL:
+                LOG.debug("Bose media control response: {}", StringUtils.bytesToHex(payload));
+                break;
+            default:
+                break;
         }
     }
 
@@ -312,6 +334,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
         final TransactionBuilder builder = createTransactionBuilder("refresh paired devices");
         builder.write(listPairedDevices());
+        builder.write(getSourceInfo());
         builder.queue();
     }
 
@@ -321,7 +344,8 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             devices.add(new MultipointDevice(
                     device.mac,
                     pairedDeviceNames.get(device.mac),
-                    device.connected
+                    device.connected,
+                    device.mac.equalsIgnoreCase(activeSourceMac)
             ));
         }
         devices.sort((a, b) -> {
@@ -373,7 +397,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     private void handleSettings(final int function, final int operator, final byte[] payload) {
-        if (operator != OP_STATUS) {
+        if (operator != OP_STATUS && operator != OP_RESULT) {
             return;
         }
         switch (function) {

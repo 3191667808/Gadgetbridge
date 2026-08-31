@@ -222,6 +222,21 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testDecodeActiveSource() {
+        final byte[] payload = hex("03 00 01 aa bb cc dd ee ff");
+        Assert.assertEquals(BoseProtocol.SOURCE_BLUETOOTH, BoseProtocol.decodeActiveSourceType(payload));
+        Assert.assertEquals("AA:BB:CC:DD:EE:FF", BoseProtocol.decodeActiveSourceMac(payload));
+
+        final byte[] aux = hex("03 00 02");
+        Assert.assertEquals(BoseProtocol.SOURCE_AUXILIARY, BoseProtocol.decodeActiveSourceType(aux));
+        Assert.assertNull(BoseProtocol.decodeActiveSourceMac(aux));
+
+        final byte[] none = hex("03 00 00");
+        Assert.assertEquals(BoseProtocol.SOURCE_NONE, BoseProtocol.decodeActiveSourceType(none));
+        Assert.assertNull(BoseProtocol.decodeActiveSourceMac(none));
+    }
+
+    @Test
     public void testDecodeBatteryLevel() {
         Assert.assertEquals(80, BoseProtocol.decodeBatteryLevel(hex("50 ff ff 00")));
         Assert.assertEquals(50, BoseProtocol.decodeBatteryLevel(hex("32")));

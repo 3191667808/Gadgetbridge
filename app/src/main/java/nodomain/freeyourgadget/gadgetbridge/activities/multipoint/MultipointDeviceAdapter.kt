@@ -39,7 +39,11 @@ class MultipointDeviceAdapter(
         val context = holder.itemView.context
 
         holder.deviceName.text = device.name ?: context.getString(R.string.unknown)
-        holder.deviceAddress.text = device.address
+        holder.deviceAddress.text = if (device.isActive) {
+            context.getString(R.string.bluetooth_multipoint_active_device, device.address)
+        } else {
+            device.address
+        }
 
         val (icon, buttonText, action) = if (device.isConnected) {
             Triple(
