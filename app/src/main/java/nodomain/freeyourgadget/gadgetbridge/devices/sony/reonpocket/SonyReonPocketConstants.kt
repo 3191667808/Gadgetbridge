@@ -57,27 +57,14 @@ object SonyReonPocketConstants {
     const val PREF_OWNER_ID_SALT = "pref_sony_reon_pocket_owner_id_salt"
 
     val SERVICE_UUID: UUID = UUID.fromString("04ca1501-fd57-404e-8459-c5ef8d765c8d")
-
-    const val HANDLE_DEVICE_MODE = 0x001a
-    const val HANDLE_UNPAIR = 0x0027
-    const val HANDLE_BATTERY_LEVEL = 0x0032
-
-    // Vendor initialization handshake, mirrored from the original app. The fixed authentication
-    // token must be written before any CCCD is enabled, otherwise the descriptor writes are never
-    // acknowledged and the connection stays stuck in "connecting".
-    const val HANDLE_OWNER_AUTHENTICATION = 0x002b
-
-    // Feature enable characteristic (constant payload observed on every connection).
-    const val HANDLE_TAG_AUTHENTICATION = 0x0021
-
-    // Auto Start/Stop control characteristic (register 0x1f).
-    const val HANDLE_AUTO_START_STOP = 0x001f
-
-    // Time sync: <epoch u32 little-endian><timezone offset minutes u16 little-endian>.
-    const val HANDLE_CURRENT_TIME = 0x0018
-
-    // Telemetry characteristic 04ca1581: notifies 8 int16 big-endian temperatures (centi-Celsius).
-    const val HANDLE_TEMPERATURE_HUMIDITY = 0x002f
+    val UUID_CHARACTERISTIC_CURRENT_TIME: UUID = UUID.fromString("04ca1502-fd57-404e-8459-c5ef8d765c8d") // 0x0018
+    val UUID_CHARACTERISTIC_DEVICE_MODE: UUID = UUID.fromString("04ca1503-fd57-404e-8459-c5ef8d765c8d") // 0x001a
+    val UUID_CHARACTERISTIC_AUTO_START_STOP: UUID = UUID.fromString("04ca1505-fd57-404e-8459-c5ef8d765c8d") // 0x001f
+    val UUID_CHARACTERISTIC_TAG_AUTHENTICATION: UUID = UUID.fromString("04ca1506-fd57-404e-8459-c5ef8d765c8d") // 0x0021
+    val UUID_CHARACTERISTIC_UNPAIR: UUID = UUID.fromString("04ca1508-fd57-404e-8459-c5ef8d765c8d") // 0x0027
+    val UUID_CHARACTERISTIC_OWNER_AUTHENTICATION: UUID = UUID.fromString("04ca150a-fd57-404e-8459-c5ef8d765c8d") // 0x002b
+    val UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY: UUID = UUID.fromString("04ca1581-fd57-404e-8459-c5ef8d765c8d") // 0x002f
+    val UUID_CHARACTERISTIC_BATTERY_LEVEL: UUID = UUID.fromString("04ca1582-fd57-404e-8459-c5ef8d765c8d") // 0x0032
 
     private const val COMMAND_MANUAL_COLD = "000000030000000000000000"
     private const val COMMAND_MANUAL_HEAT = "000000040000000000000000"
@@ -105,11 +92,11 @@ object SonyReonPocketConstants {
     const val SMART_AUTO_THRESHOLD_WARM_DEFAULT = 20.0
     private const val COMMAND_FEATURE = "020200000000000001"
 
-    // Auto Start/Stop feature. Characteristic value at handle 0x001f: 0180 = enabled, 00 = disabled.
+    // Auto Start/Stop feature. Auto Start/Stop characteristic value: 0180 = enabled, 00 = disabled.
     private const val COMMAND_AUTO_START_STOP_ON = "0180"
     private const val COMMAND_AUTO_START_STOP_OFF = "00"
 
-    // Smart mode intensity levels (0 = lowest, 4 = highest), written to handle 0x001a.
+    // Smart mode intensity levels (0 = lowest, 4 = highest), written to the mode characteristic.
     const val INTENSITY_LEVELS = 5
     private val COMMANDS_INTENSITY_COLD = arrayOf(
         "040000100000010b548000000080800000000000",
@@ -126,7 +113,7 @@ object SonyReonPocketConstants {
         "0400002000005080001068000080800000000000",
     )
 
-    // byte[3] of the mode characteristic (handle 0x001a) encodes both dimensions at once.
+    // byte[3] of the mode characteristic encodes both dimensions at once.
     const val MODE_BYTE_MANUAL_COOL_ACTIVE = 0x01
     const val MODE_BYTE_MANUAL_HEAT_ACTIVE = 0x02
     const val MODE_BYTE_MANUAL_COLD = 0x03
@@ -139,7 +126,7 @@ object SonyReonPocketConstants {
     const val MODE_BYTE_SMART_AUTO = 0x30
     const val MODE_BYTE_SMART_AUTO_ACTIVE = 0x31
 
-    // Manual power levels (0 = stop, 1..5 = increasing power), written to handle 0x001a.
+    // Manual power levels (0 = stop, 1..5 = increasing power), written to the mode characteristic.
     const val MANUAL_LEVELS = 5
     // Owner ID (auth): the 16 identifying bytes persisted per device.
     const val OWNER_ID_LENGTH = 16
@@ -214,7 +201,7 @@ object SonyReonPocketConstants {
         return command
     }
 
-    /** Factory reset: single 0xff byte written to handle 0x0027 (same as unpair). */
+    /** Factory reset: single 0xff byte written to the unpair characteristic. */
     fun commandFactoryReset(): ByteArray = byteArrayOf(0xff.toByte())
 
     fun commandAutoStartStop(enabled: Boolean): ByteArray = GB.hexStringToByteArray(
@@ -266,5 +253,4 @@ object SonyReonPocketConstants {
         ((timezoneOffsetMinutes shr 8) and 0xff).toByte(),
     )
 
-    fun commandUnpair(): ByteArray = byteArrayOf(0xff.toByte())
 }

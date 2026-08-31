@@ -61,10 +61,6 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private var tagScanCallback: ScanCallback? = null
     private var tagScanTimeout: Runnable? = null
 
-    // The Reon Pocket protocol addresses its vendor characteristics by ATT handle (instance id)
-    // rather than UUID, so we build a handle -> characteristic map once the services are discovered.
-    private val characteristicsByHandle = mutableMapOf<Int, BluetoothGattCharacteristic>()
-
     init {
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ACCESS)
         addSupportedService(GattService.UUID_SERVICE_GENERIC_ATTRIBUTE)
@@ -74,21 +70,6 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     override fun useAutoConnect(): Boolean = false
 
-    override fun onServicesDiscovered(gatt: BluetoothGatt) {
-        // Populate the handle map before super triggers initializeDevice(), which resolves
-        // characteristics by handle.
-        characteristicsByHandle.clear()
-        for (service in gatt.services) {
-            for (characteristic in service.characteristics) {
-                characteristicsByHandle[characteristic.instanceId] = characteristic
-            }
-        }
-        super.onServicesDiscovered(gatt)
-    }
-
-    private fun getCharacteristicByHandle(handle: Int): BluetoothGattCharacteristic? =
-        characteristicsByHandle[handle]
-
     override fun initializeDevice(builder: TransactionBuilder): TransactionBuilder {
         builder.setDeviceState(GBDevice.State.INITIALIZING)
 
@@ -97,10 +78,10 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         // Vendor handshake: the authentication token and feature write must precede any CCCD write,
         // otherwise the descriptor writes are never acknowledged and initialization stalls.
         builder.setDeviceState(GBDevice.State.AUTHENTICATING)
-        writeToHandle(builder, SonyReonPocketConstants.HANDLE_OWNER_AUTHENTICATION, SonyReonPocketConstants.commandAuth(ownerId))
+        builder.write(SonyReonPocketConstants.UUID_CHARACTERISTIC_OWNER_AUTHENTICATION, *SonyReonPocketConstants.commandAuth(ownerId))
         builder.setDeviceState(GBDevice.State.INITIALIZING)
-        writeToHandle(builder, SonyReonPocketConstants.HANDLE_TAG_AUTHENTICATION, SonyReonPocketConstants.commandFeature())
-        writeToHandle(builder, SonyReonPocketConstants.HANDLE_CURRENT_TIME, buildTimeSyncCommand())
+        builder.write(SonyReonPocketConstants.UUID_CHARACTERISTIC_TAG_AUTHENTICATION, *SonyReonPocketConstants.commandFeature())
+        builder.write(SonyReonPocketConstants.UUID_CHARACTERISTIC_CURRENT_TIME, *buildTimeSyncCommand())
 
         builder.read(GattCharacteristic.UUID_CHARACTERISTIC_MODEL_NUMBER_STRING)
         builder.read(GattCharacteristic.UUID_CHARACTERISTIC_SERIAL_NUMBER_STRING)
@@ -108,29 +89,29 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
         // The Reon Pocket Pro does not expose the standard Battery Service. Battery (as a percentage)
         // and the temperature telemetry are custom characteristics that notify after the handshake.
-        subscribe(builder, SonyReonPocketConstants.HANDLE_BATTERY_LEVEL)
-        subscribe(builder, SonyReonPocketConstants.HANDLE_TEMPERATURE_HUMIDITY)
+        builder.notify(SonyReonPocketConstants.UUID_CHARACTERISTIC_BATTERY_LEVEL, true)
+        builder.notify(SonyReonPocketConstants.UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY, true)
 
         // The cooling/heating mode characteristic reports the current smart direction (heat vs cool),
         // used to keep the quick action icon in sync with the device.
-        subscribe(builder, SonyReonPocketConstants.HANDLE_DEVICE_MODE)
+        builder.notify(SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, true)
 
         // The Auto Start/Stop control characteristic notifies its state in response to a query.
-        subscribe(builder, SonyReonPocketConstants.HANDLE_AUTO_START_STOP)
+        builder.notify(SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP, true)
 
-        builder.read(getCharacteristicByHandle(SonyReonPocketConstants.HANDLE_BATTERY_LEVEL))
-        builder.read(getCharacteristicByHandle(SonyReonPocketConstants.HANDLE_TEMPERATURE_HUMIDITY))
-        builder.read(getCharacteristicByHandle(SonyReonPocketConstants.HANDLE_DEVICE_MODE))
+        builder.read(SonyReonPocketConstants.UUID_CHARACTERISTIC_BATTERY_LEVEL)
+        builder.read(SonyReonPocketConstants.UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY)
+        builder.read(SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE)
 
         // Read the current Auto Start/Stop state so the switch reflects the device on connect.
-        builder.read(getCharacteristicByHandle(SonyReonPocketConstants.HANDLE_AUTO_START_STOP))
+        builder.read(SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP)
 
         // The Pocket forgets any registered tag on disconnect, so re-register the stored tag address
         // here to keep its telemetry flowing across reconnects.
         val tagAddress = devicePrefs.preferences.getString(SonyReonPocketConstants.PREF_TAG_ADDRESS, "").orEmpty().trim()
         if (tagAddress.isNotEmpty()) {
             try {
-                writeToHandle(builder, SonyReonPocketConstants.HANDLE_TAG_AUTHENTICATION, SonyReonTagConstants.commandRegisterTag(tagAddress))
+                builder.write(SonyReonPocketConstants.UUID_CHARACTERISTIC_TAG_AUTHENTICATION, *SonyReonTagConstants.commandRegisterTag(tagAddress))
             } catch (e: IllegalArgumentException) {
                 LOG.warn("Sony Reon Pocket Pro re-register tag: invalid stored address '{}'", tagAddress, e)
             }
@@ -140,23 +121,6 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         return builder
     }
 
-    private fun writeToHandle(builder: TransactionBuilder, handle: Int, value: ByteArray) {
-        val characteristic = getCharacteristicByHandle(handle)
-        if (characteristic == null) {
-            LOG.warn("Sony Reon Pocket Pro no characteristic for ATT handle 0x{}", Integer.toHexString(handle))
-            return
-        }
-        builder.write(characteristic, *value)
-    }
-
-    private fun subscribe(builder: TransactionBuilder, handle: Int) {
-        val characteristic = getCharacteristicByHandle(handle)
-        if (characteristic == null) {
-            LOG.warn("Sony Reon Pocket Pro cannot subscribe, no characteristic for ATT handle 0x{}", Integer.toHexString(handle))
-            return
-        }
-        builder.notify(characteristic, true)
-    }
 
     private fun buildTimeSyncCommand(): ByteArray {
         val epochSeconds = System.currentTimeMillis() / 1000L
@@ -218,10 +182,10 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             return true
         }
 
-        // The vendor auth write (handle 0x002b) fails with an ATT application error (0x81) when the
+        // The vendor auth write (owner authentication characteristic) fails with an ATT application error (0x81) when the
         // device is not in pairing mode. Surface a clear message so the user knows to put the Reon
         // Pocket into pairing mode (hold SMART ~15s until it blinks fast) and reconnect.
-        if (characteristic.instanceId == SonyReonPocketConstants.HANDLE_OWNER_AUTHENTICATION &&
+        if (characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_OWNER_AUTHENTICATION &&
             status != BluetoothGatt.GATT_SUCCESS
         ) {
             LOG.warn("Sony Reon Pocket Pro authentication failed (status={}), pairing mode required", status)
@@ -251,16 +215,16 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         }
 
         return when {
-            characteristic.instanceId == SonyReonPocketConstants.HANDLE_BATTERY_LEVEL -> {
+            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_BATTERY_LEVEL -> {
                 handleBatteryLevel(value); true
             }
-            characteristic.instanceId == SonyReonPocketConstants.HANDLE_TEMPERATURE_HUMIDITY -> {
+            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY -> {
                 handleTelemetry(value); true
             }
-            characteristic.instanceId == SonyReonPocketConstants.HANDLE_DEVICE_MODE -> {
+            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE -> {
                 handleCoolingMode(value); true
             }
-            characteristic.instanceId == SonyReonPocketConstants.HANDLE_AUTO_START_STOP -> {
+            characteristic.uuid == SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP -> {
                 handleAutoStartStopStatus(value); true
             }
             GattCharacteristic.UUID_CHARACTERISTIC_MODEL_NUMBER_STRING == characteristicUuid -> {
@@ -299,11 +263,11 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             return true
         }
 
-        return when (characteristic.instanceId) {
-            SonyReonPocketConstants.HANDLE_BATTERY_LEVEL -> { handleBatteryLevel(value); true }
-            SonyReonPocketConstants.HANDLE_TEMPERATURE_HUMIDITY -> { handleTelemetry(value); true }
-            SonyReonPocketConstants.HANDLE_DEVICE_MODE -> { handleCoolingMode(value); true }
-            SonyReonPocketConstants.HANDLE_AUTO_START_STOP -> { handleAutoStartStopStatus(value); true }
+        return when (characteristic.uuid) {
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_BATTERY_LEVEL -> { handleBatteryLevel(value); true }
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_TEMPERATURE_HUMIDITY -> { handleTelemetry(value); true }
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE -> { handleCoolingMode(value); true }
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP -> { handleAutoStartStopStatus(value); true }
             else -> false
         }
     }
@@ -326,7 +290,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     /**
-     * Parses the telemetry characteristic (handle 0x002f). Layout: 1 source byte (0x00 on read,
+     * Parses the telemetry characteristic (telemetry characteristic). Layout: 1 source byte (0x00 on read,
      * 0x01 on notification, 0x02 for the status/config frame) followed by 8 big-endian int16
      * temperatures expressed in centi-degrees Celsius (0xFFFF meaning "no reading"). The mapping of
      * each sensor to a physical location is not yet confirmed, so values are only logged for now.
@@ -357,7 +321,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     /**
-     * Parses a Reon Tag (RNPT-1) telemetry subframe relayed through the Pocket (handle 0x002f,
+     * Parses a Reon Tag (RNPT-1) telemetry subframe relayed through the Pocket (telemetry characteristic,
      * subframe 0x02) and persists the tag's temperature, humidity and battery so the settings screen
      * can display them.
      */
@@ -393,7 +357,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     /**
-     * Parses the cooling/heating mode characteristic (handle 0x001a). byte[3] encodes the smart vs
+     * Parses the cooling/heating mode characteristic (mode characteristic). byte[3] encodes the smart vs
      * manual state and the heat vs cold direction (0x01 = manual cold active, 0x02 = manual heat
      * active, 0x03 = manual cold stop, 0x04 = manual heat stop, 0x10 = smart cold, 0x20 = smart
      * heat). byte[4] carries the manual power level (level - 1) when active. The result is persisted
@@ -618,7 +582,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 } else {
                     SonyReonPocketConstants.commandMode(true, heatMode)
                 }
-                if (!writeHandle("stop smart", SonyReonPocketConstants.HANDLE_DEVICE_MODE, stopCommand, false)) {
+                if (!writeCharacteristic("stop smart", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, stopCommand, false)) {
                     expectingManualFrame = false
                     return
                 }
@@ -641,7 +605,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             }
         }
 
-        if (!writeHandle("cycle mode", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+        if (!writeCharacteristic("cycle mode", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
             return
         }
 
@@ -659,7 +623,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             // Manual mode is running: simple cold <-> heat toggle (auto is a smart-only mode).
             val newHeatMode = !preferences.getBoolean(SonyReonPocketConstants.PREF_HEAT_MODE, false)
             val level = preferences.getInt(SonyReonPocketConstants.PREF_MANUAL_POWER, 0)
-            if (!writeHandle("toggle heat/cold", SonyReonPocketConstants.HANDLE_DEVICE_MODE, SonyReonPocketConstants.commandManual(newHeatMode, level), false)) {
+            if (!writeCharacteristic("toggle heat/cold", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, SonyReonPocketConstants.commandManual(newHeatMode, level), false)) {
                 return
             }
             preferences.edit().putBoolean(SonyReonPocketConstants.PREF_HEAT_MODE, newHeatMode).apply()
@@ -697,7 +661,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 )
                 SonyReonPocketConstants.commandSmartAuto(coolThreshold, warmThreshold)
             }
-            if (!writeHandle("toggle heat/cold", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+            if (!writeCharacteristic("toggle heat/cold", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
                 return
             }
             preferences.edit().putBoolean(SonyReonPocketConstants.PREF_SMART_AUTO, true).apply()
@@ -721,7 +685,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         } else {
             SonyReonPocketConstants.commandMode(true, heatMode)
         }
-        if (!writeHandle("toggle heat/cold", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+        if (!writeCharacteristic("toggle heat/cold", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
             return
         }
         preferences.edit()
@@ -748,9 +712,9 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     private fun setAutoStartStop() {
         val enabled = devicePrefs.preferences.getBoolean(SonyReonPocketConstants.PREF_AUTO_START_STOP, false)
-        writeHandle(
+        writeCharacteristic(
             "auto start/stop",
-            SonyReonPocketConstants.HANDLE_AUTO_START_STOP,
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_AUTO_START_STOP,
             SonyReonPocketConstants.commandAutoStartStop(enabled),
             false
         )
@@ -762,7 +726,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         val heatMode = preferences.getBoolean(SonyReonPocketConstants.PREF_HEAT_MODE, false)
         val command = SonyReonPocketConstants.commandIntensity(heatMode, level + 1)
 
-        if (!writeHandle("intensity", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+        if (!writeCharacteristic("intensity", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
             return
         }
 
@@ -781,7 +745,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         val heatMode = preferences.getBoolean(SonyReonPocketConstants.PREF_HEAT_MODE, false)
         val command = SonyReonPocketConstants.commandManual(heatMode, level)
 
-        if (!writeHandle("manual power", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+        if (!writeCharacteristic("manual power", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
             return
         }
 
@@ -808,7 +772,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             val current = preferences.getInt(SonyReonPocketConstants.PREF_INTENSITY, 0) + 1
             val next = if (current >= SonyReonPocketConstants.INTENSITY_LEVELS) 1 else current + 1
             val command = SonyReonPocketConstants.commandSmartStart(heatMode, next)
-            if (!writeHandle("cycle intensity", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+            if (!writeCharacteristic("cycle intensity", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
                 return
             }
             preferences.edit()
@@ -818,7 +782,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             val current = preferences.getInt(SonyReonPocketConstants.PREF_MANUAL_POWER, 0)
             val next = if (current >= SonyReonPocketConstants.MANUAL_LEVELS) 1 else current + 1
             val command = SonyReonPocketConstants.commandManual(heatMode, next)
-            if (!writeHandle("cycle manual power", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)) {
+            if (!writeCharacteristic("cycle manual power", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)) {
                 return
             }
             preferences.edit()
@@ -830,7 +794,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     /**
-     * Parses the Auto Start/Stop characteristic value (handle 0x001f): 0180 = enabled, 00 =
+     * Parses the Auto Start/Stop characteristic value : 0180 = enabled, 00 =
      * disabled. The result is persisted so the settings switch reflects the actual device state.
      */
     private fun handleAutoStartStopStatus(value: ByteArray) {
@@ -851,14 +815,14 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     private fun sendUnpairCommand() {
-        if (writeHandle("unpair", SonyReonPocketConstants.HANDLE_UNPAIR, SonyReonPocketConstants.commandUnpair(), true)) {
+        if (writeCharacteristic("unpair", SonyReonPocketConstants.UUID_CHARACTERISTIC_UNPAIR, SonyReonPocketConstants.commandFactoryReset(), true)) {
             waitForUnpairCommand()
         }
     }
 
     /**
      * Registers a Reon Tag (RNPT-1) with the Pocket by writing its Bluetooth address to the feature
-     * characteristic (handle 0x0021). The tag address is read from the PREF_TAG_ADDRESS preference
+     * characteristic (tag authentication characteristic). The tag address is read from the PREF_TAG_ADDRESS preference
      * (display form, e.g. `EA:65:60:8A:EF:2D`). The Pocket then relays the tag's readings through the
      * telemetry characteristic (subframe 0x02).
      */
@@ -873,7 +837,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 preferences.getBoolean(SonyReonPocketConstants.PREF_SMART_ACTIVE, false)
 
         if (running) {
-            if (!writeHandle("smart auto stop", SonyReonPocketConstants.HANDLE_DEVICE_MODE, SonyReonPocketConstants.commandSmartAutoStop(), false)) {
+            if (!writeCharacteristic("smart auto stop", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, SonyReonPocketConstants.commandSmartAutoStop(), false)) {
                 return
             }
             preferences.edit()
@@ -885,7 +849,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
         // Configure the thresholds first, then start smart auto.
         applySmartAutoThresholds()
-        if (!writeHandle("smart auto start", SonyReonPocketConstants.HANDLE_DEVICE_MODE, SonyReonPocketConstants.commandSmartAutoStart(), false)) {
+        if (!writeCharacteristic("smart auto start", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, SonyReonPocketConstants.commandSmartAutoStart(), false)) {
             return
         }
         preferences.edit()
@@ -907,7 +871,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             SonyReonPocketConstants.SMART_AUTO_THRESHOLD_WARM_DEFAULT
         )
         val command = SonyReonPocketConstants.commandSmartAuto(coolThreshold, warmThreshold)
-        writeHandle("smart auto thresholds", SonyReonPocketConstants.HANDLE_DEVICE_MODE, command, false)
+        writeCharacteristic("smart auto thresholds", SonyReonPocketConstants.UUID_CHARACTERISTIC_DEVICE_MODE, command, false)
     }
 
     /** Reads a threshold preference stored as text (Celsius), falling back to [default]. */
@@ -1034,7 +998,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             return
         }
 
-        writeHandle("register tag", SonyReonPocketConstants.HANDLE_TAG_AUTHENTICATION, command, false)
+        writeCharacteristic("register tag", SonyReonPocketConstants.UUID_CHARACTERISTIC_TAG_AUTHENTICATION, command, false)
         val editor = devicePrefs.preferences.edit()
             .putString(SonyReonPocketConstants.PREF_TAG_ADDRESS, tagAddress)
         if (!serial.isNullOrEmpty()) {
@@ -1048,7 +1012,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     /**
-     * Unregisters the configured Reon Tag from the Pocket (feature handle 0x0021, opcode 0x0202).
+     * Unregisters the configured Reon Tag from the Pocket (tag authentication characteristic, opcode 0x0202).
      */
     private fun unregisterTag() {
         val tagAddress = devicePrefs.preferences.getString(SonyReonPocketConstants.PREF_TAG_ADDRESS, "").orEmpty().trim()
@@ -1064,7 +1028,7 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             return
         }
 
-        writeHandle("unregister tag", SonyReonPocketConstants.HANDLE_TAG_AUTHENTICATION, command, false)
+        writeCharacteristic("unregister tag", SonyReonPocketConstants.UUID_CHARACTERISTIC_TAG_AUTHENTICATION, command, false)
         devicePrefs.preferences.edit()
             .remove(SonyReonPocketConstants.PREF_TAG_ADDRESS)
             .remove(SonyReonPocketConstants.PREF_TAG_SERIAL)
@@ -1076,24 +1040,19 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     override fun onFactoryReset() {
-        writeHandle(
+        writeCharacteristic(
             "factory reset",
-            SonyReonPocketConstants.HANDLE_UNPAIR,
+            SonyReonPocketConstants.UUID_CHARACTERISTIC_UNPAIR,
             SonyReonPocketConstants.commandFactoryReset(),
             true
         )
     }
 
-    private fun writeHandle(taskName: String, handle: Int, command: ByteArray, immediate: Boolean): Boolean {
-        val characteristic = getCharacteristicByHandle(handle)
-        if (characteristic == null) {
-            LOG.warn("Sony Reon Pocket Pro {} failed: no characteristic for ATT handle 0x{}", taskName, Integer.toHexString(handle))
-            return false
-        }
+    private fun writeCharacteristic(taskName: String, characteristicUuid: UUID, command: ByteArray, immediate: Boolean): Boolean {
 
         return try {
             val builder = if (immediate) createTransactionBuilder(taskName) else performInitialized(taskName)
-            builder.write(characteristic, *command)
+            builder.write(characteristicUuid, *command)
             if (immediate) {
                 builder.queueImmediately()
             } else {
