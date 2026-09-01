@@ -4927,4 +4927,5 @@
     <string name="unit_kg">千克</string>
     <string name="unit_lb">磅</string>
     <string name="unit_ml">毫升</string>
+    <string name="unit_millimetre_of_mercury">毫米汞柱</string>
 </resources>
