@@ -610,10 +610,17 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleBatteryInfo(BatteryInfo info) {
-        LOG.warn("Battery info: {}", info);
-        batteryCmd.level = (short) info.getPercentCharged();
-        if (batteryCmd.state == BatteryState.UNKNOWN)
+        LOG.debug("Battery info: {}", info);
+        int level = info.getPercentCharged();
+        // Some Moyoung watches add 100 to the reported level while charging
+        // (i.e. values > 100). Detect charging and recover the real level.
+        if (level > 100) {
+            level -= 100;
+            batteryCmd.state = BatteryState.BATTERY_CHARGING;
+        } else {
             batteryCmd.state = BatteryState.BATTERY_NORMAL;
+        }
+        batteryCmd.level = (short) level;
         handleGBDeviceEvent(batteryCmd);
     }
 
