@@ -56,6 +56,10 @@ public class BoseProtocolTest {
         assertHexEquals(hex("09 02 02 02 01 34"),
                 BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_STATUS,
                         BoseProtocol.BLOCK_DEVICE_MANAGEMENT, BoseProtocol.BLOCK_AUDIO_MANAGEMENT));
+        assertHexEquals(hex("09 02 02 02 01 35"),
+                BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_PRODUCT_INFO,
+                        BoseProtocol.BLOCK_STATUS, BoseProtocol.BLOCK_DEVICE_MANAGEMENT,
+                        BoseProtocol.BLOCK_AUDIO_MANAGEMENT));
     }
 
     @Test
@@ -89,6 +93,11 @@ public class BoseProtocolTest {
         Assert.assertTrue(BoseProtocol.isMediaControlSupported(0x0012, BoseProtocol.MEDIA_PLAY));
         Assert.assertFalse(BoseProtocol.isMediaControlSupported(0x0012, BoseProtocol.MEDIA_PAUSE));
         Assert.assertTrue(BoseProtocol.isMediaControlSupported(0x0012, BoseProtocol.MEDIA_PREVIOUS));
+    }
+
+    @Test
+    public void testFirmwareVersion() {
+        assertHexEquals(hex("00 05 01 00"), BoseProtocol.getFirmwareVersion());
     }
 
     @Test

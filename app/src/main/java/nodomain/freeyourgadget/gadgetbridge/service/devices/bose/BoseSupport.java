@@ -29,6 +29,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +38,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.AbstractHeadphoneBTBRDeviceSupport;
@@ -101,16 +103,15 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         final byte[] connectPayload = connectHandshake();
-        final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_STATUS,
-                BLOCK_DEVICE_MANAGEMENT, BLOCK_AUDIO_MANAGEMENT);
+        final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_PRODUCT_INFO,
+                BLOCK_STATUS, BLOCK_DEVICE_MANAGEMENT, BLOCK_AUDIO_MANAGEMENT);
         final byte[] batteryPayload = getBattery();
+        final byte[] firmwarePayload = getFirmwareVersion();
         final byte[] mediaControlCapabilitiesPayload = getMediaControlCapabilities();
         for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, encodeAnr(), batteryPayload,
-                mediaControlCapabilitiesPayload}) {
+                firmwarePayload, mediaControlCapabilitiesPayload}) {
             builder.write(payload);
         }
-
-        getDevice().setFirmwareVersion("0");
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
 
@@ -146,9 +147,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
 
         switch (block) {
             case BLOCK_PRODUCT_INFO:
-                if (function == FUNCTION_INIT_HANDSHAKE) {
-                    LOG.debug("Bose init handshake response: {}", StringUtils.bytesToHex(payload));
-                }
+                handleProductInfo(function, operator, payload);
                 break;
             case BLOCK_STATUS:
                 if (function == FUNCTION_BATTERY && operator == OP_STATUS) {
@@ -202,6 +201,27 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
         intent.putExtra(MultipointPairingActivity.EXTRA_PAIRING_ENABLED, enabled);
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+    }
+
+    private void handleProductInfo(final int function, final int operator, final byte[] payload) {
+        switch (function) {
+            case FUNCTION_INIT_HANDSHAKE:
+                LOG.debug("Bose init handshake response: {}", StringUtils.bytesToHex(payload));
+                break;
+            case FUNCTION_FIRMWARE_VERSION:
+                if (operator == OP_STATUS && payload.length > 0) {
+                    final String version = new String(payload, StandardCharsets.UTF_8).trim();
+                    LOG.info("Bose firmware version: {}", version);
+                    if (!version.isEmpty()) {
+                        final GBDeviceEventVersionInfo versionInfo = new GBDeviceEventVersionInfo();
+                        versionInfo.fwVersion = version;
+                        evaluateGBDeviceEvent(versionInfo);
+                    }
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     @Override

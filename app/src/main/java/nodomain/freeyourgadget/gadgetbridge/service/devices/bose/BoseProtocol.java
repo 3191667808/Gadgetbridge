@@ -50,6 +50,7 @@ public final class BoseProtocol {
 
     // Product info functions
     public static final int FUNCTION_INIT_HANDSHAKE = 0x01;
+    public static final int FUNCTION_FIRMWARE_VERSION = 0x05;
 
     // Device management functions
     public static final int FUNCTION_PAIRING_MODE = 0x08;
@@ -137,6 +138,10 @@ public final class BoseProtocol {
         payload[0] = 0x01;
         System.arraycopy(bitset, 0, payload, 1, bitset.length);
         return frame(BLOCK_NOTIFICATION, FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK, OP_SETGET, payload);
+    }
+
+    public static byte[] getFirmwareVersion() {
+        return frame(BLOCK_PRODUCT_INFO, FUNCTION_FIRMWARE_VERSION, OP_GET);
     }
 
     public static byte[] setAnr(final int uiLevel) {
