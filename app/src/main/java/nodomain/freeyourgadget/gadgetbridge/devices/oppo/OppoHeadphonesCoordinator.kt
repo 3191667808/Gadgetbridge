@@ -111,8 +111,7 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
                 if (supportsLdac(device)) {
                     switchSetting(
                         key = OppoHeadphonesPreferences.LDAC,
-                        title = R.string.soundcore_ldac_mode_title,
-                        summary = R.string.soundcore_ldac_mode_summary,
+                        title = R.string.sony_audio_hd,
                         icon = R.drawable.ic_music_note,
                     )
                 }
