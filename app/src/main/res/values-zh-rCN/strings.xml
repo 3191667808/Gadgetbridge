@@ -4921,4 +4921,10 @@
     <string name="maps_files">地图文件</string>
     <string name="maps_folder_empty">所选文件夹中没找到文件</string>
     <string name="maps_file_invalid">无效地图：%1$s</string>
+    <string name="unit_hours">小时</string>
+    <string name="unit_percentage">%</string>
+    <string name="unit_ml_kg_min">毫升/千克/分钟</string>
+    <string name="unit_kg">千克</string>
+    <string name="unit_lb">磅</string>
+    <string name="unit_ml">毫升</string>
 </resources>
