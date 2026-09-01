@@ -56,6 +56,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.LEB128Utils;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.BLETypeConversions;
@@ -172,7 +173,13 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 continue;
             }
 
-            final int totalLength = packetBuffer.get() & 0xFF;
+            int totalLength;
+            try {
+                totalLength = (int) LEB128Utils.decodeUnsigned(packetBuffer);
+            } catch (BufferUnderflowException e) {
+                packetBuffer.reset();
+                break;
+            }
             if (packetBuffer.remaining() < totalLength) {
                 LOG.info("Got partial response with {} bytes, expected {}",
                         packetBuffer.remaining(), totalLength);
@@ -1090,9 +1097,12 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     byte[] encodeCommand(final OppoCommand command, final byte[] payload) {
-        final ByteBuffer buf = ByteBuffer.allocate(9 + payload.length).order(ByteOrder.LITTLE_ENDIAN);
+        final int totalLength = 7 + payload.length;
+        final byte[] totalLengthBytes = LEB128Utils.encodeUnsigned((long) totalLength);
+        final ByteBuffer buf = ByteBuffer.allocate(1 + totalLengthBytes.length + totalLength)
+                .order(ByteOrder.LITTLE_ENDIAN);
         buf.put(CMD_PREAMBLE);
-        buf.put((byte) (buf.limit() - 2));
+        buf.put(totalLengthBytes);
         buf.put((byte) 0);
         buf.put((byte) 0);
         buf.putShort(command.getCode());
