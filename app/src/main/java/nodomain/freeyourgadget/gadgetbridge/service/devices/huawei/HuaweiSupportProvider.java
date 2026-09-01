@@ -138,6 +138,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.Huaw
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncArterialStiffnessDetection;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncSleepApnea;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PAppIcon;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PBatteryService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PCalendarService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PCannedRepliesService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PContactsService;
@@ -1164,6 +1165,11 @@ public class HuaweiSupportProvider {
                         if (HuaweiP2PFitnessData.getRegisteredInstance(huaweiP2PManager) == null) {
                             HuaweiP2PFitnessData p2PFitnessData = new HuaweiP2PFitnessData(huaweiP2PManager);
                             p2PFitnessData.register();
+                        }
+
+                        if (HuaweiP2PBatteryService.getRegisteredInstance(huaweiP2PManager) == null) {
+                            HuaweiP2PBatteryService batteryService = new HuaweiP2PBatteryService(huaweiP2PManager);
+                            batteryService.register();
                         }
                     }
                 }
