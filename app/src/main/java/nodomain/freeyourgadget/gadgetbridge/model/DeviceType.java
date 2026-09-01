@@ -466,6 +466,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.ITechActive3Coordina
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.KT80Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.KsixVentureCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.L70Coordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.MT55Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.MisirunC17Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.P22B1Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.R50ProCoordinator;
@@ -1168,6 +1169,7 @@ public enum DeviceType {
     ZL02D(ZL02DCoordinator.class),
     R50PRO(R50ProCoordinator.class),
     RAINBUVVY_T97(RainbuvvyT97Coordinator.class),
+    MT55(MT55Coordinator.class),
     ADVAN_WATCH_SE1_AI(AdvanWatchSE1AICoordinator.class),
     B_AND_W_P_SERIES(BandWPSeriesDeviceCoordinator.class),
     EARFUN_AIR_S(EarFunAirSCoordinator.class),
