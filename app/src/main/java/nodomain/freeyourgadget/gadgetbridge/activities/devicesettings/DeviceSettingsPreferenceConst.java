@@ -665,7 +665,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_MIJIA_LYWSD_COMFORT_HUMIDITY_LOWER = "pref_mijia_lywsd_comfort_humidity_lower";
     public static final String PREF_MIJIA_LYWSD_COMFORT_HUMIDITY_UPPER = "pref_mijia_lywsd_comfort_humidity_upper";
 
-    public static final String PREF_QC35_NOISE_CANCELLING_LEVEL = "qc35_noise_cancelling_level";
+    public static final String PREF_BOSE_CNC_LEVEL = "bose_cnc_level";
+    public static final String PREF_BOSE_ANR_LEVEL = "bose_anr_level";
     public static final String PREF_BOSE_MEDIA_PLAY = "bose_media_play";
     public static final String PREF_BOSE_MEDIA_PAUSE = "bose_media_pause";
     public static final String PREF_BOSE_MEDIA_NEXT = "bose_media_next";

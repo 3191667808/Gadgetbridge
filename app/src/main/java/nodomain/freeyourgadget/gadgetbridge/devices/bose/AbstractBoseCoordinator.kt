@@ -21,7 +21,6 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.SettingsRenderHost
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.SeekBarSetting
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.deviceSettings
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLClassicDeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
@@ -31,7 +30,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.bose.BoseSupport
 
 abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
-    abstract fun getMaxAnc(): Int
+    abstract val deviceConfig: BoseDeviceConfig
 
     override fun getDeviceSupportClass(device: GBDevice): Class<out DeviceSupport> {
         return BoseSupport::class.java
@@ -62,14 +61,26 @@ abstract class AbstractBoseCoordinator : AbstractBLClassicDeviceCoordinator() {
     }
 
     override fun getDeviceSettings(device: GBDevice): DeviceSettingsSpec = deviceSettings {
-        SeekBarSetting(
-            key = DeviceSettingsPreferenceConst.PREF_QC35_NOISE_CANCELLING_LEVEL,
-            title = R.string.prefs_active_noise_cancelling_level,
-            icon = R.drawable.ic_noise_control_on,
-            defaultValue = getMaxAnc(),
-            max = getMaxAnc(),
-            connectedOnly = true,
-        )
+        deviceConfig.cnc?.let { cnc ->
+            seekbar(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_CNC_LEVEL,
+                title = R.string.prefs_active_noise_cancelling_level,
+                icon = R.drawable.ic_noise_control_on,
+                defaultValue = cnc.defaultValue,
+                max = cnc.maximum,
+                connectedOnly = true,
+            )
+        }
+        deviceConfig.anr?.let { anr ->
+            seekbar(
+                key = DeviceSettingsPreferenceConst.PREF_BOSE_ANR_LEVEL,
+                title = R.string.prefs_active_noise_reduction_level,
+                icon = R.drawable.ic_noise_control_on,
+                defaultValue = anr.defaultValue,
+                max = anr.maximum,
+                connectedOnly = true,
+            )
+        }
         externalSettings(
             key = DeviceSettingsPreferenceConst.PREF_MULTIPOINT,
             title = R.string.bluetooth_multipoint_pairing,

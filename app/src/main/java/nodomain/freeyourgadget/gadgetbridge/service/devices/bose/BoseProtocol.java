@@ -43,6 +43,7 @@ public final class BoseProtocol {
     public static final int FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK = 0x02;
 
     // Settings functions
+    public static final int FUNCTION_NOISE_CANCELLING = 0x05;
     public static final int FUNCTION_ANR = 0x06;
 
     // Status functions
@@ -144,6 +145,14 @@ public final class BoseProtocol {
         return frame(BLOCK_PRODUCT_INFO, FUNCTION_FIRMWARE_VERSION, OP_GET);
     }
 
+    public static byte[] getCnc() {
+        return frame(BLOCK_SETTINGS, FUNCTION_NOISE_CANCELLING, OP_GET);
+    }
+
+    public static byte[] getAnr() {
+        return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_GET);
+    }
+
     public static byte[] setAnr(final int uiLevel) {
         int level = uiLevel;
         if (level == 2) {
@@ -152,6 +161,18 @@ public final class BoseProtocol {
             level = 3;
         }
         return frame(BLOCK_SETTINGS, FUNCTION_ANR, OP_SETGET, (byte) level);
+    }
+
+    // Wire value is inverted (10 - level) and sent three times because enabling ANC resets the level
+    public static byte[] setCnc(final int level) {
+        final int clamped = Math.max(0, Math.min(10, level));
+        final byte[] packet = frame(BLOCK_SETTINGS, FUNCTION_NOISE_CANCELLING, OP_SETGET,
+                (byte) (10 - clamped), (byte) 0x01);
+        final byte[] repeated = new byte[packet.length * 3];
+        for (int i = 0; i < 3; i++) {
+            System.arraycopy(packet, 0, repeated, i * packet.length, packet.length);
+        }
+        return repeated;
     }
 
     public static byte[] setPairingMode(final boolean enabled) {
@@ -165,6 +186,33 @@ public final class BoseProtocol {
             return -1;
         }
         return payload[0] & 0xFF;
+    }
+
+    // CNC status payload: [numSteps, invertedLevel, enabled]
+    public static int decodeCncLevel(final byte[] payload) {
+        if (payload.length < 2) {
+            return -1;
+        }
+        return 10 - (payload[1] & 0xFF);
+    }
+
+    // ANR status payload: [wireLevel, 0x0b]; wire 0=high, 3=low, 1=off, 2=wind
+    public static int decodeAnrLevel(final byte[] payload) {
+        if (payload.length < 1) {
+            return -1;
+        }
+        switch (payload[0] & 0xFF) {
+            case 0:
+                return 0;
+            case 3:
+                return 1;
+            case 1:
+                return 2;
+            case 2:
+                return 3;
+            default:
+                return -1;
+        }
     }
 
     public static byte[] getMediaControlCapabilities() {

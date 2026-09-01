@@ -28,7 +28,5 @@ class QC35Coordinator : AbstractBoseCoordinator() {
         return R.string.devicetype_bose_qc35
     }
 
-    override fun getMaxAnc(): Int {
-        return 2
-    }
+    override val deviceConfig = BoseDeviceConfig.QC35
 }

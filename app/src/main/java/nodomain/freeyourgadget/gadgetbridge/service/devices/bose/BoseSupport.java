@@ -39,6 +39,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.activities.multipoint.MultipointPairingActivity;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
+import nodomain.freeyourgadget.gadgetbridge.devices.bose.AbstractBoseCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.bose.BoseDeviceConfig;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState;
 import nodomain.freeyourgadget.gadgetbridge.service.AbstractHeadphoneBTBRDeviceSupport;
@@ -51,6 +53,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     public static final Logger LOG = LoggerFactory.getLogger(BoseSupport.class);
 
     private final BoseFrameParser frameParser = new BoseFrameParser();
+    private BoseDeviceConfig deviceConfig;
 
     private final BroadcastReceiver multipointReceiver = new BroadcastReceiver() {
         @Override
@@ -84,6 +87,7 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
                            @NonNull final BluetoothAdapter btAdapter,
                            @NonNull final Context context) {
         super.setContext(gbDevice, btAdapter, context);
+        deviceConfig = ((AbstractBoseCoordinator) gbDevice.getDeviceCoordinator()).getDeviceConfig();
         final IntentFilter multipointFilter = new IntentFilter();
         multipointFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_START_PAIRING);
         LocalBroadcastManager.getInstance(context).registerReceiver(multipointReceiver, multipointFilter);
@@ -104,13 +108,19 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         final byte[] connectPayload = connectHandshake();
         final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_PRODUCT_INFO,
-                BLOCK_STATUS, BLOCK_DEVICE_MANAGEMENT, BLOCK_AUDIO_MANAGEMENT);
+                BLOCK_SETTINGS, BLOCK_STATUS, BLOCK_DEVICE_MANAGEMENT, BLOCK_AUDIO_MANAGEMENT);
         final byte[] batteryPayload = getBattery();
         final byte[] firmwarePayload = getFirmwareVersion();
         final byte[] mediaControlCapabilitiesPayload = getMediaControlCapabilities();
-        for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, encodeAnr(), batteryPayload,
+        for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, batteryPayload,
                 firmwarePayload, mediaControlCapabilitiesPayload}) {
             builder.write(payload);
+        }
+        if (deviceConfig.getCnc() != null) {
+            builder.write(getCnc());
+        }
+        if (deviceConfig.getAnr() != null) {
+            builder.write(getAnr());
         }
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
@@ -168,6 +178,9 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case BLOCK_AUDIO_MANAGEMENT:
                 handleAudioManagement(function, operator, payload);
                 break;
+            case BLOCK_SETTINGS:
+                handleSettings(function, operator, payload);
+                break;
             default:
                 LOG.debug("Ignoring Bose frame from unknown block 0x{}", Integer.toHexString(block));
                 break;
@@ -224,27 +237,57 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
         }
     }
 
-    @Override
-    public void onSendConfiguration(@NonNull final String config) {
-        final TransactionBuilder builder = createTransactionBuilder("set noise cancelling");
-        if (DeviceSettingsPreferenceConst.PREF_QC35_NOISE_CANCELLING_LEVEL.equals(config)) {
-            builder.write(encodeAnr());
-        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY.equals(config)) {
-            sendMediaControl(MEDIA_PLAY);
-            return;
-        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PAUSE.equals(config)) {
-            sendMediaControl(MEDIA_PAUSE);
-            return;
-        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_NEXT.equals(config)) {
-            sendMediaControl(MEDIA_NEXT);
-            return;
-        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PREVIOUS.equals(config)) {
-            sendMediaControl(MEDIA_PREVIOUS);
-            return;
-        } else {
+    private void handleSettings(final int function, final int operator, final byte[] payload) {
+        if (operator != OP_STATUS) {
             return;
         }
-        builder.queue();
+        switch (function) {
+            case FUNCTION_NOISE_CANCELLING:
+                final int cncLevel = decodeCncLevel(payload);
+                if (cncLevel >= 0) {
+                    LOG.debug("Bose noise cancelling status: level={}", cncLevel);
+                    syncIntPref(DeviceSettingsPreferenceConst.PREF_BOSE_CNC_LEVEL, cncLevel);
+                }
+                break;
+            case FUNCTION_ANR:
+                final int anrLevel = decodeAnrLevel(payload);
+                if (anrLevel >= 0) {
+                    LOG.debug("Bose noise cancelling status: level={}", anrLevel);
+                    syncIntPref(DeviceSettingsPreferenceConst.PREF_BOSE_ANR_LEVEL, anrLevel);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void syncIntPref(final String key, final int value) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getInt(key, Integer.MIN_VALUE) != value) {
+            LOG.info("Syncing pref {} to {} from device", key, value);
+            prefs.edit().putInt(key, value).apply();
+        }
+    }
+
+    @Override
+    public void onSendConfiguration(@NonNull final String config) {
+        if (DeviceSettingsPreferenceConst.PREF_BOSE_CNC_LEVEL.equals(config)) {
+            final TransactionBuilder builder = createTransactionBuilder("set CNC level");
+            builder.write(encodeCnc());
+            builder.queue();
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_ANR_LEVEL.equals(config)) {
+            final TransactionBuilder builder = createTransactionBuilder("set ANR level");
+            builder.write(encodeAnr());
+            builder.queue();
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PLAY.equals(config)) {
+            sendMediaControl(MEDIA_PLAY);
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PAUSE.equals(config)) {
+            sendMediaControl(MEDIA_PAUSE);
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_NEXT.equals(config)) {
+            sendMediaControl(MEDIA_NEXT);
+        } else if (DeviceSettingsPreferenceConst.PREF_BOSE_MEDIA_PREVIOUS.equals(config)) {
+            sendMediaControl(MEDIA_PREVIOUS);
+        }
     }
 
     private void sendMediaControl(final int action) {
@@ -255,9 +298,18 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     }
 
     @NonNull
+    private byte[] encodeCnc() {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final int level = prefs.getInt(DeviceSettingsPreferenceConst.PREF_BOSE_CNC_LEVEL,
+                deviceConfig.getCnc().getDefaultValue());
+        return setCnc(level);
+    }
+
+    @NonNull
     private byte[] encodeAnr() {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        final int level = prefs.getInt(DeviceSettingsPreferenceConst.PREF_QC35_NOISE_CANCELLING_LEVEL, 0);
+        final int level = prefs.getInt(DeviceSettingsPreferenceConst.PREF_BOSE_ANR_LEVEL,
+                deviceConfig.getAnr().getDefaultValue());
         return setAnr(level);
     }
 }

@@ -60,6 +60,10 @@ public class BoseProtocolTest {
                 BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_PRODUCT_INFO,
                         BoseProtocol.BLOCK_STATUS, BoseProtocol.BLOCK_DEVICE_MANAGEMENT,
                         BoseProtocol.BLOCK_AUDIO_MANAGEMENT));
+        assertHexEquals(hex("09 02 02 02 01 37"),
+                BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_PRODUCT_INFO,
+                        BoseProtocol.BLOCK_SETTINGS, BoseProtocol.BLOCK_STATUS,
+                        BoseProtocol.BLOCK_DEVICE_MANAGEMENT, BoseProtocol.BLOCK_AUDIO_MANAGEMENT));
     }
 
     @Test
@@ -67,6 +71,44 @@ public class BoseProtocolTest {
         assertHexEquals(hex("01 06 02 01 00"), BoseProtocol.setAnr(0));
         assertHexEquals(hex("01 06 02 01 03"), BoseProtocol.setAnr(1));
         assertHexEquals(hex("01 06 02 01 01"), BoseProtocol.setAnr(2));
+    }
+
+    @Test
+    public void testCncLevelInvertedAndRepeated() {
+        assertHexEquals(
+                hex("01 05 02 02 05 01  01 05 02 02 05 01  01 05 02 02 05 01"),
+                BoseProtocol.setCnc(5)
+        );
+        assertHexEquals(
+                hex("01 05 02 02 00 01  01 05 02 02 00 01  01 05 02 02 00 01"),
+                BoseProtocol.setCnc(10)
+        );
+        assertHexEquals(
+                hex("01 05 02 02 0a 01  01 05 02 02 0a 01  01 05 02 02 0a 01"),
+                BoseProtocol.setCnc(0)
+        );
+    }
+
+    @Test
+    public void testGetNoiseCancelling() {
+        assertHexEquals(hex("01 05 01 00"), BoseProtocol.getCnc());
+        assertHexEquals(hex("01 06 01 00"), BoseProtocol.getAnr());
+    }
+
+    @Test
+    public void testDecodeCncLevel() {
+        Assert.assertEquals(5, BoseProtocol.decodeCncLevel(hex("0b 05 01")));
+        Assert.assertEquals(10, BoseProtocol.decodeCncLevel(hex("0b 00 01")));
+        Assert.assertEquals(-1, BoseProtocol.decodeCncLevel(hex("0b 0b 01")));
+        Assert.assertEquals(-1, BoseProtocol.decodeCncLevel(new byte[]{0x0b}));
+    }
+
+    @Test
+    public void testDecodeAnrLevel() {
+        Assert.assertEquals(0, BoseProtocol.decodeAnrLevel(hex("00 0b")));
+        Assert.assertEquals(1, BoseProtocol.decodeAnrLevel(hex("03 0b")));
+        Assert.assertEquals(2, BoseProtocol.decodeAnrLevel(hex("01 0b")));
+        Assert.assertEquals(3, BoseProtocol.decodeAnrLevel(hex("02 0b")));
     }
 
     @Test

@@ -16,17 +16,30 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.bose
 
-import nodomain.freeyourgadget.gadgetbridge.R
-import java.util.regex.Pattern
+data class NoiseCancellingConfig(
+    val maximum: Int,
+    val defaultValue: Int,
+)
 
-class NC700Coordinator : AbstractBoseCoordinator() {
-    protected override fun getSupportedDeviceName(): Pattern? {
-        return Pattern.compile("(LE-)?Bose NC 700.*")
+data class BoseDeviceConfig(
+    val cnc: NoiseCancellingConfig? = null,
+    val anr: NoiseCancellingConfig? = null,
+) {
+    companion object {
+        @JvmField
+        val NC700 = BoseDeviceConfig(
+            cnc = NoiseCancellingConfig(
+                maximum = 10,
+                defaultValue = 10,
+            ),
+        )
+
+        @JvmField
+        val QC35 = BoseDeviceConfig(
+            anr = NoiseCancellingConfig(
+                maximum = 2,
+                defaultValue = 0,
+            ),
+        )
     }
-
-    override fun getDeviceNameResource(): Int {
-        return R.string.devicetype_bose_nc700
-    }
-
-    override val deviceConfig = BoseDeviceConfig.NC700
 }
