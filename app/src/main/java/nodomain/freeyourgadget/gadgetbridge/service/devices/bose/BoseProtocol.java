@@ -28,12 +28,16 @@ public final class BoseProtocol {
     public static final int BLOCK_PRODUCT_INFO = 0x00;
     public static final int BLOCK_SETTINGS = 0x01;
     public static final int BLOCK_STATUS = 0x02;
+    public static final int BLOCK_NOTIFICATION = 0x09;
 
     // Operators
     public static final int OP_GET = 0x01;
     public static final int OP_SETGET = 0x02;
     public static final int OP_STATUS = 0x03;
     public static final int OP_ERROR = 0x04;
+
+    // Notification functions
+    public static final int FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK = 0x02;
 
     // Settings functions
     public static final int FUNCTION_ANR = 0x06;
@@ -94,6 +98,25 @@ public final class BoseProtocol {
 
     public static byte[] getBattery() {
         return frame(BLOCK_STATUS, FUNCTION_BATTERY, OP_GET);
+    }
+
+    public static byte[] enableNotificationsForFunctionBlocks(final int... blocks) {
+        int highestBlock = 0;
+        for (final int block : blocks) {
+            if (block < 0 || block > 0xFF) {
+                throw new IllegalArgumentException("Function block must fit in an unsigned byte");
+            }
+            highestBlock = Math.max(highestBlock, block);
+        }
+
+        final byte[] bitset = new byte[Math.max(1, (highestBlock / 8) + 1)];
+        for (final int block : blocks) {
+            bitset[bitset.length - 1 - (block / 8)] |= 1 << (block % 8);
+        }
+        final byte[] payload = new byte[1 + bitset.length];
+        payload[0] = 0x01;
+        System.arraycopy(bitset, 0, payload, 1, bitset.length);
+        return frame(BLOCK_NOTIFICATION, FUNCTION_NOTIFICATION_BY_FUNCTION_BLOCK, OP_SETGET, payload);
     }
 
     public static byte[] setAnr(final int uiLevel) {

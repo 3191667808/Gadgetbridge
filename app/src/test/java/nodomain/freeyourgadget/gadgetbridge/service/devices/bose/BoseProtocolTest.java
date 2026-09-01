@@ -47,6 +47,12 @@ public class BoseProtocolTest {
     }
 
     @Test
+    public void testEnableStatusNotifications() {
+        assertHexEquals(hex("09 02 02 02 01 04"),
+                BoseProtocol.enableNotificationsForFunctionBlocks(BoseProtocol.BLOCK_STATUS));
+    }
+
+    @Test
     public void testAnrLevelMapping() {
         assertHexEquals(hex("01 06 02 01 00"), BoseProtocol.setAnr(0));
         assertHexEquals(hex("01 06 02 01 03"), BoseProtocol.setAnr(1));

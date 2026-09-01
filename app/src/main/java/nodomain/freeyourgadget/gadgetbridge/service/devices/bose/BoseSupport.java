@@ -63,8 +63,9 @@ public class BoseSupport extends AbstractHeadphoneBTBRDeviceSupport {
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
         final byte[] connectPayload = connectHandshake();
+        final byte[] notificationPayload = enableNotificationsForFunctionBlocks(BLOCK_STATUS);
         final byte[] batteryPayload = getBattery();
-        for (final byte[] payload : new byte[][]{connectPayload, encodeAnr(), batteryPayload}) {
+        for (final byte[] payload : new byte[][]{connectPayload, notificationPayload, encodeAnr(), batteryPayload}) {
             builder.write(payload);
         }
 
