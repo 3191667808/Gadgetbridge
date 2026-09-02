@@ -144,7 +144,7 @@ public abstract class AbstractBBKProtocol extends GBDeviceProtocol {
     protected static List<GBDeviceEvent> parseBattery(final byte[] payload) {
         final List<GBDeviceEvent> events = new ArrayList<>();
 
-        for (int i = 2; i < payload.length; i += 2) {
+        for (int i = 2; i + 1 < payload.length; i += 2) {
             if ((payload[i] & 0xff) == 0xff) {
                 continue;
             }

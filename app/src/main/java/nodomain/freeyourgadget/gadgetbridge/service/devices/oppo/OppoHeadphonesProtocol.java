@@ -137,7 +137,7 @@ public class OppoHeadphonesProtocol extends AbstractBBKProtocol {
                     LOG.warn("Unknown anc config ret {}", payload[0]);
                     break;
                 }
-                if (payload.length < 3) {
+                if (payload.length < 4) {
                     LOG.warn("Unexpected anc config ret payload size {}", payload.length);
                     break;
                 }
@@ -336,6 +336,11 @@ public class OppoHeadphonesProtocol extends AbstractBBKProtocol {
 
     protected static GBDeviceEvent parseAncConfig(final byte[] payload) {
         final GBDeviceEventUpdatePreferences event = new GBDeviceEventUpdatePreferences();
+
+        if (payload.length < 4) {
+            LOG.warn("Unexpected anc config payload size {}", payload.length);
+            return event;
+        }
 
         final int typeCode = payload[1] & 0xff;
         final int valueCode = payload[3] & 0xff;
