@@ -78,12 +78,12 @@ data class EndurainActivityDetails(
 }
 
 /**
- * Result of looking an activity up.
+ * Result of looking an activity up. [Gone] exists because an activity that is merely absent has
+ * to be told apart from a request that failed: the first is re-uploaded, the second retried.
  *
- * Endurain 0.19.0 answers 200 with a body of `null` for an activity that does not exist, rather
- * than 404, so a missing activity can only be told apart from a failed request by inspecting the
- * body. [Gone] exists to carry that distinction. Should the endpoint start answering 404, the
- * body check becomes dead and the status alone would be enough.
+ * Endurain answers 200 with a body of `null` for an activity that does not exist, rather than
+ * 404, so the body decides: <https://codeberg.org/endurain-project/endurain/issues/911>. A 404 is
+ * read as [Gone] too, which is what the same answer looks like from a corrected server.
  */
 sealed interface EndurainActivityLookup {
     data class Found(val details: EndurainActivityDetails) : EndurainActivityLookup
@@ -93,7 +93,9 @@ sealed interface EndurainActivityLookup {
 
 /**
  * A photo or video attached to an Endurain activity. [mediaPath] is the server-side storage
- * path, served through /activity_media/{media}.
+ * path rather than a fetchable one, so a client that needs the file takes its basename and asks
+ * for /activity_media/{basename}:
+ * <https://codeberg.org/endurain-project/endurain/issues/912>.
  */
 data class EndurainActivityMedia(
     val id: Int,
@@ -422,6 +424,13 @@ class EndurainApiClient(
                 uri = uri,
                 requestHeaders = buildHeaders(EndurainAuthType.AUTH_TOKEN)
             )
+            // An activity that does not exist is reported as 200 with a body of `null`
+            // (<https://codeberg.org/endurain-project/endurain/issues/911>); 404 is what the same
+            // answer looks like once that is corrected. Both mean gone, not failed.
+            if (response.statusCode == 404) {
+                LOG.info("Endurain activity {} no longer exists", activityId)
+                return EndurainActivityLookup.Gone
+            }
             if (response.statusCode !in 200..299 || response.body == null) {
                 LOG.error("Reading activity {} failed (status {})", activityId, response.statusCode)
                 return EndurainActivityLookup.Failed

@@ -87,17 +87,16 @@ class WandererApiClient(
      * everything the user set on it.
      *
      * The endpoint is multipart with the track under `gpx` (not `file`, which the API reference
-     * gives), and it requires the trail id in the body as well as in the path. It stores the new
-     * track but re-derives only the bounding box from it, so [stats] must carry the distance,
-     * duration and elevation; anything omitted keeps the value of the previous track.
+     * gives), and it requires the trail id in the body as well as in the path, or it answers 500:
+     * <https://github.com/open-wanderer/wanderer/issues/1198>.
      *
-     * `POST /api/v1/trail/{id}/file` would be the obvious endpoint for this and is documented as
-     * "Upload trail file", but on Wanderer 0.20.0 it answers 200 and changes nothing at all.
+     * It stores the new track but re-derives only the bounding box from it, so [stats] must carry
+     * the distance, duration and elevation; anything omitted keeps the value of the previous
+     * track: <https://github.com/open-wanderer/wanderer/issues/1199>.
      *
-     * Both of those are worked around here rather than fixed, and the workaround stays correct
-     * either way: sending statistics explicitly overrides whatever the server would compute. If
-     * the file endpoint starts working, switching to it would let the server own the statistics
-     * again and [stats] could go.
+     * `POST /api/v1/trail/{id}/file` is documented as "Upload trail file" and would be the
+     * obvious endpoint for this, but on Wanderer 0.20.0 it answers 200 and changes nothing at
+     * all: <https://github.com/open-wanderer/wanderer/issues/1197>.
      *
      * [callback] fires with (success, reason); reason is null on success, otherwise a server
      * message or network explanation.

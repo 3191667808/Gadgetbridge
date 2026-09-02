@@ -213,7 +213,7 @@ object WorkoutUploader {
         apiClient.uploadActivity(gpxFile) { newId, message ->
             if (newId != null && message == null) {
                 LOG.info("Uploaded GPX to Wanderer, ID {}", newId)
-                callback(UploadResult(true, newId.toString(), null))
+                callback(UploadResult(true, newId, null))
             } else {
                 callback(UploadResult(false, null, message))
             }
@@ -349,6 +349,11 @@ object WorkoutUploader {
      * does let us carry over is read first and restored afterwards, but the activity id changes,
      * so links to it break and anything Endurain later attaches to an activity id would be lost.
      *
+     * The re-upload reuses the workout's start time. Endurain wedges a start time that already
+     * carries two activities, and every upload at it fails with a 500 from then on, so a workout
+     * uploaded by hand more than once cannot be re-created at all:
+     * <https://codeberg.org/endurain-project/endurain/issues/858>.
+     *
      * Blocking; call off the main thread. Returns the new [UploadResult] on success, or a
      * [RecreateRefusal] describing why nothing was done.
      */
@@ -392,6 +397,8 @@ object WorkoutUploader {
 
         val result = uploadToEndurainBlocking(context, summary, fitFile)
         if (!result.success || result.remoteActivityId == null) {
+            // The activity is already gone at this point, so the workout is left with no online
+            // copy until the next sync retries it.
             LOG.error("Re-upload of summary {} failed after its activity was deleted", summary.id)
             return null to RecreateRefusal.FAILED
         }

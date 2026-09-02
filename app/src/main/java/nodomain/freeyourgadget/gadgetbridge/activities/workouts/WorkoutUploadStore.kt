@@ -168,7 +168,7 @@ object WorkoutUploadStore {
             summary.summaryData ?: "",
             summary.name ?: "",
             summary.activityKind.toString(),
-            summary.endTime?.time?.toString() ?: ""
+            summary.endTime.time.toString()
         )
         return sha256Hex(parts.joinToString("\u0000").toByteArray())
     }

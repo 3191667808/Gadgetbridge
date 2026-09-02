@@ -5471,7 +5471,7 @@
     <string name="auto_upload_failed_wanderer">Wanderer upload failed: %1$s</string>
     <string name="auto_upload_endurain_remote_edited">The workout changed, but the activity on Endurain was edited there and was left untouched</string>
     <string name="pref_endurain_replace_on_track_change_title">Replace workouts when the track changes</string>
-    <string name="pref_endurain_replace_on_track_change_summary">Endurain cannot change the track of an existing activity, so it is deleted and uploaded again, which gives it a new address. An activity you have edited on Endurain is left untouched instead. A track added to a workout that had none is always uploaded, with or without this setting.</string>
+    <string name="pref_endurain_replace_on_track_change_summary">Changing the track of an uploaded workout means deleting the activity and uploading it again, so it gets a new address. Activities you edited on Endurain are left untouched.</string>
 
     <!-- Workout summary section headers -->
     <string name="goals">Goals</string>
