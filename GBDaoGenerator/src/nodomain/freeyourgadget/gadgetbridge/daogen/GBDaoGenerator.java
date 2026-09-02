@@ -81,6 +81,7 @@ public class GBDaoGenerator {
     private static final String SAMPLE_STRESS = "stress";
     private static final String SAMPLE_TEMPERATURE = "temperature";
     private static final String SAMPLE_WEIGHT_KG = "weightKg";
+    private static final String SAMPLE_IMPEDANCE_OHM = "impedanceOhm";
     private static final String SAMPLE_BLOOD_PRESSURE_SYSTOLIC = "bpSystolic";
     private static final String SAMPLE_BLOOD_PRESSURE_DIASTOLIC = "bpDiastolic";
     private static final String TIMESTAMP_FROM = "timestampFrom";
@@ -109,7 +110,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(139, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(140, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
         final List<Entity> batterySampleProvidersToGenerate = new LinkedList<>();
@@ -2475,6 +2476,12 @@ public class GBDaoGenerator {
         Entity sample = addEntity(schema, "MiScaleWeightSample");
         addCommonTimeSampleProperties("AbstractWeightSample", sample, user, device);
         sample.addFloatProperty(SAMPLE_WEIGHT_KG).notNull().codeBeforeGetter(OVERRIDE);
+        // Raw BLE impedance (Ohms) from the Body Composition Measurement characteristic (0x2A9C),
+        // present only on devices with a Body Composition Service (e.g. MIBFS). Null when the
+        // scale has no impedance sensor, or the reading did not carry one. Body fat/muscle/water
+        // etc. are derived from this plus a user profile, not stored raw (formula-dependent,
+        // see https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/6393).
+        sample.addIntProperty(SAMPLE_IMPEDANCE_OHM);
         return sample;
     }
 
