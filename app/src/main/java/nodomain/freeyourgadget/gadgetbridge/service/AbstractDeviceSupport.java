@@ -20,6 +20,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.hardware.usb.UsbAccessory;
 import android.location.Location;
@@ -103,6 +104,14 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     @Override
     public boolean connectFirstTime() {
         return connect();
+    }
+
+    /**
+     * Default implementation ignores advertisements. Only relevant for devices whose
+     * coordinator returns true from {@link DeviceCoordinator#handlesScanResults()}.
+     */
+    @Override
+    public void onScanResult(final ScanResult scanResult) {
     }
 
     @Override
