@@ -78,6 +78,15 @@
                     android:paddingEnd="8dp">
 
                     <ImageView
+                        android:id="@+id/upload_status_icon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center_vertical"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:visibility="gone"
+                        tools:ignore="ContentDescription" />
+
+                    <ImageView
                         android:id="@+id/item_image"
                         android:layout_width="48dp"
                         android:layout_height="48dp"

@@ -17,6 +17,7 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.workouts
 
 import android.content.Context
+import androidx.annotation.StringRes
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.endurain.EndurainTokenManager
@@ -57,6 +58,10 @@ interface WorkoutUploadTarget {
      */
     val service: Int
 
+    /** The service's own name, for anything that lists services to the user. */
+    @get:StringRes
+    val nameRes: Int
+
     /** Format to export a workout in for this service. */
     val format: WorkoutPayloadFormat
 
@@ -74,6 +79,12 @@ interface WorkoutUploadTarget {
 
     /** Localized "upload to this service failed: %s" message. */
     fun failureMessage(context: Context, reason: String): String
+
+    /**
+     * Web address of the activity [remoteActivityId] on the service, for opening it in a browser,
+     * or null when it cannot be built because the service is not set up.
+     */
+    fun activityUrl(context: Context, remoteActivityId: String): String?
 
     fun upload(
         context: Context,
@@ -124,6 +135,7 @@ object WorkoutUploadTargets {
 
 object EndurainUploadTarget : WorkoutUploadTarget {
     override val service = WorkoutUploadStore.SERVICE_ENDURAIN
+    override val nameRes = R.string.pref_category_endurain
     override val format = WorkoutPayloadFormat.FIT
 
     // A FIT can be synthesized from the summary alone, so a trackless workout still uploads.
@@ -138,6 +150,12 @@ object EndurainUploadTarget : WorkoutUploadTarget {
 
     override fun failureMessage(context: Context, reason: String): String =
         context.getString(R.string.auto_upload_failed_endurain, reason)
+
+    override fun activityUrl(context: Context, remoteActivityId: String): String? {
+        val server = GBApplication.getPrefs().preferences
+            .getString(WorkoutUploader.PREF_ENDURAIN_SERVER, null) ?: return null
+        return "${server.trimEnd('/')}/activity/$remoteActivityId"
+    }
 
     override fun upload(context: Context, summary: BaseActivitySummary, payload: File) =
         WorkoutUploader.uploadToEndurainBlocking(context, summary, payload)
@@ -199,6 +217,7 @@ object EndurainUploadTarget : WorkoutUploadTarget {
 
 object WandererUploadTarget : WorkoutUploadTarget {
     override val service = WorkoutUploadStore.SERVICE_WANDERER
+    override val nameRes = R.string.pref_category_wanderer
     override val format = WorkoutPayloadFormat.GPX
 
     // Wanderer stores trails, so there is nothing to upload without a track.
@@ -213,6 +232,18 @@ object WandererUploadTarget : WorkoutUploadTarget {
 
     override fun failureMessage(context: Context, reason: String): String =
         context.getString(R.string.auto_upload_failed_wanderer, reason)
+
+    /**
+     * A trail page is namespaced by the handle of the account that owns it, and a handle that does
+     * not resolve answers 500 rather than falling back to the trail, so there is no link to give
+     * until the handle is known.
+     */
+    override fun activityUrl(context: Context, remoteActivityId: String): String? {
+        val server = GBApplication.getPrefs().preferences
+            .getString(WorkoutUploader.PREF_WANDERER_SERVER, null) ?: return null
+        val handle = WandererTokenManager(context).getHandle() ?: return null
+        return "${server.trimEnd('/')}/trail/view/@$handle/$remoteActivityId"
+    }
 
     override fun upload(context: Context, summary: BaseActivitySummary, payload: File) =
         WorkoutUploader.uploadToWandererBlocking(context, payload)

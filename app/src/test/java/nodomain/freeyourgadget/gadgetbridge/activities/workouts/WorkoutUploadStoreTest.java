@@ -28,9 +28,13 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.WorkoutUpload;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
@@ -64,9 +68,9 @@ public class WorkoutUploadStoreTest extends TestBase {
     @Test
     public void testRoundTripKeyedOnSummaryAndService() {
         WorkoutUploadStore.INSTANCE.recordSuccess(
-                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", "photohash", 7, "src", "payload", true);
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", "photohash", 7, "src", "payload", true, null);
         WorkoutUploadStore.INSTANCE.recordSuccess(
-                42L, WorkoutUploadStore.SERVICE_WANDERER, "trail1", null, null, "src", "payload", true);
+                42L, WorkoutUploadStore.SERVICE_WANDERER, "trail1", null, null, "src", "payload", true, null);
 
         final Map<Long, WorkoutUpload> endurain =
                 WorkoutUploadStore.INSTANCE.allUploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN);
@@ -91,9 +95,9 @@ public class WorkoutUploadStoreTest extends TestBase {
     @Test
     public void testRecordSuccessReplacesTheRowRatherThanAddingOne() {
         WorkoutUploadStore.INSTANCE.recordSuccess(
-                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", null, null, "src1", "payload1", false);
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", null, null, "src1", "payload1", false, null);
         WorkoutUploadStore.INSTANCE.recordSuccess(
-                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "200", null, null, "src2", "payload2", true);
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "200", null, null, "src2", "payload2", true, null);
 
         final Map<Long, WorkoutUpload> rows =
                 WorkoutUploadStore.INSTANCE.allUploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN);
@@ -106,9 +110,9 @@ public class WorkoutUploadStoreTest extends TestBase {
     @Test
     public void testDeleteRemovesOnlyTheRowOfThatService() {
         WorkoutUploadStore.INSTANCE.recordSuccess(
-                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", null, null, "src", "payload", true);
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", null, null, "src", "payload", true, null);
         WorkoutUploadStore.INSTANCE.recordSuccess(
-                42L, WorkoutUploadStore.SERVICE_WANDERER, "trail1", null, null, "src", "payload", true);
+                42L, WorkoutUploadStore.SERVICE_WANDERER, "trail1", null, null, "src", "payload", true, null);
 
         WorkoutUploadStore.INSTANCE.delete(42L, WorkoutUploadStore.SERVICE_ENDURAIN);
 
@@ -116,6 +120,79 @@ public class WorkoutUploadStoreTest extends TestBase {
                 .allUploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN).isEmpty());
         assertEquals(1, WorkoutUploadStore.INSTANCE
                 .allUploadedRows(WorkoutUploadStore.SERVICE_WANDERER).size());
+    }
+
+    @Test
+    public void testRecordFailureKeepsWhatAnEarlierSuccessEstablished() {
+        WorkoutUploadStore.INSTANCE.recordSuccess(
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", "photohash", 7, "src", "payload", true, null);
+
+        WorkoutUploadStore.INSTANCE.recordFailure(
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "server unreachable");
+
+        final Map<Long, WorkoutUpload> rows =
+                WorkoutUploadStore.INSTANCE.allUploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN);
+        // The activity is still up there, so the row keeps driving the next re-sync attempt.
+        assertEquals(1, rows.size());
+        final WorkoutUpload row = rows.get(42L);
+        assertNotNull(row);
+        assertEquals("100", row.getRemoteActivityId());
+        assertEquals("src", row.getSourceHash());
+        assertEquals("server unreachable", row.getLastError());
+    }
+
+    @Test
+    public void testRecordFailureOnAWorkoutThatWasNeverUploadedDoesNotBlockARetry() {
+        WorkoutUploadStore.INSTANCE.recordFailure(
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "timed out");
+
+        assertTrue(WorkoutUploadStore.INSTANCE
+                .allUploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN).isEmpty());
+
+        final WorkoutUpload row = WorkoutUploadStore.INSTANCE
+                .rowsForSummaries(Collections.singletonList(42L))
+                .get(42L)
+                .get(WorkoutUploadStore.SERVICE_ENDURAIN);
+        assertNotNull(row);
+        assertEquals(WorkoutUploadStore.STATUS_FAILED, row.getStatus());
+        assertNull(row.getRemoteActivityId());
+        assertEquals("timed out", row.getLastError());
+    }
+
+    @Test
+    public void testRecordSuccessClearsAnEarlierFailure() {
+        WorkoutUploadStore.INSTANCE.recordFailure(
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "timed out");
+        WorkoutUploadStore.INSTANCE.recordSuccess(
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", null, null, "src", "payload", true, null);
+
+        assertNull(WorkoutUploadStore.INSTANCE
+                .allUploadedRows(WorkoutUploadStore.SERVICE_ENDURAIN).get(42L).getLastError());
+    }
+
+    @Test
+    public void testRowsForSummariesReadsEveryServiceAtOnce() {
+        WorkoutUploadStore.INSTANCE.recordSuccess(
+                42L, WorkoutUploadStore.SERVICE_ENDURAIN, "100", null, null, "src", "payload", true, null);
+        WorkoutUploadStore.INSTANCE.recordSuccess(
+                42L, WorkoutUploadStore.SERVICE_WANDERER, "trail1", null, null, "src", "payload", true, null);
+        WorkoutUploadStore.INSTANCE.recordSuccess(
+                43L, WorkoutUploadStore.SERVICE_ENDURAIN, "101", null, null, "src", "payload", true, null);
+
+        final Map<Long, Map<Integer, WorkoutUpload>> rows = WorkoutUploadStore.INSTANCE
+                .rowsForSummaries(Arrays.asList(42L, 43L, 44L));
+
+        assertEquals(2, rows.size());
+        assertEquals(2, rows.get(42L).size());
+        assertEquals(1, rows.get(43L).size());
+        assertNull(rows.get(44L));
+        assertEquals("trail1",
+                rows.get(42L).get(WorkoutUploadStore.SERVICE_WANDERER).getRemoteActivityId());
+    }
+
+    @Test
+    public void testEmptySummaryListIsNotQueried() {
+        assertTrue(WorkoutUploadStore.INSTANCE.rowsForSummaries(Collections.emptyList()).isEmpty());
     }
 
     @Test
@@ -192,6 +269,35 @@ public class WorkoutUploadStoreTest extends TestBase {
         assertNull(WorkoutUploadStore.INSTANCE.photoHashOf(null));
         assertNull(WorkoutUploadStore.INSTANCE.photoHashOf("   "));
         assertNull(WorkoutUploadStore.INSTANCE.photoHashOf("/does/not/exist.jpg"));
+    }
+
+    @Test
+    public void testSourceHashUsesTheStoredSummaryDataNotTheInMemoryOne() {
+        final BaseActivitySummary summary = newSummary();
+        summary.setDeviceId(1L);
+        summary.setUserId(1L);
+        summary.setSummaryData("{\"stored\":1}");
+        try (DBHandler db = GBApplication.acquireDB()) {
+            db.getDaoSession().getBaseActivitySummaryDao().insertOrReplace(summary);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        final String stored = WorkoutUploadStore.INSTANCE.sourceHashOf(summary);
+
+        // Opening a workout re-parses its raw details onto the entity without saving it, so the
+        // fingerprint has to stay on the row, or one workout would hash two ways.
+        summary.setSummaryData("{\"stored\":1,\"parsed\":\"a much richer summary\"}");
+        assertEquals(stored, WorkoutUploadStore.INSTANCE.sourceHashOf(summary));
+
+        assertEquals("{\"stored\":1}",
+                WorkoutUploadStore.INSTANCE.storedSummaryData(Collections.singletonList(1L)).get(1L));
+    }
+
+    @Test
+    public void testStoredSummaryDataSkipsSummariesThatHaveNoRow() {
+        assertTrue(WorkoutUploadStore.INSTANCE.storedSummaryData(Collections.emptyList()).isEmpty());
+        assertTrue(WorkoutUploadStore.INSTANCE.storedSummaryData(
+                Collections.singletonList(9999L)).isEmpty());
     }
 
     @Test

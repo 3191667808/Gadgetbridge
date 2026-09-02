@@ -153,6 +153,7 @@ class WorkoutUploadWorker(
         val result = target.upload(context, summary, payload)
         if (!result.success) {
             LOG.warn("Auto-upload of summary {} to service {} failed: {}", id, target.service, result.reason)
+            WorkoutUploadStore.recordFailure(id, target.service, result.reason)
             return result.reason
         }
         // A photo the service did not take leaves both fingerprints unset, so the next run comes
@@ -261,9 +262,11 @@ class WorkoutUploadWorker(
             target.updateMetadata(context, remoteId, summary)
         }
 
+        // A transient failure has already returned by here, so the only reason left is a refusal
+        // the user has to resolve, which the row carries until a later sync goes through.
         WorkoutUploadStore.recordSuccess(
             id, target.service, remoteId, photoHash, photoMediaId,
-            if (pending) row.sourceHash else sourceHash, payloadHash, hadTrack
+            if (pending) row.sourceHash else sourceHash, payloadHash, hadTrack, refusal
         )
         return refusal
     }

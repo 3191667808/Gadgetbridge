@@ -54,6 +54,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.ScatterData
 import com.github.mikephil.charting.listener.ChartTouchListener
 import com.github.mikephil.charting.listener.OnChartGestureListener
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -313,6 +314,33 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
 
             // Duration
             binding.activityduration.text = durationHms
+
+            updateUploadStatusIcon(summary)
+        }
+    }
+
+    /**
+     * Fills in the header's upload indicator, the same state the workout list shows on each row,
+     * and makes it open the per-service breakdown. Stays hidden while it resolves, and when no
+     * service is set up and none ever took this workout.
+     */
+    private fun updateUploadStatusIcon(summary: BaseActivitySummary) {
+        binding.uploadStatusIcon.visibility = View.GONE
+        val summaryId = summary.id ?: return
+        val context = requireContext()
+        lifecycleScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                val targets = WorkoutUploadTargets.active(context, GBApplication.getPrefs())
+                val rows = WorkoutUploadStore.rowsForSummaries(listOf(summaryId))[summaryId].orEmpty()
+                workoutUploadStatus(summary, rows, targets)
+            } ?: return@launch
+            if (!isAdded) return@launch
+            binding.uploadStatusIcon.apply {
+                setImageResource(status.iconRes)
+                contentDescription = getString(status.labelRes)
+                setOnClickListener { showUploadStatus(summary) }
+                visibility = View.VISIBLE
+            }
         }
     }
 
@@ -629,6 +657,11 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 true
             }
 
+            R.id.activity_action_upload_status -> {
+                showUploadStatus(workout.summary)
+                true
+            }
+
             R.id.activity_summary_detail_action_edit_name -> {
                 currentWorkout?.let {
                     workoutEditor.editWorkoutName(it, object : WorkoutEditor.Callback {
@@ -740,10 +773,116 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
         // Endurain accepts FIT (built from the summary alone if needed), so it is offered
         // for any workout. Wanderer only supports GPX uploads, so it requires a GPS track.
         val endurainVm: EndurainSetupViewModel by viewModels()
-        val endurainServer = GBApplication.getPrefs().preferences.getString("endurain_server", null)
-        val wandererServer = GBApplication.getPrefs().preferences.getString("wanderer_server", null)
-        overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
-        overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+        val endurainServer = GBApplication.getPrefs().preferences
+            .getString(WorkoutUploader.PREF_ENDURAIN_SERVER, null)
+        val wandererServer = GBApplication.getPrefs().preferences
+            .getString(WorkoutUploader.PREF_WANDERER_SERVER, null)
+        val endurainReady = endurainServer != null && endurainVm.endurainTokenManager.isLoggedIn()
+        val wandererReady = wandererServer != null && WandererTokenManager(requireContext()).isLoggedIn()
+        overflowMenu?.findItem(R.id.activity_action_upload_to_endurain)?.isVisible = endurainReady
+        overflowMenu?.findItem(R.id.activity_action_upload_to_wanderer)?.isVisible = hasGpx && wandererReady
+        overflowMenu?.findItem(R.id.activity_action_upload_status)?.isVisible = endurainReady || wandererReady
+    }
+
+    /**
+     * Shows where [summary] stands with each online fitness tracker, which the single indicator
+     * on the workout list cannot express. Every configured service gets a line, including the
+     * ones that have not taken the workout, so the dialog also answers "why is this not up there".
+     */
+    private fun showUploadStatus(summary: BaseActivitySummary) {
+        val context = requireContext()
+        val rows = WorkoutUploadStore.rowsForSummaries(listOfNotNull(summary.id))
+            .values.firstOrNull().orEmpty()
+        val prefs = GBApplication.getPrefs()
+        val hasTrack = WorkoutUploader.summaryHasTrack(summary)
+        val sourceHash = WorkoutUploadStore.sourceHashOf(summary)
+
+        val view = layoutInflater.inflate(R.layout.dialog_workout_upload_status, null)
+        val container = view.findViewById<LinearLayout>(R.id.upload_status_container)
+
+        WorkoutUploadTargets.ALL
+            .filter { it.isLoggedIn(context) }
+            .forEach { target ->
+                val row = rows[target.service]
+                val state = when {
+                    row?.lastError != null -> row.lastError
+                    row?.status == WorkoutUploadStore.STATUS_FAILED ->
+                        context.getString(R.string.workout_upload_status_failed)
+
+                    row?.status == WorkoutUploadStore.STATUS_SUCCESS && row.sourceHash == sourceHash ->
+                        context.getString(R.string.workout_upload_status_uploaded)
+
+                    row?.status == WorkoutUploadStore.STATUS_SUCCESS ->
+                        context.getString(R.string.workout_upload_status_pending)
+
+                    target.requiresTrack && !hasTrack ->
+                        context.getString(R.string.workout_upload_status_no_track)
+
+                    !target.isAutoUploadEnabled(prefs) ->
+                        context.getString(R.string.workout_upload_status_disabled)
+
+                    else -> context.getString(R.string.workout_upload_status_not_uploaded)
+                }
+
+                val item = layoutInflater.inflate(R.layout.item_workout_upload_status, container, false)
+                item.findViewById<TextView>(R.id.upload_status_service).setText(target.nameRes)
+                val stateView = item.findViewById<TextView>(R.id.upload_status_state)
+                stateView.text = state
+                bindRemoteActivity(
+                    item.findViewById(R.id.upload_status_link),
+                    stateView,
+                    target,
+                    row?.remoteActivityId
+                )
+                container.addView(item)
+            }
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.workout_upload_status_title)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    /**
+     * Shows which activity a service holds, as a link to it when the service is set up well enough
+     * for one to be built, and as plain text otherwise so the id is still there to search on.
+     */
+    private fun bindRemoteActivity(
+        linkView: TextView,
+        stateView: TextView,
+        target: WorkoutUploadTarget,
+        remoteActivityId: String?
+    ) {
+        if (remoteActivityId == null) {
+            linkView.visibility = View.GONE
+            return
+        }
+        val url = target.activityUrl(requireContext(), remoteActivityId)
+        if (url == null) {
+            // Nothing to open, so show the id itself: it is all the user has to find the activity
+            // with, and it reads as text rather than as a link.
+            linkView.text = getString(R.string.workout_upload_status_remote_id, remoteActivityId)
+            linkView.setTextColor(stateView.currentTextColor)
+            linkView.background = null
+            linkView.setOnClickListener(null)
+            linkView.isClickable = false
+            return
+        }
+        linkView.setText(R.string.workout_upload_status_open)
+        linkView.setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            } catch (e: Exception) {
+                LOG.warn("Unable to open {}", url, e)
+                GB.toast(
+                    requireContext(),
+                    getString(R.string.endurain_failed_to_open_browser, e.message),
+                    Toast.LENGTH_LONG,
+                    GB.WARN
+                )
+            }
+        }
     }
 
     private fun takeSharedScreenshot() {
@@ -886,8 +1025,17 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                         WorkoutUploadStore.fileHashOf(activityFile),
                         WorkoutUploader.summaryHasTrack(workout.summary)
                     )
+                } else if (summaryId != null) {
+                    WorkoutUploadStore.recordFailure(
+                        summaryId, WorkoutUploadStore.SERVICE_ENDURAIN, result.reason
+                    )
                 }
                 activity?.runOnUiThread {
+                    // The workout list shows the upload state per row, so it has to reload.
+                    if (isAdded) {
+                        notifyWorkoutChanged()
+                        updateUploadStatusIcon(workout.summary)
+                    }
                     if (result.success)
                         GB.toast(
                             getString(R.string.endurain_successfully_uploaded_toast),
@@ -926,8 +1074,16 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                     WorkoutUploadStore.fileHashOf(activityFile),
                     true
                 )
+            } else if (summaryId != null) {
+                WorkoutUploadStore.recordFailure(
+                    summaryId, WorkoutUploadStore.SERVICE_WANDERER, result.reason
+                )
             }
             activity?.runOnUiThread {
+                if (isAdded) {
+                    notifyWorkoutChanged()
+                    updateUploadStatusIcon(workout.summary)
+                }
                 if (result.success)
                     GB.toast(
                         getString(R.string.wanderer_toast_successfully_uploaded),

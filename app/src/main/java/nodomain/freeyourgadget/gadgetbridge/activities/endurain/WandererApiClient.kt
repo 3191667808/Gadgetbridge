@@ -83,6 +83,40 @@ class WandererApiClient(
     }
 
     /**
+     * Resolves the handle of the account [apiToken] belongs to, or null when it cannot be read.
+     *
+     * Wanderer exposes no "current user" endpoint, so this goes the long way round: the token list
+     * carries the owner's user id, and the user record carries the name the handle is built from.
+     * [apiToken] is passed in explicitly because during setup it is not persisted yet.
+     */
+    fun fetchUserHandle(apiToken: String, callback: (String?) -> Unit) {
+        Thread {
+            try {
+                val headers = mutableMapOf("Authorization" to "Bearer $apiToken")
+                val tokens = InternetUtils.doJsonRequest(
+                    uri = "$baseUrl/api/v1/api-token".toUri(),
+                    requestHeaders = headers
+                )
+                val userId = tokens?.optJSONArray("items")?.optJSONObject(0)?.optString("user")
+                if (userId.isNullOrEmpty()) {
+                    LOG.warn("Wanderer token list carries no user id, cannot resolve the handle")
+                    callback(null)
+                    return@Thread
+                }
+                val user = InternetUtils.doJsonRequest(
+                    uri = "$baseUrl/api/v1/user/$userId".toUri(),
+                    requestHeaders = headers
+                )
+                val username = user?.optString("username")
+                callback(if (username.isNullOrEmpty()) null else username)
+            } catch (e: Exception) {
+                LOG.error("Failed to resolve the Wanderer handle", e)
+                callback(null)
+            }
+        }.start()
+    }
+
+    /**
      * Replaces the track of the existing trail [trailId] with [file], keeping the trail id and
      * everything the user set on it.
      *

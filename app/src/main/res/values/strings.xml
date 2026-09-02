@@ -5470,6 +5470,16 @@
     <string name="auto_upload_failed_endurain">Endurain upload failed: %1$s</string>
     <string name="auto_upload_failed_wanderer">Wanderer upload failed: %1$s</string>
     <string name="auto_upload_endurain_remote_edited">The workout changed, but the activity on Endurain was edited there and was left untouched</string>
+    <string name="workout_upload_status_title">Upload status</string>
+    <string name="workout_upload_status_uploaded">Uploaded</string>
+    <string name="workout_upload_status_partial">Partly uploaded</string>
+    <string name="workout_upload_status_pending">Waiting for upload</string>
+    <string name="workout_upload_status_failed">Upload failed</string>
+    <string name="workout_upload_status_not_uploaded">Not uploaded</string>
+    <string name="workout_upload_status_no_track">Not uploaded, the workout has no GPS track</string>
+    <string name="workout_upload_status_disabled">Auto-upload off</string>
+    <string name="workout_upload_status_remote_id">Activity %1$s</string>
+    <string name="workout_upload_status_open">View activity</string>
     <string name="pref_endurain_replace_on_track_change_title">Replace workouts when the track changes</string>
     <string name="pref_endurain_replace_on_track_change_summary">Changing the track of an uploaded workout means deleting the activity and uploading it again, so it gets a new address. Activities you edited on Endurain are left untouched.</string>
 

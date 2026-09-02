@@ -1809,6 +1809,9 @@ public class GBDaoGenerator {
         // Whether the uploaded file carried a GPS track, so a track added afterwards can be told
         // apart from a track that merely changed.
         upload.addBooleanProperty("hadTrack");
+        // Why the last attempt failed, in the user's language, or null once one succeeds. Set on a
+        // failed re-sync too, where the row keeps the successful status of the upload it describes.
+        upload.addStringProperty("lastError");
     }
 
     private static Property findProperty(Entity entity, String propertyName) {
