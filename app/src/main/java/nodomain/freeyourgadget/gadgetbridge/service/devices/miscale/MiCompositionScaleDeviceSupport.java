@@ -120,7 +120,17 @@ public class MiCompositionScaleDeviceSupport extends AbstractBTLESingleDeviceSup
                         BLETypeConversions.toUint16(data, 11),
                         flags
                 );
-                handleWeightInfo(date, weightKg);
+
+                // Body Composition Measurement packets from the MIBFS are 13 bytes: protocol
+                // version, flags, a 7-byte timestamp, then a 2-byte impedance slot (bytes 9-10)
+                // followed by the 2-byte weight (bytes 11-12, read above). The impedance slot is
+                // only meaningful once the reading has stabilised, which is exactly the condition
+                // already checked above. See
+                // https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/6393 for the packet
+                // layout this was reverse-engineered from.
+                final Integer impedanceOhm = BLETypeConversions.toUint16(data, 9);
+
+                handleWeightInfo(date, weightKg, impedanceOhm);
             }
 
             return true;
@@ -140,7 +150,7 @@ public class MiCompositionScaleDeviceSupport extends AbstractBTLESingleDeviceSup
         handleGBDeviceEvent(versionCmd);
     }
 
-    private void handleWeightInfo(final Date date, final float weightKg) {
+    private void handleWeightInfo(final Date date, final float weightKg, final Integer impedanceOhm) {
         GB.toast(getContext().getString(R.string.weight_kg, weightKg), Toast.LENGTH_SHORT, GB.INFO);
 
         long sampleTs = date.getTime();
@@ -155,6 +165,7 @@ public class MiCompositionScaleDeviceSupport extends AbstractBTLESingleDeviceSup
             final MiScaleWeightSample sample = new MiScaleWeightSample();
             sample.setTimestamp(sampleTs);
             sample.setWeightKg(weightKg);
+            sample.setImpedanceOhm(impedanceOhm);
             provider.persistSamples(sample, getContext());
         } catch (final Exception e) {
             LOG.error("Error saving weight sample", e);

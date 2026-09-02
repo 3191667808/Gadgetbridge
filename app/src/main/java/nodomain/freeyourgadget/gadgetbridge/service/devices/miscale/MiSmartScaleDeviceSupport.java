@@ -280,7 +280,9 @@ public class MiSmartScaleDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     measurement.getTimestamp().getTime(),
                     deviceId,
                     userId,
-                    measurement.getWeightKg()
+                    measurement.getWeightKg(),
+                    // The Mi Smart Scale (as opposed to the MIBFS) has no impedance sensor.
+                    null
                 ));
             }
 
