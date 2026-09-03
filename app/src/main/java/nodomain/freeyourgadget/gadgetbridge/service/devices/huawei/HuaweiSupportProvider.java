@@ -137,6 +137,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.Huaw
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncGoals;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncArterialStiffnessDetection;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncSleepApnea;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncSyncDeviceService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncWheelchairService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PAppIcon;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PBatteryService;
@@ -325,6 +326,8 @@ public class HuaweiSupportProvider {
     private HuaweiDataSyncArterialStiffnessDetection huaweiDataSyncArterialStiffnessDetection = null;
 
     private HuaweiDataSyncWheelchairService huaweiDataSyncWheelchairService = null;
+
+    private HuaweiDataSyncSyncDeviceService huaweiDataSyncSyncDeviceService = null;
 
     protected HuaweiOTAManager huaweiOTAManager = new HuaweiOTAManager(this);
 
@@ -1029,8 +1032,15 @@ public class HuaweiSupportProvider {
             }
             if (getDeviceState().supportsWheelchairMode(getDevice())) {
                 huaweiDataSyncWheelchairService = new HuaweiDataSyncWheelchairService(HuaweiSupportProvider.this);
-                if (!huaweiDataSyncWheelchairService.getWheelchairMode()) {
-                    LOG.error("Failed to get wheelchair mode");
+                huaweiDataSyncSyncDeviceService = new HuaweiDataSyncSyncDeviceService(HuaweiSupportProvider.this);
+                if (!huaweiDataSyncSyncDeviceService.requestConfigurationSync()) {
+                    LOG.error("Failed to request wheelchair mode sync");
+                }
+                final boolean wheelchairModeEnabled = GBApplication
+                        .getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                        .getBoolean(HuaweiConstants.PREF_HUAWEI_WHEELCHAIR_MODE, false);
+                if (!huaweiDataSyncWheelchairService.requestWheelchairModeStatus(wheelchairModeEnabled)) {
+                    LOG.error("Failed to request wheelchair mode status");
                 }
             }
 
