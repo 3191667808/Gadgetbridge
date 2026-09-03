@@ -454,11 +454,14 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
                 message.addDataStructure(new TypeVersion((byte) 3));
                 addSimpleConversationToQueue(message, activitySampleHandler);
 
-                // Mimic GET_MOVEMENT_SAMPLES with VasistasType 4
-                message = new WithingsMessage(WithingsMessageType.GET_MOVEMENT_SAMPLES, ExpectedResponse.EOT);
-                message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
-                message.addDataStructure(new VasistasType(4));
-                addSimpleConversationToQueue(message, activitySampleHandler);
+                // The Steel HR does not support this data type
+                if (supportsVasistasType4()) {
+                    // Mimic GET_MOVEMENT_SAMPLES with VasistasType 4
+                    message = new WithingsMessage(WithingsMessageType.GET_MOVEMENT_SAMPLES, ExpectedResponse.EOT);
+                    message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
+                    message.addDataStructure(new VasistasType(4));
+                    addSimpleConversationToQueue(message, activitySampleHandler);
+                }
 
                 message = new WithingsMessage(WithingsMessageType.GET_HEARTRATE_SAMPLES, ExpectedResponse.EOT);
                 message.addDataStructure(new GetActivitySamples(c.getTimeInMillis() / 1000, (short) 0));
@@ -1454,6 +1457,8 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
     protected boolean supportsStoredMeasureSync() {
         return true;
     }
+
+    protected boolean supportsVasistasType4() { return true; }
 
     protected boolean supportsSleepBreathingSync() {
         return false;

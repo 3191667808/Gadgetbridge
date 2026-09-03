@@ -32,12 +32,16 @@ public class ConversationQueue implements ConversationObserver
 {
     private static final Logger logger = LoggerFactory.getLogger(ConversationQueue.class);
     private static final long CONVERSATION_TIMEOUT_MS = 15_000; // 15 seconds
+
+    private static final long MAXIMUM_RETRYS = 2;
     private final LinkedList<Conversation> queue = new LinkedList<>();
     private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private final Runnable timeoutRunnable = this::onConversationTimeout;
     private WithingsBaseDeviceSupport support;
     private Conversation activeConversation;
     private long activeConversationStartTime;
+
+    private long retrys = 0;
 
     public ConversationQueue(WithingsBaseDeviceSupport support) {
         this.support = support;
@@ -65,9 +69,16 @@ public class ConversationQueue implements ConversationObserver
         cancelTimeout();
     }
 
-    private void scheduleTimeout() {
+    private void scheduleTimeout(boolean retry) {
         cancelTimeout();
+        if (!retry) {
+            this.retrys = 0;
+        }
         timeoutHandler.postDelayed(timeoutRunnable, CONVERSATION_TIMEOUT_MS + 500);
+    }
+
+    private void scheduleTimeout() {
+        scheduleTimeout(false);
     }
 
     private void cancelTimeout() {
@@ -100,12 +111,19 @@ public class ConversationQueue implements ConversationObserver
             // complete the next queued request when multiple requests share a command type.
             final Message activeRequest = activeConversation.getRequest();
             final short requestType = activeRequest != null ? activeRequest.getType() : -1;
-            logger.warn("Active conversation timed out after {}ms: type={} (0x{}) -- aborting connection",
+            logger.warn("Active conversation timed out after {}ms: type={} (0x{}) -- retrying",
                     elapsed,
                     requestType,
                     activeRequest != null ? Integer.toHexString(requestType & 0xffff) : "?");
-            clear();
-            support.onConversationTimeout(requestType);
+            this.retrys += 1;
+            if (this.retrys > MAXIMUM_RETRYS) {
+                logger.warn("Exceeded the maximum retrys, aborting connection!");
+                clear();
+                support.onConversationTimeout(requestType);
+            } else {
+                scheduleTimeout(true);
+                support.sendToDevice(activeRequest);
+            }
             return;
         }
 

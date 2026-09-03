@@ -38,4 +38,20 @@ public class WithingsSteelHRDeviceSupport extends WithingsBaseDeviceSupport {
     public AbstractSampleProvider<? extends AbstractWithingsActivitySample> createSampleProvider(GBDevice device, DaoSession session) {
         return new WithingsSteelHRSampleProvider(device, session);
     }
+
+    // The Steel HR does not appear to support this
+    @Override
+    protected void addFeatureTagsMessage() {
+    }
+
+    @Override
+    protected boolean supportsVasistasType4() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredMeasureSync() {
+        return false;
+    }
+
 }

@@ -109,11 +109,6 @@ public class WithingsScanwatchDeviceCoordinator extends AbstractBLEDeviceCoordin
     }
 
     @Override
-    public boolean supportsRemSleep(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
     public boolean supportsAwakeSleep(@NonNull final GBDevice device) {
         return true;
     }

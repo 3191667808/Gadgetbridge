@@ -77,11 +77,6 @@ public class WithingsSteelHRDeviceCoordinator extends AbstractBLEDeviceCoordinat
     }
 
     @Override
-    public boolean supportsRemSleep(@NonNull GBDevice device) {
-        return true;
-    }
-
-    @Override
     public boolean supportsDataFetching(@NonNull final GBDevice device) {
         return true;
     }

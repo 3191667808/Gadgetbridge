@@ -166,13 +166,19 @@ public class WithingsCalibrationActivity extends AbstractGBActivity {
 
         // Mode toggle
         RadioGroup modeGroup = findViewById(R.id.withings_calibration_mode_group);
-        modeGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(RadioGroup group, int checkedId) {
-                crownMode = (checkedId == R.id.withings_calibration_mode_crown);
-                updateUI();
-            }
-        });
+
+        // Steel HR has no crown
+        if (device.getType() == DeviceType.WITHINGS_STEEL_HR) {
+            modeGroup.setVisibility(View.GONE);
+        } else {
+            modeGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(RadioGroup group, int checkedId) {
+                    crownMode = (checkedId == R.id.withings_calibration_mode_crown);
+                    updateUI();
+                }
+            });
+        }
 
         updateUI();
     }
