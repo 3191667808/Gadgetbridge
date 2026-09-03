@@ -1,4 +1,4 @@
-/*  Copyright (C) 2026 Virgil Bulens
+/*  Copyright (C) 2026 Virgil Bulens, oddballza
 
     This file is part of Gadgetbridge.
 
@@ -20,15 +20,19 @@ import android.database.sqlite.SQLiteDatabase;
 
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.DBUpdateScript;
+import nodomain.freeyourgadget.gadgetbridge.entities.GenericWeightSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.MiScaleWeightSampleDao;
 
 public class GadgetbridgeUpdate_140 implements DBUpdateScript {
     @Override
     public void upgradeSchema(final SQLiteDatabase db) {
-        if (!DBHelper.existsColumn(MiScaleWeightSampleDao.TABLENAME, MiScaleWeightSampleDao.Properties.ImpedanceOhm.columnName, db)) {
-            final String statement = "ALTER TABLE " + MiScaleWeightSampleDao.TABLENAME + " ADD COLUMN \""
-                    + MiScaleWeightSampleDao.Properties.ImpedanceOhm.columnName + "\" INTEGER;";
-            db.execSQL(statement);
+        addImpedanceColumn(db, MiScaleWeightSampleDao.TABLENAME, MiScaleWeightSampleDao.Properties.ImpedanceOhm.columnName);
+        addImpedanceColumn(db, GenericWeightSampleDao.TABLENAME, GenericWeightSampleDao.Properties.ImpedanceOhm.columnName);
+    }
+
+    private static void addImpedanceColumn(final SQLiteDatabase db, final String table, final String column) {
+        if (!DBHelper.existsColumn(table, column, db)) {
+            db.execSQL("ALTER TABLE " + table + " ADD COLUMN \"" + column + "\" INTEGER;");
         }
     }
 

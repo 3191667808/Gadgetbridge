@@ -2481,7 +2481,7 @@ public class GBDaoGenerator {
         // scale has no impedance sensor, or the reading did not carry one. Body fat/muscle/water
         // etc. are derived from this plus a user profile, not stored raw (formula-dependent,
         // see https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/6393).
-        sample.addIntProperty(SAMPLE_IMPEDANCE_OHM);
+        sample.addIntProperty(SAMPLE_IMPEDANCE_OHM).codeBeforeGetter(OVERRIDE);
         return sample;
     }
 
@@ -2555,6 +2555,8 @@ public class GBDaoGenerator {
         Entity sample = addEntity(schema, "GenericWeightSample");
         addCommonTimeSampleProperties("AbstractWeightSample", sample, user, device);
         sample.addFloatProperty(SAMPLE_WEIGHT_KG).notNull().codeBeforeGetter(OVERRIDE);
+        // Raw bio-impedance in Ohms, for scales that report it (see MiScaleWeightSample).
+        sample.addIntProperty(SAMPLE_IMPEDANCE_OHM).codeBeforeGetter(OVERRIDE);
         return sample;
     }
 

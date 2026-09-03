@@ -107,12 +107,12 @@ class GenericWeightScaleMeasurementActivity : AbstractGBActivity() {
                 val userId = DBHelper.getUser(db.getDaoSession()).id!!
                 val deviceId = DBHelper.getDevice(device, db.getDaoSession()).id!!
 
-                val sample = GenericWeightSample(
-                    measurement.time!!.epochSecond,
-                    deviceId,
-                    userId,
-                    measurement.weightKilogram!!.toFloat()
-                )
+                val sample = GenericWeightSample().apply {
+                    timestamp = measurement.time!!.epochSecond
+                    this.deviceId = deviceId
+                    this.userId = userId
+                    weightKg = measurement.weightKilogram!!.toFloat()
+                }
                 provider.addSample(sample)
             }
             LOG.debug("saveWeightInfo - saved {} kg", measurement.weightKilogram)
