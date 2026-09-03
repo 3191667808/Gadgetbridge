@@ -1451,6 +1451,7 @@ public class GBDaoGenerator {
 
     private static Entity addMoyoungSpo2Sample(Schema schema, Entity user, Entity device) {
         Entity spo2sample = addEntity(schema, "MoyoungSpo2Sample");
+        spo2sample.implementsSerializable();
         addCommonTimeSampleProperties("AbstractSpo2Sample", spo2sample, user, device);
         spo2sample.addIntProperty("spo2").notNull().codeBeforeGetter(OVERRIDE);
         return spo2sample;

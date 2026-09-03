@@ -337,6 +337,12 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.error("Error acquiring database for recording SpO2 samples", e);
             }
 
+            // show it on the device card until the device disconnects
+            getDevice().setExtraInfo(AbstractMoyoungDeviceCoordinator.EXTRA_SPO2, String.valueOf(percent));
+            getDevice().sendDeviceUpdateIntent(getContext());
+
+            broadcastSpo2Sample(percent);
+
             return true;
         }
         if (packetType == MoyoungConstants.CMD_TRIGGER_MEASURE_BLOOD_PRESSURE) {
@@ -540,6 +546,17 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         LOG.warn("Unhandled packet {}: {}", Logging.formatBytes(new byte[]{packetType}), Logging.formatBytes(payload));
         return false;
+    }
+
+    private void broadcastSpo2Sample(int percent) {
+        MoyoungSpo2Sample sample = new MoyoungSpo2Sample();
+        sample.setTimestamp(System.currentTimeMillis());
+        sample.setSpo2(percent);
+        Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES)
+                .putExtra(GBDevice.EXTRA_DEVICE, getDevice())
+                .putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, sample)
+                .putExtra(DeviceService.EXTRA_TIMESTAMP, sample.getTimestamp());
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
     private void broadcastSample(MoyoungActivitySample sample) {
@@ -1601,6 +1618,16 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         triggerHeartRateTest(true);
     }
 
+    private void triggerSpo2Test(boolean start) {
+        try {
+            TransactionBuilder builder = performInitialized("spo2Test");
+            sendPacket(builder, MoyoungPacketOut.buildPacket(getMtu(), MoyoungConstants.CMD_TRIGGER_MEASURE_BLOOD_OXYGEN, new byte[]{start ? (byte) 0 : (byte) -1}));
+            builder.queue();
+        } catch (IOException e) {
+            LOG.error("Error sending blood oxygen test command: ", e);
+        }
+    }
+
     public void onAbortHeartRateTest() {
         triggerHeartRateTest(false);
     }
@@ -1714,6 +1741,10 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         Prefs prefs = getDevicePrefs();
         switch (config) {
+            case AbstractMoyoungDeviceCoordinator.CONFIG_SPO2_MEASURE:
+                triggerSpo2Test(true);
+                break;
+
             case ActivityUser.PREF_USER_HEIGHT_CM:
             case ActivityUser.PREF_USER_WEIGHT_KG:
             case ActivityUser.PREF_USER_DATE_OF_BIRTH:

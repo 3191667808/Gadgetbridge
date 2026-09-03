@@ -163,7 +163,7 @@ public class MoyoungConstants {
     public static final byte HR_INTERVAL_30MIN = 6;
 
     public static final byte CMD_TRIGGER_MEASURE_BLOOD_PRESSURE = 105;              // (?) {0, 0, 0} to start, {-1, -1, -1} to stop -> {unused?, num1, num2}
-    public static final byte CMD_TRIGGER_MEASURE_BLOOD_OXYGEN = 107;                // (?) {start ? 0 : -1} -> {num}
+    public static final byte CMD_TRIGGER_MEASURE_BLOOD_OXYGEN = 107;                //     {start ? 0 : -1} -> {num}
     public static final byte CMD_TRIGGER_MEASURE_HEARTRATE = 109;                   //     {start ? 0 : -1} -> {bpm}
     public static final byte CMD_ECG = 111;                                         // (?) {heart_rate} or {1} to start or {0} to stop or {2} to query
     // ECG data is special and comes from UUID_CHARACTERISTIC_DATA_ECG_OLD or UUID_CHARACTERISTIC_DATA_ECG_NEW
