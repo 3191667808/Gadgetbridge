@@ -1,6 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.widgets.impl
 
 import android.content.Context
+import android.graphics.Color
 import android.widget.ImageView
 import android.widget.TextView
 import nodomain.freeyourgadget.gadgetbridge.R
@@ -49,8 +50,14 @@ object SleepScoreWidget : GaugeWidget<SleepScoreWidget.Data>() {
     }
 
     override fun draw(context: Context, gaugeValue: TextView, gaugeBar: ImageView, data: Data) {
-        gaugeValue.text = data.value.toString()
-        drawSimpleGauge(gaugeBar, WidgetColors.lightSleep, data.value / 100f)
+        if (data.value > 0) {
+            gaugeValue.text = data.value.toString()
+            drawSimpleGauge(gaugeBar, WidgetColors.lightSleep, data.value / 100f)
+        } else {
+            // no device reported a sleep score for the day
+            gaugeValue.text = context.getString(R.string.stats_empty_value)
+            drawSimpleGauge(gaugeBar, Color.GRAY, -1f)
+        }
     }
 
     data class Data(val value: Int)
