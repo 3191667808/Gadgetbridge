@@ -5622,6 +5622,7 @@
     </string-array>
 
     <string-array name="pref_chart_weight_body_composition_entries">
+        <item>@string/body_mass_index</item>
         <item>@string/body_composition_body_fat</item>
         <item>@string/body_composition_body_water</item>
         <item>@string/body_composition_muscle_mass</item>
@@ -5630,6 +5631,7 @@
         <item>@string/body_composition_impedance</item>
     </string-array>
     <string-array name="pref_chart_weight_body_composition_values">
+        <item>bmi</item>
         <item>body_fat</item>
         <item>body_water</item>
         <item>muscle_mass</item>
@@ -5638,6 +5640,7 @@
         <item>impedance</item>
     </string-array>
     <string-array name="pref_chart_weight_body_composition_default">
+        <item>bmi</item>
         <item>body_fat</item>
         <item>body_water</item>
         <item>muscle_mass</item>
