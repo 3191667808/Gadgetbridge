@@ -12,6 +12,7 @@ import nodomain.freeyourgadget.gadgetbridge.widgets.impl.HrvWidget
 import nodomain.freeyourgadget.gadgetbridge.widgets.impl.PaiWidget
 import nodomain.freeyourgadget.gadgetbridge.widgets.impl.SleepScoreWidget
 import nodomain.freeyourgadget.gadgetbridge.widgets.impl.SleepWidget
+import nodomain.freeyourgadget.gadgetbridge.widgets.impl.Spo2Widget
 import nodomain.freeyourgadget.gadgetbridge.widgets.impl.StepsWidget
 import nodomain.freeyourgadget.gadgetbridge.widgets.impl.StressBreakdownWidget
 import nodomain.freeyourgadget.gadgetbridge.widgets.impl.StressSegmentedWidget
@@ -39,6 +40,7 @@ object WidgetRegistry {
         PaiWidget,
         SleepScoreWidget,
         SleepWidget,
+        Spo2Widget,
         StepsWidget,
         StressBreakdownWidget,
         StressSegmentedWidget,
