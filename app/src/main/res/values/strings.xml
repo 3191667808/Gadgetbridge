@@ -3602,6 +3602,17 @@
     <string name="weight_kg">%1$.2f kg</string>
     <string name="weight_lbs">%1$.2f lbs</string>
     <string name="target">Target</string>
+    <string name="body_composition_body_fat">Body fat</string>
+    <string name="body_composition_body_water">Body water</string>
+    <string name="body_composition_muscle_mass">Muscle</string>
+    <string name="body_composition_bone_mass">Bone</string>
+    <string name="body_composition_bmr">BMR</string>
+    <string name="body_composition_impedance">Impedance</string>
+    <string name="body_composition_percent">%1$.1f %%</string>
+    <string name="body_composition_kcal">%1$d kcal</string>
+    <string name="body_composition_ohm">%1$d Ω</string>
+    <string name="pref_title_chart_weight_body_composition">Body composition values</string>
+    <string name="pref_summary_chart_weight_body_composition">Values shown below the weight chart, when the scale provides them</string>
     <string name="redmi_buds_5_pro_anc_balanced">Balanced</string>
     <string name="redmi_buds_5_pro_anc_light">Light</string>
     <string name="redmi_buds_5_pro_anc_deep">Deep</string>
