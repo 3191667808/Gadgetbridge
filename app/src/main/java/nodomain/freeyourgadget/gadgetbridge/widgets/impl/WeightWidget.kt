@@ -76,39 +76,13 @@ object WeightWidget : GaugeWidget<WeightWidget.Data>() {
 
         gaugeValue.text = WeightUnit.formatWeight(context, data.weightKg, GBApplication.getPrefs().weightUnit)
 
-        if (data.heightCm <= 0) {
+        val bmi = Bmi.of(data.weightKg, data.heightCm)
+        if (bmi == null) {
             // no height in the profile, so no BMI to colour by
             drawSimpleGauge(gaugeBar, Color.rgb(76, 175, 80), -1f)
             return
         }
-
-        // WHO BMI classification: colour and gauge position
-        val heightM = data.heightCm / 100.0
-        val bmi = data.weightKg / (heightM * heightM)
-        val color: Int
-        val fraction: Float
-        when {
-            bmi < 18.5 -> {
-                color = Color.rgb(255, 152, 0) // orange - underweight
-                fraction = 0.15f
-            }
-
-            bmi < 25 -> {
-                color = Color.rgb(76, 175, 80) // green - normal
-                fraction = 0.40f
-            }
-
-            bmi < 30 -> {
-                color = Color.rgb(255, 152, 0) // orange - overweight
-                fraction = 0.65f
-            }
-
-            else -> {
-                color = Color.rgb(244, 67, 54) // red - obese
-                fraction = 0.88f
-            }
-        }
-        drawSimpleGauge(gaugeBar, color, fraction)
+        drawSimpleGauge(gaugeBar, Bmi.colorFor(bmi), Bmi.gaugeFraction(bmi))
     }
 
     data class Data(val weightKg: Double, val heightCm: Int)

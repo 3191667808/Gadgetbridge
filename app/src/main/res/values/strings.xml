@@ -2572,6 +2572,7 @@
     <string name="menuitem_events">Events</string>
     <string name="menuitem_widgets">Widgets</string>
     <string name="menuitem_temperature">Temperature</string>
+    <string name="body_mass_index">BMI</string>
     <string name="menuitem_weight">Weight</string>
     <string name="menuitem_barometer">Barometer</string>
     <string name="menuitem_flashlight">Flashlight</string>
