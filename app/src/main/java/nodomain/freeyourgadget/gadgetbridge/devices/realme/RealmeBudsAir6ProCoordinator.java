@@ -113,6 +113,26 @@ public class RealmeBudsAir6ProCoordinator extends OppoHeadphonesCoordinator {
         return true;
     }
 
+    @Override
+    public boolean supportsInEarDetection(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAutoAnswer(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAncDeWind(@NonNull GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAncEnhanceVoices(@NonNull GBDevice device) {
+        return true;
+    }
+
     @NonNull
     @Override
     protected Map<Pair<TouchConfigSide, TouchConfigType>, List<TouchConfigValue>> getTouchOptions() {
