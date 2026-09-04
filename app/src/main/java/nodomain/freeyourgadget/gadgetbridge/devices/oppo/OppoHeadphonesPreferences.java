@@ -33,6 +33,8 @@ public class OppoHeadphonesPreferences {
     public static final String ANC_MODE = "noise_control_selector";
     public static final String ANC_LEVEL = "pref_anc_level";
     public static final String SPATIAL_AUDIO = "pref_nothing_spatial_audio";
+    public static final String INEAR_DETECTION = "pref_earfun_in_ear_detection_mode";
+    public static final String AUTO_ANSWER = "pref_oppo_autoanswer";
 
     public static final String LEGACY_RFCOMM = "pref_legacy_rfcomm";
 

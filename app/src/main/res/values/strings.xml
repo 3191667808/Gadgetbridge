@@ -5528,4 +5528,6 @@
     <string name="gpx_include_navigation">Include turn-by-turn navigation</string>
     <string name="gpx_include_navigation_straight">Include \'Continue straight\' instructions</string>
     <string name="gpx_roundabout_exit">Exit %1$d</string>
+    <string name="pref_oppo_autoanswer_title">Auto answer</string>
+    <string name="pref_oppo_autoanswer_summary">Take either earbud out of the charging case and wear it to answer calls.</string>
 </resources>

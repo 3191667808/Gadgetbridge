@@ -127,6 +127,30 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
         if (supportsMultipoint(device)) {
             multipointPairing()
         }
+        if (supportsInEarDetection(device) || supportsAutoAnswer(device)) {
+            screen(
+                key = DeviceSpecificSettingsScreen.ADVANCED_SETTINGS.getKey(),
+                title = R.string.advanced_settings,
+                icon = R.drawable.ic_settings,
+            ) {
+                if (supportsInEarDetection(device)) {
+                    switchSetting(
+                        key = OppoHeadphonesPreferences.INEAR_DETECTION,
+                        title = R.string.nothing_prefs_inear_title,
+                        summary = R.string.earfun_in_ear_detection_hint,
+                        icon = R.drawable.ic_hearing,
+                    )
+                }
+                if (supportsAutoAnswer(device)) {
+                    switchSetting(
+                        key = OppoHeadphonesPreferences.AUTO_ANSWER,
+                        title = R.string.pref_oppo_autoanswer_title,
+                        summary = R.string.pref_oppo_autoanswer_summary,
+                        icon = R.drawable.ic_phone,
+                    )
+                }
+            }
+        }
         xmlScreen(
             DeviceSpecificSettingsScreen.CALLS_AND_NOTIFICATIONS,
             R.xml.devicesettings_headphones,
@@ -155,6 +179,8 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     open fun supportsSpatialAudio(device: GBDevice): Boolean = false
     open fun supportsFindPhone(device: GBDevice): Boolean = false
     open fun supportsSppUuid(device: GBDevice): Boolean = false
+    open fun supportsInEarDetection(device: GBDevice): Boolean = false
+    open fun supportsAutoAnswer(device: GBDevice): Boolean = false
     open fun canApplyAncMode(map: Map<StatusInfoSide, StatusInfoValue>, mode: AncConfigValue): Boolean =
         map.isNotEmpty() && map.values.any { it == StatusInfoValue.READY }
 }

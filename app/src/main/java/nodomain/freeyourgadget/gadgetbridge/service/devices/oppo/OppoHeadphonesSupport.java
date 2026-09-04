@@ -254,6 +254,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case OppoHeadphonesPreferences.GAME_MODE -> gameModeSet();
             case OppoHeadphonesPreferences.SPATIAL_AUDIO -> spatialAudioSet();
             case OppoHeadphonesPreferences.TOUCH_FIND_PHONE -> findPhoneSet();
+            case OppoHeadphonesPreferences.INEAR_DETECTION -> inEarDetectionSet();
+            case OppoHeadphonesPreferences.AUTO_ANSWER -> autoAnswerSet();
         }
     }
 
@@ -515,6 +517,18 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         miscConfigSet(MiscConfigType.TOUCH_FIND_PHONE, isEnabled);
     }
 
+    private void inEarDetectionSet() {
+        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.INEAR_DETECTION, false);
+        LOG.debug("Sending INEAR_DETECTION = {}", isEnabled);
+        miscConfigSet(MiscConfigType.INEAR_DETECTION, isEnabled);
+    }
+
+    private void autoAnswerSet() {
+        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.AUTO_ANSWER, false);
+        LOG.debug("Sending AUTO_ANSWER = {}", isEnabled);
+        miscConfigSet(MiscConfigType.AUTO_ANSWER, isEnabled);
+    }
+
     private void miscConfigSet(final MiscConfigType type, final boolean isEnabled) {
         final byte[] payload = new byte[] {
                 (byte) type.getCode(),
@@ -533,6 +547,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             types.add(MiscConfigType.SPATIAL_AUDIO);
         if (getCoordinator().supportsFindPhone(getDevice()))
             types.add(MiscConfigType.TOUCH_FIND_PHONE);
+        if (getCoordinator().supportsInEarDetection(getDevice()))
+            types.add(MiscConfigType.INEAR_DETECTION);
+        if (getCoordinator().supportsAutoAnswer(getDevice()))
+            types.add(MiscConfigType.AUTO_ANSWER);
         if (types.isEmpty())
             return;
 
@@ -609,6 +627,20 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     eventUpdatePreferences
                             .withPreference(
                                     OppoHeadphonesPreferences.TOUCH_FIND_PHONE,
+                                    isEnabled);
+                }
+                case INEAR_DETECTION -> {
+                    LOG.debug("Got misc config for INEAR_DETECTION = {}", isEnabled);
+                    eventUpdatePreferences
+                            .withPreference(
+                                    OppoHeadphonesPreferences.INEAR_DETECTION,
+                                    isEnabled);
+                }
+                case AUTO_ANSWER -> {
+                    LOG.debug("Got misc config for AUTO_ANSWER = {}", isEnabled);
+                    eventUpdatePreferences
+                            .withPreference(
+                                    OppoHeadphonesPreferences.AUTO_ANSWER,
                                     isEnabled);
                 }
                 default -> LOG.warn("Unknown misc config type code 0x{}", OppoUtils.numberToHex(typeCode));

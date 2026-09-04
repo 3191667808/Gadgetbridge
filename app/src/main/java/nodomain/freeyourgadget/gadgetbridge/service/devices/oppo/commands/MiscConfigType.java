@@ -24,6 +24,8 @@ public enum MiscConfigType {
     MULTIPOINT(0x11),
     SPATIAL_AUDIO(0x1b),
     TOUCH_FIND_PHONE(0x26),
+    INEAR_DETECTION(0x04),
+    AUTO_ANSWER(0x08),
     ;
 
     private final int code;
