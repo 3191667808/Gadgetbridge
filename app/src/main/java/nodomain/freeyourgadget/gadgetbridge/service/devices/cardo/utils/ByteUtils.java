@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.enums.CardoEnums;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.messages.ConfigMessage;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
@@ -45,7 +46,7 @@ public class ByteUtils {
 
 
         //meant for developing/debugging: this part of the codes checks that the full message can be reconstructed by its fields
-        if (true) {
+        if (BuildConfig.DEBUG) {
             final byte[] reconstructed = ByteUtils.constructFieldStructure(result, fields, bytes.length);
             if (!Arrays.equals(bytes, reconstructed)) {
                 LOG.error("Parsing incomplete/wrong. Reconstructed message: {}, INCOMING: {}", GB.hexdump(reconstructed), GB.hexdump(bytes));

@@ -87,8 +87,8 @@ public class Ls24xDeviceCoordinator extends AbstractBLEDeviceCoordinator {
     private static final class ControlDeviceCardAction implements DeviceCardAction {
         @Override
         public int getIcon(GBDevice device) {
-            return R.drawable.ic_steering_wheel;
-        } //TODO Changeme
+            return R.drawable.ic_sports_motorsports;
+        }
 
         @Override
         public String getDescription(final GBDevice device, final Context context) {
