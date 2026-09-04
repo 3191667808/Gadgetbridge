@@ -58,7 +58,7 @@ public class CardoBLEProfile<T extends AbstractBTLESingleDeviceSupport> extends 
     }
 
     public void tuneFrequency(int frequency) {
-        sendOutgoingRequest("tune freq", new FmRadioTuneRequest(FmRadioTuneRequest.TUNE_FREQ, frequency, ((CardoFmRegion) ((Ls24xDeviceCoordinator) this.cardoDeviceSupport.getDevice().getDeviceCoordinator()).getDeviceStatus().getValueByName("fmRegion"))));
+        sendOutgoingRequest("tune freq", new FmRadioTuneRequest(FmRadioTuneRequest.TUNE_FREQ, frequency, ((CardoFmRegion) ((Ls24xDeviceCoordinator) this.cardoDeviceSupport.getDevice().getDeviceCoordinator()).deviceStatus.getValueByName("fmRegion"))));
     }
 
     public void tune(int request) {

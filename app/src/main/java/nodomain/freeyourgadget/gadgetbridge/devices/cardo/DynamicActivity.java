@@ -80,7 +80,7 @@ public class DynamicActivity extends AppCompatActivity {
         }
         localBroadcastManager = LocalBroadcastManager.getInstance(DynamicActivity.this);
 
-        deviceStatus = ((Ls24xDeviceCoordinator) device.getDeviceCoordinator()).getDeviceStatus();
+        deviceStatus = ((Ls24xDeviceCoordinator) device.getDeviceCoordinator()).deviceStatus;
 
         ScrollView scrollView = new ScrollView(this);
         containerLayout = new LinearLayout(this);

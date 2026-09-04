@@ -338,7 +338,7 @@ class DeviceSettingsScope {
                 confirmationMessage = confirmationMessage,
                 connectedOnly = connectedOnly,
                 visibleWhen = visibleWhen,
-                onClick = onClick,
+                onClick = onClick
             )
         )
     }

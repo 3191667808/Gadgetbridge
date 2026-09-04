@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
@@ -19,7 +20,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
+import nodomain.freeyourgadget.gadgetbridge.devices.cardo.DynamicActivity;
 import nodomain.freeyourgadget.gadgetbridge.devices.cardo.Ls24xDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.AbstractBLEHeadphoneDeviceSupport;
@@ -29,7 +32,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.messages.Confi
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.requests.SetRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.utils.ByteUtils;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.cardo.utils.CardoMap;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 import static nodomain.freeyourgadget.gadgetbridge.devices.cardo.Ls24xDeviceCoordinator.ACTION_DEVICE_STATUS_UPDATED;
@@ -70,7 +72,7 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
                 return;
             }
 
-            final Object oldValue = ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getValueByName(control);
+            final Object oldValue = ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).deviceStatus.getValueByName(control);
 
             switch (control) {
                 case "fmState":
@@ -93,17 +95,17 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
                 LOG.debug("Should update control {}: {} -> {}", control, oldValue, value);
 
                 final CardoMap<ByteUtils.CardoField, Object> updatedValues = new CardoMap<>();
-                updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName(control), value);
+                updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).deviceStatus.getFieldByName(control), value);
 
                 //these volumes are stored twice (possibly left/right ear?) but should set to the same value otherwise update does not apply
                 if (control.equals("ag1Volume"))
-                    updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName("ag2Volume"), value);
+                    updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).deviceStatus.getFieldByName("ag2Volume"), value);
                 if (control.equals("a2dp1Volume"))
-                    updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().getFieldByName("a2dp2Volume"), value);
+                    updatedValues.put(((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).deviceStatus.getFieldByName("a2dp2Volume"), value);
 
                 List<ConfigMessage.InfoType> filteredList = Arrays.stream(ConfigMessage.InfoType.values()).filter(infoType -> infoType.containsFieldWithName(control)).collect(Collectors.toList());
                 LOG.debug("Messages to send: {}", filteredList);
-                filteredList.forEach(infoType -> updateField(infoType, ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus(), updatedValues));
+                filteredList.forEach(infoType -> updateField(infoType, ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).deviceStatus, updatedValues));
             }
 
 
@@ -145,6 +147,42 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
     }
 
     @Override
+    public void onSendConfiguration(String config) {
+        SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+
+        switch(config) {
+            case "pref_cardo_toggle_voice_prompts":
+                //TODO
+                break;
+            case "pref_cardo_standby_volume":
+                //TODO
+                break;
+            case "pref_cardo_toggle_fm":
+                cardoBLEProfile.toggleFmRadioPower(prefs.getBoolean("pref_cardo_toggle_fm", false));
+                break;
+            case "pref_cardo_fm_tuning":
+                LOG.debug("slider value: {}",prefs.getInt("pref_cardo_fm_tuning", 0));
+                break;
+            case "fake_seek_up":
+                cardoBLEProfile.tune(SEEK_UP);
+                break;
+            case "fake_scan_up": //TODO: unused. Used to be on long click
+                cardoBLEProfile.tune(SCAN_UP);
+                break;
+            case "fake_seek_down":
+                cardoBLEProfile.tune(SEEK_DOWN);
+                break;
+            case "fake_scan_down": //TODO: unused. Used to be on long click
+                cardoBLEProfile.tune(SCAN_DOWN);
+                break;
+            default:
+                LOG.debug("CONFIG: " + config);
+                break;
+        }
+        super.onSendConfiguration(config);
+    }
+
+    @Override
     public boolean onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value) {
         super.onCharacteristicChanged(gatt, characteristic, value);
 
@@ -155,7 +193,7 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
             for (GBDeviceEvent ev : response.getDeviceEvents()) {
                 evaluateGBDeviceEvent(ev);
             }
-            ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).getDeviceStatus().putAll(response.getDeviceStatus());
+            ((Ls24xDeviceCoordinator) getDevice().getDeviceCoordinator()).deviceStatus.putAll(response.getDeviceStatus());
             LOG.debug("INCOMING msg: {}", GB.hexdump(value));
 //            LOG.debug("DEVICE STATUS: {}", response.getDeviceStatus());
 
@@ -169,7 +207,15 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
 
     @Override
     public void onTestNewFunction(@Nullable Bundle options) {
-        cardoBLEProfile.tuneFrequency(9150);
+
+        final Intent enableIntent = new Intent(getContext(), DynamicActivity.class);
+        enableIntent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+
+        enableIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        getContext().startActivity(enableIntent);
+
+//        cardoBLEProfile.tuneFrequency(9150);
     }
 
     public void updateField(ConfigMessage.InfoType infoType, CardoMap<ByteUtils.CardoField, Object> deviceStatus, CardoMap<ByteUtils.CardoField, Object> updateValues) {
@@ -185,7 +231,7 @@ public class CardoDeviceSupport extends AbstractBLEHeadphoneDeviceSupport {
 
         SetRequest setRequest = new SetRequest(infoType, payload);
 
-        cardoBLEProfile.sendOutgoingRequest("AAA", setRequest);
+        cardoBLEProfile.sendOutgoingRequest("Send request", setRequest);
         LOG.debug("RECONSTRUCTED: {}", GB.hexdump(setRequest.getBtMessage()));
 
     }
