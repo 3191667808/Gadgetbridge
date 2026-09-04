@@ -26,6 +26,8 @@ public enum MiscConfigType {
     TOUCH_FIND_PHONE(0x26),
     INEAR_DETECTION(0x04),
     AUTO_ANSWER(0x08),
+    ANC_DE_WIND(0x1a),
+    ANC_ENHANCE_VOICES(0x09),
     ;
 
     private final int code;

@@ -89,6 +89,30 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
                     }
                 )
             }
+            if (supportsAncDeWind(device)) {
+                switchSetting(
+                    key = OppoHeadphonesPreferences.ANC_DE_WIND,
+                    title = R.string.sony_ambient_sound_wind_noise_reduction,
+                    summary = R.string.oppo_anc_de_wind_summary,
+                    visibleWhen = {
+                        val modePreference = it.getString(OppoHeadphonesPreferences.ANC_MODE, null)
+                        val mode = AncConfigValue.fromPreference(modePreference)
+                        mode != AncConfigValue.OFF
+                    }
+                )
+            }
+            if (supportsAncEnhanceVoices(device)) {
+                switchSetting(
+                    key = OppoHeadphonesPreferences.ANC_ENHANCE_VOICES,
+                    title = R.string.redmi_buds_5_pro_transparency_voice,
+                    summary = R.string.oppo_anc_enhance_voices_summary,
+                    visibleWhen = {
+                        val modePreference = it.getString(OppoHeadphonesPreferences.ANC_MODE, null)
+                        val mode = AncConfigValue.fromPreference(modePreference)
+                        mode == AncConfigValue.TRANSPARENCY
+                    }
+                )
+            }
         }
         if (supportsGameMode(device)) {
             switchSetting(
@@ -176,6 +200,8 @@ abstract class OppoHeadphonesCoordinator : AbstractBLClassicDeviceCoordinator() 
     open fun supportsGameMode(device: GBDevice): Boolean = false
     open fun supportsAnc(device: GBDevice): Boolean = false
     open fun supportsAncLevel(device: GBDevice): Boolean = false
+    open fun supportsAncDeWind(device: GBDevice): Boolean = false
+    open fun supportsAncEnhanceVoices(device: GBDevice): Boolean = false
     open fun supportsSpatialAudio(device: GBDevice): Boolean = false
     open fun supportsFindPhone(device: GBDevice): Boolean = false
     open fun supportsSppUuid(device: GBDevice): Boolean = false

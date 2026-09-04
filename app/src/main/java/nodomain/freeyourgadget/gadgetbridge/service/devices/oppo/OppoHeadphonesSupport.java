@@ -256,6 +256,8 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             case OppoHeadphonesPreferences.TOUCH_FIND_PHONE -> findPhoneSet();
             case OppoHeadphonesPreferences.INEAR_DETECTION -> inEarDetectionSet();
             case OppoHeadphonesPreferences.AUTO_ANSWER -> autoAnswerSet();
+            case OppoHeadphonesPreferences.ANC_DE_WIND -> ancDeWindSet();
+            case OppoHeadphonesPreferences.ANC_ENHANCE_VOICES -> ancEnhanceVoicesSet();
         }
     }
 
@@ -529,6 +531,18 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         miscConfigSet(MiscConfigType.AUTO_ANSWER, isEnabled);
     }
 
+    private void ancDeWindSet() {
+        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.ANC_DE_WIND, false);
+        LOG.debug("Sending ANC_DE_WIND = {}", isEnabled);
+        miscConfigSet(MiscConfigType.ANC_DE_WIND, isEnabled);
+    }
+
+    private void ancEnhanceVoicesSet() {
+        final boolean isEnabled = getDevicePrefs().getBoolean(OppoHeadphonesPreferences.ANC_ENHANCE_VOICES, false);
+        LOG.debug("Sending ANC_ENHANCE_VOICES = {}", isEnabled);
+        miscConfigSet(MiscConfigType.ANC_ENHANCE_VOICES, isEnabled);
+    }
+
     private void miscConfigSet(final MiscConfigType type, final boolean isEnabled) {
         final byte[] payload = new byte[] {
                 (byte) type.getCode(),
@@ -551,6 +565,10 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             types.add(MiscConfigType.INEAR_DETECTION);
         if (getCoordinator().supportsAutoAnswer(getDevice()))
             types.add(MiscConfigType.AUTO_ANSWER);
+        if (getCoordinator().supportsAncDeWind(getDevice()))
+            types.add(MiscConfigType.ANC_DE_WIND);
+        if (getCoordinator().supportsAncEnhanceVoices(getDevice()))
+            types.add(MiscConfigType.ANC_ENHANCE_VOICES);
         if (types.isEmpty())
             return;
 
@@ -641,6 +659,20 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                     eventUpdatePreferences
                             .withPreference(
                                     OppoHeadphonesPreferences.AUTO_ANSWER,
+                                    isEnabled);
+                }
+                case ANC_DE_WIND -> {
+                    LOG.debug("Got misc config for ANC_DE_WIND = {}", isEnabled);
+                    eventUpdatePreferences
+                            .withPreference(
+                                    OppoHeadphonesPreferences.ANC_DE_WIND,
+                                    isEnabled);
+                }
+                case ANC_ENHANCE_VOICES -> {
+                    LOG.debug("Got misc config for ANC_ENHANCE_VOICES = {}", isEnabled);
+                    eventUpdatePreferences
+                            .withPreference(
+                                    OppoHeadphonesPreferences.ANC_ENHANCE_VOICES,
                                     isEnabled);
                 }
                 default -> LOG.warn("Unknown misc config type code 0x{}", OppoUtils.numberToHex(typeCode));

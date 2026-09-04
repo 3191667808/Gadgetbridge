@@ -5530,4 +5530,6 @@
     <string name="gpx_roundabout_exit">Exit %1$d</string>
     <string name="pref_oppo_autoanswer_title">Auto answer</string>
     <string name="pref_oppo_autoanswer_summary">Take either earbud out of the charging case and wear it to answer calls.</string>
+    <string name="oppo_anc_enhance_voices_summary">Diminish ambient sounds and enhance voices</string>
+    <string name="oppo_anc_de_wind_summary">Effectively reduce noises from the wind when the wind speed picks up</string>
 </resources>
