@@ -2498,6 +2498,18 @@
     <string name="metric_garmin_met_max_vo2">MET Max VO₂</string>
     <string name="metric_garmin_running_lactate_threshold_power">Running Lactate Threshold Power</string>
     <string name="metric_garmin_training_readiness">Training Readiness</string>
+    <string name="p_trainingreadiness" translatable="false">trainingreadiness</string>
+    <string name="training_readiness_zone_prime">Prime</string>
+    <string name="training_readiness_zone_prime_desc">Best possible</string>
+    <string name="training_readiness_zone_high">High</string>
+    <string name="training_readiness_zone_high_desc">Ready for challenges</string>
+    <string name="training_readiness_zone_moderate">Moderate</string>
+    <string name="training_readiness_zone_moderate_desc">Good to go</string>
+    <string name="training_readiness_zone_low">Low</string>
+    <string name="training_readiness_zone_low_desc">Time to slow down</string>
+    <string name="training_readiness_zone_poor">Poor</string>
+    <string name="training_readiness_zone_poor_desc">Let your body recover</string>
+    <string name="training_readiness_last_updated">Last updated at %1$s</string>
     <string name="menuitem_race_predictor">Race Predictor</string>
     <string name="p_raceprediction" translatable="false">raceprediction</string>
     <string name="menuitem_solar_charging">Solar Charging</string>

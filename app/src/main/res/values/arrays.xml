@@ -3497,6 +3497,7 @@
         <item>@string/menuitem_vo2_max</item>
         <item>@string/pref_header_training_load</item>
         <item>@string/menuitem_race_predictor</item>
+        <item>@string/metric_garmin_training_readiness</item>
         <item>@string/menuitem_solar_charging</item>
         <item>@string/generic_metrics</item>
         <item>@string/menuitem_hr</item>
@@ -3522,6 +3523,7 @@
         <item>@string/p_vo2max</item>
         <item>@string/p_load</item>
         <item>@string/p_raceprediction</item>
+        <item>@string/p_trainingreadiness</item>
         <item>@string/p_solar_charging</item>
         <item>@string/p_generic_metrics</item>
         <item>@string/p_heartrate</item>
@@ -3547,6 +3549,7 @@
         <item>@string/p_vo2max</item>
         <item>@string/p_load</item>
         <item>@string/p_raceprediction</item>
+        <item>@string/p_trainingreadiness</item>
         <item>@string/p_solar_charging</item>
         <item>@string/p_generic_metrics</item>
         <item>@string/p_heartrate</item>

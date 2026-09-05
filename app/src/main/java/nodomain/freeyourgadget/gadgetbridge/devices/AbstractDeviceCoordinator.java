@@ -757,6 +757,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsTrainingReadiness(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean supportsSolarCharging(@NonNull GBDevice device) {
         return false;
     }
@@ -784,6 +789,7 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
                 supportsRespiratoryRate(device) ||
                 supportsBloodPressureMeasurement(device) ||
                 supportsRacePrediction(device) ||
+                supportsTrainingReadiness(device) ||
                 supportsSolarCharging(device);
     }
 

@@ -35,6 +35,7 @@
       <change>Fix non-zero step counts at midnight after time zone change</change>
       <change>Garmin HRM Pro+: Improved connection support</change>
       <change>Garmin: Add point winds support</change>
+      <change>Garmin: Add Training Readiness chart</change>
       <change>Garmin: Display notification on OAuth expiration</change>
       <change>Garmin: Fix activity sync signal</change>
       <change>Garmin: Fix crash on number parsing</change>
