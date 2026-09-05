@@ -110,6 +110,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitHrvSummary;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitHrvValue;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMaxMetData;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMetricRecovery;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMonitoring;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMonitoringHrData;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMonitoringInfo;
@@ -479,6 +480,16 @@ public class FitImporter {
                     final GenericMetricSample sample = new GenericMetricSample();
                     sample.setTimestamp(ts * 1000L);
                     sample.setMetric(MetricSample.Metric.GARMIN_TRAINING_READINESS, readiness, level);
+                    genericMetricSamples.add(sample);
+                }
+            } else if (record instanceof FitMetricRecovery fitMetricRecovery) {
+                final Integer recoveryMinutes = fitMetricRecovery.getRecoveryMinutes();
+                // Unlike most GenericMetricSample sources here, 0 is a real, common, confirmed
+                // reading for this metric ("fully recovered"), not an absence-of-data sentinel.
+                if (recoveryMinutes != null && recoveryMinutes >= 0) {
+                    final GenericMetricSample sample = new GenericMetricSample();
+                    sample.setTimestamp(ts * 1000L);
+                    sample.setMetric(MetricSample.Metric.GARMIN_RECOVERY_TIME, recoveryMinutes);
                     genericMetricSamples.add(sample);
                 }
             } else if (record instanceof FitEnduranceScore fitEnduranceScore) {

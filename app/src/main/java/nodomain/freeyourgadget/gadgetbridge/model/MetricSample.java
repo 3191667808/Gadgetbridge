@@ -18,6 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.model;
 
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_KCAL_PER_DAY;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_ML_KG_MIN;
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MINUTES;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_NONE;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_SECONDS_SPORT;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_WATT;
@@ -32,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitFunctionalMetrics;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitHillScore;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMaxMetData;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMetricRecovery;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitMonitoringInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitPhysiologicalMetrics;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitRacePrediction;
@@ -61,11 +63,11 @@ public interface MetricSample extends TimeSample {
         setMetricExtra(extra);
     }
 
-    @IntRange(from = 0, to = 22)
+    @IntRange(from = 0, to = 23)
     int getMetricType();
 
     /// use {@link #setMetric(Metric)} or {@link #setMetric(Metric, double, Long)} instead
-    void setMetricType(@IntRange(from = 1, to = 22) int type);
+    void setMetricType(@IntRange(from = 1, to = 23) int type);
 
     double getMetricScore();
 
@@ -139,6 +141,8 @@ public interface MetricSample extends TimeSample {
         GENERIC_RACE_PREDICTOR_HALF_MARATHON(21, UNIT_SECONDS_SPORT, R.string.metric_generic_race_predictor_half_marathon),
         /// @see FitRacePrediction#getTimeFullMarathon()
         GENERIC_RACE_PREDICTOR_FULL_MARATHON(22, UNIT_SECONDS_SPORT, R.string.metric_generic_race_predictor_full_marathon),
+        /// @see FitMetricRecovery#getRecoveryMinutes()
+        GARMIN_RECOVERY_TIME(23, UNIT_MINUTES, R.string.recoveryTime),
         ;
 
         public final int dbId;
