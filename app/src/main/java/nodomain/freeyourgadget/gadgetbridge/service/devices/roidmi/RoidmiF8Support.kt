@@ -23,6 +23,8 @@ import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo
+import nodomain.freeyourgadget.gadgetbridge.devices.BatteryCurrentSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.entities.BatteryCurrentSample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryState
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCharacteristic
@@ -495,6 +497,21 @@ class RoidmiF8Support : BleGattClientSupport() {
             deviceState ?: "UNKNOWN", String.format("%02X", state), currentAmps
         )
         device.setExtraInfo(EXTRA_CURRENT_AMPS, currentAmps)
+
+        // Persist every reading so the battery charts can chart the current.
+        // D8FF reports the motor draw while running and the charge current while docked, both
+        // as amps, so a single BatteryCurrentSample covers both phases without needing a sign flip.
+        try {
+            GBApplication.acquireDB().use { db ->
+                val sample = BatteryCurrentSample()
+                sample.timestamp = System.currentTimeMillis()
+                sample.batteryIndex = 0
+                sample.current = currentAmps
+                BatteryCurrentSampleProvider(device, db.daoSession).persistSamples(sample, context)
+            }
+        } catch (e: Exception) {
+            LOG.error("handleStatus: failed to persist current sample", e)
+        }
 
         reportBattery()
     }
