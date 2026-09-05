@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.roidmi
 
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
+import android.widget.Toast
+import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo
@@ -157,6 +159,11 @@ class RoidmiF8Support : BleGattClientSupport() {
             if (token.size < 12) {
                 LOG.warn("Xiaomi auth: no valid miio token configured – authentication required")
                 builder.setDeviceState(GBDevice.State.AUTHENTICATION_REQUIRED)
+                GB.toast(context, R.string.authentication_failed_check_key, Toast.LENGTH_LONG, GB.WARN)
+                val device = getDevice()
+                if (device != null) {
+                    GBApplication.deviceService(device).disconnect()
+                }
                 return builder
             }
             authDone = false
@@ -772,8 +779,8 @@ class RoidmiF8Support : BleGattClientSupport() {
             3.60f to 13f,
             3.70f to 25f,
             3.75f to 33f,
-            3.80f to 42f,
-            3.85f to 52f,
+            3.80f to 48f,
+            3.85f to 58f,
             3.90f to 62f,
             3.95f to 72f,
             4.00f to 82f,

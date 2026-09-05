@@ -167,6 +167,7 @@ public interface DeviceCoordinator {
         BATTERY_MONITOR,
         SCOOTER,
         CAMERA,
+        VACUUM,
     }
 
     /**

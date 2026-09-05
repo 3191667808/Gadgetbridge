@@ -40,7 +40,7 @@ import java.util.regex.Pattern
  */
 class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
 
-    override fun getManufacturer(): String = "ROIDMI"
+    override fun getManufacturer(): String = "Roidmi"
 
     // The F8 model advertises as ROIDMI Cleaner F1
     override fun getSupportedDeviceName(): Pattern = Pattern.compile("ROIDMI Cleaner F1")
@@ -59,7 +59,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
 
     /**
      * Validates the user-provided device token. Accepts a hexadecimal string (optionally
-     * prefixed with `0x`) with an even number of digits, up to 32 hex characters (16 bytes).
+     * prefixed with `0x`) with an even number of digits, up to (2+)24 hex characters (12 bytes).
      */
     override fun validateAuthKey(authKey: String): Boolean {
         var hex = authKey.trim()
@@ -68,7 +68,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
         }
         return hex.isNotEmpty() &&
             hex.length % 2 == 0 &&
-            hex.length <= 32 &&
+            hex.length == 24 &&
             hex.matches(Regex("[0-9a-fA-F]+"))
     }
 
@@ -80,7 +80,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
 
     override fun getDeviceNameResource(): Int = R.string.devicetype_roidmi_f8
 
-    override fun getDefaultIconResource(): Int = R.drawable.ic_device_roidmi
+    override fun getDefaultIconResource(): Int = R.drawable.ic_vacuum_hand
 
     override fun getDeviceSettings(device: GBDevice): DeviceSettingsSpec = deviceSettings {
         list(
@@ -113,7 +113,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
     }
 
     override fun getDeviceKind(device: GBDevice): DeviceCoordinator.DeviceKind =
-        DeviceCoordinator.DeviceKind.UNKNOWN
+        DeviceCoordinator.DeviceKind.VACUUM
 
     /**
      * Extra live readings shown on the device card:
