@@ -30,18 +30,23 @@ import com.github.mikephil.charting.charts.Chart;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.GaugeDrawer;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.HrvSummarySample;
 import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
+import nodomain.freeyourgadget.gadgetbridge.model.SleepScoreSample;
+import nodomain.freeyourgadget.gadgetbridge.model.StressSample;
 
 public class TrainingReadinessFragment extends AbstractChartFragment<TrainingReadinessFragment.TrainingReadinessData> {
-    // Garmin's published Training Readiness zones, in ascending score order (matches
-    // GaugeDrawer.drawSegmentedGauge's left-to-right convention).
     private static final int[] ZONE_COLOR_RES = {
             R.color.training_readiness_poor,
             R.color.training_readiness_low,
@@ -66,6 +71,9 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
     // Score bands: 1-24, 25-49, 50-74, 75-94, 95-100.
     private static final float[] ZONE_SEGMENTS = {0.24f, 0.25f, 0.25f, 0.20f, 0.06f};
 
+    // See the comment at its use site in refreshInBackground().
+    private static final long SAME_CYCLE_BUFFER_MILLIS = 5 * 60 * 1000L;
+
     private final GaugeDrawer gaugeDrawer = new GaugeDrawer();
 
     private TextView dateView;
@@ -74,6 +82,19 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
     private TextView gaugeZone;
     private TextView zoneDescription;
     private TextView lastUpdated;
+
+    private TextView hrvValue;
+    private TextView hrvIndicator;
+    private TextView acuteLoadValue;
+    private TextView acuteLoadIndicator;
+    private TextView sleepScoreValue;
+    private TextView sleepScoreIndicator;
+    private TextView recoveryValue;
+    private TextView recoveryIndicator;
+    private TextView sleepHistoryValue;
+    private TextView sleepHistoryIndicator;
+    private TextView stressHistoryValue;
+    private TextView stressHistoryIndicator;
 
     @Override
     public String getTitle() {
@@ -100,6 +121,19 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
         zoneDescription = rootView.findViewById(R.id.training_readiness_zone_description);
         lastUpdated = rootView.findViewById(R.id.training_readiness_last_updated);
 
+        hrvValue = rootView.findViewById(R.id.training_readiness_hrv_value);
+        hrvIndicator = rootView.findViewById(R.id.training_readiness_hrv_indicator);
+        acuteLoadValue = rootView.findViewById(R.id.training_readiness_acute_load_value);
+        acuteLoadIndicator = rootView.findViewById(R.id.training_readiness_acute_load_indicator);
+        sleepScoreValue = rootView.findViewById(R.id.training_readiness_sleep_score_value);
+        sleepScoreIndicator = rootView.findViewById(R.id.training_readiness_sleep_score_indicator);
+        recoveryValue = rootView.findViewById(R.id.training_readiness_recovery_value);
+        recoveryIndicator = rootView.findViewById(R.id.training_readiness_recovery_indicator);
+        sleepHistoryValue = rootView.findViewById(R.id.training_readiness_sleep_history_value);
+        sleepHistoryIndicator = rootView.findViewById(R.id.training_readiness_sleep_history_indicator);
+        stressHistoryValue = rootView.findViewById(R.id.training_readiness_stress_history_value);
+        stressHistoryIndicator = rootView.findViewById(R.id.training_readiness_stress_history_indicator);
+
         refresh();
 
         return rootView;
@@ -107,9 +141,9 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
 
     @Override
     protected TrainingReadinessData refreshInBackground(final ChartsHost chartsHost, final DBHandler db, final GBDevice device) {
-        final long asOfMillis = getTSEnd() * 1000L;
+        final long nowMillis = getTSEnd() * 1000L;
 
-        final MetricSample latest = GenericMetricSampleProvider.getLatestMetricSampleBefore(db, device, MetricSample.Metric.GARMIN_TRAINING_READINESS, asOfMillis);
+        final MetricSample latest = GenericMetricSampleProvider.getLatestMetricSampleBefore(db, device, MetricSample.Metric.GARMIN_TRAINING_READINESS, nowMillis);
 
         Integer score = null;
         Long timestamp = null;
@@ -118,7 +152,81 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
             timestamp = latest.getTimestamp();
         }
 
-        return new TrainingReadinessData(score, timestamp);
+        // Training Readiness is computed once (typically in the morning), and the batch of
+        // contributing-factor messages flushed in that same sync cycle can be timestamped a few
+        // seconds before or after the readiness record itself (observed drift on real device
+        // data: training load -2s, recovery time +3s, relative to the readiness record in the
+        // same file). A strict "at or before" cutoff exactly on the readiness timestamp can miss
+        // a same-cycle factor by a couple of seconds and silently fall back to a stale prior-day
+        // reading instead - so widen the cutoff by a buffer that's generous relative to that
+        // jitter but far smaller than the gap to the next independent sync.
+        final long asOfMillis = (timestamp != null) ? timestamp + SAME_CYCLE_BUFFER_MILLIS : nowMillis;
+
+        final DeviceCoordinator coordinator = device.getDeviceCoordinator();
+        final long threeDaysAgoMillis = asOfMillis - 3L * 24 * 60 * 60 * 1000L;
+
+        // HRV status
+        HrvSummarySample.Status hrvStatus = HrvSummarySample.Status.NONE;
+        Integer hrvWeeklyAverage = null;
+        final TimeSampleProvider<? extends HrvSummarySample> hrvProvider = coordinator.getHrvSummarySampleProvider(device, db.getDaoSession());
+        if (hrvProvider != null) {
+            final HrvSummarySample latestHrv = hrvProvider.getLatestSample(asOfMillis);
+            if (latestHrv != null) {
+                if (latestHrv.getStatus() != null) {
+                    hrvStatus = latestHrv.getStatus();
+                }
+                hrvWeeklyAverage = latestHrv.getWeeklyAverage();
+            }
+        }
+
+        // Acute / chronic training load
+        final MetricSample acuteLoadSample = GenericMetricSampleProvider.getLatestMetricSampleBefore(db, device, MetricSample.Metric.GENERIC_TRAINING_LOAD_ACUTE, asOfMillis);
+        final MetricSample chronicLoadSample = GenericMetricSampleProvider.getLatestMetricSampleBefore(db, device, MetricSample.Metric.GENERIC_TRAINING_LOAD_CHRONIC, asOfMillis);
+        final Integer acuteLoad = (acuteLoadSample != null) ? (int) Math.round(acuteLoadSample.getMetricScore()) : null;
+        final Integer chronicLoad = (chronicLoadSample != null) ? (int) Math.round(chronicLoadSample.getMetricScore()) : null;
+
+        // Sleep score (last night) and 3-night average
+        final TimeSampleProvider<? extends SleepScoreSample> sleepScoreProvider = coordinator.getSleepScoreProvider(device, db.getDaoSession());
+        Integer sleepScore = null;
+        Integer sleepHistoryAvg = null;
+        if (sleepScoreProvider != null) {
+            final SleepScoreSample latestSleepScore = sleepScoreProvider.getLatestSample(asOfMillis);
+            sleepScore = (latestSleepScore != null) ? latestSleepScore.getSleepScore() : null;
+
+            final List<? extends SleepScoreSample> recentSleepScores = sleepScoreProvider.getAllSamples(threeDaysAgoMillis, asOfMillis);
+            if (!recentSleepScores.isEmpty()) {
+                int sum = 0;
+                for (final SleepScoreSample sample : recentSleepScores) {
+                    sum += sample.getSleepScore();
+                }
+                sleepHistoryAvg = Math.round((float) sum / recentSleepScores.size());
+            }
+        }
+
+        // Recovery time
+        final MetricSample recoverySample = GenericMetricSampleProvider.getLatestMetricSampleBefore(db, device, MetricSample.Metric.GARMIN_RECOVERY_TIME, asOfMillis);
+        final Integer recoveryMinutes = (recoverySample != null) ? (int) Math.round(recoverySample.getMetricScore()) : null;
+
+        // Stress, 3-day average
+        final TimeSampleProvider<? extends StressSample> stressProvider = coordinator.getStressSampleProvider(device, db.getDaoSession());
+        Integer stressHistoryAvg = null;
+        if (stressProvider != null) {
+            final List<? extends StressSample> recentStress = stressProvider.getAllSamples(threeDaysAgoMillis, asOfMillis);
+            int stressSum = 0;
+            int stressCount = 0;
+            for (final StressSample sample : recentStress) {
+                if (sample.getStress() > 0) {
+                    stressSum += sample.getStress();
+                    stressCount++;
+                }
+            }
+            if (stressCount > 0) {
+                stressHistoryAvg = Math.round((float) stressSum / stressCount);
+            }
+        }
+        final int[] stressRanges = coordinator.getStressRanges();
+
+        return new TrainingReadinessData(score, timestamp, hrvStatus, hrvWeeklyAverage, acuteLoad, chronicLoad, sleepScore, recoveryMinutes, sleepHistoryAvg, stressHistoryAvg, stressRanges);
     }
 
     @Override
@@ -144,6 +252,116 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
             zoneDescription.setText("");
             lastUpdated.setText("");
         }
+
+        updateHrvTile(data.hrvStatus, data.hrvWeeklyAverage);
+        updateAcuteLoadTile(data.acuteLoad, data.chronicLoad);
+        updateSleepScoreTile(sleepScoreValue, sleepScoreIndicator, data.sleepScore);
+        updateRecoveryTile(data.recoveryMinutes);
+        updateSleepScoreTile(sleepHistoryValue, sleepHistoryIndicator, data.sleepHistoryAvg);
+        updateStressTile(data.stressHistoryAvg, data.stressRanges);
+    }
+
+    private void updateHrvTile(final HrvSummarySample.Status status, @Nullable final Integer weeklyAverageMs) {
+        hrvValue.setText(weeklyAverageMs != null
+                ? getString(R.string.hrv_status_unit, weeklyAverageMs)
+                : getString(R.string.stats_empty_value));
+
+        switch (status) {
+            case BALANCED:
+                setIndicator(hrvIndicator, getString(R.string.hrv_status_balanced), R.color.hrv_status_balanced);
+                break;
+            case UNBALANCED:
+                setIndicator(hrvIndicator, getString(R.string.hrv_status_unbalanced), R.color.hrv_status_unbalanced);
+                break;
+            case LOW:
+                setIndicator(hrvIndicator, getString(R.string.hrv_status_low), R.color.hrv_status_low);
+                break;
+            case POOR:
+                setIndicator(hrvIndicator, getString(R.string.hrv_status_poor), R.color.hrv_status_poor);
+                break;
+            case NONE:
+            default:
+                setIndicator(hrvIndicator, "", null);
+                break;
+        }
+    }
+
+    private void updateAcuteLoadTile(@Nullable final Integer acuteLoad, @Nullable final Integer chronicLoad) {
+        if (acuteLoad == null) {
+            acuteLoadValue.setText(getString(R.string.stats_empty_value));
+            setIndicator(acuteLoadIndicator, "", null);
+            return;
+        }
+
+        acuteLoadValue.setText(String.valueOf(acuteLoad));
+
+        if (chronicLoad == null || chronicLoad <= 0) {
+            setIndicator(acuteLoadIndicator, getString(R.string.none), null);
+            return;
+        }
+
+        final float ratio = (float) acuteLoad / chronicLoad;
+        if (ratio < LoadFragment.OPTIMAL_LOAD_RATIO_LOWER) {
+            setIndicator(acuteLoadIndicator, getString(R.string.low), R.color.training_load_low);
+        } else if (ratio < LoadFragment.OPTIMAL_LOAD_RATIO_UPPER) {
+            setIndicator(acuteLoadIndicator, getString(R.string.optimal), R.color.training_load_optimal);
+        } else if (ratio < 2f) {
+            setIndicator(acuteLoadIndicator, getString(R.string.high), R.color.training_load_high);
+        } else {
+            setIndicator(acuteLoadIndicator, getString(R.string.very_high), R.color.training_load_high);
+        }
+    }
+
+    private void updateSleepScoreTile(final TextView valueView, final TextView indicatorView, @Nullable final Integer score) {
+        if (score == null) {
+            valueView.setText(getString(R.string.stats_empty_value));
+            setIndicator(indicatorView, "", null);
+            return;
+        }
+
+        valueView.setText(String.valueOf(score));
+        if (score >= 90) {
+            setIndicator(indicatorView, getString(R.string.sleep_score_excellent), R.color.training_readiness_high);
+        } else if (score >= 80) {
+            setIndicator(indicatorView, getString(R.string.sleep_score_good), R.color.training_readiness_moderate);
+        } else if (score >= 60) {
+            setIndicator(indicatorView, getString(R.string.sleep_score_fair), R.color.training_readiness_low);
+        } else {
+            setIndicator(indicatorView, getString(R.string.sleep_score_poor), R.color.training_readiness_poor);
+        }
+    }
+
+    private void updateRecoveryTile(@Nullable final Integer minutesOrNull) {
+        // No sample yet is treated the same as "0 minutes" - a device that hasn't recorded a
+        // recovery time is fully recovered by default, not in an unknown state.
+        final int minutes = (minutesOrNull != null) ? minutesOrNull : 0;
+
+        recoveryValue.setText((minutes / 60) + getString(R.string.unit_hours));
+        if (minutes == 0) {
+            setIndicator(recoveryIndicator, getString(R.string.training_readiness_recovery_fully_recovered), R.color.training_load_optimal);
+        } else {
+            setIndicator(recoveryIndicator, getString(R.string.training_readiness_recovery_recovering), null);
+        }
+    }
+
+    private void updateStressTile(@Nullable final Integer avgStress, final int[] stressRanges) {
+        if (avgStress == null) {
+            stressHistoryValue.setText(getString(R.string.stats_empty_value));
+            setIndicator(stressHistoryIndicator, "", null);
+            return;
+        }
+
+        stressHistoryValue.setText(String.valueOf(avgStress));
+        final StressFragment.StressType stressType = StressFragment.StressType.fromStress(avgStress, stressRanges);
+        stressHistoryIndicator.setText(stressType.getLabel(requireContext()));
+        stressHistoryIndicator.setTextColor(stressType.getColor(requireContext()));
+    }
+
+    private void setIndicator(final TextView view, final String text, @Nullable final Integer colorRes) {
+        view.setText(text);
+        view.setTextColor(colorRes != null
+                ? ContextCompat.getColor(requireContext(), colorRes)
+                : GBApplication.getSecondaryTextColor(requireContext()));
     }
 
     private int[] zoneColors() {
@@ -181,10 +399,40 @@ public class TrainingReadinessFragment extends AbstractChartFragment<TrainingRea
         final Integer score;
         @Nullable
         final Long timestamp;
+        final HrvSummarySample.Status hrvStatus;
+        @Nullable
+        final Integer hrvWeeklyAverage;
+        @Nullable
+        final Integer acuteLoad;
+        @Nullable
+        final Integer chronicLoad;
+        @Nullable
+        final Integer sleepScore;
+        @Nullable
+        final Integer recoveryMinutes;
+        @Nullable
+        final Integer sleepHistoryAvg;
+        @Nullable
+        final Integer stressHistoryAvg;
+        final int[] stressRanges;
 
-        TrainingReadinessData(@Nullable final Integer score, @Nullable final Long timestamp) {
+        TrainingReadinessData(@Nullable final Integer score, @Nullable final Long timestamp,
+                              final HrvSummarySample.Status hrvStatus, @Nullable final Integer hrvWeeklyAverage,
+                              @Nullable final Integer acuteLoad, @Nullable final Integer chronicLoad,
+                              @Nullable final Integer sleepScore, @Nullable final Integer recoveryMinutes,
+                              @Nullable final Integer sleepHistoryAvg, @Nullable final Integer stressHistoryAvg,
+                              final int[] stressRanges) {
             this.score = score;
             this.timestamp = timestamp;
+            this.hrvStatus = hrvStatus;
+            this.hrvWeeklyAverage = hrvWeeklyAverage;
+            this.acuteLoad = acuteLoad;
+            this.chronicLoad = chronicLoad;
+            this.sleepScore = sleepScore;
+            this.recoveryMinutes = recoveryMinutes;
+            this.sleepHistoryAvg = sleepHistoryAvg;
+            this.stressHistoryAvg = stressHistoryAvg;
+            this.stressRanges = stressRanges;
         }
     }
 }

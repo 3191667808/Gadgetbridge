@@ -2510,6 +2510,14 @@
     <string name="training_readiness_zone_poor">Poor</string>
     <string name="training_readiness_zone_poor_desc">Let your body recover</string>
     <string name="training_readiness_last_updated">Last updated at %1$s</string>
+    <string name="training_readiness_factor_sleep_3_nights">Sleep (3 nights)</string>
+    <string name="training_readiness_factor_stress_3_days">Stress (3 days)</string>
+    <string name="training_readiness_recovery_fully_recovered">Fully Recovered</string>
+    <string name="training_readiness_recovery_recovering">Recovering</string>
+    <string name="sleep_score_excellent">Excellent</string>
+    <string name="sleep_score_good">Good</string>
+    <string name="sleep_score_fair">Fair</string>
+    <string name="sleep_score_poor">Poor</string>
     <string name="menuitem_race_predictor">Race Predictor</string>
     <string name="p_raceprediction" translatable="false">raceprediction</string>
     <string name="menuitem_solar_charging">Solar Charging</string>
