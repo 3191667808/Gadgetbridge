@@ -101,6 +101,11 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
             icon = R.drawable.ic_notifications,
             defaultValue = true,
         )
+        info(
+            key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_CLEANING_TIME,
+            title = R.string.pref_roidmi_f8_cleaning_time_title,
+            icon = R.drawable.ic_timer,
+        )
         action(
             key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_RESET_FILTER,
             title = R.string.pref_roidmi_f8_reset_filter_title,

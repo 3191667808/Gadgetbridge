@@ -4130,6 +4130,7 @@
     <string name="pref_roidmi_f8_dust_reminder_summary">When off, disables the dust indicator and dust sensor</string>
     <string name="pref_roidmi_f8_reset_filter_title">Reset filter used time</string>
     <string name="pref_roidmi_f8_reset_filter_confirm">Reset the filter used time to zero?</string>
+    <string name="pref_roidmi_f8_cleaning_time_title">Cumulative cleaning time</string>
     <string name="pref_title_lock_unlock">Lock</string>
     <string name="wifi_hotspot">Wi-Fi Hotspot</string>
     <string name="wifi_hotspot_summary">Control the Wi-Fi hotspot on the watch</string>

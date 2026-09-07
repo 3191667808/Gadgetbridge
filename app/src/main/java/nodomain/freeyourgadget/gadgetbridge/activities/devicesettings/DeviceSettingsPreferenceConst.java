@@ -825,4 +825,6 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_ROIDMI_F8_STANDARD_GEAR = "pref_roidmi_f8_standard_gear";
     public static final String PREF_ROIDMI_F8_DUST_REMINDER = "pref_roidmi_f8_dust_reminder";
     public static final String PREF_ROIDMI_F8_RESET_FILTER  = "pref_roidmi_f8_reset_filter";
+    /** Read-only info: cumulative cleaning time, minutes (e.g. "464 min"). */
+    public static final String PREF_ROIDMI_F8_CLEANING_TIME = "pref_roidmi_f8_cleaning_time";
 }

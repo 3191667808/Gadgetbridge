@@ -51,6 +51,8 @@ import kotlin.math.roundToInt
  * ```
  * - D2FF (0x0029) – pack voltage + temperature; subtype in value[0]: 0x21 → voltage in
  *   bytes[4..5]/100 V; 0x22 → temperature in bytes[4..5]/100 °C and voltage in bytes[6..7]/100 V
+ * - D4FF (0x0031) – active gear (byte[2]) + cumulative cleaning time (bytes[6..7],
+ *   little-endian, minutes)
  * - D7FF (0x003D) – control / idle flags
  * - D8FF (0x0041) – run state + current: byte[1]=0x00 running; byte[5]/100 → A
  * - DBFF (0x004D) – secondary ~19 V rail (not the app's battery voltage), bytes[6..7] / 100 → V
@@ -386,11 +388,16 @@ class RoidmiF8Support : BleGattClientSupport() {
     }
 
     /**
-     * D4FF – active suction gear (ATT handle 0x0031). byte[2] is the gear index the device is
-     * currently set to (0 = 80 W, 1 = 130 W, 2 = 180 W). Mirrored into the GB preference so the
-     * settings UI reflects the value actually configured on the device, which may differ from
-     * whatever GB wrote in a previous session.
-     * Example: `41 00 02 00 00 00 00 01 03` → gear index 2 → 180 W.
+     * D4FF – active suction gear + filter counters (ATT handle 0x0031).
+     * - byte[2] is the gear index the device is currently set to (0 = 80 W, 1 = 130 W, 2 = 180 W).
+     *   Mirrored into the GB preference so the settings UI reflects the value actually configured
+     *   on the device, which may differ from whatever GB wrote in a previous session.
+     * - bytes[6..7] (little-endian uint16) → cumulative cleaning time in minutes. This is the
+     *   counter behind the official app's filter info card: it accumulates motor-on minutes and
+     *   is zeroed by "Reset filter used time" (`73 73`). byte[8] is the running checksum
+     *   `(byte[6] + byte[7]) & 0xFF`.
+     *
+     * Example: `41 00 00 00 00 00 09 01 0A` → gear 0, 0x0109 = 265 min.
      */
     private fun handleGear(value: ByteArray) {
         // D4FF gear needs at least 3 bytes (the gear index is at byte[2]).
@@ -402,9 +409,16 @@ class RoidmiF8Support : BleGattClientSupport() {
             return
         }
         LOG.info("Roidmi F8 suction gear index: {}", gear)
-        GBApplication.getDeviceSpecificSharedPrefs(device.address).edit()
+        val editor = GBApplication.getDeviceSpecificSharedPrefs(device.address).edit()
             .putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_STANDARD_GEAR, gear.toString())
-            .apply()
+
+        // bytes[6..7] (little-endian) = cumulative cleaning time in minutes.
+        if (value.size >= 9) {
+            val minutes = (value[6].toInt() and 0xFF) or ((value[7].toInt() and 0xFF) shl 8)
+            LOG.info("Roidmi F8 cumulative cleaning time: {} min", minutes)
+            editor.putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_CLEANING_TIME, "$minutes min")
+        }
+        editor.apply()
     }
 
     /**
@@ -720,7 +734,8 @@ class RoidmiF8Support : BleGattClientSupport() {
         /** D2FF – temperature: big-endian uint16 at bytes[6..7] / 100 → °C */
         private val UUID_CHAR_D2FF: UUID = UUID.fromString("0000ffd2-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_D3FF: UUID = UUID.fromString("0000ffd3-0000-1000-8000-00805f9b34fb")
-        /** D4FF – active suction gear: byte[2] = gear index (0=80 W, 1=130 W, 2=180 W). */
+        /** D4FF – active suction gear: byte[2] = gear index (0=80 W, 1=130 W, 2=180 W);
+         *  bytes[6..7] little-endian = cumulative cleaning time (minutes). */
         private val UUID_CHAR_D4FF: UUID = UUID.fromString("0000ffd4-0000-1000-8000-00805f9b34fb")
         /** D5FF – command channel (write + notify). Init `55 55`, queries `51/52/53`. */
         private val UUID_CHAR_D5FF: UUID = UUID.fromString("0000ffd5-0000-1000-8000-00805f9b34fb")
@@ -788,14 +803,15 @@ class RoidmiF8Support : BleGattClientSupport() {
         /**
          * Li-ion state-of-charge curve: per-cell voltage → % (ascending), interpolated linearly
          * and clamped to 0/100. Anchored to the official app: a rested full pack sits at ~32.9 V
-         * (0x0029), i.e. ~4.11 V/cell = 100 %, so the top of the curve tops out at 4.10 V.
+         * (0x0029), i.e. ~4.11 V/cell = 100 %, so the top of the curve tops out at 4.10 V;
+         * 29.08 V (3.635 V/cell) reads 30 % on the app, which fixes the 3.60/3.70 V anchors.
          */
         private val BATTERY_SOC_CURVE = arrayOf(
             3.30f to 0f,
             3.50f to 8f,
-            3.60f to 13f,
-            3.70f to 25f,
-            3.75f to 33f,
+            3.60f to 25f,
+            3.70f to 40f,
+            3.75f to 45f,
             3.80f to 48f,
             3.85f to 58f,
             3.90f to 62f,
