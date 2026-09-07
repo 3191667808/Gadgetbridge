@@ -4570,4 +4570,15 @@
     <string name="sony_equalizer_mp3">Égaliseur (MP3)</string>
     <string name="soundbrenner_pref_metronome_toggle_title">Démarrer/Arrêter</string>
     <string name="soundbrenner_pref_metronome_toggle_summary">Démarrer ou arrêter le métronome</string>
+    <string name="solar_charging_peak_intensity">Intensité maximum</string>
+    <string name="minutes_unit">minimum</string>
+    <string name="menuitem_solar_charging">Recharge solaire</string>
+    <string name="solar_charging_intensity_chart_label">Intensité de recharge solaire</string>
+    <string name="unit_millimetre_of_mercury">mmHg</string>
+    <string name="pref_dashboard_manage_widgets_title">Gérer les widgets</string>
+    <string name="pref_dashboard_manage_widgets_summary">Ajouter, supprimer, ordonner et configurer les différents widgets du tableau de bord</string>
+    <string name="widgets_add_widget">Ajouter un widget</string>
+    <string name="widgets_duplicate">Dupliquer</string>
+    <string name="widgets_remove">Supprimer</string>
+    <string name="widgets_drag_to_reorder">Tirer pour réordonner</string>
 </resources>
