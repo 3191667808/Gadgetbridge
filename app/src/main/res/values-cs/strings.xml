@@ -4958,4 +4958,16 @@
     <string name="maps_files">Mapové soubory</string>
     <string name="maps_folder_empty">Ve zvolené složce nebyly nalezeny žádné soubory</string>
     <string name="maps_file_invalid">Neplatná mapa: %1$s</string>
+    <string name="body_mass_index">BMI</string>
+    <string name="body_composition_body_fat">Tělesný tuk</string>
+    <string name="body_composition_body_water">Tělesná voda</string>
+    <string name="body_composition_muscle_mass">Svaly</string>
+    <string name="body_composition_bone_mass">Kosti</string>
+    <string name="body_composition_bmr">BMR</string>
+    <string name="body_composition_impedance">Impedance</string>
+    <string name="body_composition_percent">%1$.1f %%</string>
+    <string name="body_composition_kcal">%1$d kcal</string>
+    <string name="body_composition_ohm">%1$d Ω</string>
+    <string name="pref_title_chart_weight_body_composition">Hodnoty složení těla</string>
+    <string name="pref_summary_chart_weight_body_composition">Hodnoty jsou zobrazeny pod grafem váhy, pokud je váha poskytuje</string>
 </resources>
