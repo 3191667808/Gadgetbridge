@@ -916,8 +916,9 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         return buf.array();
     }
 
-    private OppoHeadphonesCoordinator getCoordinator() {
-        return (OppoHeadphonesCoordinator) getDevice().getDeviceCoordinator();
+    @Override
+    protected OppoHeadphonesCoordinator getCoordinator() {
+        return (OppoHeadphonesCoordinator) super.getCoordinator();
     }
 
     private void evaluateGBDeviceEvents(final List<GBDeviceEvent> events) {
