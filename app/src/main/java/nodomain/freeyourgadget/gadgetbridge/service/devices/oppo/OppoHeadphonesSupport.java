@@ -746,7 +746,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
             final String deviceName = new String(nameBytes, StandardCharsets.UTF_8);
 
             LOG.debug("Device {}: {} ({})", deviceName, macAddress, isConnected);
-            devices.add(new MultipointDevice(macAddress, deviceName, isConnected));
+            devices.add(new MultipointDevice(macAddress, deviceName, isConnected, false, !isSelf));
         }
         broadcastMultipointList(devices);
     }
@@ -756,7 +756,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         queueCommand(OppoCommand.MULTIPOINT_DEVICES_REQ, new byte[0]);
     }
 
-    private void multipointDevicesSet(String deviceAddress, boolean isConnect) {
+    private void multipointDevicesSet(String deviceAddress, int action) {
         LOG.info("Connecting to {}", deviceAddress);
 
         byte[] macAddress = StringUtils.hexToBytes(deviceAddress.replace(":", ""));
@@ -772,7 +772,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final ByteBuffer buf = ByteBuffer.allocate(8);
         buf.put((byte) 0x01);
         buf.put(macAddress);
-        buf.put((byte) (isConnect ? 0x01 : 0x00));
+        buf.put((byte) action);
         queueCommand(OppoCommand.MULTIPOINT_DEVICES_SET, buf.array());
     }
 
@@ -789,6 +789,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_GET_STATUS);
         intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE);
         intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE);
+        intentFilter.addAction(MultipointPairingActivity.ACTION_MULTIPOINT_FORGET_DEVICE);
 
         LocalBroadcastManager.getInstance(getContext()).registerReceiver(multipointBroadcastReceiver, intentFilter);
     }
@@ -817,11 +818,15 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
                 case MultipointPairingActivity.ACTION_MULTIPOINT_GET_DEVICES -> multipointDevicesGet();
                 case MultipointPairingActivity.ACTION_MULTIPOINT_CONNECT_DEVICE -> {
                     final String deviceAddress = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
-                    multipointDevicesSet(deviceAddress, true);
+                    multipointDevicesSet(deviceAddress, 0x01);
                 }
                 case MultipointPairingActivity.ACTION_MULTIPOINT_DISCONNECT_DEVICE -> {
                     final String deviceAddress = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
-                    multipointDevicesSet(deviceAddress, false);
+                    multipointDevicesSet(deviceAddress, 0x00);
+                }
+                case MultipointPairingActivity.ACTION_MULTIPOINT_FORGET_DEVICE -> {
+                    final String deviceAddress = intent.getStringExtra(MultipointPairingActivity.EXTRA_DEVICE_ADDRESS);
+                    multipointDevicesSet(deviceAddress, 0x02);
                 }
                 default -> LOG.warn("Unknown action {}", action);
             }
@@ -832,6 +837,7 @@ public class OppoHeadphonesSupport extends AbstractHeadphoneBTBRDeviceSupport {
         final Intent intent = new Intent(MultipointPairingActivity.ACTION_MULTIPOINT_STATUS_UPDATE);
         intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
         intent.putExtra(MultipointPairingActivity.EXTRA_MULTIPOINT_ENABLED, isEnabled);
+        intent.putExtra(MultipointPairingActivity.EXTRA_MULTIPOINT_DISABLE_SUPPORTED, true);
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
