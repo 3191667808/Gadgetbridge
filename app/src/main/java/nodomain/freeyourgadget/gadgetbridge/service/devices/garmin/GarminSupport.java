@@ -571,6 +571,14 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             return;
         }
 
+        if (newSyncProtocol()) {
+            sendProtobufRequest("directly request file list",
+                    Smart.newBuilder().setFileSyncService(
+                            protocolBufferHandler.getFileSyncServiceHandler().requestFileList()
+                    ).build());
+            return;
+        }
+
         if (this.supportedFileTypeList.isEmpty() && !newSyncProtocol()) {
             LOG.warn("No known supported file types");
             return;
