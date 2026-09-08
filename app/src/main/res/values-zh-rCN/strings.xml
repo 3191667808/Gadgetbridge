@@ -4952,4 +4952,16 @@
     <string name="pref_widget_columns_two">2 列</string>
     <string name="pref_widget_title_title">自定义标题</string>
     <string name="pref_widget_title_summary">覆盖小部件的默认标题。留空使用默认值。</string>
+    <string name="body_mass_index">BMI</string>
+    <string name="body_composition_body_fat">体脂</string>
+    <string name="body_composition_body_water">身体含水量</string>
+    <string name="body_composition_muscle_mass">肌肉</string>
+    <string name="body_composition_bone_mass">骨骼</string>
+    <string name="body_composition_bmr">BMR</string>
+    <string name="body_composition_impedance">电阻</string>
+    <string name="body_composition_percent">%1$.1f %%</string>
+    <string name="body_composition_kcal">%1$d 卡</string>
+    <string name="body_composition_ohm">%1$d 欧姆</string>
+    <string name="pref_title_chart_weight_body_composition">人体成分值</string>
+    <string name="pref_summary_chart_weight_body_composition">体重秤提供时显示在体重图表下方的值</string>
 </resources>
