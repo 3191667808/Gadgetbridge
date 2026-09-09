@@ -1890,7 +1890,7 @@
     <string name="pref_title_notification_media_ignores_application_list">רשימת יישומונים להתעלמות בהתראות מדיה</string>
     <string name="pref_summary_notification_media_ignores_application_list">לעבד את בקשות המדיה לפני רשימת היישומונים. אם העדפה זו לא מסומנת, יש לאפשר יישומוני מדיה ברשימת היישומונים כדי שפקדי המדיה יעבדו על המכשיר.</string>
     <string name="debugactivity_confirm_remove_device_preferences_title">להסיר את העדפות המכשיר\?</string>
-    <string name="debugactivity_confirm_remove_device_preferences">פעולה זו תאפס את העדפות המכשיר לכל המכשירים המקושרים. להמשיך?</string>
+    <string name="debugactivity_confirm_remove_device_preferences">פעולה זו תאפס את העדפות המכשיר הזה. להמשיך?</string>
     <string name="fw_upgrade_notice_amazfit_band7">פעולה זו תתקין את הקושחה %s על ה־Amazfit Band 7 שלך.
 \n
 \nהצמיד שלך יופעל מחדש לאחר התקנת קובץ ה־‎.zip.
@@ -2930,4 +2930,9 @@
     <string name="title_activity_gps_track_installer">מתקין עקבות GPS</string>
     <string name="refresh">ריענון</string>
     <string name="pref_header_sync">סנכרון</string>
+    <string name="controlcenter_get_spo2_measurement">קבלת מדידת חמצן בדם</string>
+    <string name="pref_header_dashboard">לוח בקרה</string>
+    <string name="sound_and_vibration">צליל + רטט</string>
+    <string name="pref_title_general_prefs_key_sort_by_last_connected_ts">מיון לפי תאריך החיבור האחרון</string>
+    <string name="pref_title_block_screenshot">חסימת צילומי מסך</string>
 </resources>
