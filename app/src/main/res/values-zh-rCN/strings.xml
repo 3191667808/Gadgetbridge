@@ -1501,7 +1501,7 @@
     <string name="prefs_seamless_connection_switch_summary">在配对设备之间自动切换耳机</string>
     <string name="prefs_ambient_volume_left">左侧环境音量</string>
     <string name="prefs_ambient_sound_during_call_title">通话期间的环境音</string>
-    <string name="prefs_active_noise_cancelling_level">主动降噪级别</string>
+    <string name="prefs_active_noise_cancelling_level">主动消噪级别</string>
     <string name="prefs_active_noise_cancelling_level_high">高</string>
     <string name="prefs_active_noise_cancelling_level_low">低</string>
     <string name="prefs_switch_control_left">左侧开关控制</string>
@@ -4964,4 +4964,17 @@
     <string name="body_composition_ohm">%1$d 欧姆</string>
     <string name="pref_title_chart_weight_body_composition">人体成分值</string>
     <string name="pref_summary_chart_weight_body_composition">体重秤提供时显示在体重图表下方的值</string>
+    <string name="minutes_40">40 分钟</string>
+    <string name="mandarin">普通话</string>
+    <string name="cantonese">广东方言</string>
+    <string name="norwegian">挪威语</string>
+    <string name="hindi">印地语</string>
+    <string name="prefs_active_noise_reduction_level">主动降噪级别</string>
+    <string name="prefs_voice_prompts_language">语音提示语言</string>
+    <string name="prefs_shortcut_action">快捷方式动作</string>
+    <string name="self_voice">本人声音</string>
+    <string name="prefs_media_transport_controls_summary">传输控制通过耳机转发到活跃源</string>
+    <string name="bluetooth_multipoint_active_device">活跃源 · %1$s</string>
+    <string name="bluetooth_multipoint_forget">忘记</string>
+    <string name="bluetooth_multipoint_forget_message">从配对设备中删除 %1$s ？重新连接需要再次配对。</string>
 </resources>
