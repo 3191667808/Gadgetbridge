@@ -42,15 +42,14 @@ import java.util.Locale
  * Device support for the Roidmi F8 Cordless Vacuum Cleaner (XCQ03RM / "ROIDMI Cleaner F1").
  *
  * ## Connection flow
- * On connect, subscribe to all FFD0 telemetry characteristics, read their initial values
- * and send the D5FF init command `55 55` to activate the command channel.
+ * Authenticate via FE95, then subscribe/read FFD0 telemetry and initialize the command channel.
  *
  * ## Telemetry
  * Nine-byte frames end with the sum of bytes[1..7] modulo 256 (excluding the opcode).
  * D1FF subtypes 0x11/0x17 carry standard/high-mode minute counters; see RoidmiF8Telemetry.md.
  * D2FF carries pack voltage; D3FF carries battery temperature (raw / 10 - 30 °C).
  * D4FF carries the active gear; its trailing field must not be reported as lifetime minutes.
- * D8FF carries run state and big-endian uint16 current at bytes[4..5] / 100 A. Other sensor units remain under investigation.
+ * D8FF carries run state and big-endian uint16 current at bytes[4..5] / 100 A.
  *
  * ## Configuration writes (ATT Write Command to D7FF / 0x003D)
  * The application value written is the ROIDMI payload only (no ATT header bytes):
@@ -66,7 +65,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         CHARGING(0x02);
 
         companion object {
-            fun fromCode(code: Int): DeviceState? = values().firstOrNull { it.code == code }
+            fun fromCode(code: Int): DeviceState? = entries.firstOrNull { it.code == code }
         }
     }
 
@@ -96,8 +95,8 @@ class RoidmiF8Support : BleGattClientSupport() {
     /** Last measured pack voltage (V); <= 0 = unknown. */
     private var lastBatteryVoltage = 0f
 
-    /** Last charge current reported on D8FF while charging (A); used to detect a full charge. */
-    private var lastChargeCurrentAmps = 0f
+    /** Last motor/charge current from D8FF (A); only used for full detection when charging. */
+    private var lastCurrentAmps = 0f
 
     /** Firmware major from the D5FF 0x53 sensor response (e.g. "v0.5" → "5"); null = unknown. */
     private var firmwareMajor: String? = null
@@ -131,7 +130,18 @@ class RoidmiF8Support : BleGattClientSupport() {
      * performed directly.
      */
     override fun initializeDevice(builder: TransactionBuilder): TransactionBuilder {
+        // Never combine newly received telemetry with state from a previous connection.
         cleaningSession.reset()
+        lastBatteryLevel = -1
+        lastBatteryVoltage = 0f
+        lastCurrentAmps = 0f
+        charging = false
+        running = false
+        firmwareMajor = null
+        firmwareBuild = null
+        firmwareRevision = null
+        authDone = false
+        device.setExtraInfo(EXTRA_CURRENT_AMPS, null)
         device.setExtraInfo(EXTRA_TEMPERATURE_CELSIUS, null)
         charD1FF = getCharacteristic(UUID_CHAR_D1FF)
         charBatteryVoltage = getCharacteristic(UUID_CHAR_D2FF)
@@ -161,7 +171,7 @@ class RoidmiF8Support : BleGattClientSupport() {
             // Xiaomi MiBeacon (Mi Kettle-style) RC4 handshake. The device drops the link
             // unless it is authenticated with the user's miio token before any command.
             val token = getToken()
-            if (token.size < 12) {
+            if (token.size != 12) {
                 LOG.warn("Xiaomi auth: no valid miio token configured – authentication required")
                 builder.setDeviceState(GBDevice.State.AUTHENTICATION_REQUIRED)
                 GB.toast(context, R.string.authentication_failed_check_key, Toast.LENGTH_LONG, GB.WARN)
@@ -171,7 +181,6 @@ class RoidmiF8Support : BleGattClientSupport() {
                 }
                 return builder
             }
-            authDone = false
             val reversedMac = parseMacReversed(device.address)
             val frame = rc4(mixA(reversedMac, PRODUCT_ID), token)
             LOG.debug("Xiaomi auth: starting MiBeacon RC4 handshake")
@@ -210,7 +219,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         subscribeAndRead(builder, charStatus)        // D8FF – run state + current
         subscribeAndRead(builder, getCharacteristic(UUID_CHAR_D9FF))
         subscribeAndRead(builder, getCharacteristic(UUID_CHAR_DAFF))
-        subscribeAndRead(builder, charVoltage)       // DBFF – pack voltage
+        subscribeAndRead(builder, charVoltage)       // DBFF – uncalibrated secondary sensor
         subscribeAndRead(builder, getCharacteristic(UUID_CHAR_DCFF))
 
         // D5FF init sequence: activate command channel and request device info.
@@ -220,7 +229,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         builder.sleep(D5FF_QUERY_DELAY_MS)
         builder.write(charCommand, *CMD_VERSION_INFO)
         builder.sleep(D5FF_QUERY_DELAY_MS)
-        builder.write(charCommand, *CMD_FILTER_INFO)
+        builder.write(charCommand, *CMD_QUERY_52)
         builder.sleep(D5FF_QUERY_DELAY_MS)
         builder.write(charCommand, *CMD_SENSOR_INFO)
 
@@ -235,9 +244,6 @@ class RoidmiF8Support : BleGattClientSupport() {
      * 12-byte confirmation frame (not validated here). The client completes the handshake
      * by writing `RC4(token, MI_KEY2)` to AUTH and reading the VERSION characteristic,
      * then proceeds to FFD0 setup.
-     *
-     * This exact sequence and its RC4 key schedule were verified byte-for-byte against a
-     * real handshake capture (see `roidmi.txt`).
      */
     private fun handleAuthNotification(value: ByteArray) {
         if (authDone) {
@@ -280,16 +286,15 @@ class RoidmiF8Support : BleGattClientSupport() {
         if (hex.isEmpty()) {
             return ByteArray(0)
         }
-        if (hex.length % 2 != 0 || hex.length > 32) {
+        if (hex.length != 24) {
             LOG.warn("getToken: token length {} is invalid (expected 24 hex chars)", hex.length)
             return ByteArray(0)
         }
-        return try {
-            StringUtils.hexToBytes(hex)
-        } catch (e: NumberFormatException) {
-            LOG.warn("getToken: invalid token '{}'", hex)
-            ByteArray(0)
+        if (!hex.matches(Regex("[0-9a-fA-F]+"))) {
+            LOG.warn("getToken: invalid hexadecimal token")
+            return ByteArray(0)
         }
+        return StringUtils.hexToBytes(hex)
     }
 
     /** Subscribes to notifications and queues an initial read for [characteristic]. */
@@ -315,7 +320,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         status: Int,
     ): Boolean {
         // Explicitly skip the parent's standard GATT battery level handler – this device
-        // reports battery via pack voltage on DBFF, not via UUID_CHARACTERISTIC_BATTERY_LEVEL.
+        // estimates battery level from pack voltage on FFD2.
         if (characteristic.uuid == GattCharacteristic.UUID_CHARACTERISTIC_BATTERY_LEVEL) {
             return true
         }
@@ -458,16 +463,14 @@ class RoidmiF8Support : BleGattClientSupport() {
         val deviceState = DeviceState.fromCode(state)
         running = deviceState == DeviceState.RUNNING
         charging = deviceState == DeviceState.CHARGING
-        lastChargeCurrentAmps = currentAmps
+        lastCurrentAmps = currentAmps
         LOG.info(
             "Roidmi F8 status: state={} (0x{}), current={} A",
             deviceState ?: "UNKNOWN", String.format("%02X", state), currentAmps
         )
         device.setExtraInfo(EXTRA_CURRENT_AMPS, currentAmps)
 
-        // Persist every reading so the battery charts can chart the current.
-        // D8FF reports the motor draw while running and the charge current while docked, both
-        // as amps, so a single BatteryCurrentSample covers both phases without needing a sign flip.
+        // Store the unsigned motor/charge current magnitude for battery history.
         try {
             GBApplication.acquireDB().use { db ->
                 val sample = BatteryCurrentSample()
@@ -484,19 +487,12 @@ class RoidmiF8Support : BleGattClientSupport() {
     }
 
     /**
-     * Emits a single battery event combining the estimated state-of-charge level and the
-     * charge state. The level is estimated from the pack voltage, which is only a reliable
-     * open-circuit reading while the vacuum is idle: under motor load the voltage sags (e.g.
-     * down to ~31.9 V at 100 %), and while docked it is pinned at the charge (CV) limit. So the
-     * level is normally recomputed at rest; while running the last resting level is held
-     * above the observed 28.58 V empty endpoint (at/below it, report 0%), and a
-     * charging pack whose current has tapered to ~0 A is reported as full. Skipped until a
-     * voltage reading is available so the UI never shows a placeholder level right after
-     * connecting.
+     * Hold the last percentage under motor load unless the empty-voltage floor is reached.
+     * Charging with tapered current is treated as full. Wait for voltage before publishing.
      */
     private fun reportBattery() {
         if (lastBatteryVoltage <= 0) return
-        val chargingFull = charging && lastChargeCurrentAmps <= FULL_CHARGE_CURRENT_AMPS
+        val chargingFull = charging && lastCurrentAmps <= FULL_CHARGE_CURRENT_AMPS
         lastBatteryLevel = RoidmiF8Telemetry.batteryLevel(
             lastBatteryVoltage, running, lastBatteryLevel, chargingFull)
         val batteryInfo = GBDeviceEventBatteryInfo()
@@ -672,7 +668,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         private val UUID_CHAR_D8FF: UUID = UUID.fromString("0000ffd8-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_D9FF: UUID = UUID.fromString("0000ffd9-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_DAFF: UUID = UUID.fromString("0000ffda-0000-1000-8000-00805f9b34fb")
-        /** DBFF – battery pack voltage: big-endian uint16 at bytes[6..7] / 100 → V */
+        /** DBFF – secondary sensor, logged only; FFD2 supplies battery pack voltage. */
         private val UUID_CHAR_DBFF: UUID = UUID.fromString("0000ffdb-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_DCFF: UUID = UUID.fromString("0000ffdc-0000-1000-8000-00805f9b34fb")
 
@@ -695,7 +691,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         /** Reset filter used-time counter */
         private val CMD_RESET_FILTER = byteArrayOf(0x73, 0x73)
         /** Query 0x52: captured response contains one unknown byte and a checksum. */
-        private val CMD_FILTER_INFO = byteArrayOf(0x52)
+        private val CMD_QUERY_52 = byteArrayOf(0x52)
         /** Sensor / brush version query. Response: opcode 0x53 + ASCII version string. */
         private val CMD_SENSOR_INFO = byteArrayOf(0x53)
 
@@ -712,8 +708,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         private const val FULL_CHARGE_CURRENT_AMPS = 0.05f
         /**
          * Delay between consecutive D5FF query writes. The device answers one query at a
-         * time and drops queries issued too soon after "55 55"; the official app spaces
-         * them ~1.6 s apart, so this leaves comfortable margin.
+         * time and drops queries issued too soon after "55 55".
          */
         private const val D5FF_QUERY_DELAY_MS = 800
 

@@ -35,8 +35,7 @@ import java.util.regex.Pattern
  * Coordinator for the Roidmi F8 Cordless Vacuum Cleaner (model XCQ03RM).
  *
  * The device advertises via Xiaomi MiBeacon (service UUID 0xFE95, device ID 0x0248).
- * Battery pack voltage is read from characteristic 0xFFD2 and
- * power state / battery percentage from characteristic 0xFFD8.
+ * Battery percentage is estimated from FFD2 voltage and FFD8 run/charge state.
  */
 class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
 
@@ -58,17 +57,14 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
     override fun requiresAuthKey(): Boolean = true
 
     /**
-     * Validates the user-provided device token. Accepts a hexadecimal string (optionally
-     * prefixed with `0x`) with an even number of digits, up to (2+)24 hex characters (12 bytes).
+     * Accepts exactly 24 hexadecimal digits (12 bytes), optionally prefixed with `0x`.
      */
     override fun validateAuthKey(authKey: String): Boolean {
         var hex = authKey.trim()
         if (hex.startsWith("0x")) {
             hex = hex.substring(2)
         }
-        return hex.isNotEmpty() &&
-            hex.length % 2 == 0 &&
-            hex.length == 24 &&
+        return hex.length == 24 &&
             hex.matches(Regex("[0-9a-fA-F]+"))
     }
 

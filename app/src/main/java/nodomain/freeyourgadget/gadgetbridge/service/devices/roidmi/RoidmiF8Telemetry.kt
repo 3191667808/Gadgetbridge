@@ -55,10 +55,13 @@ internal object RoidmiF8Telemetry {
         }
     }
 
-    fun isValidFrame(value: ByteArray, opcode: Int): Boolean =
-        value.size == 9 && (value[0].toInt() and 0xff) == opcode &&
-            (value.sliceArray(1..7).sumOf { it.toInt() and 0xff } and 0xff) ==
-            (value[8].toInt() and 0xff)
+    /** Nine-byte telemetry frames exclude the opcode from their additive checksum. */
+    fun isValidFrame(value: ByteArray, opcode: Int): Boolean {
+        if (value.size != 9 || (value[0].toInt() and 0xff) != opcode) return false
+        var checksum = 0
+        for (i in 1..7) checksum += value[i].toInt() and 0xff
+        return (checksum and 0xff) == (value[8].toInt() and 0xff)
+    }
 
     fun cleaningCounters(value: ByteArray): CleaningCounters? {
         val mode = when {
@@ -129,7 +132,7 @@ internal object RoidmiF8Telemetry {
 
     private const val BATTERY_EMPTY_VOLTAGE = 28.58f
 
-    /** Pack volts → percent; retain the earlier 29.08 V / 30% and upper-voltage anchors. */
+    /** Empirical pack-voltage estimate, not a reported state-of-charge measurement. */
     private val BATTERY_SOC_CURVE = arrayOf(
         BATTERY_EMPTY_VOLTAGE to 0f,
         29.08f to 30f,
