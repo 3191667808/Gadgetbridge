@@ -4124,12 +4124,16 @@
     <string name="xiaomi_scooter_tire_pressure_reset_title">Reset reminder</string>
     <string name="xiaomi_scooter_tire_pressure_reset_summary">Click this button to restart the tire pressure maintenance timer.</string>
     <string name="xiaomi_scooter_tire_pressure_reset_confirmation">Reset the tire pressure maintenance reminder?</string>
+    <string name="pref_roidmi_f8_battery_temperature_title">Battery temperature</string>
     <string name="pref_roidmi_f8_standard_gear_title">Standard gear</string>
     <string name="pref_roidmi_f8_standard_gear_summary">Default power when starting to clean</string>
     <string name="pref_roidmi_f8_dust_reminder_title">Dust full reminder</string>
     <string name="pref_roidmi_f8_dust_reminder_summary">When off, disables the dust indicator and dust sensor</string>
     <string name="pref_roidmi_f8_reset_filter_title">Reset filter used time</string>
     <string name="pref_roidmi_f8_reset_filter_confirm">Reset the filter used time to zero?</string>
+    <string name="pref_roidmi_f8_filter_used_time_title">Filter used time (estimated)</string>
+    <string name="pref_roidmi_f8_standard_cleaning_time_title">Standard-mode cleaning time</string>
+    <string name="pref_roidmi_f8_high_cleaning_time_title">High-mode cleaning time</string>
     <string name="pref_roidmi_f8_cleaning_time_title">Cumulative cleaning time</string>
     <string name="pref_title_lock_unlock">Lock</string>
     <string name="wifi_hotspot">Wi-Fi Hotspot</string>

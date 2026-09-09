@@ -102,9 +102,29 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
             defaultValue = true,
         )
         info(
+            key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_BATTERY_TEMPERATURE,
+            title = R.string.pref_roidmi_f8_battery_temperature_title,
+            icon = R.drawable.ic_temperature,
+        )
+        info(
             key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_CLEANING_TIME,
             title = R.string.pref_roidmi_f8_cleaning_time_title,
             icon = R.drawable.ic_timer,
+        )
+        info(
+            key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_STANDARD_CLEANING_TIME,
+            title = R.string.pref_roidmi_f8_standard_cleaning_time_title,
+            icon = R.drawable.ic_timer,
+        )
+        info(
+            key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_HIGH_CLEANING_TIME,
+            title = R.string.pref_roidmi_f8_high_cleaning_time_title,
+            icon = R.drawable.ic_timer,
+        )
+        info(
+            key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_FILTER_USED_TIME,
+            title = R.string.pref_roidmi_f8_filter_used_time_title,
+            icon = R.drawable.ic_filter_alt,
         )
         action(
             key = DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_RESET_FILTER,
@@ -123,7 +143,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
     /**
      * Extra live readings shown on the device card:
      * - motor / charge current (only while it is drawing more than [MIN_DISPLAY_CURRENT_AMPS])
-     * - pack temperature
+     * - battery temperature
      */
     override fun getCustomActions(): List<DeviceCardAction> = listOf(
         deviceCardAction {
@@ -143,7 +163,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
             isVisible = { device ->
                 device.isConnected && device.getExtraInfo(RoidmiF8Support.EXTRA_TEMPERATURE_CELSIUS) is Float
             }
-            description = { _, context -> context.getString(R.string.menuitem_temperature) }
+            description = { _, context -> context.getString(R.string.pref_roidmi_f8_battery_temperature_title) }
             label = { device, _ ->
                 String.format(Locale.getDefault(), "%.1f °C", device.getExtraInfo(RoidmiF8Support.EXTRA_TEMPERATURE_CELSIUS) as? Float ?: 0f)
             }

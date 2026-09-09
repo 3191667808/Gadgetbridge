@@ -36,7 +36,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.StringUtils
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.util.UUID
-import kotlin.math.roundToInt
+import java.util.Locale
 
 /**
  * Device support for the Roidmi F8 Cordless Vacuum Cleaner (XCQ03RM / "ROIDMI Cleaner F1").
@@ -45,17 +45,12 @@ import kotlin.math.roundToInt
  * On connect, subscribe to all FFD0 telemetry characteristics, read their initial values
  * and send the D5FF init command `55 55` to activate the command channel.
  *
- * ## Sensor payload format (DxFF telemetry chars)
- * ```
- * [opcode][0][0][0][0][0][value_hi][value_lo][checksum]
- * ```
- * - D2FF (0x0029) – pack voltage + temperature; subtype in value[0]: 0x21 → voltage in
- *   bytes[4..5]/100 V; 0x22 → temperature in bytes[4..5]/100 °C and voltage in bytes[6..7]/100 V
- * - D4FF (0x0031) – active gear (byte[2]) + cumulative cleaning time (bytes[6..7],
- *   little-endian, minutes)
- * - D7FF (0x003D) – control / idle flags
- * - D8FF (0x0041) – run state + current: byte[1]=0x00 running; byte[5]/100 → A
- * - DBFF (0x004D) – secondary ~19 V rail (not the app's battery voltage), bytes[6..7] / 100 → V
+ * ## Telemetry
+ * Nine-byte frames end with the sum of bytes[1..7] modulo 256 (excluding the opcode).
+ * D1FF subtypes 0x11/0x17 carry standard/high-mode minute counters; see RoidmiF8Telemetry.md.
+ * D2FF carries pack voltage; D3FF carries battery temperature (raw / 10 - 30 °C).
+ * D4FF carries the active gear; its trailing field must not be reported as lifetime minutes.
+ * D8FF carries run state and big-endian uint16 current at bytes[4..5] / 100 A. Other sensor units remain under investigation.
  *
  * ## Configuration writes (ATT Write Command to D7FF / 0x003D)
  * The application value written is the ROIDMI payload only (no ATT header bytes):
@@ -78,7 +73,8 @@ class RoidmiF8Support : BleGattClientSupport() {
     // ── Resolved GATT characteristic instances ────────────────────────────────
 
     private var charD1FF: BluetoothGattCharacteristic? = null
-    private var charTemperature: BluetoothGattCharacteristic? = null   // D2FF
+    private var charBatteryVoltage: BluetoothGattCharacteristic? = null   // D2FF
+    private var charD3FF: BluetoothGattCharacteristic? = null
     private var charD4FF: BluetoothGattCharacteristic? = null
     private var charCommand: BluetoothGattCharacteristic? = null       // D5FF
     private var charControl: BluetoothGattCharacteristic? = null       // D7FF
@@ -90,6 +86,8 @@ class RoidmiF8Support : BleGattClientSupport() {
 
     /** Last computed battery level (0–100); -1 = unknown. */
     private var lastBatteryLevel = -1
+
+    private val cleaningSession = RoidmiF8Telemetry.CleaningSession()
     /** Whether the pack is currently charging (derived from the D8FF status flags). */
     private var charging = false
     /** Whether the motor is currently running (D8FF state 0x00); the pack voltage sags under load. */
@@ -133,8 +131,11 @@ class RoidmiF8Support : BleGattClientSupport() {
      * performed directly.
      */
     override fun initializeDevice(builder: TransactionBuilder): TransactionBuilder {
+        cleaningSession.reset()
+        device.setExtraInfo(EXTRA_TEMPERATURE_CELSIUS, null)
         charD1FF = getCharacteristic(UUID_CHAR_D1FF)
-        charTemperature = getCharacteristic(UUID_CHAR_D2FF)
+        charBatteryVoltage = getCharacteristic(UUID_CHAR_D2FF)
+        charD3FF = getCharacteristic(UUID_CHAR_D3FF)
         charD4FF = getCharacteristic(UUID_CHAR_D4FF)
         charCommand = getCharacteristic(UUID_CHAR_D5FF)
         charControl = getCharacteristic(UUID_CHAR_D7FF)
@@ -144,7 +145,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         charAuthInit = getCharacteristic(UUID_CHAR_FE95_INIT)
         charVersion = getCharacteristic(UUID_CHAR_FE95_VERSION)
 
-        if (charTemperature == null || charStatus == null ||
+        if (charBatteryVoltage == null || charStatus == null ||
             charVoltage == null || charControl == null || charCommand == null
         ) {
             LOG.warn("initializeDevice: required FFD0 chars not found – aborting")
@@ -198,8 +199,8 @@ class RoidmiF8Support : BleGattClientSupport() {
         // Subscribe (CCCD) + initial read for all notify-capable FFD0 characteristics.
         // This matches the sequence used by the original ROIDMI application.
         subscribeAndRead(builder, charD1FF)
-        subscribeAndRead(builder, charTemperature)   // D2FF – temperature
-        subscribeAndRead(builder, getCharacteristic(UUID_CHAR_D3FF))
+        subscribeAndRead(builder, charBatteryVoltage)   // D2FF – pack voltage
+        subscribeAndRead(builder, charD3FF)
         subscribeAndRead(builder, charD4FF)
         // D5FF: command channel – subscribe only, no read.
         builder.notify(charCommand, true)
@@ -322,9 +323,11 @@ class RoidmiF8Support : BleGattClientSupport() {
             return true
         }
         return when (characteristic) {
-            charTemperature -> { handleTemperature(value, status); true }
+            charBatteryVoltage -> { handleBatteryVoltage(value, status); true }
             charVoltage -> { handleVoltage(value, status); true }
             charStatus -> { handleStatus(value, status); true }
+            charD1FF -> { if (status == BluetoothGatt.GATT_SUCCESS) handleD1FFNotification(value); true }
+            charD3FF -> { if (status == BluetoothGatt.GATT_SUCCESS) handleD3Sensor(value); true }
             charD4FF -> { if (status == BluetoothGatt.GATT_SUCCESS) handleGear(value); true }
             charVersion -> { LOG.debug("Xiaomi auth: VERSION={}", GB.hexdump(value)); true }
             else -> false
@@ -344,10 +347,11 @@ class RoidmiF8Support : BleGattClientSupport() {
             // ── FE95 auth ───────────────────────────────────────────────────
             charAuth -> { handleAuthNotification(value); true }
             // ── FFD0 telemetry ──────────────────────────────────────────────
-            charTemperature -> { handleTemperature(value, BluetoothGatt.GATT_SUCCESS); true }
+            charBatteryVoltage -> { handleBatteryVoltage(value, BluetoothGatt.GATT_SUCCESS); true }
             charVoltage -> { handleVoltage(value, BluetoothGatt.GATT_SUCCESS); true }
             charStatus -> { handleStatus(value, BluetoothGatt.GATT_SUCCESS); true }
             charD1FF -> { handleD1FFNotification(value); true }
+            charD3FF -> { handleD3Sensor(value); true }
             charD4FF -> { handleGear(value); true }
             // Control channel (D7FF) – log raw values for future parsing.
             charControl -> {
@@ -362,103 +366,57 @@ class RoidmiF8Support : BleGattClientSupport() {
 
     // ── Telemetry parsers ─────────────────────────────────────────────────────
 
-    /**
-     * D1FF – event / status sub-type notification (ATT handle 0x0025).
-     *
-     * Observed subtypes (byte[0]):
-     * - `0x11` – working mode / gear change confirmation
-     * - `0x12` – dust-bin full event
-     * - `0x13` – filter maintenance reminder
-     * - `0x17` – device identifies / wakeup ping
-     *
-     * All other subtypes are logged at DEBUG level for future analysis.
-     */
+    /** D1FF 0x11/0x17: standard/high cleaning minutes and estimated per-mode filter usage. */
     private fun handleD1FFNotification(value: ByteArray) {
-        if (value.isEmpty()) return
-        when (val subtype = value[0].toInt() and 0xFF) {
-            0x11 -> LOG.info("D1FF: working-mode / gear change, raw={}", GB.hexdump(value))
-            0x12 -> LOG.info("D1FF: dust-bin full event")
-            0x13 -> LOG.info("D1FF: filter maintenance reminder")
-            0x17 -> LOG.info("D1FF: device wakeup / identify ping")
-            else -> LOG.debug(
-                "D1FF: unknown subtype 0x{}: {}",
-                String.format("%02X", subtype), GB.hexdump(value)
-            )
-        }
-    }
-
-    /**
-     * D4FF – active suction gear + filter counters (ATT handle 0x0031).
-     * - byte[2] is the gear index the device is currently set to (0 = 80 W, 1 = 130 W, 2 = 180 W).
-     *   Mirrored into the GB preference so the settings UI reflects the value actually configured
-     *   on the device, which may differ from whatever GB wrote in a previous session.
-     * - bytes[6..7] (little-endian uint16) → cumulative cleaning time in minutes. This is the
-     *   counter behind the official app's filter info card: it accumulates motor-on minutes and
-     *   is zeroed by "Reset filter used time" (`73 73`). byte[8] is the running checksum
-     *   `(byte[6] + byte[7]) & 0xFF`.
-     *
-     * Example: `41 00 00 00 00 00 09 01 0A` → gear 0, 0x0109 = 265 min.
-     */
-    private fun handleGear(value: ByteArray) {
-        // D4FF gear needs at least 3 bytes (the gear index is at byte[2]).
-        if (value.size < 3) return
-        val gear = value[2].toInt() and 0xFF
-        // Highest valid standard-gear index (0 = 80 W, 1 = 130 W, 2 = 180 W).
-        if (gear > 2) {
-            LOG.debug("D4FF: unexpected gear index {}", gear)
+        val counters = cleaningSession.update(value)
+        if (counters == null) {
+            LOG.debug("D1FF unparsed status: {}", GB.hexdump(value))
             return
         }
-        LOG.info("Roidmi F8 suction gear index: {}", gear)
+        val key = when (counters.mode) {
+            RoidmiF8Telemetry.CleaningMode.STANDARD -> DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_STANDARD_CLEANING_TIME
+            RoidmiF8Telemetry.CleaningMode.HIGH -> DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_HIGH_CLEANING_TIME
+        }
+        LOG.info("Roidmi F8 {} cleaning time: {} min", counters.mode, counters.cleaningMinutes)
         val editor = GBApplication.getDeviceSpecificSharedPrefs(device.address).edit()
-            .putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_STANDARD_GEAR, gear.toString())
-
-        // bytes[6..7] (little-endian) = cumulative cleaning time in minutes.
-        if (value.size >= 9) {
-            val minutes = (value[6].toInt() and 0xFF) or ((value[7].toInt() and 0xFF) shl 8)
-            LOG.info("Roidmi F8 cumulative cleaning time: {} min", minutes)
-            editor.putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_CLEANING_TIME, "$minutes min")
+            .putString(key, "${counters.cleaningMinutes} min")
+        // Either mode can arrive first. Only publish totals after receiving both this session.
+        cleaningSession.cumulativeMinutes?.let {
+            editor.putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_CLEANING_TIME, "$it min")
+        }
+        cleaningSession.filterUsedMinutes?.let {
+            editor.putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_FILTER_USED_TIME, "$it min")
         }
         editor.apply()
     }
 
-    /**
-     * D2FF – temperature + pack voltage (ATT handle 0x0029).
-     * The frame subtype in value[0] selects which measurement bytes[4..5] carries; both subtypes
-     * expose the pack voltage the official app shows as the battery voltage (e.g. 32.90 V), which
-     * is the value that tracks the state of charge (the DBFF/0x004D rail is a separate ~19 V line):
-     * - `0x21`: bytes[4..5] / 100 → pack voltage V (bytes[6..7] is a latched copy, ignored).
-     *   Example: `21 00 00 00 0C DA 0D 18 0B` → 0x0CDA = 3290 → 32.90 V.
-     * - `0x22`: bytes[4..5] / 100 → pack temperature °C, bytes[6..7] / 100 → pack voltage V.
-     *   Example: `22 00 00 00 0B E1 0D 18 11` → temp 0x0BE1 = 3041 → 30.41 °C, pack 0x0D18 → 33.52 V.
-     */
-    private fun handleTemperature(value: ByteArray, status: Int) {
-        if (status != BluetoothGatt.GATT_SUCCESS) {
-            LOG.warn("handleTemperature: GATT error {}", status)
-            return
-        }
-        // Sensor characteristics need at least 8 bytes (indices 0–7).
-        if (value.size < 8) {
-            LOG.warn("handleTemperature: payload too short ({})", value.size)
-            return
-        }
-        val field45 = ((value[4].toInt() and 0xFF) shl 8) or (value[5].toInt() and 0xFF)
-        when (value[0].toInt() and 0xFF) {
-            SENSOR_FRAME_VOLTAGE -> {
-                val voltage = field45 / 100.0f
-                LOG.info("Roidmi F8 pack voltage: {} V", voltage)
-                lastBatteryVoltage = voltage
-                reportBattery()
-            }
-            SENSOR_FRAME_TEMPERATURE -> {
-                val tempCelsius = field45 / 100.0f
-                device.setExtraInfo(EXTRA_TEMPERATURE_CELSIUS, tempCelsius)
-                val voltage = (((value[6].toInt() and 0xFF) shl 8) or (value[7].toInt() and 0xFF)) / 100.0f
-                LOG.info("Roidmi F8 temperature: {} °C, pack voltage: {} V", tempCelsius, voltage)
-                lastBatteryVoltage = voltage
-                reportBattery()
-            }
-            else -> LOG.debug("Roidmi F8 unknown 0x0029 subtype: {}", GB.hexdump(value))
-        }
+    /** FFD3: opcode 0x31 selects bytes[4..5], 0x32 bytes[6..7]; raw / 10 - 30 °C. */
+    private fun handleD3Sensor(value: ByteArray) {
+        val temperature = RoidmiF8Telemetry.batteryTemperature(value) ?: return
+        LOG.trace("Roidmi F8 battery temperature: {} °C", temperature)
+        device.setExtraInfo(EXTRA_TEMPERATURE_CELSIUS, temperature)
+        GBApplication.getDeviceSpecificSharedPrefs(device.address).edit()
+            .putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_BATTERY_TEMPERATURE,
+                String.format(Locale.getDefault(), "%.1f °C", temperature))
+            .apply()
+        device.sendDeviceUpdateIntent(context)
+    }
+
+    /** D4FF: active gear. The trailing field's units have not been established. */
+    private fun handleGear(value: ByteArray) {
+        val gear = RoidmiF8Telemetry.gear(value) ?: return
+        GBApplication.getDeviceSpecificSharedPrefs(device.address).edit()
+            .putString(DeviceSettingsPreferenceConst.PREF_ROIDMI_F8_STANDARD_GEAR, gear.toString())
+            .apply()
+    }
+
+    /** D2FF: voltage at bytes[4..5] for 0x21, bytes[6..7] for 0x22 (big-endian / 100). */
+    private fun handleBatteryVoltage(value: ByteArray, status: Int) {
+        if (status != BluetoothGatt.GATT_SUCCESS) return
+        val voltage = RoidmiF8Telemetry.packVoltage(value) ?: return
+        LOG.info("Roidmi F8 pack voltage: {} V", voltage)
+        lastBatteryVoltage = voltage
+        reportBattery()
     }
 
     /**
@@ -485,7 +443,7 @@ class RoidmiF8Support : BleGattClientSupport() {
      * D8FF – run / charge state + instantaneous current (ATT handle 0x0041).
      * - value[1] → device state:
      *   `0x00` motor running (cleaning), `0x01` idle / standby, `0x02` charging.
-     * - value[5] / 100 → amps (motor draw while running, charge current while charging).
+     * - value[4..5], unsigned big-endian / 100 → amps (motor draw or charge current).
      * - value[6..7] → 16-bit running counter (not a charge flag).
      *
      * Examples: `81 01 00 00 00 00 …` → idle; `81 02 00 00 00 6A …` → charging (1.06 A).
@@ -495,16 +453,11 @@ class RoidmiF8Support : BleGattClientSupport() {
             LOG.warn("handleStatus: GATT error {}", status)
             return
         }
-        // D8FF status needs at least 6 bytes (indices 0–5).
-        if (value.size < 6) {
-            LOG.warn("handleStatus: payload too short ({})", value.size)
-            return
-        }
+        val currentAmps = RoidmiF8Telemetry.currentAmps(value) ?: return
         val state = value[1].toInt() and 0xFF
         val deviceState = DeviceState.fromCode(state)
         running = deviceState == DeviceState.RUNNING
         charging = deviceState == DeviceState.CHARGING
-        val currentAmps = (value[5].toInt() and 0xFF) / 100.0f
         lastChargeCurrentAmps = currentAmps
         LOG.info(
             "Roidmi F8 status: state={} (0x{}), current={} A",
@@ -535,7 +488,8 @@ class RoidmiF8Support : BleGattClientSupport() {
      * charge state. The level is estimated from the pack voltage, which is only a reliable
      * open-circuit reading while the vacuum is idle: under motor load the voltage sags (e.g.
      * down to ~31.9 V at 100 %), and while docked it is pinned at the charge (CV) limit. So the
-     * level is only recomputed at rest; while running the last resting level is held, and a
+     * level is normally recomputed at rest; while running the last resting level is held
+     * above the observed 28.58 V empty endpoint (at/below it, report 0%), and a
      * charging pack whose current has tapered to ~0 A is reported as full. Skipped until a
      * voltage reading is available so the UI never shows a placeholder level right after
      * connecting.
@@ -543,13 +497,8 @@ class RoidmiF8Support : BleGattClientSupport() {
     private fun reportBattery() {
         if (lastBatteryVoltage <= 0) return
         val chargingFull = charging && lastChargeCurrentAmps <= FULL_CHARGE_CURRENT_AMPS
-        lastBatteryLevel = when {
-            chargingFull -> 100
-            // Under motor load the pack voltage sags and is not a valid SoC reading: hold the
-            // last resting level instead of dropping the percentage while cleaning.
-            running && lastBatteryLevel >= 0 -> lastBatteryLevel
-            else -> estimateBatteryLevel(lastBatteryVoltage)
-        }
+        lastBatteryLevel = RoidmiF8Telemetry.batteryLevel(
+            lastBatteryVoltage, running, lastBatteryLevel, chargingFull)
         val batteryInfo = GBDeviceEventBatteryInfo()
         batteryInfo.batteryIndex = 0
         batteryInfo.level = lastBatteryLevel
@@ -562,32 +511,12 @@ class RoidmiF8Support : BleGattClientSupport() {
         handleGBDeviceEvent(batteryInfo)
     }
 
-    /**
-     * Estimates the state of charge (0–100%) from the pack voltage using a Li-ion discharge
-     * curve calibrated against the official app. The pack voltage from 0x0029 matches the value
-     * the app displays, so it is mapped directly (per-cell = voltage / cell count).
-     */
-    private fun estimateBatteryLevel(voltage: Float): Int {
-        val perCell = voltage / BATTERY_CELL_COUNT - BATTERY_VOLTAGE_BIAS_PER_CELL
-        val curve = BATTERY_SOC_CURVE
-        if (perCell <= curve.first().first) return 0
-        if (perCell >= curve.last().first) return 100
-        for (i in 1 until curve.size) {
-            val (v1, p1) = curve[i]
-            if (perCell < v1) {
-                val (v0, p0) = curve[i - 1]
-                return (p0 + (perCell - v0) / (v1 - v0) * (p1 - p0)).roundToInt()
-            }
-        }
-        return 100
-    }
-
     // ── D5FF command response parser ──────────────────────────────────────────
 
     /**
      * Parses a notification from D5FF (command channel).
      * - 0x51 – firmware build: dotted ASCII with digits joined (e.g. "v_1.0.0.1!" → "1001").
-     * - 0x52 – filter used time: big-endian uint16 seconds at bytes[1..2].
+     * - 0x52 – unknown one-byte parameter followed by an additive checksum.
      * - 0x53 – firmware major + revision (e.g. "v0.5" → major "5", revision hex "30").
      *
      * The full firmware version shown by the official app combines both: `v_<major>.<build>.<rev>`
@@ -608,11 +537,8 @@ class RoidmiF8Support : BleGattClientSupport() {
                 updateFirmwareVersion()
             }
             0x52 -> {
-                if (value.size >= 3) {
-                    val secs = ((value[1].toInt() and 0xFF) shl 8) or (value[2].toInt() and 0xFF)
-                    LOG.info("Roidmi F8 filter used: {} s ({} h)", secs, secs / 3600)
-                    device.setExtraInfo("filter_used_seconds", secs)
-                }
+                // Captured 52 1E 70: 70 is the checksum of 52 + 1E, not counter data.
+                LOG.debug("Roidmi F8 unparsed 0x52 response: {}", GB.hexdump(value))
             }
             0x53 -> {
                 // The sensor response (e.g. "v0.5") carries the firmware major and revision:
@@ -731,11 +657,10 @@ class RoidmiF8Support : BleGattClientSupport() {
         // ── FFD0 characteristic UUIDs (DxFF telemetry + command chars) ────────
 
         private val UUID_CHAR_D1FF: UUID = UUID.fromString("0000ffd1-0000-1000-8000-00805f9b34fb")
-        /** D2FF – temperature: big-endian uint16 at bytes[6..7] / 100 → °C */
+        /** D2FF – pack voltage. */
         private val UUID_CHAR_D2FF: UUID = UUID.fromString("0000ffd2-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_D3FF: UUID = UUID.fromString("0000ffd3-0000-1000-8000-00805f9b34fb")
-        /** D4FF – active suction gear: byte[2] = gear index (0=80 W, 1=130 W, 2=180 W);
-         *  bytes[6..7] little-endian = cumulative cleaning time (minutes). */
+        /** D4FF – active suction gear: byte[2] = gear index (0=80 W, 1=130 W, 2=180 W). */
         private val UUID_CHAR_D4FF: UUID = UUID.fromString("0000ffd4-0000-1000-8000-00805f9b34fb")
         /** D5FF – command channel (write + notify). Init `55 55`, queries `51/52/53`. */
         private val UUID_CHAR_D5FF: UUID = UUID.fromString("0000ffd5-0000-1000-8000-00805f9b34fb")
@@ -743,7 +668,7 @@ class RoidmiF8Support : BleGattClientSupport() {
         private val UUID_CHAR_D6FF: UUID = UUID.fromString("0000ffd6-0000-1000-8000-00805f9b34fb")
         /** D7FF – control / settings write channel (no-response writes). */
         private val UUID_CHAR_D7FF: UUID = UUID.fromString("0000ffd7-0000-1000-8000-00805f9b34fb")
-        /** D8FF – run state + current: byte[1]=0x00 running; byte[5]/100 → A */
+        /** D8FF – run state + current: byte[1]=0x00 running; bytes[4..5] big-endian /100 → A */
         private val UUID_CHAR_D8FF: UUID = UUID.fromString("0000ffd8-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_D9FF: UUID = UUID.fromString("0000ffd9-0000-1000-8000-00805f9b34fb")
         private val UUID_CHAR_DAFF: UUID = UUID.fromString("0000ffda-0000-1000-8000-00805f9b34fb")
@@ -769,7 +694,7 @@ class RoidmiF8Support : BleGattClientSupport() {
 
         /** Reset filter used-time counter */
         private val CMD_RESET_FILTER = byteArrayOf(0x73, 0x73)
-        /** Filter usage info query. Response: opcode 0x52 + big-endian uint16 seconds used. */
+        /** Query 0x52: captured response contains one unknown byte and a checksum. */
         private val CMD_FILTER_INFO = byteArrayOf(0x52)
         /** Sensor / brush version query. Response: opcode 0x53 + ASCII version string. */
         private val CMD_SENSOR_INFO = byteArrayOf(0x53)
@@ -778,49 +703,13 @@ class RoidmiF8Support : BleGattClientSupport() {
 
         /** Extra-info key for the last motor / charge current (Float, amps). */
         const val EXTRA_CURRENT_AMPS = "current_amps"
-        /** Extra-info key for the last pack temperature (Float, °C). */
         const val EXTRA_TEMPERATURE_CELSIUS = "temperature_celsius"
-
-        /** 0x0029 frame subtype (value[0]): bytes[4..5] carry the pack voltage. */
-        private const val SENSOR_FRAME_VOLTAGE = 0x21
-        /** 0x0029 frame subtype (value[0]): bytes[4..5] carry the temperature, bytes[6..7] the voltage. */
-        private const val SENSOR_FRAME_TEMPERATURE = 0x22
-
         /**
          * Charge current (A) below which a charging pack is considered full. During the CV phase
          * the charge current tapers towards 0 A as the pack tops off (observed dropping from
          * ~1.9 A down to 0 A on the official app's 100 % point).
          */
         private const val FULL_CHARGE_CURRENT_AMPS = 0.05f
-        /** Number of Li-ion cells in series in the pack (8S, ~33.5 V full ≈ 4.19 V/cell). */
-        private const val BATTERY_CELL_COUNT = 8
-        /**
-         * Per-cell correction subtracted from the measured voltage before mapping. The pack
-         * voltage from 0x0029 matches the app's battery voltage directly, so no bias is applied.
-         */
-        private const val BATTERY_VOLTAGE_BIAS_PER_CELL = 0f
-
-        /**
-         * Li-ion state-of-charge curve: per-cell voltage → % (ascending), interpolated linearly
-         * and clamped to 0/100. Anchored to the official app: a rested full pack sits at ~32.9 V
-         * (0x0029), i.e. ~4.11 V/cell = 100 %, so the top of the curve tops out at 4.10 V;
-         * 29.08 V (3.635 V/cell) reads 30 % on the app, which fixes the 3.60/3.70 V anchors.
-         */
-        private val BATTERY_SOC_CURVE = arrayOf(
-            3.30f to 0f,
-            3.50f to 8f,
-            3.60f to 25f,
-            3.70f to 40f,
-            3.75f to 45f,
-            3.80f to 48f,
-            3.85f to 58f,
-            3.90f to 62f,
-            3.95f to 72f,
-            4.00f to 82f,
-            4.05f to 92f,
-            4.10f to 100f,
-        )
-
         /**
          * Delay between consecutive D5FF query writes. The device answers one query at a
          * time and drops queries issued too soon after "55 55"; the official app spaces

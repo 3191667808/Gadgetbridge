@@ -822,9 +822,14 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_RESET = "xiaomi_scooter_tire_pressure_reset";
 
     // Roidmi F8 Cordless Vacuum Cleaner
+    public static final String PREF_ROIDMI_F8_BATTERY_TEMPERATURE = "pref_roidmi_f8_battery_temperature";
     public static final String PREF_ROIDMI_F8_STANDARD_GEAR = "pref_roidmi_f8_standard_gear";
     public static final String PREF_ROIDMI_F8_DUST_REMINDER = "pref_roidmi_f8_dust_reminder";
     public static final String PREF_ROIDMI_F8_RESET_FILTER  = "pref_roidmi_f8_reset_filter";
-    /** Read-only info: cumulative cleaning time, minutes (e.g. "464 min"). */
+    /** Read-only info: estimated time since the filter counter was reset. */
+    public static final String PREF_ROIDMI_F8_FILTER_USED_TIME = "pref_roidmi_f8_filter_used_time";
+    public static final String PREF_ROIDMI_F8_STANDARD_CLEANING_TIME = "pref_roidmi_f8_standard_cleaning_time";
+    public static final String PREF_ROIDMI_F8_HIGH_CLEANING_TIME = "pref_roidmi_f8_high_cleaning_time";
+    /** Read-only info: cumulative cleaning time in minutes (standard + high). */
     public static final String PREF_ROIDMI_F8_CLEANING_TIME = "pref_roidmi_f8_cleaning_time";
 }
