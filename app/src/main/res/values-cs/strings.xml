@@ -4983,4 +4983,5 @@
     <string name="bluetooth_multipoint_active_device">Aktivní zdroj · %1$s</string>
     <string name="bluetooth_multipoint_forget">Zapomenout</string>
     <string name="bluetooth_multipoint_forget_message">Odstranit %1$s ze spárovaných zařízení? Pro opětovné připojení je budete muset znovu spárovat.</string>
+    <string name="controlcenter_get_spo2_measurement">Změřit kyslík v krvi</string>
 </resources>
