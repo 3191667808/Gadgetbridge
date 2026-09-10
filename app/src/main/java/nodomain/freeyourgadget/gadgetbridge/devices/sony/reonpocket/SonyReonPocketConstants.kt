@@ -41,6 +41,9 @@ object SonyReonPocketConstants {
     const val PREF_MANUAL_POWER = "pref_sony_reon_pocket_manual_power"
     const val PREF_MANUAL_POWER_LAST = "pref_sony_reon_pocket_manual_power_last"
 
+    const val PREF_PANEL_TEMPERATURE = "pref_sony_reon_pocket_panel_temperature"
+    const val PREF_HEAT_DISSIPATION = "pref_sony_reon_pocket_heat_dissipation"
+
     // Reon Tag (RNPT-1) relayed through the Reon Pocket Pro.
     const val PREF_TAG_ADDRESS = "pref_sony_reon_pocket_tag_address"
     const val PREF_TAG_SERIAL = "pref_sony_reon_pocket_tag_serial"

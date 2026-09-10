@@ -3707,6 +3707,8 @@
     <string name="sony_reon_pocket_tag_unregister_title">Unregister tag</string>
     <string name="sony_reon_pocket_tag_unregister_summary">Remove the currently registered tag</string>
     <string name="sony_reon_pocket_tag_unregister_confirmation">Unregister the Reon Tag?</string>
+    <string name="sony_reon_pocket_panel_temperature_title">Surface temperature</string>
+    <string name="sony_reon_pocket_heat_dissipation_title">Exhaust temperature</string>
     <string name="sony_reon_pocket_tag_temperature_title">Tag temperature</string>
     <string name="sony_reon_pocket_tag_humidity_title">Tag humidity</string>
     <string name="sony_reon_pocket_tag_battery_title">Tag battery</string>

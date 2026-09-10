@@ -66,6 +66,18 @@ class SonyReonPocketProCoordinator : AbstractBLEDeviceCoordinator() {
             defaultValue = 0,
         )
 
+        info(
+            key = SonyReonPocketConstants.PREF_PANEL_TEMPERATURE,
+            title = R.string.sony_reon_pocket_panel_temperature_title,
+            icon = R.drawable.ic_thermometer,
+        )
+
+        info(
+            key = SonyReonPocketConstants.PREF_HEAT_DISSIPATION,
+            title = R.string.sony_reon_pocket_heat_dissipation_title,
+            icon = R.drawable.ic_mode_heat,
+        )
+
         screen(
             key = DeviceSpecificSettingsScreen.AUTHENTICATION.key,
             title = R.string.pref_header_authentication,

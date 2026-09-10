@@ -33,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.reonpocket.SonyReonPocketConstants
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.reonpocket.SonyReonTagConstants
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.reonpocket.SonyReonPocketTelemetry
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdateDeviceInfo
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo
@@ -280,35 +281,27 @@ class SonyReonPocketProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         handleGBDeviceEvent(batteryEvent)
     }
 
-    /**
-     * Parses the telemetry characteristic (telemetry characteristic). Layout: 1 source byte (0x00 on read,
-     * 0x01 on notification, 0x02 for the status/config frame) followed by 8 big-endian int16
-     * temperatures expressed in centi-degrees Celsius (0xFFFF meaning "no reading"). The mapping of
-     * each sensor to a physical location is not yet confirmed, so values are only logged for now.
-     */
+    /** Updates the read-only panel temperature and fin-temperature-derived dissipation indicator. */
     private fun handleTelemetry(value: ByteArray?) {
-        if (value == null || value.size < 3) {
-            return
-        }
-
-        val frame = value[0].toInt() and 0xff
-        if (frame == SonyReonTagConstants.TELEMETRY_SUBFRAME_TAG) {
+        if (value == null || value.isEmpty()) return
+        if ((value[0].toInt() and 0xff) == SonyReonTagConstants.TELEMETRY_SUBFRAME_TAG) {
             handleTagTelemetry(value)
             return
         }
-
-        val temperatures = StringBuilder()
-        var offset = 1
-        while (offset + 1 < value.size) {
-            val raw = ((value[offset].toInt() and 0xff) shl 8) or (value[offset + 1].toInt() and 0xff)
-            if (raw == 0xffff) {
-                temperatures.append("--- ")
-            } else {
-                temperatures.append(String.format(Locale.ROOT, "%.2f\u00b0C ", raw / 100.0f))
-            }
-            offset += 2
-        }
-        LOG.debug("Sony Reon Pocket Pro telemetry temperatures: {}", temperatures.toString().trim())
+        val reading = SonyReonPocketTelemetry.parse(value) ?: return
+        LOG.debug("Sony Reon Pocket Pro panel: {} °C, heat dissipation: {}/5",
+            reading.panelTemperatureCelsius, reading.heatDissipationLevel)
+        devicePrefs.preferences.edit()
+            .putString(
+                SonyReonPocketConstants.PREF_PANEL_TEMPERATURE,
+                reading.panelTemperatureCelsius?.let { String.format(Locale.ROOT, "%.2f °C", it) }.orEmpty()
+            )
+            .putString(
+                SonyReonPocketConstants.PREF_HEAT_DISSIPATION,
+                reading.heatDissipationLevel?.let { "$it / 5" }.orEmpty()
+            )
+            .apply()
+        device.sendDeviceUpdateIntent(context)
     }
 
     /**
