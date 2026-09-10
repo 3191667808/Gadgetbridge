@@ -44,6 +44,7 @@ import com.github.mikephil.charting.formatter.ValueFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -362,8 +363,7 @@ public class TemperaturePeriodFragment extends AbstractChartFragment<Temperature
     }
 
     private String formatTemperature(final float temperature) {
-        final String unit = getString(temperatureUnit == TemperatureUnit.CELSIUS ? R.string.unit_celsius : R.string.unit_fahrenheit);
-        return String.format(Locale.getDefault(), "%.1f %s", temperature, unit);
+        return TemperatureUtils.formatTemperature(temperature, temperatureUnit, new DecimalFormat("0.0"));
     }
 
     private static boolean hasData(final float value) {

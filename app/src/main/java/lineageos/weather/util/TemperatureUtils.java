@@ -1,8 +1,9 @@
 /*
  * Copyright (C) 2016 The CyanogenMod Project
  *
- * Modified by Gadgetbridge contributors: class renamed from WeatherUtils to TemperatureUtils
- * and adapted for general temperature conversion and formatting.
+ * Modified by Gadgetbridge contributors: class renamed from WeatherUtils to TemperatureUtils,
+ * adapted for general temperature conversion and formatting, and switched to
+ * nodomain.freeyourgadget.gadgetbridge.model.TemperatureUnit.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +21,9 @@
 package lineageos.weather.util;
 
 
-import lineageos.providers.WeatherContract;
-
 import java.text.DecimalFormat;
+
+import nodomain.freeyourgadget.gadgetbridge.model.TemperatureUnit;
 
 /**
  * Helper class to perform operations and formatting of temperature data
@@ -48,40 +49,92 @@ public class TemperatureUtils {
     }
 
     /**
-     * Returns a string representation of the temperature and unit supplied. The temperature value
-     * will be half-even rounded.
+     * Converts a temperature from one unit to another.
      * @param temperature the temperature value
-     * @param tempUnit A valid {@link WeatherContract.WeatherColumns.TempUnit}
-     * @return A string with the format XX&deg;F or XX&deg;C (where XX is the temperature)
-     * depending on the temperature unit that was provided or null if an invalid unit is supplied
+     * @param from the unit the temperature is expressed in
+     * @param to the unit to convert to
+     * @return the temperature expressed in the target unit
      */
-    public static String formatTemperature(double temperature, int tempUnit) {
-        if (!isValidTempUnit(tempUnit)) return null;
-        if (Double.isNaN(temperature)) return "-";
-
-        DecimalFormat noDigitsFormat = new DecimalFormat("0");
-        String noDigitsTemp = noDigitsFormat.format(temperature);
-        if (noDigitsTemp.equals("-0")) {
-            noDigitsTemp = "0";
+    public static double convert(final double temperature, final TemperatureUnit from, final TemperatureUnit to) {
+        if (from == to) {
+            return temperature;
+        } else if (to == TemperatureUnit.FAHRENHEIT) {
+            return celsiusToFahrenheit(temperature);
+        } else {
+            return fahrenheitToCelsius(temperature);
         }
-
-        StringBuilder formatted = new StringBuilder()
-                .append(noDigitsTemp).append("\u00b0");
-        if (tempUnit == WeatherContract.WeatherColumns.TempUnit.CELSIUS) {
-            formatted.append("C");
-        } else if (tempUnit == WeatherContract.WeatherColumns.TempUnit.FAHRENHEIT) {
-            formatted.append("F");
-        }
-        return formatted.toString();
     }
 
-    private static boolean isValidTempUnit(int unit) {
-        switch (unit) {
-            case WeatherContract.WeatherColumns.TempUnit.CELSIUS:
-            case WeatherContract.WeatherColumns.TempUnit.FAHRENHEIT:
-                return true;
-            default:
-                return false;
+    /**
+     * Returns a string representation of the temperature and unit supplied, with no decimal
+     * places. The temperature value will be half-even rounded.
+     * @param temperature the temperature value
+     * @param unit the unit the temperature is expressed in
+     * @return A string with the format XX&deg;F or XX&deg;C (where XX is the temperature)
+     * or "-" if the temperature is NaN
+     */
+    public static String formatTemperature(final double temperature, final TemperatureUnit unit) {
+        return formatTemperature(temperature, unit, new DecimalFormat("0"), true);
+    }
+
+    /**
+     * Returns a string representation of the temperature and unit supplied. The temperature value
+     * is formatted with the given formatter (the default is no decimal places, half-even rounded).
+     * @param temperature the temperature value
+     * @param unit the unit the temperature is expressed in
+     * @param format the formatter used to render the numeric value
+     * @return A string with the format XX&deg;F or XX&deg;C (where XX is the temperature)
+     * or "-" if the temperature is NaN
+     */
+    public static String formatTemperature(final double temperature, final TemperatureUnit unit, final DecimalFormat format) {
+        return formatTemperature(temperature, unit, format, false);
+    }
+
+    private static String formatTemperature(final double temperature, final TemperatureUnit unit, final DecimalFormat format, final boolean normalizeNegativeZero) {
+        if (Double.isNaN(temperature)) return "-";
+
+        String formatted = format.format(temperature);
+        // The default integer formatting (like upstream) hides a rounded negative zero ("-0").
+        // The minus sign character is locale-specific, so take it from the formatter itself.
+        if (normalizeNegativeZero && formatted.equals(format.getDecimalFormatSymbols().getMinusSign() + "0")) {
+            formatted = "0";
         }
+
+        final StringBuilder sb = new StringBuilder()
+                .append(formatted).append("\u00b0");
+        if (unit == TemperatureUnit.CELSIUS) {
+            sb.append("C");
+        } else {
+            sb.append("F");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Converts a temperature to the target unit and returns its string representation with no
+     * decimal places.
+     * @param temperature the temperature value
+     * @param from the unit the temperature is expressed in
+     * @param to the unit to convert to
+     * @return A string with the format XX&deg;F or XX&deg;C (where XX is the temperature)
+     * or "-" if the temperature is NaN
+     */
+    public static String formatAndConvert(final double temperature, final TemperatureUnit from, final TemperatureUnit to) {
+        return formatAndConvert(temperature, from, to, new DecimalFormat("0"));
+    }
+
+    /**
+     * Converts a temperature to the target unit and returns its string representation. The
+     * temperature value is formatted with the given formatter (the default is no decimal places,
+     * half-even rounded).
+     * @param temperature the temperature value
+     * @param from the unit the temperature is expressed in
+     * @param to the unit to convert to
+     * @param format the formatter used to render the numeric value
+     * @return A string with the format XX&deg;F or XX&deg;C (where XX is the temperature)
+     * or "-" if the temperature is NaN
+     */
+    public static String formatAndConvert(final double temperature, final TemperatureUnit from, final TemperatureUnit to, final DecimalFormat format) {
+        return formatTemperature(convert(temperature, from, to), to, format);
     }
 }
