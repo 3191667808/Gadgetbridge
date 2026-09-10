@@ -675,4 +675,8 @@ public abstract class XiaomiCoordinator extends AbstractBLEDeviceCoordinator {
     public boolean supportsAlarms() {
         return true;
     }
+
+    public boolean supportsNavigation() {
+        return false;
+    };
 }
