@@ -630,7 +630,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                     final GBDevice saaDevice = getSleepAsAndroidDevice();
                     if (saaDevice == null) {
                         LOG.debug("No device configured for Sleep as Android, dropping {}", action);
-                    } else if (isDeviceInitialized(saaDevice)) {
+                    } else if (hasLiveLink(saaDevice)) {
                         targetedDevices.add(saaDevice);
                     } else {
                         connectForSleepAsAndroid(intent, saaDevice);
@@ -810,6 +810,23 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         return false;
     }
 
+    /**
+     * Whether commands sent to a device would actually reach it.
+     * <p>
+     * {@link GBDevice#isInitialized()} also accepts {@link GBDevice.State#SCANNED}, which a device
+     * sits in for seconds at a time while it is being scanned for, with no link to send anything
+     * over. That is close enough for actions the user retries by hand, but not for one Sleep as
+     * Android sends once and expects the wearable to act on.
+     */
+    private boolean hasLiveLink(GBDevice device) {
+        for (DeviceStruct struct : deviceStructs) {
+            if (struct.getDevice().getAddress().compareToIgnoreCase(device.getAddress()) == 0) {
+                return struct.getDevice().getState().equalsOrHigherThan(GBDevice.State.INITIALIZED);
+            }
+        }
+        return false;
+    }
+
     private boolean isDeviceReconnecting(GBDevice device) {
         if ((device = getDeviceByAddressOrNull(device.getAddress())) != null) {
             return device.getState().equalsOrHigherThan(GBDevice.State.NOT_CONNECTED);
@@ -876,6 +893,10 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     }
 
     private void sendPendingSleepAsAndroidAction(final GBDevice device) {
+        if (!hasLiveLink(device)) {
+            return;
+        }
+
         final Intent pending = pendingSleepAsAndroidAction.take(device.getAddress());
         if (pending == null) {
             return;
