@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.roidmi
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec
@@ -26,6 +27,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCardAction
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.deviceCardAction
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
+import nodomain.freeyourgadget.gadgetbridge.model.TemperatureUnit
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.roidmi.RoidmiF8Support
 import java.util.Locale
@@ -161,7 +163,12 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
             }
             description = { _, context -> context.getString(R.string.pref_roidmi_f8_battery_temperature_title) }
             label = { device, _ ->
-                String.format(Locale.getDefault(), "%.1f °C", device.getExtraInfo(RoidmiF8Support.EXTRA_TEMPERATURE_CELSIUS) as? Float ?: 0f)
+                val celsius = device.getExtraInfo(RoidmiF8Support.EXTRA_TEMPERATURE_CELSIUS) as? Float ?: 0f
+                if (GBApplication.getPrefs().temperatureUnit == TemperatureUnit.FAHRENHEIT) {
+                    String.format(Locale.getDefault(), "%.1f °F", celsius * 1.8f + 32f)
+                } else {
+                    String.format(Locale.getDefault(), "%.1f °C", celsius)
+                }
             }
             onClick = { _, _ -> }
         },
