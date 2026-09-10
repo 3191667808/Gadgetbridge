@@ -77,6 +77,72 @@ public class PendingSleepAsAndroidActionTest extends TestBase {
     }
 
     @Test
+    public void theAlarmIsHeldAcrossTheConnect() {
+        Assert.assertTrue(pending.store(actionIntent(SleepAsAndroidAction.START_ALARM), ADDRESS));
+
+        final Intent replayed = pending.take(ADDRESS);
+
+        Assert.assertNotNull(replayed);
+        Assert.assertEquals(SleepAsAndroidAction.START_ALARM,
+                replayed.getStringExtra(DeviceService.EXTRA_SLEEP_AS_ANDROID_ACTION));
+    }
+
+    @Test
+    public void theAlarmTakesOverFromTracking() {
+        pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS);
+
+        Assert.assertTrue(pending.store(actionIntent(SleepAsAndroidAction.START_ALARM), ADDRESS));
+
+        Assert.assertEquals(SleepAsAndroidAction.START_ALARM,
+                pending.take(ADDRESS).getStringExtra(DeviceService.EXTRA_SLEEP_AS_ANDROID_ACTION));
+    }
+
+    @Test
+    public void trackingDoesNotTakeOverFromTheAlarm() {
+        pending.store(actionIntent(SleepAsAndroidAction.START_ALARM), ADDRESS);
+
+        Assert.assertFalse(pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS));
+
+        Assert.assertEquals(SleepAsAndroidAction.START_ALARM,
+                pending.take(ADDRESS).getStringExtra(DeviceService.EXTRA_SLEEP_AS_ANDROID_ACTION));
+    }
+
+    @Test
+    public void stoppingTheAlarmDropsTheHeldAlarm() {
+        pending.store(actionIntent(SleepAsAndroidAction.START_ALARM), ADDRESS);
+
+        Assert.assertTrue(pending.cancels(SleepAsAndroidAction.STOP_ALARM));
+
+        Assert.assertFalse(pending.isPending());
+        Assert.assertNull(pending.take(ADDRESS));
+    }
+
+    @Test
+    public void stoppingTheAlarmLeavesTrackingAlone() {
+        pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS);
+
+        Assert.assertTrue(pending.cancels(SleepAsAndroidAction.STOP_ALARM));
+
+        Assert.assertTrue(pending.isPending());
+    }
+
+    @Test
+    public void onlyStoppingTheAlarmCancels() {
+        Assert.assertFalse(pending.cancels(SleepAsAndroidAction.STOP_TRACKING));
+        Assert.assertFalse(pending.cancels(SleepAsAndroidAction.START_ALARM));
+        Assert.assertFalse(pending.cancels(null));
+    }
+
+    @Test
+    public void anExpiredAlarmDoesNotRingLate() {
+        pending.store(actionIntent(SleepAsAndroidAction.START_ALARM), ADDRESS);
+
+        advance(PendingSleepAsAndroidAction.TIMEOUT_MS + 1);
+
+        Assert.assertNull(pending.take(ADDRESS));
+    }
+
+    @Test
     public void replayHappensOnlyOnce() {
         pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS);
 

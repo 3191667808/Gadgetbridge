@@ -28,10 +28,12 @@ import static nodomain.freeyourgadget.gadgetbridge.model.DeviceService.EXTRA_SLE
 /**
  * Holds the one Sleep as Android action that has to survive a connect.
  * <p>
- * Sleep as Android starts tracking whether or not the wearable happens to be connected, so a
- * disconnected provider gets connected on demand and the request is replayed once it is ready.
- * Only START_TRACKING is worth holding: CHECK_CONNECTED is repeated every few seconds anyway, and
- * the remaining actions are meaningless without an active session.
+ * Sleep as Android starts tracking and rings its alarms whether or not the wearable happens to be
+ * connected, so a disconnected provider gets connected on demand and the request is replayed once
+ * it is ready. Only the two actions a user notices are worth holding: START_TRACKING, without which
+ * no session exists at all, and START_ALARM, without which the wearable stays silent while the
+ * phone rings. CHECK_CONNECTED is repeated every few seconds anyway, and the rest are meaningless
+ * without an active session.
  */
 public class PendingSleepAsAndroidAction {
 
@@ -44,20 +46,60 @@ public class PendingSleepAsAndroidAction {
 
     @Nullable
     private Intent intent;
+    private String action;
     private String address;
     private long deadline;
+
+    /**
+     * How much a held action is worth against another one arriving while the connect is still in
+     * flight. An alarm outranks tracking: by the time it rings, a session that never started is of
+     * no use, and the wearable buzzing is what the user is waiting for.
+     *
+     * @return 0 for an action that is not worth holding at all
+     */
+    private static int rank(@Nullable final String action) {
+        if (SleepAsAndroidAction.START_ALARM.equals(action)) {
+            return 2;
+        }
+        if (SleepAsAndroidAction.START_TRACKING.equals(action)) {
+            return 1;
+        }
+        return 0;
+    }
 
     /**
      * @return true if the action was worth holding across a connect
      */
     public boolean store(final Intent intent, final String deviceAddress) {
-        if (!SleepAsAndroidAction.START_TRACKING.equals(intent.getStringExtra(EXTRA_SLEEP_AS_ANDROID_ACTION))) {
+        final String action = intent.getStringExtra(EXTRA_SLEEP_AS_ANDROID_ACTION);
+        final int rank = rank(action);
+        if (rank == 0) {
+            return false;
+        }
+        if (isPending() && rank < rank(this.action)) {
             return false;
         }
 
         this.intent = new Intent(intent);
+        this.action = action;
         this.address = deviceAddress;
         this.deadline = SystemClock.elapsedRealtime() + TIMEOUT_MS;
+        return true;
+    }
+
+    /**
+     * Drop a held alarm that Sleep as Android has since stopped, so a connect that completes after
+     * the user has already dismissed it does not buzz the wearable for nothing.
+     *
+     * @return true if the action is one that cancels a hold rather than being held itself
+     */
+    public boolean cancels(@Nullable final String action) {
+        if (!SleepAsAndroidAction.STOP_ALARM.equals(action)) {
+            return false;
+        }
+        if (SleepAsAndroidAction.START_ALARM.equals(this.action)) {
+            clear();
+        }
         return true;
     }
 
@@ -82,6 +124,7 @@ public class PendingSleepAsAndroidAction {
 
     public void clear() {
         intent = null;
+        action = null;
         address = null;
         deadline = 0;
     }
