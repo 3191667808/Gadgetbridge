@@ -16,8 +16,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.activities.workouts;
 
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_CELSIUS;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_CM;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_EPOC_TIME;
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_FAHRENHEIT;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_FOOT;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_FOOT_PER_HOUR;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_HOURS;
@@ -71,6 +73,7 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.DistanceUnit;
+import nodomain.freeyourgadget.gadgetbridge.model.TemperatureUnit;
 import nodomain.freeyourgadget.gadgetbridge.model.WeightUnit;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 
@@ -83,6 +86,7 @@ public class WorkoutValueFormatter {
     private final DistanceUnit distanceUnit;
     private final WeightUnit weightUnit;
     private final boolean useNauticalUnits;
+    private final boolean useFahrenheit;
     private final DecimalFormat df2 = new DecimalFormat("#.##");
     private final DecimalFormat df1 = new DecimalFormat("#.#");
 
@@ -94,7 +98,8 @@ public class WorkoutValueFormatter {
         this(activityKind,
                 GBApplication.getPrefs().getDistanceUnit(),
                 GBApplication.getPrefs().getWeightUnit(),
-                GBApplication.getPrefs().getBoolean("units_nautical", true));
+                GBApplication.getPrefs().getBoolean("units_nautical", true),
+                GBApplication.getPrefs().getTemperatureUnit() == TemperatureUnit.FAHRENHEIT);
     }
 
     /**
@@ -104,10 +109,19 @@ public class WorkoutValueFormatter {
                                  final DistanceUnit distanceUnit,
                                  final WeightUnit weightUnit,
                                  final boolean useNauticalUnits) {
+        this(activityKind, distanceUnit, weightUnit, useNauticalUnits, false);
+    }
+
+    public WorkoutValueFormatter(final ActivityKind activityKind,
+                                 final DistanceUnit distanceUnit,
+                                 final WeightUnit weightUnit,
+                                 final boolean useNauticalUnits,
+                                 final boolean useFahrenheit) {
         this.activityKind = activityKind;
         this.distanceUnit = distanceUnit;
         this.weightUnit = weightUnit;
         this.useNauticalUnits = useNauticalUnits;
+        this.useFahrenheit = useFahrenheit;
     }
 
     public void setActivityKind(final ActivityKind activityKind) {
@@ -325,6 +339,18 @@ public class WorkoutValueFormatter {
             case UNIT_SECONDS_PER_500_METERS:
                 value = value / 60D;
                 unit = UNIT_MINUTES_PER_500_METERS;
+                break;
+            case UNIT_CELSIUS:
+                if (useFahrenheit) {
+                    value = value * 1.8 + 32;
+                    unit = UNIT_FAHRENHEIT;
+                }
+                break;
+            case UNIT_FAHRENHEIT:
+                if (!useFahrenheit) {
+                    value = (value - 32) / 1.8;
+                    unit = UNIT_CELSIUS;
+                }
                 break;
             case UNIT_JOULE:
                 if (!fixedUnit && value > 10000) {

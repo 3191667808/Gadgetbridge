@@ -2,6 +2,8 @@ package nodomain.freeyourgadget.gadgetbridge.activities.workouts;
 
 import static org.junit.Assert.assertEquals;
 
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_CELSIUS;
+import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_FAHRENHEIT;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_FOOT;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_KILOMETERS;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_KMPH;
@@ -81,6 +83,16 @@ public class WorkoutValueFormatterTest extends TestBase {
         // rowing 500 m pace is conventionally kept metric regardless of the imperial setting
         assertEquals("2:00 min/500m", metric(120, UNIT_SECONDS_PER_500_METERS));
         assertEquals("2:00 min/500m", imperial(120, UNIT_SECONDS_PER_500_METERS));
+    }
+
+    @Test
+    public void temperatureRespectsUnitPreference() {
+        final WorkoutValueFormatter fahrenheit =
+                new WorkoutValueFormatter(ActivityKind.UNKNOWN, DistanceUnit.METRIC, WeightUnit.KILOGRAM, false, true);
+        assertEquals("20 ℃", metric(20, UNIT_CELSIUS));
+        assertEquals("68 ℉", fahrenheit.formatValue(20, UNIT_CELSIUS, true));
+        assertEquals("20 ℃", metric(68, UNIT_FAHRENHEIT));
+        assertEquals("68 ℉", fahrenheit.formatValue(68, UNIT_FAHRENHEIT, true));
     }
 
     // --- Speed ---
