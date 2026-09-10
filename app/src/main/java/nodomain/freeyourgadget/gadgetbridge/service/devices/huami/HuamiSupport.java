@@ -73,7 +73,7 @@ import java.sql.Timestamp;
 import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
 
-import cyanogenmod.weather.util.WeatherUtils;
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.Logging;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -2935,7 +2935,7 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
 
             int currentTemp = weatherSpec.getCurrentTemp() - 273;
             if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-                currentTemp = (int) WeatherUtils.celsiusToFahrenheit(currentTemp);
+                currentTemp = (int) TemperatureUtils.celsiusToFahrenheit(currentTemp);
             }
             buf.put((byte) currentTemp);
 
@@ -3020,8 +3020,8 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
             int todayMaxTemp = weatherSpec.getTodayMaxTemp() - 273;
             int todayMinTemp = weatherSpec.getTodayMinTemp() - 273;
             if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-                todayMaxTemp = (int) WeatherUtils.celsiusToFahrenheit(todayMaxTemp);
-                todayMinTemp = (int) WeatherUtils.celsiusToFahrenheit(todayMinTemp);
+                todayMaxTemp = (int) TemperatureUtils.celsiusToFahrenheit(todayMaxTemp);
+                todayMinTemp = (int) TemperatureUtils.celsiusToFahrenheit(todayMinTemp);
             }
             buf.put((byte) todayMaxTemp);
             buf.put((byte) todayMinTemp);
@@ -3039,8 +3039,8 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
                 int forecastMaxTemp = forecast.getMaxTemp() - 273;
                 int forecastMinTemp = forecast.getMinTemp() - 273;
                 if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-                    forecastMaxTemp = (int) WeatherUtils.celsiusToFahrenheit(forecastMaxTemp);
-                    forecastMinTemp = (int) WeatherUtils.celsiusToFahrenheit(forecastMinTemp);
+                    forecastMaxTemp = (int) TemperatureUtils.celsiusToFahrenheit(forecastMaxTemp);
+                    forecastMinTemp = (int) TemperatureUtils.celsiusToFahrenheit(forecastMinTemp);
                 }
                 buf.put((byte) forecastMaxTemp);
                 buf.put((byte) forecastMinTemp);

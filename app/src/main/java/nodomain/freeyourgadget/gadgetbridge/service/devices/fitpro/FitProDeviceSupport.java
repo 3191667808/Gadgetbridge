@@ -115,6 +115,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
@@ -561,8 +562,8 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
         byte weatherUnit = 0;
         final TemperatureUnit temperatureUnit = GBApplication.getPrefs().getTemperatureUnit();
         if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-            todayMax = (short) (todayMax * 1.8f + 32);
-            todayMin = (short) (todayMin * 1.8f + 32);
+            todayMax = (short) TemperatureUtils.celsiusToFahrenheit(todayMax);
+            todayMin = (short) TemperatureUtils.celsiusToFahrenheit(todayMin);
             weatherUnit = 1;
         }
 

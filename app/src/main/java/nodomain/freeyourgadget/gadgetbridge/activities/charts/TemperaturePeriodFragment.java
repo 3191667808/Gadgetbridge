@@ -51,6 +51,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
@@ -322,8 +323,8 @@ public class TemperaturePeriodFragment extends AbstractChartFragment<Temperature
             yAxisLeft.setAxisMaximum((float) Math.ceil(maximum) + axisGap);
         } else {
             final boolean isMetric = temperatureUnit == TemperatureUnit.CELSIUS;
-            yAxisLeft.setAxisMinimum((float) (isMetric ? 30f : TemperatureChartFragment.celsiusToFahrenheit(30d)));
-            yAxisLeft.setAxisMaximum((float) (isMetric ? 45f : TemperatureChartFragment.celsiusToFahrenheit(45d)));
+            yAxisLeft.setAxisMinimum((float) (isMetric ? 30f : TemperatureUtils.celsiusToFahrenheit(30d)));
+            yAxisLeft.setAxisMaximum((float) (isMetric ? 45f : TemperatureUtils.celsiusToFahrenheit(45f)));
         }
     }
 
@@ -357,7 +358,7 @@ public class TemperaturePeriodFragment extends AbstractChartFragment<Temperature
             return celsius;
         }
 
-        return TemperatureDailyFragment.celsiusToFahrenheit(celsius);
+        return (float) TemperatureUtils.celsiusToFahrenheit(celsius);
     }
 
     private String formatTemperature(final float temperature) {

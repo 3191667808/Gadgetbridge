@@ -44,6 +44,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import lineageos.providers.WeatherContract;
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity;
@@ -124,11 +126,11 @@ public class SolarEquipmentStatusActivity extends AbstractGBActivity {
                         removeWidget("panel4");
                     }
                     if (GBApplication.getPrefs().getTemperatureUnit() == TemperatureUnit.FAHRENHEIT) {
-                        updateGaugeWidget("temp1", Math.round(temp1 * 1.8 + 32) + "°F", (float) ((temp1 + 20) / 100.0));
-                        updateGaugeWidget("temp2", Math.round(temp2 * 1.8 + 32) + "°F", (float) ((temp2 + 20) / 100.0));
+                        updateGaugeWidget("temp1", TemperatureUtils.formatTemperature(TemperatureUtils.celsiusToFahrenheit(temp1), WeatherContract.WeatherColumns.TempUnit.FAHRENHEIT), (float) ((temp1 + 20) / 100.0));
+                        updateGaugeWidget("temp2", TemperatureUtils.formatTemperature(TemperatureUtils.celsiusToFahrenheit(temp2), WeatherContract.WeatherColumns.TempUnit.FAHRENHEIT), (float) ((temp2 + 20) / 100.0));
                     } else {
-                        updateGaugeWidget("temp1", temp1 + "°C", (float) ((temp1 + 20) / 100.0));
-                        updateGaugeWidget("temp2", temp2 + "°C", (float) ((temp2 + 20) / 100.0));
+                        updateGaugeWidget("temp1", TemperatureUtils.formatTemperature(temp1, WeatherContract.WeatherColumns.TempUnit.CELSIUS), (float) ((temp1 + 20) / 100.0));
+                        updateGaugeWidget("temp2", TemperatureUtils.formatTemperature(temp2, WeatherContract.WeatherColumns.TempUnit.CELSIUS), (float) ((temp2 + 20) / 100.0));
                     }
                     if (output1_watt >= 0) {
                         updateGaugeWidget("output1", output1_watt + "W", (float) (output1_watt / 400.0));

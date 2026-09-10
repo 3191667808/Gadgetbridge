@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Calendar;
 import java.util.Locale;
 
-import lineageos.weather.util.WeatherUtils;
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -152,7 +152,7 @@ public class UltrahumanBreathingActivity extends AbstractGBActivity {
                         if (MetricUnits) {
                             degree = data.Temperature;
                         } else {
-                            degree = WeatherUtils.celsiusToFahrenheit(data.Temperature);
+                            degree = TemperatureUtils.celsiusToFahrenheit(data.Temperature);
                         }
 
                         String temp = getString(R.string.ultrahuman_exercise_temperature_format, degree);

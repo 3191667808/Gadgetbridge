@@ -32,6 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.roidmi.RoidmiF8Support
 import java.util.Locale
 import java.util.regex.Pattern
+import lineageos.weather.util.TemperatureUtils
 
 /**
  * Coordinator for the Roidmi F8 Cordless Vacuum Cleaner (model XCQ03RM).
@@ -165,7 +166,7 @@ class RoidmiF8Coordinator : AbstractBLEDeviceCoordinator() {
             label = { device, _ ->
                 val celsius = device.getExtraInfo(RoidmiF8Support.EXTRA_TEMPERATURE_CELSIUS) as? Float ?: 0f
                 if (GBApplication.getPrefs().temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-                    String.format(Locale.getDefault(), "%.1f °F", celsius * 1.8f + 32f)
+                    String.format(Locale.getDefault(), "%.1f °F", TemperatureUtils.celsiusToFahrenheit(celsius.toDouble()))
                 } else {
                     String.format(Locale.getDefault(), "%.1f °C", celsius)
                 }

@@ -67,6 +67,7 @@ import java.text.DecimalFormat;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -342,13 +343,13 @@ public class WorkoutValueFormatter {
                 break;
             case UNIT_CELSIUS:
                 if (useFahrenheit) {
-                    value = value * 1.8 + 32;
+                    value = TemperatureUtils.celsiusToFahrenheit(value);
                     unit = UNIT_FAHRENHEIT;
                 }
                 break;
             case UNIT_FAHRENHEIT:
                 if (!useFahrenheit) {
-                    value = (value - 32) / 1.8;
+                    value = TemperatureUtils.fahrenheitToCelsius(value);
                     unit = UNIT_CELSIUS;
                 }
                 break;

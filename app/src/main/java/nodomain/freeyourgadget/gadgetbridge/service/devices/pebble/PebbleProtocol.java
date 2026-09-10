@@ -41,6 +41,7 @@ import java.util.Random;
 import java.util.SimpleTimeZone;
 import java.util.UUID;
 
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
@@ -1200,12 +1201,12 @@ public class PebbleProtocol extends GBDeviceProtocol {
 
         final TemperatureUnit temperatureUnit = GBApplication.getPrefs().getTemperatureUnit();
         if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-            currentTemp = (short) (currentTemp * 1.8f + 32);
-            currentTempFeelsLike = (short) (currentTempFeelsLike * 1.8f + 32);
-            todayMax = (short) (todayMax * 1.8f + 32);
-            todayMin = (short) (todayMin * 1.8f + 32);
-            tomorrowMax = (short) (tomorrowMax * 1.8f + 32);
-            tomorrowMin = (short) (tomorrowMin * 1.8f + 32);
+            currentTemp = (short) TemperatureUtils.celsiusToFahrenheit(currentTemp);
+            currentTempFeelsLike = (short) TemperatureUtils.celsiusToFahrenheit(currentTempFeelsLike);
+            todayMax = (short) TemperatureUtils.celsiusToFahrenheit(todayMax);
+            todayMin = (short) TemperatureUtils.celsiusToFahrenheit(todayMin);
+            tomorrowMax = (short) TemperatureUtils.celsiusToFahrenheit(tomorrowMax);
+            tomorrowMin = (short) TemperatureUtils.celsiusToFahrenheit(tomorrowMin);
         }
         final short WEATHER_FORECAST_LENGTH_V3 = 20;
         final short WEATHER_FORECAST_LENGTH_V4 = 120;
@@ -1265,8 +1266,8 @@ public class PebbleProtocol extends GBDeviceProtocol {
                 short dailyMin = (short) (daily.getMinTemp() - 273);
                 byte dailyConditionCode = WeatherMapper.mapToPebbleCondition(daily.getConditionCode());
                 if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-                    dailyMax = (short) (dailyMax * 1.8f + 32);
-                    dailyMin = (short) (dailyMin * 1.8f + 32);
+                    dailyMax = (short) TemperatureUtils.celsiusToFahrenheit(dailyMax);
+                    dailyMin = (short) TemperatureUtils.celsiusToFahrenheit(dailyMin);
                 }
                 buf.putShort(dailyMax);
                 buf.putShort(dailyMin);
@@ -1292,7 +1293,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
                         WeatherSpec.Hourly hourlyForecast = hourlyForecasts.get(i - local_hour);
                         hourly_condition[i] = WeatherMapper.mapToPebbleCondition(hourlyForecast.getConditionCode());
                         if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-                            hourly_temperature[i] = (byte) ((hourlyForecast.getTemp() - 273) * 1.8f + 32);
+                            hourly_temperature[i] = (byte) TemperatureUtils.celsiusToFahrenheit(hourlyForecast.getTemp() - 273);
                         } else {
                             hourly_temperature[i] = (byte) (hourlyForecast.getTemp() - 273);
                         }

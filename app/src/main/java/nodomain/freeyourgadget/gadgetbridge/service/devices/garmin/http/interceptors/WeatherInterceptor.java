@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import lineageos.weather.util.WeatherUtils;
+import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.WeatherMapper;
@@ -424,7 +424,7 @@ public class WeatherInterceptor implements HttpInterceptor {
 
     private static WeatherValue getTemperature(final int kelvin, final String unit) {
         return switch (unit) {
-            case "FAHRENHEIT" -> new WeatherValue(WeatherUtils.celsiusToFahrenheit(kelvin - 273.15), "FAHRENHEIT");
+            case "FAHRENHEIT" -> new WeatherValue(TemperatureUtils.celsiusToFahrenheit(kelvin - 273.15), "FAHRENHEIT");
             case "KELVIN" -> new WeatherValue(kelvin, "KELVIN");
             case "CELSIUS" ->
                 // #4313 - We do a "wrong" conversion to celsius on purpose

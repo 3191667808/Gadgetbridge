@@ -1,6 +1,9 @@
 /*
  * Copyright (C) 2016 The CyanogenMod Project
  *
+ * Modified by Gadgetbridge contributors: class renamed from WeatherUtils to TemperatureUtils
+ * and adapted for general temperature conversion and formatting.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,9 +25,9 @@ import lineageos.providers.WeatherContract;
 import java.text.DecimalFormat;
 
 /**
- * Helper class to perform operations and formatting of weather data
+ * Helper class to perform operations and formatting of temperature data
  */
-public class WeatherUtils {
+public class TemperatureUtils {
 
     /**
      * Converts a temperature expressed in degrees Celsius to degrees Fahrenheit
