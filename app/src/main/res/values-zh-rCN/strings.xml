@@ -4977,4 +4977,16 @@
     <string name="bluetooth_multipoint_active_device">活跃源 · %1$s</string>
     <string name="bluetooth_multipoint_forget">忘记</string>
     <string name="bluetooth_multipoint_forget_message">从配对设备中删除 %1$s ？重新连接需要再次配对。</string>
+    <string name="controlcenter_get_spo2_measurement">获取血氧测量值</string>
+    <string name="pref_roidmi_f8_battery_temperature_title">电池温度</string>
+    <string name="pref_roidmi_f8_standard_gear_title">标准档位</string>
+    <string name="pref_roidmi_f8_standard_gear_summary">开始清理时的默认功率</string>
+    <string name="pref_roidmi_f8_dust_reminder_title">灰尘已满提醒</string>
+    <string name="pref_roidmi_f8_dust_reminder_summary">关闭时禁用灰尘指示器和灰尘传感器</string>
+    <string name="pref_roidmi_f8_reset_filter_title">重置过滤器使用时间</string>
+    <string name="pref_roidmi_f8_reset_filter_confirm">重置过滤器使用时间为 0？</string>
+    <string name="pref_roidmi_f8_filter_used_time_title">过滤器使用时间（预估）</string>
+    <string name="pref_roidmi_f8_standard_cleaning_time_title">标准模式清理时间</string>
+    <string name="pref_roidmi_f8_high_cleaning_time_title">高功率模式清理时间</string>
+    <string name="pref_roidmi_f8_cleaning_time_title">累计清理时间</string>
 </resources>
