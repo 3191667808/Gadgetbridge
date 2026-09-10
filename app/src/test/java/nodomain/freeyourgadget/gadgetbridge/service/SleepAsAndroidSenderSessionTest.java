@@ -277,6 +277,20 @@ public class SleepAsAndroidSenderSessionTest extends TestBase {
     }
 
     @Test
+    public void aSessionStoppedWhileDisconnectedStaysStopped() {
+        // Sleep as Android ends the session while the link is down, so the stop arrives for a
+        // device that is no longer the provider. Whatever it left running would otherwise come
+        // back with the next connection and feed a session nobody is recording.
+        sender.startTracking(trackingExtras(false, false));
+        device.setState(GBDevice.State.NOT_CONNECTED);
+
+        sender.stopTracking();
+        device.setState(GBDevice.State.INITIALIZED);
+
+        Assert.assertFalse(sender.acceptsAccelSamples());
+    }
+
+    @Test
     public void samplesAreNotAcceptedByADeviceWithoutTheSensor() {
         final SleepAsAndroidSender heartRateOnly = senderWith(SleepAsAndroidFeature.HEART_RATE);
         heartRateOnly.startTracking(trackingExtras(true, false));
