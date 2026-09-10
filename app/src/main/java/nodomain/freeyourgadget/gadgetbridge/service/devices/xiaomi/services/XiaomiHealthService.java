@@ -122,6 +122,15 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     // The band ignores a finish that follows the preceding status too closely, and keeps the
     // workout open. A later start is then rejected until the band is power-cycled.
     private static final long SAA_FINISH_DELAY_MS = 500L;
+    // Nothing on the band closes the synthetic workout by itself, and the phone can lose the
+    // session it belongs to: the link drops, the stop never arrives, or Gadgetbridge is restarted.
+    // Past this age the workout belongs to no session anybody is still waiting on.
+    private static final long SAA_SESSION_MAX_AGE_MS = 12 * 60 * 60_000L;
+    // Wall-clock start of the open synthetic workout, so the age survives a restart of the app.
+    private static final String PREF_SAA_SESSION_STARTED_TS = "xiaomi_saa_session_started_ts";
+    // How long a workout that survived a connection is left for Sleep as Android to claim. It
+    // repeats START_TRACKING as its own watchdog roughly once a minute.
+    private static final long SAA_RECOVERY_GRACE_MS = 120_000L;
     // Reported to the band until a real reading arrives.
     private static final int HEART_RATE_UNKNOWN = 255;
 
@@ -280,6 +289,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
     @Override
     public void initialize() {
         resetConnectionState();
+        recoverSleepAsAndroidSession();
 
         setUserInfo();
         getSupport().sendCommand("get spo2 config", COMMAND_TYPE, CMD_CONFIG_SPO2_GET);
@@ -765,6 +775,25 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         // honoured on its own: a request that arrives while the session is between workouts must
         // not be mistaken for one the user started on the band.
         if (saaSessionRequested || workoutOpenWatch.getSport() == SAA_SYNTHETIC_SPORT) {
+            if (!saaSessionRequested) {
+                // A workout nothing on this side owns. Refusing is how the band is told to close
+                // it; acknowledging would keep it streaming for the rest of the day.
+                LOG.warn("Refusing a synthetic workout that belongs to no session");
+                getSupport().sendCommand(
+                        "saa orphan open refuse",
+                        XiaomiProto.Command.newBuilder()
+                                .setType(COMMAND_TYPE)
+                                .setSubtype(CMD_WORKOUT_WATCH_OPEN)
+                                .setHealth(XiaomiProto.Health.newBuilder().setWorkoutOpenReply(
+                                        XiaomiProto.WorkoutOpenReply.newBuilder()
+                                                .setCode(WORKOUT_OPEN_NO_PERMISSION)
+                                                .setSelectedVersion(WORKOUT_PROTOCOL_VERSION)
+                                                .setGpsAccuracy(GPS_ACCURACY_UNKNOWN)
+                                ))
+                                .build()
+                );
+                return;
+            }
             getSupport().sendCommand(
                     "saa raw-sensor open ack",
                     XiaomiProto.Command.newBuilder()
@@ -1152,6 +1181,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
      */
     public void startRawSensor(final boolean withHeartRate, final boolean withGps) {
         saaSessionRequested = true;
+        rememberSleepAsAndroidSession();
         saaGpsRequested = withGps;
         saaRestartAttempts = 0;
         if (!withGps) {
@@ -1199,6 +1229,63 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         sendWorkoutStatus(WORKOUT_STARTED);
         startWorkoutStatsTicker();
         startKeepalive();
+    }
+
+    /**
+     * Deal with a synthetic workout the band kept open across a connect.
+     * <p>
+     * The band holds the workout on its own and goes on asking the phone to confirm it, so an
+     * interrupted session leaves it running with nothing driving it: the keepalive, the stats
+     * ticker and the raw stream all belong to the connection that went away. The session is kept
+     * recognised while Sleep as Android is given the chance to claim it, which its repeated
+     * START_TRACKING does by rebuilding all three. A workout nobody claims belongs to a session
+     * that ended while the link was down, and only closing it gets the band off its workout screen.
+     */
+    private void recoverSleepAsAndroidSession() {
+        if (!sessionStartedRecently()) {
+            forgetSleepAsAndroidSession();
+            return;
+        }
+
+        saaSessionRequested = true;
+        saaWorkoutStatusHandler.postDelayed(this::closeUnclaimedSession, SAA_RECOVERY_GRACE_MS);
+    }
+
+    private void closeUnclaimedSession() {
+        if (saaRawSensorActive) {
+            return;
+        }
+
+        LOG.info("Closing the synthetic workout left open by an earlier connection");
+        stopRawSensor();
+    }
+
+    private boolean sessionStartedRecently() {
+        final long startedMs = getDevicePrefs().getLong(PREF_SAA_SESSION_STARTED_TS, 0L);
+        if (startedMs == 0) {
+            return false;
+        }
+        final long age = System.currentTimeMillis() - startedMs;
+        if (age < 0 || age > SAA_SESSION_MAX_AGE_MS) {
+            LOG.info("Discarding a Sleep as Android session started {}ms ago", age);
+            return false;
+        }
+        return true;
+    }
+
+    private void rememberSleepAsAndroidSession() {
+        GBApplication.getDeviceSpecificSharedPrefs(getSupport().getDevice().getAddress())
+                .edit()
+                .putLong(PREF_SAA_SESSION_STARTED_TS, System.currentTimeMillis())
+                .apply();
+    }
+
+    private void forgetSleepAsAndroidSession() {
+        saaSessionRequested = false;
+        GBApplication.getDeviceSpecificSharedPrefs(getSupport().getDevice().getAddress())
+                .edit()
+                .remove(PREF_SAA_SESSION_STARTED_TS)
+                .apply();
     }
 
     private void startKeepalive() {
@@ -1260,7 +1347,7 @@ public class XiaomiHealthService extends AbstractXiaomiService {
         // echoing the status it was given until then.
         saaWorkoutStatusHandler.postDelayed(() -> {
             sendWorkoutStatus(WORKOUT_FINISHED);
-            saaSessionRequested = false;
+            forgetSleepAsAndroidSession();
         }, SAA_FINISH_DELAY_MS);
     }
 
