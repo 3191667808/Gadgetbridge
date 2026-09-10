@@ -33,6 +33,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity
 import nodomain.freeyourgadget.gadgetbridge.databinding.ActivityMapsTrackBinding
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.getParcelableCompat
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.getSerializableCompat
@@ -77,6 +78,10 @@ class MapsTrackActivity : AbstractGBActivity(), MenuProvider {
             finish()
             return
         }
+
+        val label = summary.name?.takeIf { it.isNotBlank() }
+            ?: ActivityKind.fromCode(summary.activityKind).getLabel(this)
+        supportActionBar?.title = "${getString(R.string.map)} · $label"
 
         addMenuProvider(this)
 

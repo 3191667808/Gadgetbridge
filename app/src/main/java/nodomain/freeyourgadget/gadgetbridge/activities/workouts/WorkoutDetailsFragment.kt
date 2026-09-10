@@ -160,11 +160,20 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
     override fun onResume() {
         super.onResume()
 
-        currentWorkout?.summary?.activityKind?.let {
-            val activityKindName = ActivityKind.fromCode(it).getLabel(requireContext())
-            // Action bar title
-            (activity as? AppCompatActivity)?.supportActionBar?.title = activityKindName
+        updateActionBarTitle()
+    }
+
+    private fun updateActionBarTitle() {
+        workoutLabel()?.let {
+            (activity as? AppCompatActivity)?.supportActionBar?.title = it
         }
+    }
+
+    /** The workout's custom label, falling back to its sport/activity kind name. */
+    private fun workoutLabel(): String? {
+        val summary = currentWorkout?.summary ?: return null
+        return summary.name?.takeIf { it.isNotBlank() }
+            ?: summary.activityKind?.let { ActivityKind.fromCode(it).getLabel(requireContext()) }
     }
 
     private fun loadWorkoutData() {
@@ -497,6 +506,9 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                 ChartDataRepository.chartData = allChartsData
                 val intent = Intent(requireContext(), WorkoutChartsActivity::class.java).apply {
                     putExtra(WorkoutChartsActivity.INIT_CHART_ID, chart.id)
+                    workoutLabel()?.let {
+                        putExtra(WorkoutChartsActivity.EXTRA_TITLE, "${getString(R.string.charts)} · $it")
+                    }
                 }
                 startActivity(intent)
             }
@@ -623,6 +635,7 @@ class WorkoutDetailsFragment : Fragment(), MenuProvider {
                         override fun onWorkoutUpdated() {
                             notifyWorkoutChanged()
                             updateWorkoutHeader(workout.summary)
+                            updateActionBarTitle()
                         }
                     })
                 }

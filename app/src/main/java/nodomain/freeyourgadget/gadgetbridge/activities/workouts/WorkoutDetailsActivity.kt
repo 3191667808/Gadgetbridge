@@ -40,9 +40,10 @@ class WorkoutDetailsActivity : AbstractGBActivity() {
 
                 val summary = viewModel.workouts.value?.get(position)
                 summary?.activityKind?.let {
-                    val activityKindName = ActivityKind.fromCode(it).getLabel(this@WorkoutDetailsActivity)
+                    val title = summary.name?.takeIf { name -> name.isNotBlank() }
+                        ?: ActivityKind.fromCode(it).getLabel(this@WorkoutDetailsActivity)
                     // Action bar title
-                    supportActionBar?.title = activityKindName
+                    supportActionBar?.title = title
                 }
             }
         })

@@ -4916,7 +4916,9 @@
     <string name="huawei_extra_media_volume_title">Extra media volume</string>
     <string name="huawei_extra_media_volume_summary">Increase the maximum media volume. This may affect audio quality. May damage hearing.</string>
     <string name="maps">Maps</string>
+    <string name="map">Map</string>
     <string name="workout_charts">Workout Charts</string>
+    <string name="charts">Charts</string>
     <string name="maps_settings">Maps settings</string>
     <string name="maps_download_title">Download Maps</string>
     <string name="maps_download_summary">Click here to download map files. They should be saved to the folder selected in the preference below.</string>

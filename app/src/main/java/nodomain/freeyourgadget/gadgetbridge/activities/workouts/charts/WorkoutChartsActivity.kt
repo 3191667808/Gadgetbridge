@@ -48,6 +48,7 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
         binding = WorkoutChartsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         addMenuProvider(this)
+        intent.getStringExtra(EXTRA_TITLE)?.let { supportActionBar?.title = it }
         chartData = ChartDataRepository.chartData
 
         if (chartData == null) {
@@ -273,5 +274,6 @@ class WorkoutChartsActivity : AbstractGBActivity(), MenuProvider {
 
     companion object {
         const val INIT_CHART_ID = "INIT_CHART_ID"
+        const val EXTRA_TITLE = "EXTRA_TITLE"
     }
 }
