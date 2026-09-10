@@ -665,14 +665,21 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 // already have and update it in place - insertOrReplace only replaces on a
                 // matching row id, and a fresh entity has none, so it would insert a copy.
                 val startDate = Date(start * 1000L)
-                val existing = session.baseActivitySummaryDao.queryBuilder()
+                val matches = session.baseActivitySummaryDao.queryBuilder()
                     .where(
                         BaseActivitySummaryDao.Properties.StartTime.eq(startDate),
                         BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.id),
                         BaseActivitySummaryDao.Properties.UserId.eq(dbUser.id)
                     )
-                    .build().list().firstOrNull()
-                val summary = existing ?: BaseActivitySummary()
+                    .build().list()
+                if (matches.size > 1) {
+                    // Copies left behind before this was fixed. They are identical, so keeping
+                    // the first and dropping the rest loses nothing.
+                    session.baseActivitySummaryDao.deleteInTx(matches.drop(1))
+                    LOG.info("Removed {} duplicate copies of the workout starting {}",
+                        matches.size - 1, startDate)
+                }
+                val summary = matches.firstOrNull() ?: BaseActivitySummary()
                 summary.startTime = startDate
                 summary.endTime = Date(end * 1000L)
                 summary.activityKind = workoutKind(workoutSummary[0x09]?.toInt() ?: -1).code

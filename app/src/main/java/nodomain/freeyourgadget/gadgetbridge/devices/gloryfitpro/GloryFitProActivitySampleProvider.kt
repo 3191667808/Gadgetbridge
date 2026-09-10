@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.gloryfitpro
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.devices.gloryfit.GloryFitActivitySampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericActivitySample
@@ -39,7 +41,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser
  * The value is derived, not measured: it says how hard the wearer was working relative to their
  * own range, and is not comparable to the intensity a device reports natively.
  */
-open class GloryFitProActivitySampleProvider(device: GBDevice, session: DaoSession) :
+open class GloryFitProActivitySampleProvider(private val device: GBDevice, session: DaoSession) :
     GloryFitActivitySampleProvider(device, session) {
 
     /** Intensity is kept as a percentage so it survives the sample's integer field. */
@@ -80,18 +82,50 @@ open class GloryFitProActivitySampleProvider(device: GBDevice, session: DaoSessi
         val present = HashSet<Int>(samples.size * 2)
         for (sample in samples) present.add(sample.timestamp / 60)
 
-        for (minute in firstMinute + 1 until lastMinute) {
-            if (present.contains(minute)) continue
-            val sample = GenericActivitySample()
-            sample.provider = this
-            sample.timestamp = minute * 60
-            sample.steps = 0
-            sample.rawIntensity = 0
-            sample.rawKind = ActivityKind.UNKNOWN.code
-            samples.add(sample)
+        // A long silence only means the watch is off the wrist while it is measuring of its own
+        // accord. With the automatic monitors switched off the only thing left to break a
+        // silence is movement, and then a gap says "sat still" - see canDetectNotWorn.
+        val markNotWorn = canDetectNotWorn()
+        var gapStart = firstMinute
+        for (minute in firstMinute + 1..lastMinute) {
+            if (!present.contains(minute)) continue
+            val gap = (minute - gapStart).toInt()
+            val kind = if (markNotWorn && gap > NOT_WORN_GAP_MINUTES) {
+                ActivityKind.NOT_WORN
+            } else {
+                ActivityKind.UNKNOWN
+            }
+            for (empty in gapStart + 1 until minute) {
+                val sample = GenericActivitySample()
+                sample.provider = this
+                sample.timestamp = empty * 60
+                sample.steps = 0
+                sample.rawIntensity = 0
+                sample.rawKind = kind.code
+                samples.add(sample)
+            }
+            gapStart = minute
         }
         samples.sortBy { it.timestamp }
         return samples
+    }
+
+    /**
+     * Whether a gap in the samples can be read as the watch being off the wrist.
+     *
+     * The watch has no worn/not-worn flag. What it does have is a habit of measuring heart rate
+     * and blood oxygen on its own schedule, and that stops dead when there is no wrist under the
+     * sensor - measured on hardware, 51 health frames in 16 minutes worn against 0 in 15 minutes
+     * on a table, with the keepalive ticking on in both. But both monitors are settings the
+     * wearer can switch off, and with them off the only remaining records are step-driven, so a
+     * silence then means "did not move" rather than "not worn" - also measured, 0 frames in 5
+     * minutes of sitting still with the watch on. So the inference is only available while both
+     * are enabled.
+     */
+    private fun canDetectNotWorn(): Boolean {
+        val prefs = GBApplication.getDevicePrefs(device)
+        return prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_AUTOMATIC_ENABLE, false) &&
+                prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_SPO2_ALL_DAY_MONITORING, false)
     }
 
     private fun deriveIntensity(samples: List<GenericActivitySample>) {
@@ -158,5 +192,14 @@ open class GloryFitProActivitySampleProvider(device: GBDevice, session: DaoSessi
 
         /** Beyond this the caller is asking for a range no chart draws minute by minute. */
         private const val MAX_FILL_MINUTES = 3 * 24 * 60
+
+        /**
+         * Silence longer than this reads as the watch being off the wrist. Garmin uses ten
+         * minutes for the same purpose; this is more cautious because the longest gap measured
+         * on this watch while it was demonstrably worn was itself ten minutes, and a wearer can
+         * stretch that by setting a slower measurement interval. Removals worth marking - a
+         * charge, a forgotten morning - run far longer than fifteen minutes anyway.
+         */
+        private const val NOT_WORN_GAP_MINUTES = 15
     }
 }
