@@ -659,7 +659,7 @@
     <string name="prefs_hr_alarm_low">Spodní hodnota</string>
     <string name="prefs_hr_alarm_high">Horní limit</string>
     <string name="average">Průměr: %1$s</string>
-    <string name="pref_header_charts">Grafy</string>
+    <string name="pref_header_charts">Nastavení grafů</string>
     <string name="pref_title_charts_average">Zobrazovat v grafech průměry</string>
     <string name="pref_title_charts_range">Časové období grafů</string>
     <string name="pref_charts_range_on">Rozsah nastaven na měsíc</string>
@@ -4984,4 +4984,17 @@
     <string name="bluetooth_multipoint_forget">Zapomenout</string>
     <string name="bluetooth_multipoint_forget_message">Odstranit %1$s ze spárovaných zařízení? Pro opětovné připojení je budete muset znovu spárovat.</string>
     <string name="controlcenter_get_spo2_measurement">Změřit kyslík v krvi</string>
+    <string name="pref_roidmi_f8_battery_temperature_title">Teplota baterie</string>
+    <string name="pref_roidmi_f8_standard_gear_title">Standardní výbava</string>
+    <string name="pref_roidmi_f8_standard_gear_summary">Výchozí výkon při spuštění čištění</string>
+    <string name="pref_roidmi_f8_dust_reminder_title">Připomínka naplnění prachem</string>
+    <string name="pref_roidmi_f8_dust_reminder_summary">Při vypnutí bude zakázán indikátor a senzor prachu</string>
+    <string name="pref_roidmi_f8_reset_filter_title">Resetovat čas využití filtru</string>
+    <string name="pref_roidmi_f8_reset_filter_confirm">Resetovat čas využití filtru na nulu?</string>
+    <string name="pref_roidmi_f8_filter_used_time_title">Čas využití filtru (odhadovaný)</string>
+    <string name="pref_roidmi_f8_standard_cleaning_time_title">Čas čištění ve standardním režimu</string>
+    <string name="pref_roidmi_f8_high_cleaning_time_title">Čas čištění ve vysokém režimu</string>
+    <string name="pref_roidmi_f8_cleaning_time_title">Celková doba čištění</string>
+    <string name="map">Mapa</string>
+    <string name="charts">Grafy</string>
 </resources>
