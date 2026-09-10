@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvid
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries
@@ -660,8 +661,19 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 val session = handler.daoSession
                 val dbDevice = DBHelper.getDevice(device, session)
                 val dbUser = DBHelper.getUser(session)
-                val summary = BaseActivitySummary()
-                summary.startTime = Date(start * 1000L)
+                // Every sync re-reads the workouts still on the watch, so look for the one we
+                // already have and update it in place - insertOrReplace only replaces on a
+                // matching row id, and a fresh entity has none, so it would insert a copy.
+                val startDate = Date(start * 1000L)
+                val existing = session.baseActivitySummaryDao.queryBuilder()
+                    .where(
+                        BaseActivitySummaryDao.Properties.StartTime.eq(startDate),
+                        BaseActivitySummaryDao.Properties.DeviceId.eq(dbDevice.id),
+                        BaseActivitySummaryDao.Properties.UserId.eq(dbUser.id)
+                    )
+                    .build().list().firstOrNull()
+                val summary = existing ?: BaseActivitySummary()
+                summary.startTime = startDate
                 summary.endTime = Date(end * 1000L)
                 summary.activityKind = workoutKind(workoutSummary[0x09]?.toInt() ?: -1).code
                 summary.name = "Workout"
