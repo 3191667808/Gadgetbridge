@@ -112,7 +112,7 @@ public class TimePreference extends DialogPreference {
     }
 
     public String getTime24h() {
-        return String.format("%02d", hour) + ":" + String.format("%02d", minute);
+        return LocalTime.of(hour, minute).format(DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT));
     }
 
     public String getTime12h() {
