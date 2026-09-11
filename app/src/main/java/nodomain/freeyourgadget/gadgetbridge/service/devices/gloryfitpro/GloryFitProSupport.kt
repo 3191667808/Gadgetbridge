@@ -116,6 +116,13 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         // Read the watch's alarms so ones edited on the watch appear in Gadgetbridge (read-only sync).
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *cmdGetAll(CMD_ALARM))
 
+        // Read back the settings the watch can also be changed on, so what Gadgetbridge shows is
+        // what the watch actually holds. Screen timeout and language read on different fields
+        // than they are written on.
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_DND, MODE_GET, 0x01))
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_DEVICE_CONTROL, MODE_GET, 0x09))
+        builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_DEVICE_CONTROL, MODE_GET, 0x06))
+
         if (GBApplication.getPrefs().syncTime()) {
             setTime(builder)
         }
@@ -168,6 +175,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             CMD_ACTIVITY_DAY -> handleDaySummary(value)
             CMD_MUSIC_CONTROL -> handleMusicControl(value)
             CMD_DEVICE_CONTROL -> handleDeviceControl(value)
+            CMD_DND -> handleDoNotDisturb(value)
             CMD_ALARM -> handleAlarmData(value)
             CMD_HEALTH -> handleHealthPage(value)
             CMD_HEALTH_COUNT -> handleHealthCount(value)
@@ -420,6 +428,40 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         }
     }
 
+
+    /**
+     * Do not disturb as the watch has it: `01 ea aa 01 08 <all day> <scheduled> <start h>
+     * <start m> <end h> <end m> 00 00`.
+     *
+     * Measured across the three states the watch itself offers (2026-09-12): off is `00 00`,
+     * scheduled is `00 01` and all day is `01 00`, and the window survives all three - turning
+     * do not disturb off does not clear the times.
+     *
+     * Gadgetbridge's screen has no all-day setting, so that state is left alone rather than
+     * misrepresented as one of the two it does have.
+     */
+    private fun handleDoNotDisturb(value: ByteArray) {
+        if (value.size < 11 || value[2] != MODE_GET) return
+        val allDay = value[5].toInt() != 0
+        val scheduled = value[6].toInt() != 0
+        val start = "%02d:%02d".format(value[7].toInt() and 0xff, value[8].toInt() and 0xff)
+        val end = "%02d:%02d".format(value[9].toInt() and 0xff, value[10].toInt() and 0xff)
+        LOG.info("Watch reports do not disturb: all day {}, scheduled {}, {} to {}",
+            allDay, scheduled, start, end)
+        if (allDay) {
+            LOG.info("The watch is in all-day mode, which the settings screen cannot show - leaving it")
+            return
+        }
+        devicePrefsEdit()
+            .putString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO,
+                if (scheduled) "scheduled" else "off")
+            .putString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, start)
+            .putString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, end)
+            .apply()
+    }
+
+    private fun devicePrefsEdit() =
+        GBApplication.getDeviceSpecificSharedPrefs(device.address).edit()
 
     /**
      * Do not disturb: "<all day> <scheduled> <start h> <start m> <end h> <end m> 00 00". The first
@@ -1598,6 +1640,30 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     /** Find-phone: the watch pushes "01 a5 ac 02 01 <01 start / 00 stop>". */
     private fun handleDeviceControl(value: ByteArray) {
+        // Settings read back on connect. The watch answers on different fields than it is
+        // written on: the screen timeout goes out on 08 and comes back on 09, raise-to-wake
+        // goes out on 01 and comes back on 06.
+        if (value.size >= 6 && value[2] == MODE_GET) {
+            when (value[3].toInt() and 0xff) {
+                0x09 -> {
+                    val seconds = value[5].toInt() and 0xff
+                    LOG.info("Watch reports a screen timeout of {} s", seconds)
+                    devicePrefsEdit()
+                        .putString(DeviceSettingsPreferenceConst.PREF_SCREEN_TIMEOUT, seconds.toString())
+                        .apply()
+                }
+                0x06 -> {
+                    val on = value[5].toInt() != 0
+                    LOG.info("Watch reports raise-to-wake {}", if (on) "on" else "off")
+                    devicePrefsEdit()
+                        .putBoolean(DeviceSettingsPreferenceConst.PREF_LIFTWRIST_NOSHED, on)
+                        .apply()
+                }
+                else -> LOG.debug("Unhandled a5 read of field 0x{}: {}",
+                    Integer.toHexString(value[3].toInt() and 0xff), value.toHex())
+            }
+            return
+        }
         // Find-watch state: the watch reports 01 when it starts ringing and 02 when the wearer
         // dismisses it, so the phone-side session can end with it instead of hanging.
         if (value.size >= 6 && value[2] == MODE_REPORT && value[3] == 0x05.toByte()) {
