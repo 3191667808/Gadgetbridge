@@ -1117,6 +1117,16 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                     spo2Samples.add(sample)
                 }
             }
+            // 0x82 is the 0x80 SpO2 record with one extra byte in front of the reading.
+            if (type == 0x82 && i + 5 < page.size) {
+                val spo2 = page[i + 5].toInt() and 0xff
+                if (spo2 in 50..100) {
+                    val sample = GenericSpo2Sample()
+                    sample.timestamp = (day.toLong() + minute * 60L) * 1000L
+                    sample.spo2 = spo2
+                    spo2Samples.add(sample)
+                }
+            }
             if (type == 0x80 && i + 4 < page.size) {
                 val spo2 = page[i + 4].toInt() and 0xff
                 if (spo2 in 50..100) {
@@ -1215,7 +1225,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         return when (type) {
             0x02, 0x08 -> 1
             0x04, 0x80 -> 2
-            0x05 -> 3
+            0x05, 0x82 -> 3
             0x07 -> 4
             0x85 -> 5
             0xf1, 0xf2 -> 6

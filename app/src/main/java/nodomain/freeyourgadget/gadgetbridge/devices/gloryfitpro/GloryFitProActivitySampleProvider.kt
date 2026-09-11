@@ -86,11 +86,15 @@ open class GloryFitProActivitySampleProvider(private val device: GBDevice, sessi
         // accord. With the automatic monitors switched off the only thing left to break a
         // silence is movement, and then a gap says "sat still" - see canDetectNotWorn.
         val markNotWorn = canDetectNotWorn()
+        // The day's step total is kept in a bookkeeping sample at the very end of the day, so
+        // the last stretch of every day is a gap by construction - the watch simply has not
+        // written those minutes out yet. Never read that one as a removal.
+        val lastRealMinute = present.filter { it != lastMinute }.maxOrNull() ?: firstMinute
         var gapStart = firstMinute
         for (minute in firstMinute + 1..lastMinute) {
             if (!present.contains(minute)) continue
             val gap = (minute - gapStart).toInt()
-            val kind = if (markNotWorn && gap > NOT_WORN_GAP_MINUTES) {
+            val kind = if (markNotWorn && gap > NOT_WORN_GAP_MINUTES && minute <= lastRealMinute) {
                 ActivityKind.NOT_WORN
             } else {
                 ActivityKind.UNKNOWN
