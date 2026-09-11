@@ -635,7 +635,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             if (track[i] == 0x07.toByte() && track[i + 1] == 0x04.toByte() &&
                 track[i + 6] == 0x08.toByte() && track[i + 7] == 0x04.toByte()
             ) {
-                points.add(Pair(be32At(track, i + 2) / 1e7, be32At(track, i + 8) / 1e7))
+                points.add(Pair(signed32At(track, i + 2) / 1e7, signed32At(track, i + 8) / 1e7))
                 i += 12
             } else {
                 i++
@@ -772,6 +772,13 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private fun be32At(b: ByteArray, i: Int): Long =
         ((b[i].toLong() and 0xff) shl 24) or ((b[i + 1].toLong() and 0xff) shl 16) or
                 ((b[i + 2].toLong() and 0xff) shl 8) or (b[i + 3].toLong() and 0xff)
+
+    /**
+     * The same four bytes read as a signed value, for coordinates: latitude south of the equator
+     * and longitude west of Greenwich are negative, and reading them unsigned turns -1e-7 into
+     * 429.4967295.
+     */
+    private fun signed32At(b: ByteArray, i: Int): Int = be32At(b, i).toInt()
 
     /** List reply: "01 e8 aa 01 <chunk:2> <count:2> [<index:2> <detail size:3> <pad:3>]*". */
     private fun parseWorkoutList(value: ByteArray) {
@@ -930,6 +937,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     // --- Stored activity history (c5 count + c6 paged read) ------------------------------------
 
     private val historyBuffer = ByteArrayOutputStream()
+    private val historySteps = ArrayList<GloryFitStepsSample>()
     private var historyFrom = 0
     private var historyTo = 0
     private var historyPage = 0
@@ -987,26 +995,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         historyPage = 0
         historyPages = 0
         historyBuffer.reset()
-        // The per-minute records about to arrive are the authoritative version of this window,
-        // so clear what is there - including the coarse day-total remainders written by earlier
-        // syncs, which would otherwise be counted a second time.
-        try {
-            GBApplication.acquireDB().use { handler ->
-                val session = handler.daoSession
-                val deviceId = DBHelper.getDevice(device, session).id
-                val dropped = session.gloryFitStepsSampleDao.queryBuilder()
-                    .where(
-                        GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId),
-                        GloryFitStepsSampleDao.Properties.Timestamp.ge(historyFrom * 1000L),
-                        GloryFitStepsSampleDao.Properties.Timestamp.le(historyTo * 1000L)
-                    )
-                    .buildDelete()
-                dropped.executeDeleteWithoutDetachingEntities()
-                session.clear()
-            }
-        } catch (e: Exception) {
-            LOG.error("Failed to clear the step samples for the history window", e)
-        }
+        historySteps.clear()
         LOG.info("History: asking for page count over the last {} days", days)
         val builder = createTransactionBuilder("history count")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH_COUNT, MODE_GET, 0x04, 0x08)
@@ -1020,6 +1009,40 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH, MODE_GET, 0x01, 0x0a)
             + be32(historyFrom) + be32(historyTo) + byteArrayOf((page ushr 8).toByte(), page.toByte()))
         builder.queue()
+    }
+
+    /**
+     * Write the fetched history away, replacing the window in one go.
+     *
+     * The per-minute records are the authoritative version of the window they cover, and the
+     * coarse day-total remainders written alongside them would otherwise be counted twice, so
+     * the window has to be cleared. That only happens here, once the fetch has actually
+     * delivered: a fetch that dies halfway leaves what was already stored untouched rather than
+     * replacing it with a hole.
+     */
+    private fun commitHistorySteps() {
+        if (historySteps.isEmpty()) return
+        try {
+            GBApplication.acquireDB().use { handler ->
+                val session = handler.daoSession
+                val deviceId = DBHelper.getDevice(device, session).id
+                session.gloryFitStepsSampleDao.queryBuilder()
+                    .where(
+                        GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId),
+                        GloryFitStepsSampleDao.Properties.Timestamp.ge(historyFrom * 1000L),
+                        GloryFitStepsSampleDao.Properties.Timestamp.le(historyTo * 1000L)
+                    )
+                    .buildDelete()
+                    .executeDeleteWithoutDetachingEntities()
+                session.clear()
+                GloryFitStepsSampleProvider(device, session).persistSamples(historySteps, context)
+                LOG.info("History: stored {} per-minute step records", historySteps.size)
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to store {} historic step samples", historySteps.size, e)
+        } finally {
+            historySteps.clear()
+        }
     }
 
     /** Page-count reply: "01 c5 aa 04 01 <count>". */
@@ -1056,6 +1079,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 requestHistoryPage(historyPage)
             } else {
                 LOG.info("History: done after {} pages", historyPage + 1)
+                commitHistorySteps()
                 fetchSleep(days = SLEEP_DAYS)
                 fetchDayTotals()
             }
@@ -1209,16 +1233,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 LOG.error("Failed to store {} historic heart rate samples", heartRates.size, e)
             }
         }
-        if (stepSamples.isNotEmpty()) {
-            try {
-                GBApplication.acquireDB().use { handler ->
-                    GloryFitStepsSampleProvider(device, handler.daoSession)
-                        .persistSamples(stepSamples, context)
-                }
-            } catch (e: Exception) {
-                LOG.error("Failed to store {} historic step samples", stepSamples.size, e)
-            }
-        }
+        // Held until the whole fetch is in - see commitHistorySteps.
+        historySteps.addAll(stepSamples)
         if (spo2Samples.isNotEmpty()) {
             try {
                 GBApplication.acquireDB().use { handler ->
