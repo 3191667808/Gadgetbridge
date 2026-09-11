@@ -4989,4 +4989,6 @@
     <string name="pref_roidmi_f8_standard_cleaning_time_title">标准模式清理时间</string>
     <string name="pref_roidmi_f8_high_cleaning_time_title">高功率模式清理时间</string>
     <string name="pref_roidmi_f8_cleaning_time_title">累计清理时间</string>
+    <string name="map">地图</string>
+    <string name="charts">图表</string>
 </resources>
