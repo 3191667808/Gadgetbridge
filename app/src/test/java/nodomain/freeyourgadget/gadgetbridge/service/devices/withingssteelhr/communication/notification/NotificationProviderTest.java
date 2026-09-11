@@ -47,8 +47,8 @@ public class NotificationProviderTest extends TestBase {
     @Test
     public void testRegularMessageAppsStayRaw() {
         NotificationSpec spec = new NotificationSpec();
-        spec.sourceAppId = "org.forkgram.messenger";
-        spec.type = NotificationType.TELEGRAM;
+        spec.setSourceAppId("org.forkgram.messenger");
+        spec.setType(NotificationType.TELEGRAM);
 
         assertEquals("org.forkgram.messenger", NotificationProvider.getWithingsSourceAppId(spec));
     }
@@ -66,8 +66,8 @@ public class NotificationProviderTest extends TestBase {
     @Test
     public void testExplicitMsgSuffixIsPreserved() {
         NotificationSpec spec = new NotificationSpec();
-        spec.sourceAppId = "org.fossify.messages-msg";
-        spec.type = NotificationType.GENERIC_SMS;
+        spec.setSourceAppId("org.fossify.messages-msg");
+        spec.setType(NotificationType.GENERIC_SMS);
 
         assertEquals("org.fossify.messages-msg", NotificationProvider.getWithingsSourceAppId(spec));
     }
@@ -75,8 +75,8 @@ public class NotificationProviderTest extends TestBase {
     @Test
     public void testIncomingCallsUseDialerAppId() {
         NotificationSpec spec = new NotificationSpec();
-        spec.sourceAppId = "com.android.dialer";
-        spec.type = NotificationType.GENERIC_PHONE;
+        spec.setSourceAppId("com.android.dialer");
+        spec.setType(NotificationType.GENERIC_PHONE);
 
         assertEquals("dialerApp-ringing", NotificationProvider.getWithingsSourceAppId(spec));
     }
@@ -84,19 +84,19 @@ public class NotificationProviderTest extends TestBase {
     @Test
     public void testNotificationSpecCarriesDedicatedIconPackage() {
         NotificationSpec spec = new NotificationSpec();
-        spec.sourceAppId = "com.whatsapp";
-        spec.iconPackageId = "com.whatsapp";
+        spec.setSourceAppId("com.whatsapp");
+        spec.setIconPackageId("com.whatsapp");
 
-        assertEquals("com.whatsapp", spec.iconPackageId);
+        assertEquals("com.whatsapp", spec.getIconPackageId());
     }
 
     @Test
     public void testScanWatchUsesLatestConversationMessage() {
         NotificationSpec spec = new NotificationSpec();
-        spec.title = "Family Group (9 messages): Alice";
-        spec.body = "Standard body";
-        spec.conversationSender = "Alice";
-        spec.conversationBody = "Latest message";
+        spec.setTitle("Family Group (9 messages): Alice");
+        spec.setBody("Standard body");
+        spec.setConversationSender("Alice");
+        spec.setConversationBody("Latest message");
 
         assertEquals("Alice", NotificationProvider.getWithingsTitle(spec, true));
         assertEquals("Latest message", NotificationProvider.getWithingsBody(spec, true));
@@ -105,10 +105,10 @@ public class NotificationProviderTest extends TestBase {
     @Test
     public void testOtherWithingsDevicesKeepStandardNotificationFields() {
         NotificationSpec spec = new NotificationSpec();
-        spec.title = "Family Group (9 messages): Alice";
-        spec.body = "Standard body";
-        spec.conversationSender = "Alice";
-        spec.conversationBody = "Latest message";
+        spec.setTitle("Family Group (9 messages): Alice");
+        spec.setBody("Standard body");
+        spec.setConversationSender("Alice");
+        spec.setConversationBody("Latest message");
 
         assertEquals("Family Group (9 messages): Alice", NotificationProvider.getWithingsTitle(spec, false));
         assertEquals("Standard body", NotificationProvider.getWithingsBody(spec, false));
@@ -123,9 +123,9 @@ public class NotificationProviderTest extends TestBase {
         final NotificationProvider provider = new NotificationProvider(support);
 
         final NotificationSpec first = new NotificationSpec(101);
-        first.type = NotificationType.GENERIC_EMAIL;
+        first.setType(NotificationType.GENERIC_EMAIL);
         final NotificationSpec second = new NotificationSpec(102);
-        second.type = NotificationType.TELEGRAM;
+        second.setType(NotificationType.TELEGRAM);
         provider.notifyClient(first);
         provider.notifyClient(second);
 
@@ -151,7 +151,7 @@ public class NotificationProviderTest extends TestBase {
         final NotificationProvider provider = new NotificationProvider(support);
 
         final NotificationSpec spec = new NotificationSpec(201);
-        spec.type = NotificationType.TELEGRAM;
+        spec.setType(NotificationType.TELEGRAM);
         provider.notifyClient(spec);
 
         final GetNotificationAttributes request = new GetNotificationAttributes();
@@ -175,7 +175,7 @@ public class NotificationProviderTest extends TestBase {
         final NotificationProvider provider = new NotificationProvider(support);
 
         final NotificationSpec spec = new NotificationSpec(202);
-        spec.type = NotificationType.TELEGRAM;
+        spec.setType(NotificationType.TELEGRAM);
         provider.notifyClient(spec);
 
         final GetNotificationAttributes request = new GetNotificationAttributes();
@@ -198,9 +198,9 @@ public class NotificationProviderTest extends TestBase {
         final NotificationProvider provider = new NotificationProvider(support);
 
         final NotificationSpec skipped = new NotificationSpec(401);
-        skipped.type = NotificationType.TELEGRAM;
+        skipped.setType(NotificationType.TELEGRAM);
         final NotificationSpec requested = new NotificationSpec(402);
-        requested.type = NotificationType.GENERIC_EMAIL;
+        requested.setType(NotificationType.GENERIC_EMAIL);
         provider.notifyClient(skipped);
         provider.notifyClient(requested);
 
@@ -222,9 +222,9 @@ public class NotificationProviderTest extends TestBase {
         final NotificationProvider provider = new NotificationProvider(support);
 
         final NotificationSpec requested = new NotificationSpec(501);
-        requested.type = NotificationType.GENERIC_EMAIL;
+        requested.setType(NotificationType.GENERIC_EMAIL);
         final NotificationSpec later = new NotificationSpec(502);
-        later.type = NotificationType.TELEGRAM;
+        later.setType(NotificationType.TELEGRAM);
         provider.notifyClient(requested);
         provider.notifyClient(later);
 

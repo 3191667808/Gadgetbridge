@@ -93,26 +93,26 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
             }
 
             NotificationSpec notificationSpec = support.getNotificationProvider().getNotificationSpecForSourceAppId(sourceAppId);
-            if (notificationSpec != null && notificationSpec.sourceAppId != null) {
-                packageName = notificationSpec.sourceAppId;
+            if (notificationSpec != null && notificationSpec.getSourceAppId() != null) {
+                packageName = notificationSpec.getSourceAppId();
             }
 
             String iconPackageName = packageName;
-            if (notificationSpec != null && notificationSpec.iconPackageId != null) {
-                iconPackageName = notificationSpec.iconPackageId;
+            if (notificationSpec != null && notificationSpec.getIconPackageId() != null) {
+                iconPackageName = notificationSpec.getIconPackageId();
             }
 
             logger.info("Resolving icon for sourceAppId='{}', packageName='{}', iconPackageName='{}'", sourceAppId, packageName, iconPackageName);
 
             try {
                 Drawable icon = null;
-                if (notificationSpec != null && notificationSpec.iconId != 0) {
+                if (notificationSpec != null && notificationSpec.getIconId() != 0) {
                     try {
                         Context sourcePackageContext = support.getContext().createPackageContext(iconPackageName, 0);
-                        icon = sourcePackageContext.getResources().getDrawable(notificationSpec.iconId);
-                        logger.info("Loaded specific iconId={} from package {}", notificationSpec.iconId, iconPackageName);
+                        icon = ResourcesCompat.getDrawable(sourcePackageContext.getResources(), notificationSpec.getIconId(), null);
+                        logger.info("Loaded specific iconId={} from package {}", notificationSpec.getIconId(), iconPackageName);
                     } catch (Exception ex) {
-                        logger.warn("Failed to load specific iconId={} from package {}, falling back to app icon", notificationSpec.iconId, iconPackageName);
+                        logger.warn("Failed to load specific iconId={} from package {}, falling back to app icon", notificationSpec.getIconId(), iconPackageName);
                     }
                 }
                 if (icon == null) {

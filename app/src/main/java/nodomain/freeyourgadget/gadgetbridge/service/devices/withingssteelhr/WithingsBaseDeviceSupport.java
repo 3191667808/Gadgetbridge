@@ -551,21 +551,21 @@ public abstract class WithingsBaseDeviceSupport extends AbstractBTLESingleDevice
 
     @Override
     public void onSetCallState(CallSpec callSpec) {
-        if (callSpec.command == CallSpec.CALL_INCOMING) {
+        if (callSpec.getCommand() == CallSpec.CALL_INCOMING) {
             NotificationSpec notificationSpec = new NotificationSpec();
-            notificationSpec.sourceAppId = callSpec.sourceAppId != null ? callSpec.sourceAppId : getDefaultDialerPackage();
-            notificationSpec.title = callSpec.number;
-            notificationSpec.sender = callSpec.name;
-            notificationSpec.type = NotificationType.GENERIC_PHONE;
+            notificationSpec.setSourceAppId(callSpec.getSourceAppId() != null ? callSpec.getSourceAppId() : getDefaultDialerPackage());
+            notificationSpec.setTitle(callSpec.getNumber());
+            notificationSpec.setSender(callSpec.getName());
+            notificationSpec.setType(NotificationType.GENERIC_PHONE);
             notificationProvider.notifyClient(notificationSpec);
-        } else if (callSpec.command == CallSpec.CALL_START
-                || callSpec.command == CallSpec.CALL_END
-                || callSpec.command == CallSpec.CALL_REJECT
-                || callSpec.command == CallSpec.CALL_ACCEPT) {
-            logger.info("Clearing incoming call state for command {}", callSpec.command);
+        } else if (callSpec.getCommand() == CallSpec.CALL_START
+                || callSpec.getCommand() == CallSpec.CALL_END
+                || callSpec.getCommand() == CallSpec.CALL_REJECT
+                || callSpec.getCommand() == CallSpec.CALL_ACCEPT) {
+            logger.info("Clearing incoming call state for command {}", callSpec.getCommand());
             notificationProvider.clearActiveIncomingCall();
         } else {
-            logger.info("Received yet unhandled call command: " + callSpec.command);
+            logger.info("Received yet unhandled call command: " + callSpec.getCommand());
         }
     }
 

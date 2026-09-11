@@ -912,7 +912,7 @@ public class NotificationListener extends NotificationListenerService {
             if (conversationTitle != null) {
                 final String sanitizedConversationTitle = sanitizeUnicode(conversationTitle.toString());
                 if (!StringUtils.isBlank(sanitizedConversationTitle)) {
-                    notificationSpec.conversationTitle = sanitizedConversationTitle;
+                    notificationSpec.setConversationTitle(sanitizedConversationTitle);
                 }
             }
             List<NotificationCompat.MessagingStyle.Message> messages = messagingStyle.getMessages();
@@ -923,12 +923,12 @@ public class NotificationListener extends NotificationListenerService {
                 final androidx.core.app.Person senderPerson = lastMessage.getPerson();
                 if (senderPerson != null && !StringUtils.isBlank(senderPerson.getName())) {
                     final String senderName = sanitizeUnicode(senderPerson.getName().toString());
-                    notificationSpec.conversationSender = senderName;
+                    notificationSpec.setConversationSender(senderName);
                 }
 
                 final CharSequence messageText = lastMessage.getText();
                 if (!StringUtils.isBlank(messageText)) {
-                    notificationSpec.conversationBody = sanitizeUnicode(messageText.toString());
+                    notificationSpec.setConversationBody(sanitizeUnicode(messageText.toString()));
                 }
                 if (supportedPictureMimeTypes.contains(lastMessage.getDataMimeType()) && lastMessage.getDataUri() != null) {
                     ContentResolver contentResolver = getContentResolver();

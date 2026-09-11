@@ -207,11 +207,11 @@ public class NotificationListenerTest extends TestBase {
                 ClassParameter.from(boolean.class, true)
         );
 
-        assertEquals(standardTitle, spec.title);
-        assertEquals(standardBody, spec.body);
-        assertEquals("Family Group", spec.conversationTitle);
-        assertEquals("Alice", spec.conversationSender);
-        assertEquals("Latest message", spec.conversationBody);
+        assertEquals(standardTitle, spec.getTitle());
+        assertEquals(standardBody, spec.getBody());
+        assertEquals("Family Group", spec.getConversationTitle());
+        assertEquals("Alice", spec.getConversationSender());
+        assertEquals("Latest message", spec.getConversationBody());
     }
 
     @Test
@@ -236,10 +236,10 @@ public class NotificationListenerTest extends TestBase {
                 ClassParameter.from(boolean.class, true)
         );
 
-        assertEquals("Chat Room", spec.conversationTitle);
-        assertEquals("Bob", spec.conversationSender);
-        assertEquals("Body text", spec.conversationBody);
-        assertEquals(null, spec.sender);
+        assertEquals("Chat Room", spec.getConversationTitle());
+        assertEquals("Bob", spec.getConversationSender());
+        assertEquals("Body text", spec.getConversationBody());
+        assertEquals(null, spec.getSender());
     }
 
     @Test

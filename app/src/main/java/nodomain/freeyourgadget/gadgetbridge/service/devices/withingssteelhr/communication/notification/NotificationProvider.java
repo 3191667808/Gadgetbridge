@@ -85,8 +85,8 @@ public class NotificationProvider {
     public void notifyClient(NotificationSpec spec) {
         final NotificationState state = getState();
 
-        if (spec.sourceAppId != null) {
-            state.latestNotificationByApp.put(normalizeSourceAppId(spec.sourceAppId), spec);
+        if (spec.getSourceAppId() != null) {
+            state.latestNotificationByApp.put(normalizeSourceAppId(spec.getSourceAppId()), spec);
             state.latestNotificationByApp.put(normalizeSourceAppId(getWithingsSourceAppId(spec)), spec);
         }
 
@@ -101,7 +101,7 @@ public class NotificationProvider {
 
         final int uid = notificationSource.getNotificationUID();
 
-        if (spec.type == NotificationType.GENERIC_PHONE) {
+        if (spec.getType() == NotificationType.GENERIC_PHONE) {
             activeIncomingCallUid = uid;
         }
 
@@ -109,8 +109,8 @@ public class NotificationProvider {
 
         logger.info("Withings sending ADDED id={}, source={}, type={}, pendingCount={}, deviceKey={}",
                 spec.getId(),
-                spec.sourceAppId,
-                spec.type,
+                spec.getSourceAppId(),
+                spec.getType(),
                 state.pendingNotifications.size(),
                 getDeviceKey());
         support.sendAncsNotificationSourceNotification(notificationSource);
@@ -155,7 +155,7 @@ public class NotificationProvider {
         return new NotificationSource(uid,
                 AncsConstants.EVENT_ID_NOTIFICATION_ADDED,
                 AncsConstants.EVENT_FLAGS_IMPORTANT,
-                mapNotificationType(spec.type),
+                mapNotificationType(spec.getType()),
                 (byte) 1);
     }
 
@@ -336,33 +336,33 @@ public class NotificationProvider {
     }
 
     static String getWithingsTitle(final NotificationSpec spec, final boolean preferLatestConversation) {
-        if (preferLatestConversation && spec.conversationSender != null) {
-            return spec.conversationSender;
+        if (preferLatestConversation && spec.getConversationSender() != null) {
+            return spec.getConversationSender();
         }
-        if (spec.sender != null) {
-            return spec.sender;
+        if (spec.getSender() != null) {
+            return spec.getSender();
         }
-        if (spec.phoneNumber != null) {
-            return spec.phoneNumber;
+        if (spec.getPhoneNumber() != null) {
+            return spec.getPhoneNumber();
         }
-        if (spec.title != null) {
-            return spec.title;
+        if (spec.getTitle() != null) {
+            return spec.getTitle();
         }
-        if (spec.sourceName != null) {
-            return spec.sourceName;
+        if (spec.getSourceName() != null) {
+            return spec.getSourceName();
         }
         return "Unknown";
     }
 
     static String getWithingsBody(final NotificationSpec spec, final boolean preferLatestConversation) {
-        if (preferLatestConversation && spec.conversationBody != null) {
-            return spec.conversationBody;
+        if (preferLatestConversation && spec.getConversationBody() != null) {
+            return spec.getConversationBody();
         }
-        if (spec.body != null) {
-            return spec.body;
+        if (spec.getBody() != null) {
+            return spec.getBody();
         }
-        if (spec.title != null && spec.sender != null) {
-            return spec.title;
+        if (spec.getTitle() != null && spec.getSender() != null) {
+            return spec.getTitle();
         }
         return " ";
     }
@@ -445,23 +445,23 @@ public class NotificationProvider {
     }
 
     static String getWithingsSourceAppId(final NotificationSpec spec) {
-        if (spec == null || spec.sourceAppId == null) {
+        if (spec == null || spec.getSourceAppId() == null) {
             return null;
         }
 
-        if (WITHINGS_SOURCE_APP_SUFFIX.matcher(spec.sourceAppId).find()) {
-            return spec.sourceAppId;
+        if (WITHINGS_SOURCE_APP_SUFFIX.matcher(spec.getSourceAppId()).find()) {
+            return spec.getSourceAppId();
         }
 
-        if (spec.type == NotificationType.GENERIC_PHONE) {
+        if (spec.getType() == NotificationType.GENERIC_PHONE) {
             return WITHINGS_DIALER_APP_ID + "-ringing";
         }
 
-        return spec.sourceAppId;
+        return spec.getSourceAppId();
     }
 
     private boolean matchesSourceAppId(final NotificationSpec notificationSpec, final String normalizedSourceAppId) {
-        if (notificationSpec.sourceAppId != null && notificationSpec.sourceAppId.equalsIgnoreCase(normalizedSourceAppId)) {
+        if (notificationSpec.getSourceAppId() != null && notificationSpec.getSourceAppId().equalsIgnoreCase(normalizedSourceAppId)) {
             return true;
         }
 
