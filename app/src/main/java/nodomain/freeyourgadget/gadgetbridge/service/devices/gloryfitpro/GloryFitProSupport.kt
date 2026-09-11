@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicContr
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo
 import nodomain.freeyourgadget.gadgetbridge.devices.GloryFitStepsSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericHeartRateSampleProvider
+import nodomain.freeyourgadget.gadgetbridge.devices.BaseActivitySummaryProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
@@ -380,7 +381,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
             DeviceSettingsPreferenceConst.PREF_SCREEN_TIMEOUT ->
                 writeSetting("screen timeout", CMD_DEVICE_CONTROL, 0x08,
-                    byteArrayOf(prefs.getString(config, "15")!!.toInt().coerceIn(1, 255).toByte()))
+                    byteArrayOf((prefs.getString(config, "5")?.toIntOrNull() ?: 5)
+                        .coerceIn(1, 255).toByte()))
 
             DeviceSettingsPreferenceConst.PREF_HEARTRATE_AUTOMATIC_ENABLE ->
                 writeSetting("24h heart rate", CMD_FEATURE, 0x02,
@@ -427,8 +429,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         val prefs = devicePrefs
         val mode = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO, "off")
         val scheduled = mode != null && mode != "off"
-        val start = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, "23:00")!!
-        val end = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, "07:00")!!
+        val start = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_START, "22:00")!!
+        val end = prefs.getString(DeviceSettingsPreferenceConst.PREF_DO_NOT_DISTURB_NOAUTO_END, "06:00")!!
         writeSetting(
             "do not disturb", CMD_DND, 0x01,
             byteArrayOf(
@@ -542,6 +544,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         workoutIndex = 0
         workoutDetailPage = 0
         workoutDetailBytes = 0
+        workoutsFetched = 1
         workoutSizes.clear()
         LOG.info("Workouts: listing over the last {} days", days)
         val builder = createTransactionBuilder("workout list")
@@ -635,7 +638,9 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                     LOG.debug("Workout {} detail done: {} of {} bytes over {} pages",
                         workoutIndex, workoutDetailBytes, expected, workoutDetailPage + 1)
                     val next = workoutSizes.keys.firstOrNull { it > workoutIndex }
+                        ?.takeIf { workoutsFetched < MAX_WORKOUTS }
                     if (next != null) {
+                        workoutsFetched++
                         workoutIndex = next
                         requestWorkoutSummary(next)
                     } else {
@@ -733,7 +738,6 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 summary.startTime = startDate
                 summary.endTime = Date(end * 1000L)
                 summary.activityKind = workoutKind(workoutSummary[0x09]?.toInt() ?: -1).code
-                summary.name = "Workout"
                 summary.device = dbDevice
                 summary.user = dbUser
 
@@ -767,7 +771,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 data.setHasGps(summary.gpxTrack != null)
                 summary.summaryData = data.toJson()
 
-                session.baseActivitySummaryDao.insertOrReplace(summary)
+                BaseActivitySummaryProvider(device, session).persistSamples(listOf(summary), context)
                 LOG.info("Stored workout {} ({} - {}), kind {}, {} track points",
                     workoutIndex, summary.startTime, summary.endTime, summary.activityKind,
                     points.size)
@@ -982,6 +986,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private var historyXor = 0
     private var historyTruncated = false
     private var fetchInProgress = false
+    private var workoutsFetched = 0
     private val fetchWatchdog = Handler(Looper.getMainLooper())
     private var historyFrom = 0
     private var historyTo = 0

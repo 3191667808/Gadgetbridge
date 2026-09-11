@@ -20,6 +20,7 @@ import de.greenrobot.dao.AbstractDao
 import de.greenrobot.dao.Property
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator
@@ -134,6 +135,10 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
     /** Only the codes actually verified on hardware; the rest of the watch's table is unknown. */
     override fun getSupportedLanguageSettings(device: GBDevice): Array<String> {
         return arrayOf("de_DE", "en_US", "fr_FR", "it_IT", "nl_NL", "ru_RU")
+    }
+
+    override fun getDeviceSpecificSettingsCustomizer(device: GBDevice): DeviceSpecificSettingsCustomizer {
+        return GloryFitProSettingsCustomizer()
     }
 
     override fun getDeviceSpecificSettings(device: GBDevice): DeviceSpecificSettings {
