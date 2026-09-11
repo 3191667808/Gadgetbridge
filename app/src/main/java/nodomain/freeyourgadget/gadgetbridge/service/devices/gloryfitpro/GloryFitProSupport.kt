@@ -35,6 +35,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.GenericSleepStageSampleProvi
 import nodomain.freeyourgadget.gadgetbridge.devices.GenericSpo2SampleProvider
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummaryDao
+import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries
@@ -315,8 +316,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         // recorded since, the stored sleep, and today's totals. The totals go last on purpose -
         // they are stored as the remainder on top of the per-minute records, and the watch keeps
         // the last three quarters of an hour to itself until they age into the history.
-        fetchHistory(days = 7)
-        fetchWorkouts(days = 7)
+        fetchHistory(minDays = 7)
+        fetchWorkouts(minDays = 7)
         // Sleep rides the same c6 command as the history pages, so it waits until those are
         // done - asking for both at once makes the watch answer only the last request.
     }
@@ -488,7 +489,15 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * `aa 01` lists what is there, `aa 02` gives a workout's summary, `aa 03` streams its detail
      * pages.
      */
-    private fun fetchWorkouts(days: Int) {
+    private fun fetchWorkouts(minDays: Int) {
+        val newest = newestSampleMillis { session, deviceId ->
+            session.baseActivitySummaryDao.queryBuilder()
+                .where(BaseActivitySummaryDao.Properties.DeviceId.eq(deviceId))
+                .orderDesc(BaseActivitySummaryDao.Properties.StartTime)
+                .limit(1)
+                .unique()?.startTime?.time ?: 0L
+        }
+        val days = lookbackDays(newest, minDays)
         val to = (System.currentTimeMillis() / 1000L).toInt()
         val from = to - days * 24 * 3600
         workoutIndex = 0
@@ -523,7 +532,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             // The watch announces a finished workout unprompted - fetch it rather than waiting
             // for someone to press sync.
             LOG.info("Workout finished on the watch, fetching it")
-            fetchWorkouts(days = 1)
+            fetchWorkouts(minDays = 1)
             return
         }
         if (value.size < 5 || value[2] != MODE_GET) return
@@ -932,7 +941,47 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * `c6` ignores a bare "get all" - it wants a time range and a page number. The official app
      * first asks `c5` how many pages exist for the range, then walks them one by one.
      */
-    private fun fetchHistory(days: Int) {
+    /**
+     * How far back to ask, given the newest sample of this kind we already hold.
+     *
+     * A fixed window loses data when the phone has been away for longer than the window, so the
+     * ask is stretched to cover everything since that sample, with a day of slack because the
+     * watch writes the tail of a day out late. It is bounded at both ends: never narrower than
+     * [minDays], so a routine sync still re-reads the recent past and heals any gaps in it, and
+     * never wider than [MAX_LOOKBACK_DAYS], because asking for more than the watch keeps only
+     * costs round trips. Measured on a DM58: a 120-day request returns 44 pages, about nine
+     * days' worth, which is all it retains.
+     */
+    private fun lookbackDays(newestKnownMillis: Long, minDays: Int): Int {
+        if (newestKnownMillis <= 0) return minDays
+        val elapsed = System.currentTimeMillis() - newestKnownMillis
+        if (elapsed <= 0) return minDays
+        val days = (elapsed / (24 * 3600 * 1000L)).toInt() + 1
+        return days.coerceIn(minDays, MAX_LOOKBACK_DAYS)
+    }
+
+    /** Newest timestamp in a table for this device, or 0 when we have never stored one. */
+    private fun newestSampleMillis(pick: (DaoSession, Long) -> Long): Long {
+        return try {
+            GBApplication.acquireDB().use { handler ->
+                val session = handler.daoSession
+                pick(session, DBHelper.getDevice(device, session).id ?: return@use 0L)
+            }
+        } catch (e: Exception) {
+            LOG.error("Failed to look up the newest stored sample", e)
+            0L
+        }
+    }
+
+    private fun fetchHistory(minDays: Int) {
+        val newest = newestSampleMillis { session, deviceId ->
+            session.gloryFitStepsSampleDao.queryBuilder()
+                .where(GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId))
+                .orderDesc(GloryFitStepsSampleDao.Properties.Timestamp)
+                .limit(1)
+                .unique()?.timestamp ?: 0L
+        }
+        val days = lookbackDays(newest, minDays)
         historyTo = (System.currentTimeMillis() / 1000L).toInt()
         historyFrom = historyTo - days * 24 * 3600
         historyPage = 0
@@ -1857,6 +1906,13 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             "it_IT" to 0x08, "ru_RU" to 0x0e, "nl_NL" to 0x0f
         )
         const val MAX_HISTORY_PAGES: Int = 64
+
+        /**
+         * Ceiling on how far back a catch-up sync reaches. The watch keeps about nine
+         * days of per-minute history - a 120-day request answers with 44 pages - so
+         * anything beyond this only spends round trips on a range the watch cannot fill.
+         */
+        const val MAX_LOOKBACK_DAYS: Int = 30
         const val CMD_WORKOUT: Byte = 0xe8.toByte()
         const val MAX_WORKOUTS: Int = 4
         const val MAX_WORKOUT_PAGES: Int = 24
