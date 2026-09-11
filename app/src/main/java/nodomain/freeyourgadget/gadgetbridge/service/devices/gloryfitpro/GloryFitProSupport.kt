@@ -322,14 +322,6 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         // done - asking for both at once makes the watch answer only the last request.
     }
 
-    /**
-     * Probe hook, wired to the "test new function" debug action.
-     *
-     * The watch pushes `c6` health records unsolicited, but nothing ever asks it for stored
-     * ones, which is why a saved workout never reaches Gadgetbridge. Send a read-mode "give me
-     * everything" on that same command and log whatever comes back; replies surface as
-     * "Unhandled cmd 0xc6" until we know their shape.
-     */
     // --- Device settings ------------------------------------------------------------------------
 
     override fun onSendConfiguration(config: String) {
@@ -567,6 +559,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                         workoutIndex, Integer.toHexString(workoutTrackXor),
                         Integer.toHexString(expected), workoutTrackFrames
                     )
+                    // The summary arrived intact, so keep the workout - it just has no route.
+                    storeWorkout(emptyList())
                 } else {
                     parseWorkoutTrack(workoutTrack.toByteArray())
                 }
@@ -938,6 +932,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
 
     private val historyBuffer = ByteArrayOutputStream()
     private val historySteps = ArrayList<GloryFitStepsSample>()
+    private var historyXor = 0
+    private var historyTruncated = false
     private var historyFrom = 0
     private var historyTo = 0
     private var historyPage = 0
@@ -982,9 +978,15 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     private fun fetchHistory(minDays: Int) {
+        // The day total is kept in a bookkeeping sample at the end of the current day, which is
+        // in the future for most of the day - taking that as "we have data up to here" would
+        // pin every catch-up sync to the minimum window.
         val newest = newestSampleMillis { session, deviceId ->
             session.gloryFitStepsSampleDao.queryBuilder()
-                .where(GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId))
+                .where(
+                    GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId),
+                    GloryFitStepsSampleDao.Properties.Timestamp.le(System.currentTimeMillis())
+                )
                 .orderDesc(GloryFitStepsSampleDao.Properties.Timestamp)
                 .limit(1)
                 .unique()?.timestamp ?: 0L
@@ -996,6 +998,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         historyPages = 0
         historyBuffer.reset()
         historySteps.clear()
+        historyXor = 0
+        historyTruncated = false
         LOG.info("History: asking for page count over the last {} days", days)
         val builder = createTransactionBuilder("history count")
         builder.write(UUID_CHARACTERISTIC_DATA_WRITE, *byteArrayOf(PKT_HEADER, CMD_HEALTH_COUNT, MODE_GET, 0x04, 0x08)
@@ -1022,6 +1026,15 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      */
     private fun commitHistorySteps() {
         if (historySteps.isEmpty()) return
+        // Replacing the window is only safe when the window actually came back whole. After a
+        // bad checksum, a page cap or a record type we could not measure, clear no more than the
+        // stretch the records we did get actually cover.
+        val from = if (historyTruncated) historySteps.minOf { it.timestamp } else historyFrom * 1000L
+        val to = if (historyTruncated) historySteps.maxOf { it.timestamp } else historyTo * 1000L
+        if (historyTruncated) {
+            LOG.warn("History: incomplete, replacing only {} to {} instead of the whole window",
+                from, to)
+        }
         try {
             GBApplication.acquireDB().use { handler ->
                 val session = handler.daoSession
@@ -1029,12 +1042,11 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 session.gloryFitStepsSampleDao.queryBuilder()
                     .where(
                         GloryFitStepsSampleDao.Properties.DeviceId.eq(deviceId),
-                        GloryFitStepsSampleDao.Properties.Timestamp.ge(historyFrom * 1000L),
-                        GloryFitStepsSampleDao.Properties.Timestamp.le(historyTo * 1000L)
+                        GloryFitStepsSampleDao.Properties.Timestamp.ge(from),
+                        GloryFitStepsSampleDao.Properties.Timestamp.le(to)
                     )
                     .buildDelete()
                     .executeDeleteWithoutDetachingEntities()
-                session.clear()
                 GloryFitStepsSampleProvider(device, session).persistSamples(historySteps, context)
                 LOG.info("History: stored {} per-minute step records", historySteps.size)
             }
@@ -1073,11 +1085,26 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             return
         }
         if (value[4] == PKT_TERMINATOR) {
-            parseHistoryPage(historyBuffer.toByteArray())
+            // Same guard the sleep stream and the workout track already carry: the terminator's
+            // xor covers every byte of every frame, so a dropped notification is caught here
+            // instead of being parsed into a plausible but shifted record stream.
+            val expected = if (value.size > 5) value[5].toInt() and 0xff else -1
+            if (expected >= 0 && expected != historyXor) {
+                LOG.warn("History page {}: checksum {} does not match the expected {}, discarding",
+                    historyPage, historyXor, expected)
+                historyTruncated = true
+            } else {
+                parseHistoryPage(historyBuffer.toByteArray())
+            }
             if (historyPage + 1 < historyPages && historyPage < MAX_HISTORY_PAGES) {
                 historyPage++
                 requestHistoryPage(historyPage)
             } else {
+                if (historyPage + 1 >= MAX_HISTORY_PAGES && historyPage + 1 < historyPages) {
+                    LOG.warn("History: stopped at the {} page cap with {} still to go",
+                        MAX_HISTORY_PAGES, historyPages - historyPage - 1)
+                    historyTruncated = true
+                }
                 LOG.info("History: done after {} pages", historyPage + 1)
                 commitHistorySteps()
                 fetchSleep(days = SLEEP_DAYS)
@@ -1085,6 +1112,12 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             }
             return
         }
+        val chunk = value[4].toInt() and 0xff
+        if (chunk == 0) {
+            historyBuffer.reset()
+            historyXor = 0
+        }
+        for (b in value) historyXor = historyXor xor (b.toInt() and 0xff)
         historyBuffer.write(value, 5, value.size - 5)
     }
 
@@ -1116,6 +1149,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 LOG.warn("History: stopped at byte {} of {}, type 0x{}, day {} minute {}; before {} at {}",
                     i, page.size, Integer.toHexString(type), day, minute,
                     page.copyOfRange(before, i).toHex(), page.copyOfRange(i, after).toHex())
+                historyTruncated = true
                 break
             }
             // 0xf7 and 0xf5 are the same activity payloads as 0x07 / 0x05 with a heart rate
@@ -1343,7 +1377,10 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
                 // history, so the day total is stored as whatever the per-minute records do not
                 // account for yet. It goes in one fixed slot at the end of the day: re-syncing
                 // then replaces it instead of stacking another remainder on top.
-                val remainderSlot = cal.timeInMillis + 86399_000L
+                val endOfDay = cal.clone() as GregorianCalendar
+                endOfDay.add(Calendar.DAY_OF_MONTH, 1)
+                endOfDay.add(Calendar.SECOND, -1)
+                val remainderSlot = endOfDay.timeInMillis
                 val recorded = provider.getAllSamples(cal.timeInMillis, now)
                     .filter { it.timestamp != remainderSlot }
                     .sumOf { it.totalSteps }
@@ -1921,7 +1958,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             "en_US" to 0x02, "de_DE" to 0x05, "fr_FR" to 0x07,
             "it_IT" to 0x08, "ru_RU" to 0x0e, "nl_NL" to 0x0f
         )
-        const val MAX_HISTORY_PAGES: Int = 64
+        const val MAX_HISTORY_PAGES: Int = 128
 
         /**
          * Ceiling on how far back a catch-up sync reaches. The watch keeps about nine

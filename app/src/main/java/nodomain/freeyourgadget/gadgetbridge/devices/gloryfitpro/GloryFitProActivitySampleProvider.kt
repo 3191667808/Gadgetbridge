@@ -24,6 +24,8 @@ import nodomain.freeyourgadget.gadgetbridge.entities.GenericActivitySample
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser
+import java.util.Calendar
+import java.util.GregorianCalendar
 
 /**
  * The GloryFit Pro watches report steps and heart rate per minute but no intensity of their own,
@@ -126,6 +128,15 @@ open class GloryFitProActivitySampleProvider(private val device: GBDevice, sessi
      * minutes of sitting still with the watch on. So the inference is only available while both
      * are enabled.
      */
+    /** True for the bookkeeping sample the driver writes at the last second of a day. */
+    private fun isDayTotal(timestampSeconds: Int): Boolean {
+        if (timestampSeconds % 60 != 59) return false
+        val cal = GregorianCalendar.getInstance()
+        cal.timeInMillis = timestampSeconds * 1000L
+        return cal.get(Calendar.HOUR_OF_DAY) == 23 && cal.get(Calendar.MINUTE) == 59 &&
+                cal.get(Calendar.SECOND) == 59
+    }
+
     private fun canDetectNotWorn(): Boolean {
         val prefs = GBApplication.getDevicePrefs(device)
         return prefs.getBoolean(DeviceSettingsPreferenceConst.PREF_HEARTRATE_AUTOMATIC_ENABLE, false) &&
@@ -147,6 +158,11 @@ open class GloryFitProActivitySampleProvider(private val device: GBDevice, sessi
             // Sleep stages carry their own fixed heights in the chart, flagged by a negative
             // intensity - leave those alone.
             if (ActivityKind.isSleep(sample.kind)) continue
+
+            // The day total is kept in a bookkeeping sample at the last second of the day. It
+            // carries a whole day's remainder of steps, so scoring it like a minute of walking
+            // turns it into a phantom sprint - StepAnalysis reads it as one very fast minute.
+            if (isDayTotal(sample.timestamp)) continue
 
             // Which signal drives the intensity depends on whether the minute had movement,
             // and that is not cosmetic. StepAnalysis decides a minute is part of an activity

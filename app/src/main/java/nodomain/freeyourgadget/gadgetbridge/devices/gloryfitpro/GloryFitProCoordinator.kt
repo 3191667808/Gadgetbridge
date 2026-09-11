@@ -110,6 +110,11 @@ abstract class GloryFitProCoordinator : AbstractBLEDeviceCoordinator() {
         return true
     }
 
+    /** Stored from the live stream and backfilled from the history, so the chart has data. */
+    override fun supportsHeartRateMeasurement(device: GBDevice): Boolean {
+        return true
+    }
+
     /** The watch splits a night into deep, light, REM and awake - see the c6 field 04 stream. */
     override fun supportsRemSleep(device: GBDevice): Boolean {
         return true
