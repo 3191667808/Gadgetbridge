@@ -21,6 +21,8 @@ import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.widget.Toast;
 
+import androidx.core.content.res.ResourcesCompat;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
