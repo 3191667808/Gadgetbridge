@@ -21,9 +21,12 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
+import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone
@@ -57,6 +60,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.DeviceService
 import nodomain.freeyourgadget.gadgetbridge.model.Contact
 import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec
+import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes
+import nodomain.freeyourgadget.gadgetbridge.util.GB
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType
@@ -312,7 +317,28 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     }
 
     override fun onFetchRecordedData(dataTypes: Int) {
-        // A sync should bring in everything the watch has: the per-minute history, the workouts
+        if (dataTypes and RecordedDataTypes.TYPE_SYNC == 0) {
+            LOG.debug("Nothing we hold in data types 0x{}", Integer.toHexString(dataTypes))
+            return
+        }
+        if (fetchInProgress) {
+            LOG.debug("A fetch is already running, ignoring this one")
+            return
+        }
+        fetchInProgress = true
+        device.setBusyTask(R.string.busy_task_fetch_activity_data, context)
+        device.sendDeviceUpdateIntent(context)
+        // The watch goes quiet rather than refusing when it is busy - a c5 count can simply
+        // never arrive - and a sync that never ends leaves the progress indicator spinning for
+        // good. Close it off after a while whatever happened.
+        fetchWatchdog.removeCallbacksAndMessages(null)
+        fetchWatchdog.postDelayed({
+            if (fetchInProgress) {
+                LOG.warn("Sync did not finish within {} s, closing it off", FETCH_TIMEOUT_MS / 1000)
+                finishFetch()
+            }
+        }, FETCH_TIMEOUT_MS)
+        // A sync brings in everything the watch has: the per-minute history, the workouts
         // recorded since, the stored sleep, and today's totals. The totals go last on purpose -
         // they are stored as the remainder on top of the per-minute records, and the watch keeps
         // the last three quarters of an hour to itself until they age into the history.
@@ -320,6 +346,27 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
         fetchWorkouts(minDays = 7)
         // Sleep rides the same c6 command as the history pages, so it waits until those are
         // done - asking for both at once makes the watch answer only the last request.
+    }
+
+    /**
+     * Close off a sync: tell the rest of Gadgetbridge the data has landed, so the charts reload
+     * and the progress indicator goes away.
+     *
+     * The watch can stop answering half way - it does not reply to a `c5` count at all when it
+     * is busy - so this is also called from the step that would otherwise be the end of the
+     * chain, rather than only from a successful finish.
+     */
+    private fun finishFetch() {
+        if (!fetchInProgress) return
+        fetchInProgress = false
+        fetchWatchdog.removeCallbacksAndMessages(null)
+        GB.removeNotification(GB.NOTIFICATION_ID_TRANSFER, context)
+        GB.signalActivityDataFinish(device)
+        if (device.isBusy) {
+            device.unsetBusyTask()
+            device.sendDeviceUpdateIntent(context)
+        }
+        LOG.info("Sync finished")
     }
 
     // --- Device settings ------------------------------------------------------------------------
@@ -934,6 +981,8 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private val historySteps = ArrayList<GloryFitStepsSample>()
     private var historyXor = 0
     private var historyTruncated = false
+    private var fetchInProgress = false
+    private val fetchWatchdog = Handler(Looper.getMainLooper())
     private var historyFrom = 0
     private var historyTo = 0
     private var historyPage = 0
@@ -1336,8 +1385,9 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private fun handleDaySummary(value: ByteArray) {
         if (value.size < 5 || value[2] != MODE_GET) return
         val metrics = parseTlv(value, 5)[FIELD_DAY_METRICS] ?: return
-        val steps = parseInnerInt(metrics, SUBFIELD_STEPS) ?: return
-        storeDailySteps(steps)
+        val steps = parseInnerInt(metrics, SUBFIELD_STEPS)
+        if (steps != null) storeDailySteps(steps)
+        finishFetch()
     }
 
 
@@ -1959,6 +2009,9 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
             "it_IT" to 0x08, "ru_RU" to 0x0e, "nl_NL" to 0x0f
         )
         const val MAX_HISTORY_PAGES: Int = 128
+
+        /** How long a sync may stay open before it is closed off regardless. */
+        const val FETCH_TIMEOUT_MS: Long = 3 * 60 * 1000
 
         /**
          * Ceiling on how far back a catch-up sync reaches. The watch keeps about nine
