@@ -1371,7 +1371,7 @@ class GloryFitProSupport : AbstractBTLESingleDeviceSupport(LOG) {
      * Code 0 is reserved for an active call: the watch silently drops plain notifications sent
      * with it, so it is never emitted here - anything resolving to it falls back to "Other".
      */
-    private fun notificationAppCode(type: NotificationType): Byte {
+    private fun notificationAppCode(type: NotificationType?): Byte {
         val mapped = when (type) {
             NotificationType.SIGNAL,
             NotificationType.MOLLY,
