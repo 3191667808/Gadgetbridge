@@ -1114,7 +1114,7 @@ public class GarminWorkoutParser implements ActivitySummaryParser {
 
         final boolean anyValidLaps = laps.stream()
                 .filter(lap -> (lap.getTotalTimerTime() != null && lap.getTotalTimerTime() != 0))
-                .count() > 1;
+                .count() > 0;
         final boolean anySwimmingLaps = laps.stream()
                 .anyMatch(lap -> lap.getSwimStyle() != null);
 
