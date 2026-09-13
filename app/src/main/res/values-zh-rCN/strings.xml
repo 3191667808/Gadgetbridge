@@ -5015,4 +5015,6 @@
     <string name="shokz_equalizer_band_3">频段 3</string>
     <string name="shokz_equalizer_band_4">频段 4</string>
     <string name="shokz_equalizer_band_5">频段 5</string>
+    <string name="shokz_equalizer_volume_boost">音量增强</string>
+    <string name="pref_title_connect_to_this_device_when_another_device_connects">另一台设备连接时连接到此设备</string>
 </resources>
