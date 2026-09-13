@@ -198,7 +198,7 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
         if (!isInitialized()) {
             logger.debug("Initializing device for {}", taskName);
             // first, add a transaction that performs device initialization
-            TransactionBuilder builder = createTransactionBuilder("Initialize device");
+            TransactionBuilder builder = createTransactionBuilder("performInitialized");
             builder.add(new CheckInitializedAction(gbDevice));
             initializeDevice(builder);
             builder.queue();
@@ -361,7 +361,7 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
             logger.warn("Services discovered, but device state is already " + getDevice().getState() + " for device: " + getDevice() + ", so ignoring");
             return;
         }
-        TransactionBuilder builder = createTransactionBuilder("Initializing device");
+        TransactionBuilder builder = createTransactionBuilder("initializeDevice");
 
         initializeDevice(builder);
 
