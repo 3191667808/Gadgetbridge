@@ -433,15 +433,12 @@ public class PebbleProtocol extends GBDeviceProtocol {
     private static final UUID UUID_LOVE_WEATHER = UUID.fromString("1f0b0701-cc8f-47ec-86e7-7181397f8888");
     private static final UUID UUID_WEATHER_LAND = UUID.fromString("1f0b0701-cc8f-47ec-86e7-7181397f9a25");
     private static final UUID UUID_REAL_WEATHER = UUID.fromString("1f0b0701-cc8f-47ec-86e7-7181397f9a52");
-
+    private static final UUID UUID_SIMPLE_WEATHER = UUID.fromString("fc42139a-5710-4456-b164-ddc12c464398");
     private static final UUID UUID_TOTK = UUID.fromString("c234bf39-a905-48a4-9972-2931aadf4d9e");
 
     private static final UUID UUID_ZERO = new UUID(0, 0);
-
     private static final UUID UUID_LOCATION = UUID.fromString("2c7e6a86-51e5-4ddd-b606-db43d1e4ad28"); // might be the location of "Berlin" or "Auto"
-
     private final Map<UUID, AppMessageHandler> mAppMessageHandlers = new HashMap<>();
-
     private UUID currentRunningApp = UUID_ZERO;
 
     public PebbleProtocol(GBDevice device) {
@@ -469,6 +466,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
             mAppMessageHandlers.put(UUID_REAL_WEATHER, new AppMessageHandlerRenoWeather(UUID_REAL_WEATHER, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_LOVE_WEATHER, new AppMessageHandlerRenoWeather(UUID_LOVE_WEATHER, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_WEATHER_LAND, new AppMessageHandlerRenoWeather(UUID_WEATHER_LAND, PebbleProtocol.this));
+            mAppMessageHandlers.put(UUID_SIMPLE_WEATHER, new AppMessageHandlerSimpleWeather(UUID_SIMPLE_WEATHER, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_TOTK, new AppMessageHandlerTearsOfTheKingdom(UUID_TOTK, PebbleProtocol.this));
         }
     }
