@@ -520,6 +520,13 @@ public class FileUtils {
         if (data.length > 13 && BLETypeConversions.toUint32(data, 8) == FitFile.Header.MAGIC) {
             return "fit";
         }
+        if (ArrayUtils.equals(data, new byte[]{'{', '"'}, 0)) {
+            // plain JSON
+            return "json";
+        } else if (ArrayUtils.equals(data, new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF, '{', '"'}, 0)) {
+            // JSON with leading UTF-8 Byte Order Mark (BOM)
+            return "json";
+        }
         return null;
     }
 }
