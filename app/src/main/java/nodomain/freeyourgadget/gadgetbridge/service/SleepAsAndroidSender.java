@@ -505,6 +505,10 @@ public class SleepAsAndroidSender {
         out[2] = sum;
     }
 
+    public boolean isTrackingOngoing() {
+        return trackingOngoing;
+    }
+
     public boolean isHeartRateRequested() {
         return heartRateRequested;
     }

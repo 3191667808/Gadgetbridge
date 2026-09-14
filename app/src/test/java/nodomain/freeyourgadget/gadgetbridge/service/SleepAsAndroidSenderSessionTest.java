@@ -181,6 +181,31 @@ public class SleepAsAndroidSenderSessionTest extends TestBase {
         return intent.getFloatArrayExtra("MAX_RAW_DATA").length;
     }
 
+    // --- session state --------------------------------------------------------------------
+
+    @Test
+    public void trackingStateFollowsTheSession() {
+        // How long an alarm may ring unattended is decided from this: an alarm with a session
+        // behind it gets a STOP_ALARM when the user dismisses it, one without has been seen not to.
+        Assert.assertFalse(sender.isTrackingOngoing());
+
+        sender.startTracking(trackingExtras(true, false));
+        Assert.assertTrue(sender.isTrackingOngoing());
+
+        sender.stopTracking();
+        Assert.assertFalse(sender.isTrackingOngoing());
+    }
+
+    @Test
+    public void trackingStateSurvivesPauseAndResume() {
+        sender.startTracking(trackingExtras(true, false));
+
+        sender.pauseTracking(true);
+        sender.pauseTracking(false);
+
+        Assert.assertTrue("a paused session is still a session", sender.isTrackingOngoing());
+    }
+
     // --- sensor request -------------------------------------------------------------------
 
     @Test
