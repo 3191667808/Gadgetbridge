@@ -127,10 +127,39 @@ public class PendingSleepAsAndroidActionTest extends TestBase {
     }
 
     @Test
-    public void onlyStoppingTheAlarmCancels() {
-        Assert.assertFalse(pending.cancels(SleepAsAndroidAction.STOP_TRACKING));
+    public void onlyTheStopActionsCancel() {
         Assert.assertFalse(pending.cancels(SleepAsAndroidAction.START_ALARM));
+        Assert.assertFalse(pending.cancels(SleepAsAndroidAction.START_TRACKING));
+        Assert.assertFalse(pending.cancels(SleepAsAndroidAction.CHECK_CONNECTED));
         Assert.assertFalse(pending.cancels(null));
+    }
+
+    @Test
+    public void endingTheSessionDropsAHeldAlarm() {
+        // An alarm that rang outside a session gets no STOP_ALARM of its own, so a connect
+        // completing after the user has finished with it would buzz the wearable for nothing.
+        pending.store(actionIntent(SleepAsAndroidAction.START_ALARM), ADDRESS);
+
+        Assert.assertTrue(pending.cancels(SleepAsAndroidAction.STOP_TRACKING));
+
+        Assert.assertFalse(pending.isPending());
+        Assert.assertNull(pending.take(ADDRESS));
+    }
+
+    @Test
+    public void endingTheSessionDropsHeldTracking() {
+        pending.store(actionIntent(SleepAsAndroidAction.START_TRACKING), ADDRESS);
+
+        Assert.assertTrue(pending.cancels(SleepAsAndroidAction.STOP_TRACKING));
+
+        Assert.assertFalse(pending.isPending());
+    }
+
+    @Test
+    public void endingTheSessionWithNothingHeldIsHarmless() {
+        Assert.assertTrue(pending.cancels(SleepAsAndroidAction.STOP_TRACKING));
+
+        Assert.assertFalse(pending.isPending());
     }
 
     @Test

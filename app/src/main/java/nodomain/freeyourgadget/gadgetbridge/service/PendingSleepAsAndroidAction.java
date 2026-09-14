@@ -88,19 +88,29 @@ public class PendingSleepAsAndroidAction {
     }
 
     /**
-     * Drop a held alarm that Sleep as Android has since stopped, so a connect that completes after
-     * the user has already dismissed it does not buzz the wearable for nothing.
+     * Drop a held request that Sleep as Android has since given up on, so a connect that completes
+     * after the user has already dismissed the alarm or ended the session does not buzz the
+     * wearable, or open a session, for nothing.
+     * <p>
+     * STOP_TRACKING ends both: an alarm that rang outside a session is not always followed by a
+     * STOP_ALARM, and the session ending is then the only word that it is over.
      *
      * @return true if the action is one that cancels a hold rather than being held itself
      */
     public boolean cancels(@Nullable final String action) {
-        if (!SleepAsAndroidAction.STOP_ALARM.equals(action)) {
-            return false;
+        if (SleepAsAndroidAction.STOP_ALARM.equals(action)) {
+            if (SleepAsAndroidAction.START_ALARM.equals(this.action)) {
+                clear();
+            }
+            return true;
         }
-        if (SleepAsAndroidAction.START_ALARM.equals(this.action)) {
-            clear();
+        if (SleepAsAndroidAction.STOP_TRACKING.equals(action)) {
+            if (rank(this.action) > 0) {
+                clear();
+            }
+            return true;
         }
-        return true;
+        return false;
     }
 
     /**
