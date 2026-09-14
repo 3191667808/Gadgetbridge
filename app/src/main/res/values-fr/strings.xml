@@ -4622,7 +4622,7 @@
     <string name="body_composition_bone_mass">Os</string>
     <string name="body_composition_bmr">Métabolisme basal</string>
     <string name="body_composition_impedance">Impédance</string>
-    <string name="body_composition_percent">%1$.1f % %</string>
+    <string name="body_composition_percent">%1$.1f %%</string>
     <string name="body_composition_kcal">%1$d kcal</string>
     <string name="body_composition_ohm">%1$d Ω</string>
     <string name="pref_title_chart_weight_body_composition">Composition corporelle</string>

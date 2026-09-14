@@ -1,5 +1,7 @@
 package nodomain.freeyourgadget.gadgetbridge.service.devices.shokz
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -8,6 +10,7 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import androidx.annotation.RequiresPermission
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.Language
@@ -805,6 +808,7 @@ class ShokzSupport : AbstractHeadphoneBTBRDeviceSupport(LOG, MAX_MTU) {
     }
 
     private val multipointBroadcastReceiver = object : BroadcastReceiver() {
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onReceive(context: Context?, intent: Intent?) {
             val device = intent?.getParcelableCompat<GBDevice>(GBDevice.EXTRA_DEVICE)
             if (device?.address != gbDevice.address) {
@@ -825,7 +829,8 @@ class ShokzSupport : AbstractHeadphoneBTBRDeviceSupport(LOG, MAX_MTU) {
                     // that same name alongside each device's real address, our own address is
                     // found by matching the local adapter's name against that list - confirmed
                     // against a real capture of the official Shokz app doing the same thing.
-                    val localName = getBluetoothAdapter()?.name
+                    @SuppressLint("MissingPermission") // if we got here, we definitely got bluetooth permission
+                    val localName = bluetoothAdapter?.name
                     val macAddress = lastMultipointDevices.find { it.name == localName }?.address
                     if (macAddress == null) {
                         LOG.warn("Could not determine own address (local name={}) to disable multipoint, aborting", localName)
