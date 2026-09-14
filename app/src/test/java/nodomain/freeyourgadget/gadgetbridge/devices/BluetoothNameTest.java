@@ -243,6 +243,7 @@ public class BluetoothNameTest extends TestBase {
             put("YBW-05", DeviceType.FITPRO); // #6069
             put("C20", DeviceType.C20); // #4070
             put("C 20", DeviceType.C20); // #5495
+            put("C20_Pro", DeviceType.C20PRO); // #6763
             put("OV-Touch2.6_LE", DeviceType.OVTOUCH26); // #5628
             put("BPW4500", DeviceType.BRAUN_BPW4500); // #5886
             put("MATSON Monitor", DeviceType.BM2_BATTERY_MONITOR); // #6212

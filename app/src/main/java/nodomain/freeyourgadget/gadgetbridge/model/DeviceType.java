@@ -282,6 +282,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.gree.GreeAcCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hama.fit6900.HamaFit6900DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.huaweiwatchgt7.HuaweiWatchGT7Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.huaweiwatchgt7.HuaweiWatchGT7ProCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.C20ProCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.moyoung.GarettEvaCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.haylou.HaylouS35AncCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.hplus.EXRIZUK8Coordinator;
@@ -1173,6 +1174,7 @@ public enum DeviceType {
     BLACKVIEW_R60(BlackviewR60Coordinator.class),
     MISIRUN_C17(MisirunC17Coordinator.class),
     C20(C20Coordinator.class),
+    C20PRO(C20ProCoordinator.class),
     L70(L70Coordinator.class),
     HC96(HC96Coordinator.class),
     KT80(KT80Coordinator.class),
