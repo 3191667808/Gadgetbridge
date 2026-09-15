@@ -973,6 +973,9 @@
     <string name="alarm_smart_wakeup_interval">Smart wakeup interval:</string>
     <string name="alarm_smart_wakeup_interval_default">5 minutes</string>
     <string name="alarm_snooze">Snooze</string>
+    <string name="alarm_add">Add alarm</string>
+    <string name="alarm_max_slots_reached">Maximum number of alarms reached</string>
+    <string name="alarm_show_unused">Show unused alarms</string>
     <string name="user_feedback_miband_set_alarms_failed">There was an error setting the alarms, please try again.</string>
     <string name="user_feedback_miband_set_alarms_ok">Alarms sent to device.</string>
     <string name="user_feedback_set_settings_ok">Settings sent to device.</string>
