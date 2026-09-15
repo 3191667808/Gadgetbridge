@@ -99,7 +99,6 @@ import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiDeviceStatus;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiFileSyncService;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiFindMyWatch;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiInstalledAppsService;
-import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.GdiSettingsService;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.InitRequest;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.ScreenDefinitionRequest;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.ScreenStateRequest;
@@ -573,6 +572,10 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             return;
         }
 
+        if (dataTypes == RecordedDataTypes.TYPE_SYNC) {
+            requestBatteryUpdate();
+        }
+
         if (this.supportedFileTypeList.isEmpty() && !newSyncProtocol()) {
             LOG.warn("No known supported file types");
             return;
@@ -869,7 +872,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         //following is needed for vivomove style
         sendOutgoingMessage("set sync ready", new SystemEventMessage(SystemEventMessage.GarminSystemEventType.SYNC_READY, 0));
 
-        enableBatteryLevelUpdate();
+        requestBatteryUpdate();
 
 
         gbDevice.setUpdateState(GBDevice.State.INITIALIZED, getContext());
@@ -1051,7 +1054,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         }
     }
 
-    private void enableBatteryLevelUpdate() {
+    private void requestBatteryUpdate() {
         sendProtobufRequest("enable battery updates", Smart.newBuilder()
                 .setDeviceStatusService(
                         GdiDeviceStatus.DeviceStatusService.newBuilder()
