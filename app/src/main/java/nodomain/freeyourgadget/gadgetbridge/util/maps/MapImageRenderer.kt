@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathDashPathEffect
 import android.graphics.PointF
+import android.os.Parcelable
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import org.mapsforge.core.graphics.TileBitmap
 import org.mapsforge.core.model.Tile
@@ -23,12 +24,14 @@ import kotlin.math.ceil
 import kotlin.math.hypot
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.withRotation
+import kotlinx.parcelize.Parcelize
 
 /**
  * A single point of a GPS track, identified by latitude/longitude.
  * Sequence order is implicit in list position.
  */
-data class TrackPoint(val lat: Double, val lon: Double)
+@Parcelize
+data class TrackPoint(val lat: Double, val lon: Double) : Parcelable
 
 /**
  * Visual style for the position marker drawn on the rendered map.
