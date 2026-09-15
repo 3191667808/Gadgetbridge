@@ -2,7 +2,7 @@
 
 <!-- For contributors: do not modify this file - the project maintainers will update it as needed -->
 
-#### Next version (WIP)
+#### 0.94.0
 
 * Initial support for Bose NC 700
 * Initial support for Beurer BM69
@@ -12,7 +12,7 @@
 * Initial support for GRV FC1, Swiss Peak (GloryFit)
 * Initial support for Huawei Watch GT 7
 * Initial support for Jabra Evole 65, Evolve2 55 / Evolve2 65
-* Initial support for Alt Vibe, Garett Eva, MT55 (MoYoung / Da Fit)
+* Initial support for more MoYoung / Da Fit devices: Alt Vibe, C20_Pro, Garett Eva, MT55
 * Initial support for QN-Scale (Chipsea CS20 family)
 * Initial support for Roidmi F8 Storm vacuum cleaner
 * Initial support for Shokz OpenRun Pro 2
