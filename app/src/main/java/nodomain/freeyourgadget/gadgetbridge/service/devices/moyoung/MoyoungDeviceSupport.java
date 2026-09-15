@@ -963,7 +963,10 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 }
                 buffer.put(repetition);
                 // Older packet type
-                sendPacket(builder, MoyoungPacketOut.buildPacket(getMtu(), MoyoungConstants.CMD_SET_ALARM_CLOCK, buffer.array()));
+                if (!coordinator.newAlarmProtocol()) {
+                    // #6763 - some devices only support the new alarm protocol, and will reset all alarms on the watch otherwise
+                    sendPacket(builder, MoyoungPacketOut.buildPacket(getMtu(), MoyoungConstants.CMD_SET_ALARM_CLOCK, buffer.array()));
+                }
                 // Newer packet type
                 ByteBuffer bufferNewProtocol = ByteBuffer.allocate(10);
                 bufferNewProtocol.order(ByteOrder.LITTLE_ENDIAN);
