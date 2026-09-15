@@ -26,6 +26,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.SettingsRenderHost
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs
 
 /**
@@ -192,7 +193,7 @@ data class ActionSetting(
     @StringRes val confirmationMessage: Int = 0,
     override val visibleWhen: ((Prefs) -> Boolean)? = null,
     override val connectedOnly: Boolean = true,
-    val onClick: ((SettingsRenderHost) -> Boolean)? = null,
+    val onClick: ((Context, GBDevice?) -> Boolean)? = null,
 ) : DeviceSetting()
 
 /**

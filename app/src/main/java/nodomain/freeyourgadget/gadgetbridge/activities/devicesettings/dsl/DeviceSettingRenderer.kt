@@ -416,7 +416,7 @@ object DeviceSettingRenderer {
                                     .setTitle(preference.title)
                                     .setMessage(setting.confirmationMessage)
                                     .setPositiveButton(R.string.ok) { _, _ ->
-                                        setting.onClick?.invoke(handler)
+                                        setting.onClick?.invoke(handler.context, handler.device)
                                     }
                                     .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
                                     .show()
@@ -424,7 +424,7 @@ object DeviceSettingRenderer {
                             }
                         } else {
                             setOnPreferenceClickListener {
-                                setting.onClick?.invoke(handler) ?: false
+                                setting.onClick?.invoke(handler.context, handler.device) ?: false
                             }
                         }
                     }
