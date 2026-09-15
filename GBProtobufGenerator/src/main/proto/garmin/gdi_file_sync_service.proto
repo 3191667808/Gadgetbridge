@@ -60,7 +60,7 @@ message FileModifiedFlags {
 
 message TransferStatusRequest {
   optional FileId uid = 1;
-  optional uint32 unk2 = 2;
+  optional uint32 handle = 2;
 }
 
 message TransferStatusResponse {
