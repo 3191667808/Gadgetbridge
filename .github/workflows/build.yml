@@ -22,8 +22,12 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: 3) 准备 Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 3) 检查 Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls /usr/local/lib/android/sdk 2>/dev/null || true
+          ls /usr/local/lib/android/sdk/platforms 2>/dev/null || true
+          which sdkmanager || true
 
       - name: 4) 补装 SDK 组件
         run: |
