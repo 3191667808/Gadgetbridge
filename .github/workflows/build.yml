@@ -1,0 +1,62 @@
+name: Build GB (HealthJson)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: 1) 取代码
+        uses: actions/checkout@v4
+
+      - name: 2) 装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: 3) 准备 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 4) 补装 SDK 组件
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-37" > /dev/null 2>&1 || true
+          echo "SDK ready"
+
+      - name: 5) 注入代码（把实时数据多写一份 JSON）
+        run: |
+          python3 - <<'PY'
+          p = "app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/XiaomiHealthService.java"
+          s = open(p, encoding="utf-8").read()
+          old = "sample.setSteps(realTimeStats.getSteps() - previousSteps);"
+          n = s.count(old)
+          print("命中次数:", n)
+          assert n == 1, "没有找到目标行"
+          ins = old + "\n                    try {\n                        nodomain.freeyourgadget.gadgetbridge.HealthJsonDumper.update(getSupport().getContext(), realTimeStats.getSteps(), realTimeStats.getHeartRate());\n                    } catch (final Throwable ignored) { }"
+          s = s.replace(old, ins)
+          open(p, "w", encoding="utf-8").write(s)
+          print("注入完成")
+          PY
+          F=app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/XiaomiHealthService.java
+          sed -n '1013,1032p' "$F"
+          grep -q "HealthJsonDumper" "$F" || { echo "校验失败"; exit 1; }
+          echo "校验通过"
+
+      - name: 6) 编译
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: 7) 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gb-debug-apk
+          path: app/build/outputs/apk/mainline/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
