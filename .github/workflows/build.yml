@@ -1,4 +1,5 @@
-name: Build GB (HealthJson)
+# ===== V5.1: 实时流 + 60 秒兜底（每 60 秒）=====
+name: Build GB (AutoSync)
 
 on:
   workflow_dispatch:
@@ -26,8 +27,7 @@ jobs:
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls /usr/local/lib/android/sdk 2>/dev/null || true
-          ls /usr/local/lib/android/sdk/platforms 2>/dev/null || true
-          which sdkmanager || true
+          which sdkmanager 2>/dev/null || true
 
       - name: 4) 补装 SDK 组件
         run: |
@@ -35,32 +35,187 @@ jobs:
           sdkmanager "platforms;android-37" > /dev/null 2>&1 || true
           echo "SDK ready"
 
-      - name: 5) 注入代码（把实时数据多写一份 JSON）
+      - name: 5) 写入 HealthSyncTicker.java
+        run: |
+          cat > app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/HealthSyncTicker.java <<'JAVA'
+          package nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services;
+
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import java.io.File;
+          import java.io.FileWriter;
+
+          /**
+           * 自动同步补丁（V5.1）
+           *
+           * 每 60 秒做两件事：
+           *   1) 确认手表的“实时数据流”处于开启状态（enableRealtimeStats(true)）。
+           *      该方法内部有“状态相同则直接忽略”的保护，所以重复调用没有副作用；
+           *      但如果 GB 内部把它关掉了，这里会自动重新打开（自愈）。
+           *   2) 兜底：主动请求一次“今日活动数据”（onFetchRecordedData），
+           *      保证即使实时流没有持续推送，数据也不会旧过 60 秒。
+           *
+           * 外部开关（都在 GB 的 files 目录下，建个空文件即可，无需重新编译）：
+           *   - disable_realtime : 不再开实时流（只保留 60 秒兜底）
+           *   - disable_fallback : 不再做兜底请求（只靠实时流）
+           *
+           * 心跳文件（每次触发覆盖写：毫秒时间戳 + rt + fb）：
+           *   /sdcard/Android/data/nodomain.freeyourgadget.gadgetbridge/files/autosync_beat.txt
+           *   rt=1 表示实时流已确认开启；fb=1 表示本轮执行了兜底请求。
+           *
+           * 所有异常一律吞掉，绝不干扰 GB 主流程。
+           */
+          public final class HealthSyncTicker {
+
+              /** 周期（毫秒） */
+              private static final long INTERVAL_MS = 60000L;
+
+              /** 首次触发延迟（毫秒）——等服务 attach 完成 */
+              private static final long FIRST_DELAY_MS = 3000L;
+
+              /** GB 外部 files 目录（GB 自身有存储权限） */
+              private static final String BASE_DIR =
+                      "/sdcard/Android/data/nodomain.freeyourgadget.gadgetbridge/files";
+
+              private static final String BEAT_PATH = BASE_DIR + "/autosync_beat.txt";
+              private static final String RT_OFF_PATH = BASE_DIR + "/disable_realtime";
+              private static final String FB_OFF_PATH = BASE_DIR + "/disable_fallback";
+
+              private static final Handler HANDLER = new Handler(Looper.getMainLooper());
+
+              private static volatile XiaomiHealthService sService = null;
+
+              private HealthSyncTicker() {
+              }
+
+              private static void writeBeat(final String text) {
+                  try {
+                      final File dir = new File(BASE_DIR);
+                      if (!dir.exists()) {
+                          dir.mkdirs();
+                      }
+                      final FileWriter w = new FileWriter(new File(BEAT_PATH), false);
+                      w.write(text);
+                      w.flush();
+                      w.close();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static boolean exists(final String path) {
+                  try {
+                      return new File(path).exists();
+                  } catch (Throwable ignored) {
+                      return false;
+                  }
+              }
+
+              private static final Runnable TICK = new Runnable() {
+                  @Override
+                  public void run() {
+                      final XiaomiHealthService svc = sService;
+
+                      int rt = 0;
+                      int fb = 0;
+
+                      // 1) 实时数据流：每轮确认一次（开着=无操作；被关了=自动重开）
+                      if (!exists(RT_OFF_PATH)) {
+                          try {
+                              if (svc != null) {
+                                  svc.enableRealtimeStats(true);
+                                  rt = 1;
+                              }
+                          } catch (Throwable ignored) {
+                          }
+                      }
+
+                      // 2) 兜底：请求一次今日活动数据（1 == RecordedDataTypes.TYPE_ACTIVITY）
+                      if (!exists(FB_OFF_PATH)) {
+                          try {
+                              if (svc != null) {
+                                  svc.onFetchRecordedData(1);
+                                  fb = 1;
+                              }
+                          } catch (Throwable ignored) {
+                          }
+                      }
+
+                      // 3) 心跳：时间戳 + 实时流状态 + 兜底状态
+                      writeBeat(System.currentTimeMillis() + " rt=" + rt + " fb=" + fb);
+
+                      // 4) 排下一次
+                      try {
+                          HANDLER.postDelayed(this, INTERVAL_MS);
+                      } catch (Throwable ignored) {
+                      }
+                  }
+              };
+
+              /** 由 XiaomiHealthService 构造时调用。 */
+              public static void start(final XiaomiHealthService service) {
+                  try {
+                      sService = service;
+                      HANDLER.removeCallbacks(TICK);
+                      HANDLER.postDelayed(TICK, FIRST_DELAY_MS);
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              /** 立即跑一轮，并继续保持周期。 */
+              public static void kick() {
+                  try {
+                      HANDLER.removeCallbacks(TICK);
+                      HANDLER.post(TICK);
+                  } catch (Throwable ignored) {
+                  }
+              }
+          }
+          JAVA
+          wc -l app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/HealthSyncTicker.java
+
+      - name: 6) 启动定时器（改构造函数）
         run: |
           python3 - <<'PY'
+          import io
           p = "app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/XiaomiHealthService.java"
-          s = open(p, encoding="utf-8").read()
-          old = "sample.setSteps(realTimeStats.getSteps() - previousSteps);"
-          n = s.count(old)
-          print("命中次数:", n)
-          assert n == 1, "没有找到目标行"
-          ins = old + "\n                    try {\n                        nodomain.freeyourgadget.gadgetbridge.HealthJsonDumper.update(getSupport().getContext(), realTimeStats.getSteps(), realTimeStats.getHeartRate());\n                    } catch (final Throwable ignored) { }"
-          s = s.replace(old, ins)
-          open(p, "w", encoding="utf-8").write(s)
-          print("注入完成")
+          s = io.open(p, encoding="utf-8").read()
+          OLD = ("    public XiaomiHealthService(final XiaomiSupport support) {\n"
+                 "        super(support);\n"
+                 "    }")
+          NEW = ("    public XiaomiHealthService(final XiaomiSupport support) {\n"
+                 "        super(support);\n"
+                 "\n"
+                 "        // ===== AutoSync patch: 每 60 秒请求一次今日活动数据 =====\n"
+                 "        try {\n"
+                 "            HealthSyncTicker.start(this);\n"
+                 "        } catch (Throwable ignored) {\n"
+                 "        }\n"
+                 "    }")
+          if "HealthSyncTicker" in s:
+              print("ALREADY_PATCHED")
+          else:
+              n = s.count(OLD)
+              print("anchor hits:", n)
+              assert n == 1, "anchor not found"
+              s = s.replace(OLD, NEW, 1)
+              io.open(p, "w", encoding="utf-8").write(s)
+              print("injected OK")
           PY
-          F=app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/XiaomiHealthService.java
-          sed -n '1013,1032p' "$F"
-          grep -q "HealthJsonDumper" "$F" || { echo "校验失败"; exit 1; }
-          echo "校验通过"
 
-      - name: 6) 编译
+      - name: 7) 校验
+        run: |
+          test -f app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/HealthSyncTicker.java || { echo "Ticker missing"; exit 1; }
+          grep -q "HealthSyncTicker.start(this)" app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/xiaomi/services/XiaomiHealthService.java || { echo "inject failed"; exit 1; }
+          echo "verify OK"
+
+      - name: 8) 编译
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: 7) 上传 APK
+      - name: 9) 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: gb-debug-apk
+          name: gb-debug-apk-autosync
           path: app/build/outputs/apk/mainline/debug/*.apk
           if-no-files-found: error
           retention-days: 14
